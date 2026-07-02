@@ -120,6 +120,16 @@ API 명세와 테스트는 Swagger UI에서 확인한다.
 http://localhost:8080/swagger-ui/index.html
 ```
 
+브라우저 확인 순서:
+
+1. `api` 프로필로 backend를 실행한다.
+2. 브라우저에서 Swagger UI 주소를 연다.
+3. `game-controller` 또는 `ai-context-controller` 섹션을 펼친다.
+4. 사용할 API를 선택하고 `Try it out`을 누른다.
+5. `gameId`, `mode`, `purpose` 값을 입력한 뒤 `Execute`를 누른다.
+
+`gameId`는 DBeaver의 `games.id` 또는 `GET /api/rankings/live` 응답에서 확인한 값을 사용한다. 데이터가 아직 쌓이지 않았거나 해당 경기가 없으면 `404`가 나올 수 있다.
+
 ```bash
 # 경기 상세 화면용
 curl "http://localhost:8080/api/games/{gameId}?mode=PROTECTED"
