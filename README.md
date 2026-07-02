@@ -110,6 +110,23 @@ curl http://localhost:8080/api/rankings/live
 
 진행 중인 MLB 경기가 없는 시간대(한국 기준 낮~저녁)에는 랭킹이 비어 있는 것이 정상이다.
 
+### 담당 기능에서 사용할 API
+
+프론트엔드와 ai-service 담당자는 DB나 Redis에 직접 연결하지 않고 Spring Boot API를 통해 데이터를 받는다.
+
+```bash
+# 경기 상세 화면용
+curl "http://localhost:8080/api/games/{gameId}?mode=PROTECTED"
+curl "http://localhost:8080/api/games/{gameId}?mode=NORMAL"
+
+# LLM 문구 생성용 스포일러 프리 context
+curl "http://localhost:8080/api/ai/games/{gameId}/spoiler-free-context"
+curl "http://localhost:8080/api/ai/games/{gameId}/spoiler-free-context?purpose=NOTIFICATION"
+```
+
+`mode=PROTECTED`는 점수, 득점 play처럼 스포일러가 될 수 있는 값을 숨긴다. 보호 모드 화면이나 LLM 문구 생성에는 이 모드를 우선 사용한다.
+`mode=NORMAL`은 경기 상세 화면에서 실제 점수와 play별 점수 정보를 보여줘야 할 때 사용한다.
+
 빌드와 테스트만 돌려보려면:
 
 ```bash
@@ -119,7 +136,124 @@ cd backend
 
 ---
 
-## 5. ai-service 실행 (창현)
+## 5. 로컬 데이터 적재와 시각 확인
+
+아직 공용 배포 서버가 없으므로, 각자 로컬에서 `poller`와 `scorer`를 실행해 데이터를 쌓아야 한다.
+
+```text
+balldontlie API
+  -> poller
+  -> PostgreSQL(games, plays)
+  -> RabbitMQ(score task)
+  -> scorer
+  -> PostgreSQL(watch_scores) + Redis(score:rank:live)
+```
+
+### 데이터가 쌓이는 조건
+
+- Docker Desktop이 실행 중이어야 한다.
+- `postgres`, `redis`, `rabbitmq` 컨테이너가 떠 있어야 한다.
+- `poller` 프로필이 실행 중이어야 `games`, `plays`가 쌓인다.
+- `scorer` 프로필이 실행 중이어야 `watch_scores`와 Redis 랭킹이 쌓인다.
+- 진행 중인 MLB 경기가 없으면 `watch_scores`나 Redis 랭킹이 비어 있을 수 있다.
+
+### DBeaver에서 PostgreSQL 확인
+
+DBeaver에서 새 PostgreSQL 연결을 만든다.
+
+| 항목 | 값 |
+|---|---|
+| Host | `localhost` |
+| Port | `5432` |
+| Database | `pulse` |
+| Username | `pulse` |
+| Password | `.env`의 `POSTGRES_PASSWORD` 값 |
+
+주요 테이블:
+
+| 테이블 | 의미 |
+|---|---|
+| `games` | 경기 최신 상태 스냅샷 |
+| `plays` | 경기별 play 로그 |
+| `watch_scores` | 추천 점수 계산 이력 |
+
+자주 쓰는 확인 쿼리:
+
+```sql
+select *
+from games
+order by updated_at desc;
+```
+
+```sql
+select *
+from plays
+order by fetched_at desc;
+```
+
+```sql
+select game_id, base_score, watch_score, signals, reason_tags, created_at
+from watch_scores
+order by created_at desc;
+```
+
+특정 경기의 점수 흐름:
+
+```sql
+select game_id, base_score, watch_score, signals, reason_tags, created_at
+from watch_scores
+where game_id = 123
+order by created_at;
+```
+
+`123`은 실제 `games.id` 값으로 바꿔서 조회한다.
+
+### RedisInsight에서 실시간 랭킹 확인
+
+RedisInsight에서 새 Redis 연결을 만든다.
+
+| 항목 | 값 |
+|---|---|
+| Host | `localhost` |
+| Port | `6379` |
+| Username | 비움 |
+| Password | 비움 |
+| Database Alias | `pulse-local` |
+
+연결 후 key 검색창에서 아래 key를 찾는다.
+
+```text
+score:rank:live
+```
+
+이 값은 Redis Sorted Set이다.
+
+```text
+member = gameId
+score = watchScore
+```
+
+예를 들어 `5059041 -> 73.0`이면 `gameId=5059041`인 경기가 현재 추천 점수 `73.0`으로 랭킹에 들어간 상태다.
+
+### RabbitMQ 관리 UI 확인
+
+브라우저에서 http://localhost:15672 로 접속한다.
+
+| 항목 | 값 |
+|---|---|
+| Username | `pulse` |
+| Password | `.env`의 `RABBITMQ_PASSWORD` 값 |
+
+주요 큐:
+
+| 큐 | 의미 |
+|---|---|
+| `score.calculate.q` | poller가 발행하고 scorer가 소비하는 점수 계산 작업 |
+| `score.calculate.dlq` | 처리 실패한 점수 계산 작업 |
+
+---
+
+## 6. ai-service 실행 (창현)
 
 ```bash
 cd ai-service
@@ -128,7 +262,7 @@ python -m venv .venv
 # 이후 FastAPI 프로젝트 초기 생성 — ai-service/README.md 참고
 ```
 
-## 6. frontend 실행 (담당자)
+## 7. frontend 실행 (담당자)
 
 ```bash
 cd frontend
@@ -137,7 +271,7 @@ cd frontend
 
 ---
 
-## 7. 브랜치 규칙과 작업 흐름
+## 8. 브랜치 규칙과 작업 흐름
 
 1. `main`에서 직접 작업 금지 (브랜치 보호 설정됨)
 2. 작업 시작 시:
@@ -151,7 +285,7 @@ cd frontend
 
 ---
 
-## 8. 자주 발생하는 문제
+## 9. 자주 발생하는 문제
 
 | 증상 | 해결 |
 |---|---|
