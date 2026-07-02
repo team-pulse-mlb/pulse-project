@@ -114,6 +114,12 @@ curl http://localhost:8080/api/rankings/live
 
 프론트엔드와 ai-service 담당자는 DB나 Redis에 직접 연결하지 않고 Spring Boot API를 통해 데이터를 받는다.
 
+API 명세와 테스트는 Swagger UI에서 확인한다.
+
+```text
+http://localhost:8080/swagger-ui/index.html
+```
+
 ```bash
 # 경기 상세 화면용
 curl "http://localhost:8080/api/games/{gameId}?mode=PROTECTED"
