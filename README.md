@@ -57,7 +57,7 @@ cp .env.example .env
 ## 3. 인프라 실행
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml --env-file .env up -d
 docker ps
 ```
 
