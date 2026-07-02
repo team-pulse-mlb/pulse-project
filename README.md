@@ -19,6 +19,8 @@
 
 Docker Desktop은 설치 후 **실행 중 상태**여야 한다.
 
+터미널 명령어는 **Git Bash 기준**으로 작성한다. Windows에서도 Git Bash 사용을 권장한다.
+
 ---
 
 ## 1. 레포 클론과 Git 설정
@@ -298,7 +300,7 @@ score = watchScore
 ```bash
 cd ai-service
 python -m venv .venv
-.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
+source .venv/Scripts/activate
 # 이후 FastAPI 프로젝트 초기 생성 — ai-service/README.md 참고
 ```
 
