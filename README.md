@@ -49,7 +49,10 @@ cp .env.example .env
 | `RABBITMQ_PASSWORD` | 로컬 RabbitMQ 비밀번호. 예: `pulse` | 직접 지정 |
 | `OPENAI_API_KEY` | OpenAI API 키 (ai-service 담당만) | 창현 |
 
-PostgreSQL DB 이름과 계정은 기본값 `pulse`를 사용한다. Redis는 로컬 개발에서 비밀번호 없이 `localhost:6379`로 연결한다.
+PostgreSQL DB 이름과 계정은 기본값 `pulse`를 사용한다. `POSTGRES_PASSWORD`, `RABBITMQ_PASSWORD`는 팀원마다 다르게 정해도 되지만, Spring Boot와 DBeaver/RabbitMQ 관리 UI에도 같은 값을 사용해야 한다.
+Redis는 로컬 개발에서 비밀번호 없이 `localhost:6379`로 연결한다.
+
+주의: PostgreSQL 비밀번호는 Docker 볼륨이 처음 만들어질 때 적용된다. 이미 컨테이너를 띄운 뒤 `.env`의 `POSTGRES_PASSWORD`를 바꾸면 기존 DB 비밀번호가 자동으로 바뀌지 않을 수 있다. 개발 초반에는 예시처럼 `pulse`로 맞춰 쓰는 것을 권장한다.
 
 `.env`는 절대 커밋하지 않는다 (`.gitignore`에 이미 등록됨).
 
