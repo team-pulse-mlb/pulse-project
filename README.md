@@ -86,7 +86,7 @@ IntelliJ에서 `backend/` 폴더를 열고 Run Configuration을 만든다.
 | `poller` | balldontlie 데이터 수집 |
 | `scorer` | 추천 점수 계산, Redis 랭킹 저장 |
 
-처음 개발할 때는 `api,dev`로 실행하면 된다. 이 프로필은 샘플 경기, play, 추천 점수, Redis 랭킹을 로컬에 자동으로 넣는다.
+처음 개발할 때는 `api,dev`로 실행하면 된다. 이 프로필은 샘플 경기, play, 추천 점수, Redis 랭킹을 로컬에 자동으로 넣고, 진행 중 샘플 경기 `900001`을 10초마다 갱신한다.
 
 샘플 `gameId`:
 
@@ -95,6 +95,8 @@ IntelliJ에서 `backend/` 폴더를 열고 Run Configuration을 만든다.
 | `900001` | 진행 중 |
 | `900002` | 예정 |
 | `900003` | 종료 |
+
+`900001`은 시간이 지나면 `plays`, `watch_scores`, Redis `score:rank:live` 값이 계속 바뀐다.
 
 ---
 
@@ -214,6 +216,7 @@ cd backend
 | DB 연결 실패 | Docker Desktop 실행 여부, `docker ps`, `.env` 비밀번호 |
 | Swagger가 안 열림 | Spring Boot를 `api` 또는 `api,dev`로 실행했는지 |
 | 랭킹이 비어 있음 | 실제 진행 중 경기가 없을 수 있음. 개발 중에는 `api,dev` 사용 |
+| 개발용 데이터가 안 바뀜 | `api,dev` 프로필로 실행했는지 확인 |
 | poller 401/403 | `BDL_API_KEY` 설정 |
 
 설정 중 막히면 이 문서를 고쳐서 PR로 올려 주세요.
