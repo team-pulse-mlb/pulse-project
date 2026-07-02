@@ -92,7 +92,7 @@ IntelliJ에서 `backend/` 폴더를 열고 Run Configuration을 만든다.
 | `poller` | balldontlie 데이터 수집 |
 | `scorer` | 추천 점수 계산, Redis 랭킹 저장 |
 
-처음 개발할 때는 `api,dev`로 실행하면 된다. 이 프로필은 샘플 경기, play, 추천 점수, Redis 랭킹을 로컬에 자동으로 넣고, 진행 중 샘플 경기 `900001`을 10초마다 갱신한다.
+처음 개발할 때는 `api,dev`로 실행하면 된다. 이 프로필은 샘플 경기, play, 추천 점수, Redis 랭킹을 로컬에 자동으로 넣고, 진행 중 샘플 경기 `900001`을 3초마다 갱신한다.
 
 샘플 `gameId`:
 

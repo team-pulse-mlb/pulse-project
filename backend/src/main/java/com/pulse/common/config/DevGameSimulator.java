@@ -43,7 +43,7 @@ public class DevGameSimulator {
     private final RankingService rankingService;
     private final ScoringProperties scoringProperties;
 
-    @Scheduled(initialDelay = 10_000, fixedDelay = 10_000)
+    @Scheduled(initialDelay = 3_000, fixedDelay = 3_000)
     @Transactional
     public void appendNextPlay() {
         Game game = gameRepository.findById(DevFixtureDataLoader.LIVE_GAME_ID).orElse(null);
