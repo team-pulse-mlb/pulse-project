@@ -225,4 +225,8 @@ cd backend
 | 개발용 데이터가 안 바뀜 | `api,dev` 프로필로 실행했는지 확인 |
 | poller 401/403 | `BDL_API_KEY` 설정 |
 
+| 도커 연결 오류 관련 해당 오류 뜨면 참고 |
+| error while interpolating services.postgres.environment.POSTGRES_PASSWORD: required variable POSTGRES_PASSWORD is missing a value: POSTGRES_PASSWORD required |
+| docker.exe compose --env-file .env -f infra/docker-compose.yml up -d 이렇게 실행할 것 |
+
 설정 중 막히면 이 문서를 고쳐서 PR로 올려 주세요.
