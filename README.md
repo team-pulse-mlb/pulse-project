@@ -145,7 +145,7 @@ cd frontend
    git checkout main && git pull
    git checkout -b feat/{이름}-{작업}     # 예: feat/minseok-game-detail
    ```
-3. 커밋 메시지: Conventional Commits — `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `tune:`(점수 상수 조정)
+3. 커밋 메시지: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `style:`, `build:`, `ci:`, `tune:`(점수 상수 조정)
 4. push 후 GitHub에서 PR 생성 → 템플릿 체크리스트 작성 → 리뷰 1명 승인 → **squash merge**
 5. 추천 점수 상수는 `backend/src/main/resources/scoring.yml`에만 있다. 수정 시 파일 상단 규칙(version 증가, 커밋 메시지에 근거)을 따른다.
 
