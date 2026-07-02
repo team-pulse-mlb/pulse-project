@@ -193,14 +193,30 @@ source .venv/Scripts/activate
 `main`에는 직접 커밋하지 않는다. 작업은 새 브랜치에서 진행하고 PR로 병합한다.
 
 ```bash
+# 1. 최신 main 받기
 git checkout main
-git pull
+git pull origin main
+
+# 2. 작업 브랜치 만들기
 git checkout -b feat/{이름}-{작업}
+
+# 3. 작업하고 커밋
+git add .
+git commit -m "feat: add login api"
+
+# 4. 내 브랜치로 push
+git push origin feat/{이름}-{작업}
 ```
 
-커밋 메시지 예시:
+5. GitHub에서 **Compare & pull request**를 눌러 PR을 만든다.
+
+브랜치 이름과 커밋 메시지 예시:
 
 ```text
+feat/login-api
+fix/ranking-empty-response
+docs/onboarding-guide
+
 feat: 경기 상세 API 추가
 fix: 랭킹 빈 응답 처리
 docs: 온보딩 문서 정리
