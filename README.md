@@ -40,14 +40,16 @@ git config user.email "본인 GitHub 이메일"
 cp .env.example .env
 ```
 
-`.env`를 열어 값을 채운다. **로컬 개발 기준으로는 두 개만 채우면 된다.**
+`.env`를 열어 값을 채운다. **로컬 개발 기준으로는 balldontlie 키와 인프라 비밀번호를 채우면 된다.**
 
 | 변수 | 값 | 받는 곳 |
 |---|---|---|
 | `BDL_API_KEY` | balldontlie API 키 | 예은 (팀 공용 키) |
+| `POSTGRES_PASSWORD` | 로컬 PostgreSQL 비밀번호. 예: `pulse` | 직접 지정 |
+| `RABBITMQ_PASSWORD` | 로컬 RabbitMQ 비밀번호. 예: `pulse` | 직접 지정 |
 | `OPENAI_API_KEY` | OpenAI API 키 (ai-service 담당만) | 창현 |
 
-나머지 DB/Redis/RabbitMQ 값은 비워 두면 로컬 기본값(`pulse`/`pulse`)이 사용된다.
+PostgreSQL DB 이름과 계정은 기본값 `pulse`를 사용한다. Redis는 로컬 개발에서 비밀번호 없이 `localhost:6379`로 연결한다.
 
 `.env`는 절대 커밋하지 않는다 (`.gitignore`에 이미 등록됨).
 
@@ -96,6 +98,15 @@ cd backend
 ./gradlew bootRun --args='--spring.profiles.active=scorer'
 ```
 
+진행 중인 실제 MLB 경기가 없는 시간대에 API와 화면을 개발하려면 `dev` 프로필을 함께 켠다.
+
+```bash
+cd backend
+./gradlew bootRun --args='--spring.profiles.active=api,dev'
+```
+
+`dev` 프로필은 샘플 경기, play, 추천 점수, Redis 랭킹을 로컬에 넣는다. 실제 외부 API를 호출하지 않으므로 경기 시간과 관계없이 Swagger와 프론트 화면 개발에 사용할 수 있다.
+
 ### 동작 확인
 
 ```bash
@@ -143,6 +154,14 @@ curl "http://localhost:8080/api/ai/games/{gameId}/spoiler-free-context?purpose=N
 `mode=PROTECTED`는 점수, 득점 play처럼 스포일러가 될 수 있는 값을 숨긴다. 보호 모드 화면이나 LLM 문구 생성에는 이 모드를 우선 사용한다.
 `mode=NORMAL`은 경기 상세 화면에서 실제 점수와 play별 점수 정보를 보여줘야 할 때 사용한다.
 
+`dev` 프로필로 넣는 샘플 `gameId`:
+
+| gameId | 상태 | 용도 |
+|---|---|---|
+| `900001` | 진행 중 | 홈 추천, 경기 상세, LLM 카드 문구 테스트 |
+| `900002` | 예정 | 예정 경기 카드와 경기 전 문구 테스트 |
+| `900003` | 종료 | 종료 경기 상세와 다시보기 문구 테스트 |
+
 빌드와 테스트만 돌려보려면:
 
 ```bash
@@ -155,6 +174,7 @@ cd backend
 ## 5. 로컬 데이터 적재와 시각 확인
 
 아직 공용 배포 서버가 없으므로, 각자 로컬에서 `poller`와 `scorer`를 실행해 데이터를 쌓아야 한다.
+실제 경기 시간이 아니어도 개발해야 할 때는 `api,dev` 프로필의 샘플 데이터를 사용한다.
 
 ```text
 balldontlie API
@@ -172,6 +192,7 @@ balldontlie API
 - `poller` 프로필이 실행 중이어야 `games`, `plays`가 쌓인다.
 - `scorer` 프로필이 실행 중이어야 `watch_scores`와 Redis 랭킹이 쌓인다.
 - 진행 중인 MLB 경기가 없으면 `watch_scores`나 Redis 랭킹이 비어 있을 수 있다.
+- `api,dev` 프로필을 실행하면 샘플 `games`, `plays`, `watch_scores`, Redis 랭킹이 자동으로 준비된다.
 
 ### DBeaver에서 PostgreSQL 확인
 
