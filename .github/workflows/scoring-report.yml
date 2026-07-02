@@ -1,0 +1,105 @@
+# 추천 점수 상수(scoring.yml) 변경 PR에 영향 리포트를 코멘트로 단다.
+#
+# 동작 방식
+#   1. base 브랜치의 scoring.yml과 PR의 scoring.yml을 각각 적용해
+#   2. 고정된 종료 경기 세트(golden set)를 리플레이하고
+#   3. lift · 예상 알림 횟수 · 경기별 최고점 순위 변화를 비교표로 출력한다.
+#
+# 리포트 본체는 backend의 Gradle 태스크 `scoringReport`가 담당한다.
+# 태스크 구현 전까지는 "구현 대기" 코멘트만 달린다.
+#
+# scoringReport 태스크 요구사항 (scorer 구현 후 작성):
+#   ./gradlew scoringReport -PconfigPath=<scoring.yml 경로> -PoutputPath=<결과 md 경로>
+#   golden set: backend/src/test/resources/golden-games/ 의 plays 데이터
+
+name: scoring-impact-report
+
+on:
+  pull_request:
+    paths: ["backend/src/main/resources/scoring.yml"]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check report task exists
+        id: check
+        run: |
+          if [ -f backend/build.gradle ] && grep -q "scoringReport" backend/build.gradle 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.check.outputs.exists == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Run report (base vs head)
+        if: steps.check.outputs.exists == 'true'
+        working-directory: backend
+        run: |
+          # base 브랜치의 상수 추출
+          git show origin/${{ github.base_ref }}:backend/src/main/resources/scoring.yml > /tmp/scoring-base.yml
+          # 변경 전 상수로 리플레이
+          ./gradlew scoringReport -PconfigPath=/tmp/scoring-base.yml -PoutputPath=/tmp/report-base.md
+          # 변경 후 상수로 리플레이
+          ./gradlew scoringReport -PconfigPath=src/main/resources/scoring.yml -PoutputPath=/tmp/report-head.md
+          # 비교 리포트 조합
+          {
+            echo "## 추천 점수 상수 변경 영향 리포트"
+            echo ""
+            echo "### 변경 전 (base)"
+            cat /tmp/report-base.md
+            echo ""
+            echo "### 변경 후 (this PR)"
+            cat /tmp/report-head.md
+          } > /tmp/report.md
+
+      - name: Placeholder report
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          {
+            echo "## 추천 점수 상수 변경 영향 리포트"
+            echo ""
+            echo "scoring.yml이 변경되었습니다. 리포트 태스크(scoringReport)가 아직 구현되지 않아 자동 비교를 건너뜁니다."
+            echo ""
+            echo "리뷰 시 확인: version 증가 여부, 커밋 메시지의 조정 근거."
+          } > /tmp/report.md
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const body = fs.readFileSync("/tmp/report.md", "utf8");
+            const marker = "## 추천 점수 상수 변경 영향 리포트";
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

@@ -1,0 +1,39 @@
+name: ai-service-ci
+
+on:
+  pull_request:
+    paths: ["ai-service/**"]
+  push:
+    branches: [main]
+    paths: ["ai-service/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # FastAPI 프로젝트 생성 전에는 테스트를 건너뛴다
+      - name: Check project exists
+        id: check
+        run: |
+          if [ -f ai-service/requirements.txt ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ai-service not initialized yet — skipping"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.exists == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ai-service/requirements.txt
+
+      - name: Install and test
+        if: steps.check.outputs.exists == 'true'
+        working-directory: ai-service
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+          pytest || [ $? -eq 5 ]   # 테스트 파일이 아직 없으면(exit 5) 통과 처리

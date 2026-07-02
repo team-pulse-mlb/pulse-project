@@ -1,0 +1,36 @@
+name: backend-ci
+
+on:
+  pull_request:
+    paths: ["backend/**"]
+  push:
+    branches: [main]
+    paths: ["backend/**"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Spring 프로젝트 생성 전에는 빌드를 건너뛴다
+      - name: Check project exists
+        id: check
+        run: |
+          if [ -f backend/build.gradle ] || [ -f backend/build.gradle.kts ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend not initialized yet — skipping build"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.check.outputs.exists == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Build and test
+        if: steps.check.outputs.exists == 'true'
+        working-directory: backend
+        run: ./gradlew build

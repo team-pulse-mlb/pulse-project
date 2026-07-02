@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: pulse
+  config:
+    import: classpath:scoring.yml
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:pulse}
+    username: ${POSTGRES_USER:pulse}
+    password: ${POSTGRES_PASSWORD:pulse}
+  jpa:
+    hibernate:
+      ddl-auto: update    # 3주 프로젝트 기준. 스키마 확정 후 validate 전환 검토
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:pulse}
+    password: ${RABBITMQ_PASSWORD:pulse}
+    listener:
+      simple:
+        default-requeue-rejected: false   # 처리 실패 메시지는 재큐잉 대신 DLQ로
+
+pulse:
+  bdl:
+    base-url: https://api.balldontlie.io
+    api-key: ${BDL_API_KEY:}
+  poller:
+    games-delay-ms: 15000   # /games tripwire
+    plays-delay-ms: 20000   # TODO: 적응형 폴링 티어 (긴장도 기반 5~60초)
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

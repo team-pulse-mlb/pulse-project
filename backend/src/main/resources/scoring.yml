@@ -1,0 +1,65 @@
+# PULSE 추천 점수 상수
+#
+# 규칙
+# - 상수는 이 파일에만 둔다. 코드에 하드코딩하지 않는다.
+# - 변경은 PR로만 하고, 커밋 메시지에 조정 근거(lift, 운영 지표)를 기록한다.
+# - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
+
+scoring:
+  version: 1
+
+  # 기본 신호 (랭킹에 사용)
+  late-inning:
+    inning-7-8: 10
+    inning-9: 20
+    extra: 30
+  score-gap:
+    gap-0-1: 25
+    gap-2: 15
+    gap-3: 5
+  recent-score:
+    per-run: 10
+    max: 25
+    tau-seconds: 180
+    closeness-multiplier:
+      gap-0: 2.0
+      gap-1: 1.5
+      gap-2: 1.2
+      default: 1.0
+  lead-change:
+    bonus: 15
+    window-plays: 12
+  big-inning:
+    bonus: 15
+    min-scoring-plays: 2
+  count-pressure:
+    full-count: 4
+    two-outs: 4
+    max: 8
+  early-slugfest:
+    bonus: 8
+    max-inning: 3
+    min-total-runs: 7
+
+  # 보정
+  importance:
+    min: 0.9
+    max: 1.15
+  pregame-carryover-max: 10
+  personalization-max: 15
+
+  # 상세 신호 (상위 경기 전용, 태그·알림에만 사용 — 랭킹 미반영)
+  detail:
+    hard-contact-exit-velocity: 95
+    starter-pitch-count: 100
+    velocity-drop-mph: 1.5
+    velocity-drop-window-pitches: 10
+    long-at-bat-pitches: 8
+
+  # 판단 기준
+  thresholds:
+    alert-score: 70
+    alert-cooldown-minutes: 10
+    switch-score: 70
+    switch-gap: 20
+    replay-segment-score: 60
