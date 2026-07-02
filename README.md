@@ -130,7 +130,7 @@ curl http://localhost:8080/api/rankings/live
 
 프론트엔드와 ai-service 담당자는 DB나 Redis에 직접 연결하지 않고 Spring Boot API를 통해 데이터를 받는다.
 
-API 명세와 테스트는 Swagger UI에서 확인한다.
+API 명세와 테스트는 Swagger UI에서 확인한다. Swagger UI는 Spring Boot를 `api` 또는 `api,dev` 프로필로 실행한 뒤에 열린다.
 
 ```text
 http://localhost:8080/swagger-ui/index.html
@@ -166,6 +166,14 @@ curl "http://localhost:8080/api/ai/games/{gameId}/spoiler-free-context?purpose=N
 | `900001` | 진행 중 | 홈 추천, 경기 상세, LLM 카드 문구 테스트 |
 | `900002` | 예정 | 예정 경기 카드와 경기 전 문구 테스트 |
 | `900003` | 종료 | 종료 경기 상세와 다시보기 문구 테스트 |
+
+개발용 진행 중 경기 확인:
+
+```bash
+curl "http://localhost:8080/api/games/900001?mode=PROTECTED"
+curl "http://localhost:8080/api/ai/games/900001/spoiler-free-context"
+curl "http://localhost:8080/api/rankings/live"
+```
 
 빌드와 테스트만 돌려보려면:
 
