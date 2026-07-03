@@ -8,9 +8,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +41,7 @@ public class GameQueryService {
         boolean revealed = safeMode == DisplayMode.REVEALED || safeMode == DisplayMode.NORMAL;
 
         if (revealed) {
-            // 공개 모드는 사용자가 직접 스포일러 공개를 선택한 경우다.
+            // 공개 모드는 사용자가 직접 스포일러 공개를 선택한 경우
             // 따라서 팀명, 점수, play text, 득점 관련 필드를 포함한다.
             return new RevealedGameDetailResponse(
                     game.getId(),
@@ -52,12 +55,18 @@ public class GameQueryService {
                     recentPlays.stream()
                             .map(GameQueryService::revealedPlayResponse)
                             .toList(),
+
+                    // watch_scores 이력을 상세 화면의 누적 변동 블록으로 변환한다.
+                    // 공개 모드에서도 블록 자체는 spoiler-safe 문구를 사용하고,
+                    // 점수·play text 같은 공개 전용 정보는 기존 scoreSummary와 recentPlays가 담당한다.
+                    liveUpdateBlocks(game.getId()),
+
                     DisplayMode.REVEALED
             );
         }
 
-        // 보호 모드는 기본 응답이다.
-        // DTO 자체에서 팀명, 점수, 득점 여부, play text를 제외해
+        // 보호 모드는 기본 응답
+        // DTO 자체에서 팀명, 점수, 득점 여부, play text를 제외
         // 실수로 null이 아닌 값이 직렬화되는 위험을 줄인다.
         return new ProtectedGameDetailResponse(
                 game.getId(),
@@ -68,6 +77,12 @@ public class GameQueryService {
                 recentPlays.stream()
                         .map(GameQueryService::protectedPlayResponse)
                         .toList(),
+
+                // protected 모드의 변동 블록은 스포일러 없는 태그와 문구만 담아야 한다.
+                // watch_scores.reasonTags는 scorer가 만든 보호 모드용 추천 이유 태그이므로,
+                // 상세 화면에서 누적 흐름 카드로 보여주기에 적합하다.
+                liveUpdateBlocks(game.getId()),
+
                 DisplayMode.PROTECTED
         );
     }
@@ -146,8 +161,121 @@ public class GameQueryService {
         );
     }
 
+    /**
+     * 최근 watch_scores 이력을 경기 상세 화면의 누적 변동 블록으로 변환한다.
+     *
+     * 같은 경기에서 scorer가 20초 주기로 비슷한 reasonTags를 반복 저장할 수 있으므로,
+     * 상세 화면에는 같은 제목의 블록이 계속 반복되지 않도록 중복을 제거한다.
+     */
+    private List<LiveUpdateBlockResponse> liveUpdateBlocks(long gameId) {
+        List<LiveUpdateBlockResponse> blocks = watchScoreRepository.findTop10ByGameIdOrderByCreatedAtDesc(gameId).stream()
+                // 최신순으로 조회한 watch_scores를 화면 표시용 블록으로 변환한다.
+                .map(GameQueryService::liveUpdateBlock)
+                .toList();
 
+        return deduplicateLiveUpdateBlocks(blocks);
+    }
 
+    /**
+     * 같은 제목의 liveUpdateBlock이 반복 표시되지 않도록 제거한다.
+     *
+     * watch_scores는 append log라서 짧은 시간 안에 비슷한 reasonTags가 여러 번 쌓일 수 있다.
+     * 화면에서는 같은 문구가 계속 반복되는 것보다, 최근에 감지된 주요 변화만 보여주는 것이 자연스럽다.
+     *
+     * 기준:
+     * - 같은 title은 최신 1개만 유지한다.
+     * - 상세 화면이 너무 길어지지 않도록 최대 5개까지만 내려준다.
+     */
+    private static List<LiveUpdateBlockResponse> deduplicateLiveUpdateBlocks(List<LiveUpdateBlockResponse> blocks) {
+        List<LiveUpdateBlockResponse> result = new ArrayList<>();
+        Set<String> seenTitles = new HashSet<>();
+
+        for (LiveUpdateBlockResponse block : blocks) {
+            // HashSet.add()는 처음 보는 값이면 true, 이미 있던 값이면 false를 반환한다.
+            // 이를 이용해서 같은 제목의 블록은 최신 1개만 남긴다.
+            if (seenTitles.add(block.title())) {
+                result.add(block);
+            }
+
+            // 상세 화면에 너무 많은 카드가 쌓이지 않도록 최근 주요 변화 5개까지만 제공한다.
+            if (result.size() >= 5) {
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * WatchScore 한 건을 상세 화면용 블록 하나로 변환한다.
+     *
+     * 이 블록은 protected 모드에도 그대로 사용되므로 점수, 팀명, play text, 결과 문구를 넣지 않는다.
+     * reasonTags와 watchScore 강도만 사용해 스포일러 없는 카드 정보를 만든다.
+     */
+    private static LiveUpdateBlockResponse liveUpdateBlock(WatchScore watchScore) {
+        List<String> reasonTags = watchScore.getReasonTags() == null
+                ? List.of()
+                : watchScore.getReasonTags();
+
+        return new LiveUpdateBlockResponse(
+                "최근",
+                "진행 중",
+                blockTitle(reasonTags),
+                "긴장감 있는 흐름이 감지됐습니다.",
+                reasonTags,
+                intensity(watchScore.getWatchScore())
+        );
+    }
+
+    /**
+     * reasonTags 중 화면 제목으로 가장 적합한 태그를 우선순위에 따라 선택한다.
+     *
+     * "후반 긴장 구간"처럼 넓은 구간 태그보다
+     * "득점권 압박", "투수 흔들림", "장타 위험"처럼 사용자가 변화로 느끼기 쉬운 태그를 우선한다.
+     */
+    private static String blockTitle(List<String> reasonTags) {
+        if (reasonTags == null || reasonTags.isEmpty()) {
+            return "경기 흐름 변화";
+        }
+
+        List<String> priorityTags = List.of(
+                "득점권 압박",
+                "투수 흔들림",
+                "장타 위험",
+                "승부처 카운트",
+                "흐름 급변",
+                "한 이닝 흐름 집중",
+                "접전 흐름",
+                "최근 점수 변화",
+                "후반 긴장 구간",
+                "초반 난타 흐름"
+        );
+
+        return priorityTags.stream()
+                .filter(reasonTags::contains)
+                .findFirst()
+                .orElse(reasonTags.get(0));
+    }
+
+    /**
+     * watchScore 숫자를 직접 노출하지 않고 LOW / MEDIUM / HIGH 강도로만 변환한다.
+     *
+     * protected 모드에서는 내부 점수를 사용자에게 보여주지 않는 것이 원칙이므로,
+     * 숫자 대신 화면 표시용 강도 라벨만 제공한다.
+     * 점수가 아직 없는 경우에는 안전하게 LOW로 처리한다.
+     */
+    private static String intensity(Double watchScore) {
+        if (watchScore == null) {
+            return "LOW";
+        }
+        if (watchScore >= 85) {
+            return "HIGH";
+        }
+        if (watchScore >= 70) {
+            return "MEDIUM";
+        }
+        return "LOW";
+    }
 
     private static RevealedPlayResponse revealedPlayResponse(Play play) {
         // 공개 모드에서는 사용자가 스포일러 공개를 선택했으므로
@@ -185,6 +313,22 @@ public class GameQueryService {
                 play.getBalls(),
                 play.getStrikes()
         );
+    }
+
+    /**
+     * 경기 상세 화면에서 사용자가 최근 흐름 변화를 카드 형태로 볼 수 있도록 내려주는 응답.
+     *
+     * 이 DTO는 protected 모드에서도 사용될 수 있으므로 팀명, 점수, play text, 결과(result)처럼
+     * 스포일러가 될 수 있는 값은 절대 포함하지 않음.
+     */
+    public record LiveUpdateBlockResponse(
+            String timeLabel,           // "방금 전", "최근" 같은 표시용 시간
+            String periodLabel,         // "초반", "중반", "후반", "연장"
+            String title,               // "득점권 압박", "승부처 카운트" 같은 블록 제목
+            String description,         // 스포일러 없는 설명 문구
+            List<String> tags,          // reasonTags 목록
+            String intensity            // LOW / MEDIUM / HIGH
+    ) {
     }
 
     private static SpoilerSafePlayResponse spoilerSafePlay(Play play) {
@@ -270,7 +414,6 @@ public class GameQueryService {
         REPLAY_SUMMARY
     }
 
-
     public sealed interface GameDetailView
             permits ProtectedGameDetailResponse, RevealedGameDetailResponse {
         // 경기 상세 응답의 공통 타입이다.
@@ -295,10 +438,13 @@ public class GameQueryService {
             // 팀명, 점수, 득점 여부, play text를 포함하지 않는다.
             List<ProtectedPlayResponse> recentPlays,
 
+            // 경기 상세 화면에서 최근 흐름 변화를 누적 카드로 보여주기 위한 데이터다.
+            // protected 모드에서도 사용되므로 점수, 팀명, play text 같은 스포일러 필드는 포함하지 않는다.
+            List<LiveUpdateBlockResponse> liveUpdateBlocks,
+
             DisplayMode displayMode
     ) implements GameDetailView {
     }
-
 
     public record RevealedGameDetailResponse(
             long gameId,
@@ -321,11 +467,14 @@ public class GameQueryService {
             // play text, 점수 변화, 득점 여부를 포함한다.
             List<RevealedPlayResponse> recentPlays,
 
+            // 공개 모드에서도 상세 화면의 변동 블록을 함께 내려준다.
+            // 1차 구현에서는 protected와 동일한 spoiler-safe 블록을 사용하고,
+            // 점수·play text 같은 공개 전용 정보는 기존 recentPlays와 scoreSummary가 담당한다.
+            List<LiveUpdateBlockResponse> liveUpdateBlocks,
+
             DisplayMode displayMode
     ) implements GameDetailView {
     }
-
-
 
     public record ProtectedSummaryResponse(
             // 예: 후반 긴장 구간, 득점권 압박, 접전 흐름
@@ -333,7 +482,6 @@ public class GameQueryService {
             List<String> reasonTags
     ) {
     }
-
 
     public record RevealedPlayResponse(
             Long id,
@@ -353,7 +501,6 @@ public class GameQueryService {
     ) {
     }
 
-
     public record ProtectedPlayResponse(
             String type,
             Integer inning,
@@ -363,7 +510,6 @@ public class GameQueryService {
             Integer strikes
     ) {
     }
-
 
     public record SpoilerFreeLlmContextResponse(
             long gameId,
@@ -393,7 +539,6 @@ public class GameQueryService {
             Instant calculatedAt
     ) {
     }
-
 
     public record SpoilerSafePlayResponse(
             String type,
