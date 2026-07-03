@@ -1,4 +1,7 @@
 package com.pulse.api.dto;
 
-public class ErrorResponse {
+public record ErrorResponse(
+        int result,
+        String message
+) {
 }

@@ -1,7 +1,14 @@
 package com.pulse.api;
 
+import com.pulse.api.dto.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -10,29 +17,78 @@ import java.util.Map;
                 // RequestBody  + Cotroller
                 // 반환값을 화면 이름으로 해석하지 말고 HTTP 응답 데이터로 보내라
 @RequestMapping("api/members")  // 공통 주소
+@RequiredArgsConstructor
 @Slf4j
+@Validated  // @RequestParam에 붙인 검증 어노테이션을 작동시키는 역할
 @CrossOrigin(origins = "http://localhost:5173") // 임시 리엑트 연결 허용(로그인 창 미완성)
 public class MemberController {
 
+    private final MemberService memberService;
+    private final EmailVerificationService emailVerificationService;
+
     // 회원가입 처리
     @PostMapping("/signup")
-    public ResponseEntity<Map<String, Object>> signup(
-            @RequestBody Map<String, String> request
+    public ResponseEntity<SignupResponse> signup(
+            @Valid @RequestBody SignupRequest request
             // React가 HTTP 요청의 본문, 즉 body에 넣어서 보낸 JSON을 Java 객체로 바꿔주는 역할
+            // @Valid가 있어야 SignupRequest의 @NotBlank, @Email, @Size가 실제로 검사
     ) {
-        String email = request.get("email");
-        String password = request.get("password");
 
         // 비밀번호는 로그에 출력하면 안 됨
-        log.info("회원가입 요청 email={}", email);
+        log.info("회원가입 요청 email={}", request.getEmail());
 
-        return ResponseEntity.ok(   // ResponseEntity -> Spring에서 HTTP 응답을 직접 구성할 때 사용하는 클래스
-                                    // ok()는 HTTP 상태 코드 200 OK로 응답하겠다는 뜻
-                Map.of(
-                        "result", 1,
-                        "message", "회원가입 요청을 정상적으로 받았습니다."
-                )// Map 객체를 만드는 문법
-        );
+        SignupResponse response = memberService.signup(request);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+        // 200 OK
+        // → 요청을 정상 처리함
+        //
+        // 201 Created
+        // → 요청을 정상 처리했고 새로운 데이터를 생성함
     }
+
+
+    // 이메일 인증번호 발급
+    @PostMapping("/email-code/send")
+    public ResponseEntity<EmailCodeSendResponse> sendEmailCode(
+            @Valid @RequestBody EmailCodeSendRequest request
+    ) {
+        EmailCodeSendResponse response =
+                emailVerificationService.sendCode(request);
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    // 이메일 인증번호 확인
+    @PostMapping("/email-code/verify")
+    public ResponseEntity<EmailCodeVerifyResponse> verifyEmailCode(
+            @Valid @RequestBody EmailCodeVerifyRequest request
+    ) {
+        EmailCodeVerifyResponse response =
+                emailVerificationService.verifyCode(request);
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    // 이메일 중복 처리
+    @GetMapping("/check-email")
+    public ResponseEntity<EmailCheckResponse> checkEmail(
+            @RequestParam
+            @NotBlank(message = "이메일을 입력해 주세요.")
+            @Email(message = "올바른 이메일 형식으로 입력해 주세요.")
+            String email
+    ) {
+        EmailCheckResponse response =
+                memberService.checkEmail(email);
+
+        return ResponseEntity.ok(response);
+    }
+
+
+
 
 }

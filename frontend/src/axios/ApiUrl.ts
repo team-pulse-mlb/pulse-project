@@ -1,3 +1,3 @@
-const ApiURL = 'http://localhost:8080';
+const ApiUrl = 'http://localhost:8080';
 
-export default ApiURL;
+export default ApiUrl;

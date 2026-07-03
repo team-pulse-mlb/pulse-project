@@ -1,4 +1,8 @@
 package com.pulse.common.exception;
 
-public class EmailVerificationException {
+public class EmailVerificationException extends RuntimeException {
+
+    public EmailVerificationException(String message) {
+        super(message);
+    }
 }

@@ -1,4 +1,7 @@
 package com.pulse.api.dto;
 
-public class EmailCodeVerifyResponse {
+public record EmailCodeVerifyResponse(
+        boolean verified,
+        String message
+) {
 }
