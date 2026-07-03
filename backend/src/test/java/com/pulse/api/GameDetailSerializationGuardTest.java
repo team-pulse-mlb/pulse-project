@@ -1,0 +1,144 @@
+package com.pulse.api;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pulse.api.GameQueryService.DisplayMode;
+import com.pulse.api.GameQueryService.ProtectedGameDetailResponse;
+import com.pulse.api.GameQueryService.ProtectedPlayResponse;
+import com.pulse.api.GameQueryService.ProtectedSummaryResponse;
+import com.pulse.api.GameQueryService.RevealedGameDetailResponse;
+import com.pulse.api.GameQueryService.RevealedPlayResponse;
+import com.pulse.api.GameQueryService.ScoreResponse;
+import com.pulse.api.GameQueryService.ScoreSummaryResponse;
+import com.pulse.api.GameQueryService.TeamResponse;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class GameDetailSerializationGuardTest {
+
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+    @Test
+    void protectedDetailResponse_shouldNotSerializeSpoilerFields() {
+        // given
+        // 보호 모드 응답은 DTO 구조 자체에서 팀명, 점수, play text, 득점 여부를 제외해야 한다.
+        // 이 테스트는 나중에 누군가 protected DTO에 스포일러 필드를 추가하면 바로 실패하도록 막는 가드다.
+        ProtectedGameDetailResponse response = new ProtectedGameDetailResponse(
+                900001L,
+                "STATUS_IN_PROGRESS",
+                Instant.parse("2026-07-02T00:00:00Z"),
+                "후반",
+                new ProtectedSummaryResponse(List.of("후반 긴장 구간", "득점권 압박")),
+                List.of(
+                        new ProtectedPlayResponse(
+                                "Pitch",
+                                8,
+                                "Top",
+                                2,
+                                3,
+                                2
+                        )
+                ),
+                DisplayMode.PROTECTED
+        );
+
+        // when
+        JsonNode json = objectMapper.valueToTree(response);
+        JsonNode play = json.get("recentPlays").get(0);
+
+        // then
+        assertThat(json.get("displayMode").asText()).isEqualTo("PROTECTED");
+
+        // 보호 모드 최상위 응답에는 팀명, 점수, 내부 점수 요약이 없어야 한다.
+        assertThat(json.has("homeTeam")).isFalse();
+        assertThat(json.has("awayTeam")).isFalse();
+        assertThat(json.has("score")).isFalse();
+        assertThat(json.has("scoreSummary")).isFalse();
+
+        // 보호 모드 play 응답에는 결과를 직접 드러내는 필드가 없어야 한다.
+        assertThat(play.has("text")).isFalse();
+        assertThat(play.has("homeScore")).isFalse();
+        assertThat(play.has("awayScore")).isFalse();
+        assertThat(play.has("scoringPlay")).isFalse();
+        assertThat(play.has("scoreValue")).isFalse();
+
+        // 대신 보호 모드에서 허용하는 흐름 정보는 남아 있어야 한다.
+        assertThat(json.has("periodLabel")).isTrue();
+        assertThat(json.has("summary")).isTrue();
+        assertThat(json.has("recentPlays")).isTrue();
+        assertThat(play.has("type")).isTrue();
+        assertThat(play.has("inning")).isTrue();
+        assertThat(play.has("inningType")).isTrue();
+        assertThat(play.has("outs")).isTrue();
+        assertThat(play.has("balls")).isTrue();
+        assertThat(play.has("strikes")).isTrue();
+    }
+
+    @Test
+    void revealedDetailResponse_shouldSerializeSpoilerFields() {
+        // given
+        // 공개 모드는 사용자가 직접 스포일러 공개를 선택한 상태다.
+        // 따라서 팀명, 점수, play text, 득점 관련 필드를 포함해야 한다.
+        RevealedGameDetailResponse response = new RevealedGameDetailResponse(
+                900001L,
+                "STATUS_IN_PROGRESS",
+                Instant.parse("2026-07-02T00:00:00Z"),
+                8,
+                new TeamResponse(1L, "Home Team", "HOM"),
+                new TeamResponse(2L, "Away Team", "AWY"),
+                new ScoreResponse(3, 2),
+                new ScoreSummaryResponse(
+                        45.0,
+                        72.0,
+                        Map.of("late_or_extra", 20.0, "score_gap", 25.0),
+                        List.of("후반 긴장 구간", "접전 흐름"),
+                        1,
+                        Instant.parse("2026-07-02T00:01:00Z")
+                ),
+                List.of(
+                        new RevealedPlayResponse(
+                                10L,
+                                100L,
+                                "Play Result",
+                                8,
+                                "Top",
+                                "Sample revealed play text",
+                                3,
+                                2,
+                                true,
+                                1,
+                                2,
+                                3,
+                                2,
+                                Instant.parse("2026-07-02T00:02:00Z")
+                        )
+                ),
+                DisplayMode.REVEALED
+        );
+
+        // when
+        JsonNode json = objectMapper.valueToTree(response);
+        JsonNode play = json.get("recentPlays").get(0);
+
+        // then
+        assertThat(json.get("displayMode").asText()).isEqualTo("REVEALED");
+
+        // 공개 모드 최상위 응답에는 팀명, 점수, 점수 요약이 포함되어야 한다.
+        assertThat(json.has("homeTeam")).isTrue();
+        assertThat(json.has("awayTeam")).isTrue();
+        assertThat(json.has("score")).isTrue();
+        assertThat(json.has("scoreSummary")).isTrue();
+
+        // 공개 모드 play 응답에는 결과 설명과 점수 변화 정보가 포함되어야 한다.
+        assertThat(play.has("text")).isTrue();
+        assertThat(play.has("homeScore")).isTrue();
+        assertThat(play.has("awayScore")).isTrue();
+        assertThat(play.has("scoringPlay")).isTrue();
+        assertThat(play.has("scoreValue")).isTrue();
+    }
+}
