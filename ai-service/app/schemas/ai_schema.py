@@ -1,7 +1,24 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 
-class SpoilerCheckRequest(BaseModel):
+class ApiBaseModel(BaseModel):
+    """
+    모든 API schema가 공통으로 사용하는 기본 모델입니다.
+
+    역할:
+    - Python 내부에서는 snake_case 필드명을 사용
+    - 외부 JSON에서는 camelCase 필드명도 허용
+    - 로컬 테스트에서는 snake_case로도 입력 가능
+    """
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
+class SpoilerCheckRequest(ApiBaseModel):
     """
     /ai/spoiler-check 요청 형식
 
@@ -16,15 +33,16 @@ class SpoilerCheckRequest(BaseModel):
     )
 
 
-class SpoilerCheckResponse(BaseModel):
+class SpoilerCheckResponse(ApiBaseModel):
     """
     /ai/spoiler-check 응답 형식
 
-    역할 :
+    역할:
     - 문구가 안전한지 여부
     - 감지된 위반 항목
     - 위험할 때 사용할 fallback 문구를 반환
     """
+
     spoiler_safe: bool = Field(
         ...,
         description="스포일러가 없으면 true, 있으면 false",
@@ -38,7 +56,8 @@ class SpoilerCheckResponse(BaseModel):
         description="스포일러가 감지됐을 때 대체할 안전 문구",
     )
 
-class SafeContext(BaseModel):
+
+class SafeContext(ApiBaseModel):
     """
     Spring Boot가 Python AI-SERVICE로 넘겨주는 안전한 경기 context
 
@@ -78,17 +97,18 @@ class SafeContext(BaseModel):
         examples=[["LATE_INNING", "CLOSE_GAME"]],
     )
 
-class SpoilerFreeSummaryRequest(BaseModel):
+
+class SpoilerFreeSummaryRequest(ApiBaseModel):
     """
     /ai/spoiler-free-summary 요청 형식
-    
+
     역할:
     - Spring Boot가 계산한 안전 context를 받아
       경기 카드용 스포일러 없는 제목/이유 문구를 생성할 때 사용
     """
 
     game_id: int = Field(
-        ..., 
+        ...,
         description="경기 ID",
         examples=[12345],
     )
@@ -112,12 +132,13 @@ class SpoilerFreeSummaryRequest(BaseModel):
         description="생성 문구 최대 길이",
         examples=[80],
     )
-    safe_context: SafeContext  = Field(
-        ..., 
+    safe_context: SafeContext = Field(
+        ...,
         description="스포일러 없는 안전 경기 context",
     )
 
-class SpoilerFreeSummaryResponse(BaseModel):
+
+class SpoilerFreeSummaryResponse(ApiBaseModel):
     """
     /ai/spoiler-free-summary 응답 형식
 
@@ -126,7 +147,7 @@ class SpoilerFreeSummaryResponse(BaseModel):
     - 최종 반환 전 spoiler_guard.py 검수를 통과해야 한다.
     """
 
-    spoiler_safe : bool = Field(
+    spoiler_safe: bool = Field(
         ...,
         description="최종 문구가 스포일러 안전 정책을 통과했는지 여부",
     )
@@ -154,5 +175,5 @@ class SpoilerFreeSummaryResponse(BaseModel):
     )
     fallback_used: bool = Field(
         default=False,
-        description="AI 문구 대신 fallback 문구를 사용했는지 여부"
+        description="AI 문구 대신 fallback 문구를 사용했는지 여부",
     )

@@ -30,7 +30,6 @@ SCORE_PATTERNS = [
 # 스포일러가 감지됐을 때 대신 보여줄 기본 안전 문구
 DEFAULT_FALLBACK_TEXT = "지금 확인해볼 만한 흐름이 감지됐습니다."
 
-
 def check_spoiler_text(text: str) -> dict:
     """
     입력된 문구에 스포일러성 표현이 포함되어 있는지 검사한다.
