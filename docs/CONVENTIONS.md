@@ -74,7 +74,7 @@ PR 본문에는 아래 내용을 적는다.
 ### 공통
 
 - 시크릿 값은 커밋하지 않는다. `.env`와 API 키는 로컬에만 둔다.
-- 외부 API, DB, Redis, RabbitMQ 설정값은 코드에 하드코딩하지 않는다.
+- 외부 API, S3, DB, Redis 설정값은 코드에 하드코딩하지 않는다.
 - 이름은 줄임말보다 의미가 드러나는 단어를 사용한다.
 - TODO를 남길 때는 담당자를 함께 적는다.
 
@@ -87,10 +87,10 @@ PR 본문에는 아래 내용을 적는다.
 - Java 21과 Spring Boot 기준으로 작성한다.
 - 패키지는 현재 구조를 따른다.
   - `api`: 컨트롤러
-  - `poller`: 외부 API 수집
-  - `scorer`: 점수 계산과 랭킹 반영
+  - `replay`: S3 raw archive 재생과 점수 계산
+  - `ranking`: Redis 랭킹 반영
   - `domain`: JPA 엔티티와 Repository
-  - `common`: 설정, 외부 클라이언트, 메시지 DTO
+  - `common`: 설정, 외부 클라이언트, 공통 DTO
 - 컨트롤러는 요청/응답 역할에 집중하고, 비즈니스 로직은 서비스로 옮긴다.
 - 추천 점수 상수는 `backend/src/main/resources/scoring.yml`에만 둔다.
 - `scoring.yml`을 바꾸면 `version`을 올리고 PR에 조정 근거를 적는다.

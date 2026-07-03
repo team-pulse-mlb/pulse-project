@@ -1,8 +1,6 @@
 # PULSE — 팀원 초기 설정 가이드
 
-> 프로젝트 소개 README는 완성 후 교체한다. 이 문서는 레포를 처음 받은 팀원의 로컬 개발 환경 설정 가이드다.
-
-스포일러 프리 야구 관전 타이밍 추천 서비스. 아래 설정을 마치면 backend, frontend, ai-service 담당 기능 개발을 시작할 수 있다.
+이 문서는 레포를 처음 받은 팀원이 실제 라이브 경기 raw archive를 로컬에서 재생해 backend, frontend, ai-service 개발을 시작하는 절차를 정리한다.
 
 ---
 
@@ -13,12 +11,14 @@
 | Git | 최신 |
 | JDK | 21 |
 | Docker Desktop | 최신 |
-| Node.js | 20 이상 (frontend 담당) |
-| Python | 3.12 (ai-service 담당) |
-| IDE | IntelliJ IDEA (backend) / VS Code (frontend, ai-service) |
+| Node.js | 20 이상 |
+| Python | 3.12 |
+| AWS CLI | 최신 |
+| IDE | IntelliJ IDEA / VS Code |
 
 - Docker Desktop은 실행 중이어야 한다.
-- 터미널 명령어는 **Git Bash 기준**으로 작성한다. Windows에서도 Git Bash 사용을 권장한다.
+- S3 리플레이를 실행하는 사람은 AWS CLI 로그인 또는 환경변수 방식으로 `pulse-raw-<account-id>` 읽기 권한을 준비한다.
+- 터미널 명령어는 Git Bash 기준이다.
 
 ---
 
@@ -39,18 +39,27 @@ git config user.email "본인 GitHub 이메일"
 cp .env.example .env
 ```
 
-`.env`에서 아래 값만 먼저 채운다.
+`.env`에서 로컬 DB와 S3 리플레이 값을 채운다.
 
 | 변수 | 설명 |
 |---|---|
-| `BDL_API_KEY` | balldontlie API 키 |
 | `POSTGRES_PASSWORD` | 로컬 PostgreSQL 비밀번호. 예: `pulse` |
-| `RABBITMQ_PASSWORD` | 로컬 RabbitMQ 비밀번호. 예: `pulse` |
+| `PULSE_REPLAY_S3_BUCKET` | S3 raw archive 버킷. 예: `pulse-raw-<account-id>` |
+| `PULSE_REPLAY_GAME_ID` | 재생할 실제 라이브 경기 ID |
+| `PULSE_REPLAY_DATE` | `raw/games/dt=YYYY-MM-DD/` 조회 날짜 |
+| `AWS_REGION` | 기본값 `ap-northeast-2` |
 | `OPENAI_API_KEY` | ai-service 담당만 필요 |
 
-`POSTGRES_PASSWORD`, `RABBITMQ_PASSWORD`는 팀원마다 다르게 정해도 된다. 단, Spring Boot, DBeaver, RabbitMQ 관리 UI에서도 같은 값을 사용해야 한다.
-
 `.env`는 커밋하지 않는다.
+
+S3 원본은 다음 형태를 기준으로 읽는다.
+
+```text
+raw/games/dt=YYYY-MM-DD/games_HHMMSSZ.json.gz
+raw/plays/game_id=<id>/plays_YYYY-MM-DD_HHMMSSZ_c<cursor>.json.gz
+```
+
+각 객체는 `observed_at`, `endpoint`, `params`, `response`를 가진 gzip JSON이다. `backfilled: true` 객체는 로컬 리플레이의 시간 감쇠 계산에서 제외된다.
 
 ---
 
@@ -61,76 +70,69 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d
 docker ps
 ```
 
-Docker Compose가 PostgreSQL, Redis, RabbitMQ 컨테이너를 만든다.
+Docker Compose가 PostgreSQL과 Redis 컨테이너를 만든다.
 
 | 항목 | 로컬 접속 |
 |---|---|
 | PostgreSQL | `localhost:5432` |
 | Redis | `localhost:6379` |
-| RabbitMQ 관리 UI | http://localhost:15672 |
 
 PostgreSQL DB/유저 기본값은 `pulse`다. Redis는 로컬 개발에서 비밀번호 없이 사용한다.
 
-주의: PostgreSQL 비밀번호는 Docker 볼륨이 처음 만들어질 때 적용된다. 이미 컨테이너를 띄운 뒤 `.env`의 `POSTGRES_PASSWORD`를 바꾸면 기존 DB 비밀번호가 자동으로 바뀌지 않을 수 있다.
+---
+
+## 4. S3 접근 확인
+
+```bash
+aws s3 ls s3://$PULSE_REPLAY_S3_BUCKET/raw/games/dt=$PULSE_REPLAY_DATE/ | tail
+aws s3 ls s3://$PULSE_REPLAY_S3_BUCKET/raw/plays/game_id=$PULSE_REPLAY_GAME_ID/ | tail
+```
+
+PowerShell을 사용한다면 `$env:PULSE_REPLAY_S3_BUCKET` 형식으로 확인한다.
 
 ---
 
-## 4. backend 실행
+## 5. backend 실행
 
-IntelliJ에서 `backend/` 폴더를 열고 Run Configuration을 만든다.
+IntelliJ에서 `backend/` 폴더를 열고 `PulseApplication`을 실행한다.
 
-간단 설정:
+Run Configuration의 `Active profiles`:
 
-1. `PulseApplication`을 실행 대상으로 선택한다.
-2. Run Configuration의 `Active profiles`에 원하는 프로필을 입력한다.
-3. 개발용 데이터가 필요하면 `api,dev`를 입력하고 실행한다.
+```text
+api,replay
+```
 
-| 프로필 | 용도 |
-|---|---|
-| `api` | REST API, Swagger 확인 |
-| `api,dev` | 실제 경기 시간이 아닐 때 샘플 데이터로 API 확인 |
-| `poller` | balldontlie 데이터 수집 |
-| `scorer` | 추천 점수 계산, Redis 랭킹 저장 |
+터미널 실행:
 
-처음 개발할 때는 `api,dev`로 실행하면 된다. 이 프로필은 샘플 경기, play, 추천 점수, Redis 랭킹을 로컬에 자동으로 넣고, 진행 중 샘플 경기 `900001`을 3초마다 갱신한다.
+```bash
+cd backend
+./gradlew bootRun --args='--spring.profiles.active=api,replay'
+```
 
-샘플 `gameId`:
-
-| gameId | 상태 |
-|---|---|
-| `900001` | 진행 중 |
-| `900002` | 예정 |
-| `900003` | 종료 |
-
-`900001`은 시간이 지나면 `plays`, `watch_scores`, Redis `score:rank:live` 값이 계속 바뀐다.
+실행 시 backend는 S3 live archive를 시간순으로 읽고 로컬 PostgreSQL에 `games`, `plays`, `watch_scores`, `replay_segments`를 저장한다. 진행 중 경기의 최신 랭킹은 Redis `score:rank:live`에 저장된다.
 
 ---
 
-## 5. API 확인
+## 6. API 확인
 
-Spring Boot를 `api` 또는 `api,dev` 프로필로 실행한 뒤 Swagger UI를 연다.
+Spring Boot 실행 후 Swagger UI를 연다.
 
 ```text
 http://localhost:8080/swagger-ui/index.html
 ```
 
-Swagger에서 `game-controller`, `ai-context-controller`를 펼치고 `Try it out`으로 테스트한다.
-
-개발용 진행 중 경기 확인:
-
 ```bash
-curl "http://localhost:8080/api/games/900001?mode=PROTECTED"
-curl "http://localhost:8080/api/ai/games/900001/spoiler-free-context"
+curl "http://localhost:8080/api/games/$PULSE_REPLAY_GAME_ID?mode=PROTECTED"
+curl "http://localhost:8080/api/games/$PULSE_REPLAY_GAME_ID?mode=REVEALED"
+curl "http://localhost:8080/api/ai/games/$PULSE_REPLAY_GAME_ID/spoiler-free-context"
 curl "http://localhost:8080/api/rankings/live"
 ```
 
 ---
 
-## 6. DB와 Redis 확인
+## 7. DB와 Redis 확인
 
 ### DBeaver
-
-PostgreSQL 연결:
 
 | 항목 | 값 |
 |---|---|
@@ -145,12 +147,11 @@ PostgreSQL 연결:
 | 테이블 | 의미 |
 |---|---|
 | `games` | 경기 최신 상태 |
-| `plays` | 경기별 play 로그 |
-| `watch_scores` | 추천 점수 계산 이력 |
+| `plays` | S3 raw archive에서 재생한 play 로그 |
+| `watch_scores` | 리플레이 중 계산한 추천 점수 이력 |
+| `replay_segments` | 라이브 계산 중 열린 다시보기 추천 구간 |
 
 ### RedisInsight
-
-Redis 연결:
 
 | 항목 | 값 |
 |---|---|
@@ -166,7 +167,7 @@ score:rank:live
 
 ---
 
-## 7. frontend / ai-service
+## 8. frontend / ai-service
 
 frontend:
 
@@ -188,57 +189,36 @@ source .venv/Scripts/activate
 
 ---
 
-## 8. 작업 흐름
+## 9. 작업 흐름
 
 `main`에는 직접 커밋하지 않는다. 작업은 새 브랜치에서 진행하고 PR로 병합한다.
 
 ```bash
-# 1. 최신 main 받기
 git checkout main
 git pull origin main
-
-# 2. 작업 브랜치 만들기
 git checkout -b feat/{이름}-{작업}
-
-# 3. 작업하고 커밋
 git add .
-git commit -m "feat: add login api"
-
-# 4. 내 브랜치로 push
+git commit -m "feat: add replay local loader"
 git push origin feat/{이름}-{작업}
 ```
 
-5. GitHub에서 **Compare & pull request**를 눌러 PR을 만든다.
-
-브랜치 이름과 커밋 메시지 예시:
-
-```text
-feat/login-api
-fix/ranking-empty-response
-docs/onboarding-guide
-
-feat: 경기 상세 API 추가
-fix: 랭킹 빈 응답 처리
-docs: 온보딩 문서 정리
-```
-
-PR은 작게 올리고, 병합 전 담당 영역 검증을 실행한다.
+병합 전 담당 영역 검증을 실행한다.
 
 ```bash
 cd backend
-./gradlew build
+./gradlew test
 ```
 
 ---
 
-## 9. 자주 막히는 부분
+## 10. 자주 막히는 부분
 
 | 증상 | 확인할 것 |
 |---|---|
 | DB 연결 실패 | Docker Desktop 실행 여부, `docker ps`, `.env` 비밀번호 |
-| Swagger가 안 열림 | Spring Boot를 `api` 또는 `api,dev`로 실행했는지 |
-| 랭킹이 비어 있음 | 실제 진행 중 경기가 없을 수 있음. 개발 중에는 `api,dev` 사용 |
-| 개발용 데이터가 안 바뀜 | `api,dev` 프로필로 실행했는지 확인 |
-| poller 401/403 | `BDL_API_KEY` 설정 |
+| Swagger가 안 열림 | Spring Boot를 `api,replay` 프로필로 실행했는지 |
+| S3 접근 실패 | AWS 로그인, 버킷명, `AWS_REGION`, S3 읽기 권한 |
+| 랭킹이 비어 있음 | `PULSE_REPLAY_GAME_ID`에 진행 중 경기 raw가 있는지 |
+| 점수 이력이 적음 | `PULSE_REPLAY_DATE`, `PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX` 값 |
 
-설정 중 막히면 이 문서를 고쳐서 PR로 올려 주세요.
+설정 중 막히면 이 문서를 고쳐서 PR로 올린다.
