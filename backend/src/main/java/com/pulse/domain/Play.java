@@ -58,6 +58,21 @@ public class Play {
     private Integer strikes;
 
     /** 수집 시각. play 자체에 타임스탬프가 없어 시간 감쇠 계산의 기준으로 쓴다. */
-    @Column(nullable = false)
+    @Column(name = "observed_at", nullable = false)
     private Instant fetchedAt;
+
+    @Column(name = "source")
+    private String source;
+
+    @Column(name = "backfilled")
+    private Boolean backfilled;
+
+    @Column(name = "runner_on_first")
+    private Boolean runnerOnFirst;
+
+    @Column(name = "runner_on_second")
+    private Boolean runnerOnSecond;
+
+    @Column(name = "runner_on_third")
+    private Boolean runnerOnThird;
 }
