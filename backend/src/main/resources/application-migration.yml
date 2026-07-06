@@ -1,5 +1,7 @@
 # 스키마는 prod 프로파일 Flyway로 이미 적용된 상태에서 이전 배치만 수행한다.
 spring:
+  main:
+    web-application-type: none
   jpa:
     hibernate:
       ddl-auto: none
