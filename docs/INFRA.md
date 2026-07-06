@@ -1,0 +1,66 @@
+# AWS 리소스 구성과 환경 설정
+
+이 문서는 PULSE 배포 환경의 AWS 리소스 구성, 시크릿·환경 변수 관리 방식, 네트워크 설정을 정리한다. 배포 컨테이너 구성은 TECH_STACK.md §3, 로컬 개발 절차는 ONBOARDING.md, S3 원본 아카이브와 운영 DB 이관 배경은 ARCHITECTURE_AND_DATA_FLOW.md §10을 따른다.
+
+## 1. AWS 리소스 구성
+
+| 리소스 | 구성 | 비고 |
+|---|---|---|
+| EC2 | Ubuntu 24.04 LTS, t3.large, gp3 30GiB, Elastic IP | api·poller·scorer·ai-service·redis·rabbitmq·prometheus·grafana 컨테이너 실행 |
+| RDS | PostgreSQL, Single-AZ, db.t3.micro, gp3 20GiB | 자동 확장 최대 100GiB, 삭제 보호 켬 |
+| S3 | 원본 raw archive 버킷 | poller 원본 응답 저장 및 replay 입력 |
+| 리전 | ap-northeast-2 | AWS 리소스 공통 리전 |
+
+EC2와 RDS는 같은 기본 VPC에 배치한다. 실제 엔드포인트·리소스 ID·IP 값은 소유자 로컬 문서와 배포 환경 변수로만 관리한다.
+
+## 2. RDS 사양
+
+RDS는 PostgreSQL용 관리형 데이터베이스로 구성한다.
+
+- 배포 형태: Single-AZ
+- 인스턴스 클래스: db.t3.micro
+- 스토리지: gp3 20GiB, 자동 확장 최대 100GiB
+- 암호화: 기본 KMS 키 사용
+- 백업: 자동 백업 7일
+- 복제: 교차 리전 복제 없음
+- 삭제 보호: 켬
+- 모니터링: Database Insights Standard만 사용
+- 마스터 자격 증명: AWS Secrets Manager 관리
+
+초기 부하는 poller·scorer 중심이며 트래픽 규모가 작으므로 최소 클래스에서 시작한다. 스토리지는 증가만 가능하므로 초기값은 20GiB로 두고 자동 확장 상한을 100GiB로 제한한다.
+
+## 3. 시크릿·환경 변수 관리
+
+운영 시크릿은 GitHub Actions Secrets, AWS Secrets Manager, EC2 `.env` 파일로 분리해 관리한다. 데이터베이스 마스터 자격 증명은 RDS 생성 시 AWS Secrets Manager가 관리하며, 애플리케이션은 필요한 최소 권한으로 조회한다.
+
+환경 변수 목록은 이름만 문서화하고 실제 값은 저장소에 기록하지 않는다.
+
+| 구분 | 변수명 |
+|---|---|
+| 외부 API | `BDL_API_KEY`, `OPENAI_API_KEY` |
+| S3 리플레이 | `PULSE_REPLAY_S3_BUCKET`, `PULSE_REPLAY_GAME_ID`, `PULSE_REPLAY_DATE`, `PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX` |
+| 공통 | `AWS_REGION` |
+| PostgreSQL | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` |
+| Redis | `REDIS_HOST`, `REDIS_PORT` |
+| 인증 | `JWT_SECRET` |
+| ai-service | `AI_SERVICE_URL` |
+
+GitHub Actions Secrets에는 배포와 연결 정보에 필요한 값만 등록한다. balldontlie API 키와 런타임 `.env` 값은 EC2에서 관리한다.
+
+## 4. 네트워크
+
+RDS는 퍼블릭 액세스를 허용하지 않는다. RDS 생성 시 AWS 콘솔의 EC2 연결 방식을 사용해 보안그룹을 자동 구성하며, EC2에서 RDS 5432 포트로 들어가는 연결만 허용한다.
+
+로컬에서 운영 DB에 접속해야 하는 경우 RDS를 직접 공개하지 않고 EC2 SSH 터널을 경유한다. 운영 보안그룹에는 로컬 IP에서 RDS로 직접 접근하는 규칙을 추가하지 않는다.
+
+## 5. 로컬 개발 환경과 운영의 관계
+
+로컬 개발은 `infra/docker-compose.yml`로 PostgreSQL·Redis 컨테이너를 실행하고 S3 raw archive 리플레이로 데이터를 채운다. 운영은 EC2 Docker Compose로 애플리케이션 관련 컨테이너를 실행하고 PostgreSQL만 RDS로 분리한다.
+
+현재 `infra/` 폴더에는 로컬 개발용 Compose 설정만 둔다. 운영 배포용 Compose 설정은 별도 배포 절차에서 관리한다.
+
+## 6. IAM 원칙
+
+EC2 인스턴스 프로파일은 `pulse-app-role`을 사용한다. 이 역할에는 S3 원본 버킷 읽기 권한과 RDS 시크릿 조회 권한만 최소 범위로 부여한다.
+
+EC2에서 AWS API를 호출하기 위해 별도 액세스 키를 발급하지 않는다. 애플리케이션과 운영 스크립트는 인스턴스 프로파일 자격 증명을 사용한다.

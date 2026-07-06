@@ -11,13 +11,14 @@
 | 시각 | 모든 시각 컬럼은 `TIMESTAMPTZ`(UTC 저장). balldontlie `date`·`updated_at`은 UTC ISO 8601이다. |
 | `observed_at` | plays·PA에 **벽시계 타임스탬프가 없으므로** 폴러의 **최초 관측 시각**을 저장해 시간 감쇠(최근 득점·리드 변경)를 계산한다. 정밀도 하한은 폴링 주기(약 20초)다. |
 | `backfilled` | 과거 백필로 적재한 행은 `true`. 시간 기반 계산에서 제외한다(백테스트는 order 윈도우로 근사). |
+| `source` | 데이터 출처를 `OPERATIONAL`(기본)·`S3_LIVE_ARCHIVE`·`S3_BACKFILL`로 구분한다. S3에서 이전한 데이터를 운영 수집분과 구분하는 컬럼이며 상세는 §F. `backfilled`는 `source = 'S3_BACKFILL'`과 동치다. |
 | 배열·구조 | 이닝별 점수·신호 기여·태그 등 가변 구조는 `JSONB` 또는 Postgres 배열 타입을 쓴다. |
 | 상수 | 가중치·임계값·중요도 배수는 **DB에 저장하지 않는다.** `scoring.yml`에서 관리하고 변경 시 `version`을 올린다. |
-| 스키마 관리 | 로컬은 `ddl-auto: update`, 배포 환경(RDS)은 **Flyway 마이그레이션만** 사용한다. 통합 시점(7/14 전후)에 베이스라인 V1을 만들고 이후 변경은 증분 마이그레이션으로 리뷰를 거친다. |
+| 스키마 관리 | 로컬은 `ddl-auto: update`, 배포 환경(RDS)은 **Flyway 마이그레이션만** 사용한다. 베이스라인 V1은 DB 이전에 앞서 만들고, 이후 변경은 증분 마이그레이션으로 리뷰를 거친다. |
 
 ## 2. 스포일러 보호 규칙
 
-🔒 표시 컬럼은 **내부 계산 전용**이다. 점수·득점·승패·우세·라이브 배당·결과 텍스트가 여기에 해당한다. 보호 모드 DTO에서 반드시 제거하며 API·프론트로 그대로 내보내지 않는다. 스포일러 보호는 프론트가 아니라 **서버 응답 단계**에서 강제한다. 금지 필드 전체 목록과 화면별 노출 기준은 [API_CONTRACTS.md](API_CONTRACTS.md) §3이 단일 기준이며, 직렬화 가드 테스트와 동기화한다.
+[내부] 표시 컬럼은 **내부 계산 전용**이다. 점수·득점·승패·우세·라이브 배당·결과 텍스트가 여기에 해당한다. 보호 모드 DTO에서 반드시 제거하며 API·프론트로 그대로 내보내지 않는다. 스포일러 보호는 프론트가 아니라 **서버 응답 단계**에서 강제한다. 금지 필드 전체 목록과 화면별 노출 기준은 [API_CONTRACTS.md](API_CONTRACTS.md) §3이 단일 기준이며, 직렬화 가드 테스트와 동기화한다.
 
 ## 3. 전체 관계도 (ERD)
 
@@ -79,18 +80,19 @@ erDiagram
 | `lifecycle_state` | `TEXT` | 폴러 상태머신 값 | `SCHEDULED`…`DONE` |
 | `period` | `SMALLINT` | 현재 이닝 | 후반/연장 신호 |
 | `home_team_id` · `away_team_id` | `BIGINT` | 홈/원정팀 | FK → `teams` |
-| `home_runs` · `away_runs` | `SMALLINT` | 팀별 득점 | 🔒 점수 차 신호 |
-| `home_hits` · `away_hits` | `SMALLINT` | 팀별 안타 | 🔒 |
-| `home_errors` · `away_errors` | `SMALLINT` | 팀별 실책 | 🔒 |
-| `home_inning_scores` · `away_inning_scores` | `JSONB` | 이닝별 득점 배열 | 🔒 초반 난타·빅이닝 검증 |
+| `home_runs` · `away_runs` | `SMALLINT` | 팀별 득점 | [내부] 점수 차 신호 |
+| `home_hits` · `away_hits` | `SMALLINT` | 팀별 안타 | [내부] |
+| `home_errors` · `away_errors` | `SMALLINT` | 팀별 실책 | [내부] |
+| `home_inning_scores` · `away_inning_scores` | `JSONB` | 이닝별 득점 배열 | [내부] 초반 난타·빅이닝 검증 |
 | `venue` | `TEXT` | 경기장 | 표시용(스포일러 아님) |
 | `attendance` | `INT` | 관중 수 | 표시용 |
-| `pregame_score` | `SMALLINT` | 예정 정렬 점수 0–100 | 🔒 UI 노출 금지 |
-| `peak_base_score` | `SMALLINT` | 라이브 중 최고 base_score | 🔒 종료 정렬 키 |
+| `pregame_score` | `SMALLINT` | 예정 정렬 점수 0–100 | [내부] UI 노출 금지 |
+| `peak_base_score` | `SMALLINT` | 라이브 중 최고 base_score | [내부] 종료 정렬 키 |
 | `final_headline` | `TEXT` | 종료 경기 AI 헤드라인(검수 통과본) | 종료 후 확정, nullable |
 | `last_play_order` | `BIGINT` | `/plays` 증분 커서(마지막 order) | |
 | `last_polled_at` | `TIMESTAMPTZ` | 최근 폴링 시각 | |
 | `observed_at` | `TIMESTAMPTZ` | 최신 상태 관측 시각 | |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
 | `created_at` · `updated_at` | `TIMESTAMPTZ` | 생성/수정 시각 | |
 
 **키·인덱스** — PK `game_id` · idx(`lifecycle_state`), idx(`start_time`), idx(`status`)
@@ -107,8 +109,8 @@ erDiagram
 | `type` | `TEXT` | 이벤트 타입 | 이닝 경계 감지 |
 | `inning` | `SMALLINT` | 이닝 번호 | |
 | `inning_type` | `TEXT` | `Top`/`Bottom`/`Mid` | |
-| `text` | `TEXT` | play 설명 | 🔒 스포일러 검수 게이트 필요 |
-| `home_score` · `away_score` | `SMALLINT` | play 후 점수 | 🔒 리드 변경 감지 |
+| `text` | `TEXT` | play 설명 | [내부] 스포일러 검수 게이트 필요 |
+| `home_score` · `away_score` | `SMALLINT` | play 후 점수 | [내부] 리드 변경 감지 |
 | `scoring_play` | `BOOLEAN` | 득점 play 여부 | 최근 득점·빅이닝 |
 | `score_value` | `SMALLINT` | 득점 수(1–3, 그 외 null) | |
 | `outs` · `balls` · `strikes` | `SMALLINT` | 카운트 | 카운트/아웃 신호 |
@@ -119,6 +121,7 @@ erDiagram
 | `trajectory` | `TEXT` | 궤적 `F`/`P`/`G`/null | |
 | `observed_at` | `TIMESTAMPTZ` | 최초 관측 시각 | 시간 감쇠 기준 |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `play_order`)** · idx(`game_id`, `play_order`)
 
@@ -133,13 +136,14 @@ erDiagram
 | `computed_at` | `TIMESTAMPTZ` | 계산 시각(폴링 사이클 observed_at) | |
 | `play_order` | `BIGINT` | 계산 기준 마지막 play order | |
 | `inning` · `inning_type` | `SMALLINT` · `TEXT` | 계산 시점 이닝 | |
-| `base_score` | `SMALLINT` | 8개 신호 합(보정 전) | 🔒 |
-| `importance_multiplier` | `NUMERIC(4,2)` | 경기 중요도 배수 ×0.90–×1.15 | 🔒 |
-| `pregame_bonus` | `NUMERIC(4,2)` | 사전 가산 `pregame_score/10`(0–10) | 🔒 |
-| `watch_score` | `SMALLINT` | 최종 `clamp(raw, 0, 100)` | 🔒 랭킹 정렬 키 |
-| `signal_contributions` | `JSONB` | 신호별 기여 맵 | 🔒 예: `{"후반연장":20,"점수차":15}` |
+| `base_score` | `SMALLINT` | 8개 신호 합(보정 전) | [내부] |
+| `importance_multiplier` | `NUMERIC(4,2)` | 경기 중요도 배수 ×0.90–×1.15 | [내부] |
+| `pregame_bonus` | `NUMERIC(4,2)` | 사전 가산 `pregame_score/10`(0–10) | [내부] |
+| `watch_score` | `SMALLINT` | 최종 `clamp(raw, 0, 100)` | [내부] 랭킹 정렬 키 |
+| `signal_contributions` | `JSONB` | 신호별 기여 맵 | [내부] 예: `{"후반연장":20,"점수차":15}` |
 | `tags` | `TEXT[]` | 추천 이유 태그 | 예: `접전 흐름`, `득점권 압박`, `후반 긴장 구간` — 표기는 [RECOMMENDATION_POLICY.md](RECOMMENDATION_POLICY.md) §2 기준 |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `computed_at`)** (`score.tasks` 재전달 멱등 키) · idx(`game_id`, `computed_at`)
 
@@ -156,11 +160,12 @@ erDiagram
 | `start_play_order` · `end_play_order` | `BIGINT` | 구간 play order 범위 | 재생 범위 |
 | `start_inning` · `end_inning` | `SMALLINT` | 이닝 범위 | |
 | `start_inning_type` · `end_inning_type` | `TEXT` | 초/말 | |
-| `peak_score` | `SMALLINT` | 구간 내 최고 base_score | 🔒 노출 상위 3개 정렬 키 |
+| `peak_score` | `SMALLINT` | 구간 내 최고 base_score | [내부] 노출 상위 3개 정렬 키 |
 | `tags` | `TEXT[]` | 구간 중 발생 태그 | |
 | `ai_summary` | `TEXT` | 구간 AI 요약(검수 통과본) | 확정 산출물로 영속, nullable |
 | `status` | `TEXT` | `OPEN`/`CLOSED` | |
 | `opened_at` · `closed_at` | `TIMESTAMPTZ` | 개폐 시각 | |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
 
 **키·인덱스** — PK `id` · idx(`game_id`, `peak_score` DESC)
 
@@ -293,12 +298,13 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `position` | `TEXT` | 이 경기 포지션 | |
 | `is_probable_pitcher` | `BOOLEAN` | 선발 예상 투수 여부 | pregame 선발 매치업 입력 |
 | `observed_at` | `TIMESTAMPTZ` | 관측 시각 | 타순 공개 시점 실측용 |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
 
 **키·인덱스** — PK `lineup_item_id` · UNIQUE(`game_id`, `player_id`) · idx(`game_id`)
 
 ### D-2. `odds_snapshots` — 경기 전 배당 스냅샷
 
-🔒 내부 전용, UI 노출 금지. **라이브 배당은 저장하지 않는다**(스포일러·갱신 지연). 오프닝 배당은 2026 시즌 미제공이므로, 당일 첫 관측(`FIRST_SEEN`)과 시작 직전(`PREGAME_FINAL`) 스냅샷만 남겨 접전 기대를 고정한다.
+[내부] 내부 전용, UI 노출 금지. **라이브 배당은 저장하지 않는다**(스포일러·갱신 지연). 오프닝 배당은 2026 시즌 미제공이므로, 당일 첫 관측(`FIRST_SEEN`)과 시작 직전(`PREGAME_FINAL`) 스냅샷만 남겨 접전 기대를 고정한다.
 
 **기록 조건**: 두 스냅샷 모두 `observed_at < start_time`이고 경기 상태가 시작 전일 때만 기록·갱신한다. `/odds`는 경기 중에도 같은 행이 라이브 라인으로 계속 덮어써지므로, **LIVE 전환 이후 관측값으로는 스냅샷을 생성·갱신하지 않는다**. 시작 전 스냅샷이 없으면 `pregame_score`의 접전 기대는 승률 차 폴백을 쓴다.
 
@@ -308,13 +314,14 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `game_id` | `BIGINT` | 경기 | FK → `games` |
 | `vendor` | `TEXT` | sportsbook(6곳) | 벤더 중앙값으로 노이즈 제거 |
 | `snapshot_type` | `TEXT` | `FIRST_SEEN`/`PREGAME_FINAL` | |
-| `moneyline_home_odds` · `moneyline_away_odds` | `INT` | 승리 배당(American) | 🔒 접전 기대 산출 |
+| `moneyline_home_odds` · `moneyline_away_odds` | `INT` | 승리 배당(American) | [내부] 접전 기대 산출 |
 | `spread_home_value` · `spread_away_value` | `NUMERIC(3,1)` | 런라인 | |
 | `spread_home_odds` · `spread_away_odds` | `INT` | 런라인 배당 | |
 | `total_value` | `NUMERIC(3,1)` | 총점 기준선 | 난타전/투수전 예상 보조 |
 | `total_over_odds` · `total_under_odds` | `INT` | 오버/언더 배당 | |
 | `vendor_updated_at` | `TIMESTAMPTZ` | 원본 `updated_at` | 신선도 판단 |
 | `observed_at` | `TIMESTAMPTZ` | 스냅샷 저장 시각 | |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
 
 **키·인덱스** — PK `id` · UNIQUE(`game_id`, `vendor`, `snapshot_type`)
 
@@ -335,6 +342,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `streak` | `SMALLINT` | 연승/연패(음수) | 참고용 |
 | `last_ten_games` | `SMALLINT` | 최근 10경기 | 참고용 |
 | `observed_at` | `TIMESTAMPTZ` | 관측 시각 | |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
 
 **키·인덱스** — PK `id` · UNIQUE(`season`, `snapshot_date`, `team_id`)
 
@@ -351,11 +359,15 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 **키·인덱스** — PK(`season`, `player_id`) · `fielding_fip`는 실측 스케일 이상으로 **적재하지 않는다.**
 
+선발 매치업 입력은 pregame 계산 시점에 확정 선발 예상 투수(`is_probable_pitcher`)의 `player_ids[]`로 `/season_stats`를 온디맨드 조회하거나 일 배치로 이 테이블에 캐시한다(P2). 별도 P1 승격은 하지 않는다. 조회 실패 시 직전 캐시값을 사용하고, 선발 미확정 시 해당 선발 매치업은 0점 처리한다([RECOMMENDATION_SCORE.md](RECOMMENDATION_SCORE.md) §5).
+
+
 ## E. 부록
 
 ### E-1. `plate_appearances`를 코어 테이블로 두지 않는 이유
 
-`/plate_appearances`는 압박(`runner_on_*`), 강한 타구(`exit_velocity >= 95`, `is_barrel`), 긴 타석, 투수 흔들림(`release_speed`·`pitcher_pitch_count`) 등 **상세 신호 산출에만 소비**한다. 원본은 S3 라이브 아카이브에 남고 산출된 기여·태그는 `watch_scores`에 저장되므로, 운영 Postgres 코어 테이블로 두지 않는다. 상세 화면용으로 영속이 필요해지면 `(game_id, pa_number)` 유니크로 별도 적재한다.
+`/plate_appearances`는 압박(`runner_on_*`), 강한 타구(`exit_velocity >= 95`, `is_barrel`), 긴 타석, 투수 흔들림(`release_speed`·`pitcher_pitch_count`) 등 **상세 신호 산출에만 소비**한다. 원본은 S3 라이브 아카이브에 남고 산출된 기여·태그는 `watch_scores`에 저장되므로, 운영 Postgres 코어 테이블로 두지 않는다. 상세 화면용으로 영속이 필요해지면 `(game_id, pa_number)` 유니크로 별도 적재한다. 라이브 압박·카운트 신호는 poller가 `/plate_appearances`(`runner_on_*`)·`/plays`(카운트)에서 추출해 `ScoreTask.situation`으로 scorer에 전달한다([API_CONTRACTS.md](API_CONTRACTS.md) §8.1). PA 원본은 S3 라이브 아카이브에만 남는다.
+
 
 ### E-2. Redis 키 (실시간 조회 전용)
 
@@ -377,3 +389,27 @@ raw/plays/game_id=<id>/plays_YYYY-MM-DD_HHMMSSZ_c<cursor>.json.gz
 ```
 
 각 객체는 `observed_at`, `endpoint`, `params`, `response`를 가진 gzip JSON이다. `backfilled: true` 객체는 시간 감쇠 계산에서 제외한다.
+
+이전 완료 후에는 신규 S3 수집을 중단하며, 수집분은 운영 DB로 이전해 보존한다(§F, [ARCHITECTURE_AND_DATA_FLOW.md](ARCHITECTURE_AND_DATA_FLOW.md) §10).
+
+## F. 이전 데이터 구분과 정합성
+
+S3에서 운영 DB로 이전한 데이터를 운영 수집분과 구분하고, 불가피한 차이를 명시한다.
+
+### F-1. 구분 방법
+
+- `source` 컬럼: `games`·`plays`·`watch_scores`·`replay_segments`·`odds_snapshots`·`standings`·`lineups` 등 이전 이력을 담는 테이블에 둔다. 값은 `OPERATIONAL`(운영 poller 수집, 기본), `S3_LIVE_ARCHIVE`(S3 라이브 아카이브 이전분), `S3_BACKFILL`(과거 시즌 백필 이전분)이다.
+- `backfilled` 불리언은 `source = 'S3_BACKFILL'`과 동치이며, 기존 시간 감쇠 제외 로직이 계속 참조한다.
+- 이전 경계(cutover): 운영 poller 가동 시각을 이전 경계로 기록·문서화한다. 경계 이전 관측·이전분은 `source`가 `OPERATIONAL`이 아니다.
+
+### F-2. 운영 수집분과의 차이
+
+이 표기(`source ≠ OPERATIONAL`)의 데이터는 운영 수집분과 다음이 다르다. 변환 시 운영 스키마에 최대한 정합하게 맞추고, 불가피한 결측은 `null`로 두고 `source`로 식별한다.
+
+| 항목 | 차이 |
+|---|---|
+| `observed_at` 정밀도 | `S3_LIVE_ARCHIVE`의 관측 주기가 운영(약 20초)과 다를 수 있어 시간 감쇠(최근 득점·리드 변경) 오차 상한이 커진다. `S3_BACKFILL`은 벽시계 시각이 없어 order 윈도우로 근사한다. |
+| 압박 신호 | PA 원본이 운영 DB에 영속하지 않으므로(§E-1) 이전 데이터의 압박 신호는 `watch_scores.signal_contributions`의 기여값만 보존되고 재계산할 수 없다. |
+| `watch_scores` | 이전분은 이전 시점 `scoring.yml` 버전으로 재생한 값이다. 백테스트에서는 기준(baseline) 참고용으로만 쓰고, 가중치 재계산 시 새로 산출한다. |
+| 선수 시즌 스탯 | `player_season_stats`는 최신값을 덮어써 과거 경기 시점 ERA를 복원할 수 없다. 이전 데이터의 `pregame_score` 선발 매치업 재계산은 제한된다. |
+| 수집 주기·결측 | 라이브 아카이브·백필의 수집 주기가 운영 계획과 다를 수 있고, 일부 필드가 결측일 수 있다. 결측은 `null`로 두고 `source`로 구분한다. |

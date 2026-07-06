@@ -37,3 +37,6 @@ Thumbs.db
 
 # 로그
 *.log
+
+# 로컬 문서
+local-docs/

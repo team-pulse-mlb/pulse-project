@@ -96,11 +96,14 @@ stateDiagram-v2
 | ④ | `LIVE` | `/games`는 ①과 같은 사이클로 점수·이닝을 갱신하고, `/plays`는 cursor 증분, `/plate_appearances`는 전체 재조회 후 dedupe한다. 수집 후 RabbitMQ로 계산 요청을 보낸다. LIVE 전이 감지 시 `GAME_START` 알림 이벤트를 발행한다. | `/games`: 20초 · `/plays`: 20초 · `/plate_appearances`: 20초 |
 | ⑤ | `SUSPENDED` | 새 play가 없으면 `/plays` 수집만 낮추고, ①의 `/games`로 재개를 감지한다. | `/plays`: 5분 |
 | ⑥ | `LIVE` 재개 | 새 play 감지 시 ④의 주기로 복귀한다. | `/plays`: 20초 |
-| ⑦ | `FINAL` | 열린 다시보기 구간을 마감하고, 라이브 랭킹(`score:rank:live`)에서 제거해 `signal:ranking`을 발행한 뒤 경기 상태를 종료로 바꾼다. 별도 재분석은 하지 않는다. | 종료 시 1회 |
-| ⑧ | `DONE` | 연기·취소 경기는 랭킹에서 제거한다. | 감지 시 1회 |
-| ⑨ | `SUSPENDED_POSTPONED` | 라이브 중 원본 `STATUS_POSTPONED`(서스펜디드 게임)를 감지하면 라이브 랭킹에서 제거하고, 열린 다시보기 구간은 닫지 않고 보류한다. 이후 재개(`STATUS_IN_PROGRESS`)·종료(`STATUS_FINAL`)·취소(`STATUS_CANCELED`)를 ①의 감시로 받아 각 상태로 보낸다. `DONE`이나 `FINAL`로 바로 보내지 않는 이유: 재개 시 이력이 끊기거나 종료 경기로 잘못 노출되는 것을 막기 위해서다. | 감지 시 1회, 이후 ① 주기 |
+| ⑦ | `FINAL` | 경기 종료를 감지하면 `lifecycleState=FINAL`을 실은 종료 ScoreTask를 발행한다. 열린 다시보기 구간 마감·라이브 랭킹(`score:rank:live`) 제거·`signal:ranking` 발행은 scorer가 수행한다(§4). 별도 재분석은 하지 않는다. | 감지 시 1회 |
+| ⑧ | `DONE` | 연기·취소를 감지하면 `lifecycleState=DONE`을 실은 종료 ScoreTask를 발행한다. 랭킹 제거는 scorer가 수행한다. | 감지 시 1회 |
+| ⑨ | `SUSPENDED_POSTPONED` | 라이브 중 원본 `STATUS_POSTPONED`(서스펜디드 게임)를 감지하면 `lifecycleState=SUSPENDED_POSTPONED`을 실은 종료 ScoreTask를 발행한다. scorer는 라이브 랭킹에서 제거하되 열린 다시보기 구간은 닫지 않고 보류한다. 이후 재개(`STATUS_IN_PROGRESS`)·종료(`STATUS_FINAL`)·취소(`STATUS_CANCELED`)를 ①의 감시로 받아 각 상태로 보낸다. `DONE`이나 `FINAL`로 바로 보내지 않는 이유: 재개 시 이력이 끊기거나 종료 경기로 잘못 노출되는 것을 막기 위해서다. | 감지 시 1회, 이후 ① 주기 |
+
+**일정 룩어헤드**: ①의 어제·오늘(UTC) 감시와 별도로, 향후 2~3일 일정을 저빈도(6~12시간 주기)로 동기화해 미래 경기와 시작 시각을 미리 확보한다. balldontlie `/games`는 최소 7일 뒤까지 일정을 제공하고, 미래 경기도 `date`에 실제 시작 시각(UTC ISO 8601)을 담는다. 확보한 시작 시각으로 `SCHEDULED → PREGAME_FAR`(T-36h) `→ PREGAME_NEAR`(T-6h) 전이 시점을 예약한다. 시작 시각은 확정 전 변동될 수 있으므로 룩어헤드 동기화마다 갱신하고, 시작 시각 미정(TBD) 경기는 전이 예약을 보류한 뒤 다음 동기화에서 재확인한다.
 
 ## 4. 계산 흐름
+
 
 ```mermaid
 flowchart LR
@@ -129,6 +132,9 @@ flowchart LR
 | ⑧ | PostgreSQL 저장 | 점수 이력과 다시보기 구간을 남긴다. |
 | ⑨ | 급상승 알림 판정 | 히스테리시스(85 진입 발화 / 70 미만 재무장)와 급등 조건(최근 5분 +15 이상)을 통과하면 `notify.events`로 알림 이벤트를 발행한다. 판정이 scorer에 있는 이유: 점수 이력과 히스테리시스 상태를 가진 유일한 곳이기 때문이다. |
 | ⑩ | AI 문구 트리거 | 태그 세트 변화·추천 상태 진입 같은 유의미한 변화가 있을 때만 스포일러 세이프 context로 ai-service에 비동기 생성을 요청한다. |
+
+scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: 열린 다시보기 구간 마감(`SUSPENDED_POSTPONED`은 보류), `score:rank:live`에서 제거, `signal:ranking` 발행. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
+
 
 ## 5. 알림 파이프라인
 
@@ -219,7 +225,8 @@ flowchart LR
 | 경기 중 | `poller` 20초 수집 -> RabbitMQ -> `scorer` 계산 -> Redis 랭킹 갱신 -> 재조회 신호 -> SSE |
 | 알림 | `scorer`/`poller` 판정 -> `notify.events` -> `api` fan-out·저장 -> SSE |
 | AI 문구 | `scorer`가 유의미 변화 시 비동기 요청 -> 생성·검수 -> Redis 캐시 -> 다음 조회에 반영 |
-| 경기 종료 | `FINAL` 감지 -> 열린 구간 마감 -> 상태 변경 -> 라이브 중 저장된 `peak_base_score`와 구간으로 다시보기 제공 |
+| 경기 종료 | `poller`가 `FINAL` 감지 -> 종료 ScoreTask 발행 -> `scorer`가 열린 구간 마감·랭킹 제거·`signal:ranking` -> 라이브 중 저장된 `peak_base_score`와 구간으로 다시보기 제공 |
+
 
 ## 9. 설계 원칙
 
@@ -231,16 +238,22 @@ flowchart LR
 6. 채널 선택 기준: 유실 불가 작업은 RabbitMQ, 유실 허용 신호는 Redis Pub/Sub.
 7. 판정은 데이터를 가진 컴포넌트에서, 전달은 사용자를 아는 컴포넌트에서 한다.
 
-## 10. 개발용 S3 수집
+## 10. S3 임시 수집과 운영 DB 이전
 
-운영 흐름과 별도로, 개발·백테스트용 원본 데이터는 S3에 저장한다.
+운영 데이터 경로는 운영 `poller` → RDS 적재 + ScoreTask 발행으로 일원화한다. S3 아카이브는 DB 이전 전까지의 개발·데이터 파악·백테스트용 **임시 수집**이며, 운영 이전이 완료되면 아카이빙을 중단한다.
 
 ```text
-S3 = 운영 서비스용 저장소가 아니라 개발과 백테스트용 원본 아카이브
+S3 = 운영 서비스용 저장소가 아니라 개발·백테스트용 임시 원본 아카이브 (운영 이전 후 중단)
 ```
+
+**이전 계획(임시 수집 → 운영 이전 → 중단 → 보존)**
+
+S3 수집분은 Flyway 베이스라인 V1 적용 후 운영 스키마로 이전하고, `source`로 운영 수집분과 구분한다. DB 이전과 운영 `poller` 정상 동작 확인이 끝나면 즉시 raw-archive의 S3 아카이빙을 중단하며, 이전한 데이터는 폐기하지 않고 운영 DB에 영속한다. 세부 실행 절차와 일정 기준은 소유자(예은)가 별도로 관리한다.
+
+**후속 항목**: ONBOARDING.md를 DB 이전 완료 후 단계별 따라하기 형식으로 갱신한다(현재 S3 리플레이 절차를 운영 DB 기준으로 대체).
 
 | 구분 | 용도 |
 |---|---|
-| 라이브 아카이브 | 진행 중 경기를 원본 응답 그대로 저장한다. `observed_at`은 실제 관측 시각으로 사용한다. |
-| 백필 데이터 | 과거 경기 분석용이다. `backfilled: true`로 표시하고 시간 기반 계산에는 사용하지 않는다. |
-| 백테스트 | S3 원본을 로컬/배치 스크립트로 읽어 `scoring.yml`을 튜닝한다. 가중치 변경 시 회귀 리포트를 생성한다([RECOMMENDATION_SCORE.md](RECOMMENDATION_SCORE.md) §8). 운영 DB에는 넣지 않는다. |
+| 라이브 아카이브 | 진행 중 경기를 원본 응답 그대로 저장한다. `observed_at`은 실제 관측 시각으로 사용한다. 이전 시 `source=S3_LIVE_ARCHIVE`로 표기한다. |
+| 백필 데이터 | 과거 경기 분석용이다. `backfilled: true`로 표시하고 시간 기반 계산에는 사용하지 않는다. 이전 시 `source=S3_BACKFILL`로 표기한다. |
+| 백테스트 | 이전 후 운영 DB 이력으로 `scoring.yml`을 튜닝한다. 가중치 변경 시 영향 리포트를 생성한다([RECOMMENDATION_SCORE.md](RECOMMENDATION_SCORE.md) §8). |

@@ -85,12 +85,7 @@ PR 본문에는 아래 내용을 적는다.
 ### backend
 
 - Java 21과 Spring Boot 기준으로 작성한다.
-- 패키지는 현재 구조를 따른다.
-  - `api`: 컨트롤러
-  - `replay`: S3 raw archive 재생과 점수 계산
-  - `ranking`: Redis 랭킹 반영
-  - `domain`: JPA 엔티티와 Repository
-  - `common`: 설정, 외부 클라이언트, 공통 DTO
+- 패키지 구조는 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) §3을 따른다.
 - 컨트롤러는 요청/응답 역할에 집중하고, 비즈니스 로직은 서비스로 옮긴다.
 - 추천 점수 상수는 `backend/src/main/resources/scoring.yml`에만 둔다.
 - `scoring.yml`을 바꾸면 `version`을 올리고 PR에 조정 근거를 적는다.

@@ -4,18 +4,48 @@
 
 ## 1. 담당 영역별 기능 분해
 
-backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, domain, common, replay}`. `poller`·`scorer`는 신규 패키지다. `api` 하위는 기능 패키지 `api.home` / `api.gamedetail` / `api.user` / `api.notification`으로 나눈다. 점수 계산 로직은 기존 `replay` 패키지에서 `scorer`로 이관하고(담당 예은), `replay`는 S3 재생 어댑터로 유지한다.
+backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai, domain, common, replay}`. `poller`·`scorer`는 신규 패키지다. `api` 하위는 기능 패키지 `api.home` / `api.gamedetail` / `api.user` / `api.notification`으로 나눈다. 점수 계산 로직은 기존 `replay` 패키지에서 `scorer`로 이관하고(담당 예은), `replay`는 S3 재생 어댑터로 유지한다. 패키지·폴더 전체 배치는 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)를 따른다.
 
 | 담당자 | 기능 영역 | backend 패키지 | frontend 폴더 |
 |---|---|---|---|
 | 예은(조장) | 데이터 파이프라인 · 점수 · 홈 · 공통 구조 | `poller` `scorer` `ranking` `replay` `api.home` `common` `domain` | `features/home` `shared` `app` |
-| 창현 | AI 문구 생성 | ai-service 전체 + `AiCopyReader` 구현 | `features/ai-copy` |
+| 창현 | AI 문구 생성 | ai-service 전체 + `com.pulse.ai`(`AiCopyReader` 구현) | `features/ai-copy` |
 | 민석 | 경기 상세 · 다시보기 | `api.gamedetail`(직렬화 가드 포함) | `features/game-detail` |
 | 윤호 | 회원 · 알림 (+ 통합 후 운영·관측) | `api.user` `api.notification` | `features/auth` `features/notification` |
 
 컨트롤러·서비스·DTO는 담당 기능 패키지 안에 둔다. 공유 지점은 `common/`과 `domain/`이며, 두 폴더 변경은 리뷰를 거친다. 기능 간 데이터 전달은 domain 읽기, Redis 이벤트, 공개 서비스 인터페이스로 제한한다.
 
 선행 리팩토링 PR은 예은 단독 주관이며, `domain` 쓰기 소유도 예은에게 있다. Spring Security 도입 시 전원에게 공지한다.
+
+아래는 경로 기준으로 쓰기 소유자를 조회하기 위한 상세 매핑이다.
+
+| 경로 | 쓰기 소유자 | 비고 |
+|---|---|---|
+| `backend/` | 패키지별 담당자 | 공용 패키지는 예은 |
+| `backend/com.pulse.api` | 하위 기능별 담당자 |  |
+| `backend/com.pulse.api.home` | 예은 |  |
+| `backend/com.pulse.api.gamedetail` | 민석 |  |
+| `backend/com.pulse.api.user` | 윤호 |  |
+| `backend/com.pulse.api.notification` | 윤호 |  |
+| `backend/com.pulse.poller` | 예은 |  |
+| `backend/com.pulse.scorer` | 예은 |  |
+| `backend/com.pulse.ranking` | 예은 |  |
+| `backend/com.pulse.ai` | 창현 |  |
+| `backend/com.pulse.replay` | 예은 |  |
+| `backend/com.pulse.domain` | 예은 | 공용, 쓰기 소유는 예은 |
+| `backend/com.pulse.common` | 예은 | 공용, 쓰기 소유는 예은 |
+| `frontend/` | 폴더별 담당자 |  |
+| `frontend/features/home` | 예은 |  |
+| `frontend/features/game-detail` | 민석 |  |
+| `frontend/features/ai-copy` | 창현 |  |
+| `frontend/features/auth` | 윤호 |  |
+| `frontend/features/notification` | 윤호 |  |
+| `frontend/shared` | 예은 |  |
+| `frontend/app` | 예은 |  |
+| `ai-service/` | 창현 |  |
+| `raw-archive/` | 예은 |  |
+| `infra/` | 확인 필요 | 확인 필요 |
+| `docs/` | 확인 필요 | 확인 필요 |
 
 ## 2. 팀 간 계약 지점
 
@@ -41,7 +71,7 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, do
 | ⑤ | 보호 모드 홈 노출 정책 | 매치업, 이닝 숫자(초/말 제외), 추천 이유 태그, AI 문구를 노출한다. `watch_score`는 정렬에만 쓰고 등급·순위·숫자는 노출하지 않는다 |
 | ⑥ | domain 소유권 | 공용 유지 + 소유권 규칙(예은). 경기 데이터는 3~4개 기능이 함께 읽어 이관하면 오히려 남의 패키지 내부 참조로 바뀌고 스키마 변경 리뷰 신호가 사라진다 |
 | ⑦ | 선행 리팩토링 PR | 예은 단독 |
-| ⑧ | DB 스키마 관리 | 로컬 `ddl-auto: update`, 배포 환경(RDS)은 Flyway — 통합 시점(7/14 전후) 베이스라인 전환 |
+| ⑧ | DB 스키마 관리 | 로컬 `ddl-auto: update`, 배포 환경(RDS)은 Flyway — 베이스라인 V1은 DB 이전에 앞서 확정(세부 계획은 소유자가 별도 관리) |
 | ⑨ | 공개 모드 세분화 | 경기 단위 전체 토글만. 계정 단위 기본 공개 설정은 두지 않고, 공개 상태는 클라이언트에만 저장 |
 | ⑩ | AI 비용 정책 | 신호 유의 변화 시에만 재생성 + 캐시. 생성은 데이터 갱신 시점 비동기, 종료 경기 문구는 DB 영속 |
 | ⑪ | 알림 처리 배치 | 판정=scorer(급상승)·poller(경기 시작), 전달·저장=api. 채널은 RabbitMQ `notify.events` |
@@ -78,6 +108,7 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, do
 7/14 전에는 [FEATURE_SPEC.md](FEATURE_SPEC.md) §6 데모 완료 기준 8개 외 신규 범위를 추가하지 않는다.
 
 ### 단계 3 — 배포 & 테스트 (7/15 ~ 7/17)
+DB 이전 완료 즉시 시작하며, 가능한 한 조기 진행한다.
 
 - **프론트**: Vercel
 - **백엔드/워커/AI**: AWS EC2 t3.large 1대 + Docker Compose
