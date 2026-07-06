@@ -9,6 +9,7 @@
 | `GET /api/rankings/live` | 홈 추천 보드(예정/진행/종료 목록, 추천순). 로그인 시 관심 팀/선수 가산이 적용된 순서 | 선택 |
 | `GET /api/games/{id}?mode=PROTECTED\|REVEALED` | 경기 상세. `mode` 기본값 `PROTECTED`. 진행 중이면 `switchSuggestion` 포함 | 선택 |
 | `GET /api/games/{id}/replay?mode=` | 종료 경기 다시보기 구간 목록 | 선택 |
+| `GET /api/games/{id}/events?mode=` | 흥미 순간 이벤트 타임라인(진행·종료 공통, §3.4) | 선택 |
 | `GET /api/sse` | SSE 구독(이벤트 3종, §2) | 선택 |
 | `POST /api/auth/signup` · `/login` · `/refresh` · `/logout` | 이메일+비밀번호 인증, JWT 발급·회전·폐기 | — |
 | `GET·PUT /api/me/preferences` | 관심 팀/선수, 알림 설정 | 필요 |
@@ -32,7 +33,7 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 ### 3.1 경계 규칙
 
 - **이닝 숫자는 노출, 초/말(`inningType`)은 비노출.** 이닝 숫자는 남은 관전 분량 판단에 필요하고 결과 방향을 드러내지 않는다. 초/말은 공격팀을 드러내 주자 압박과 결합 시 방향이 노출된다.
-- **최근 흐름은 태그 변화 히스토리로 제공한다.** play 단위 마스킹 타임라인은 제공하지 않는다.
+- **최근 흐름은 태그 변화 히스토리와 흥미 순간 이벤트 타임라인으로 제공한다.** play 전수를 마스킹해 나열하는 타임라인은 제공하지 않으며, 임계를 통과한 이벤트 마커만 노출한다(§3.4).
 - **다시보기 구간의 이닝 범위(예: 5회~7회)는 노출한다.** 초/말·play order·구간 점수는 숨긴다.
 - **내부 추천 점수는 모드와 무관하게 항상 금지.** 공개 모드에서 공개되는 것은 "경기의 점수"이지 "추천 점수"가 아니다.
 
@@ -43,17 +44,26 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 | 홈 카드 (예정) | 매치업, 시작 시각, 구장, 선발 투수, 추천 태그 | (pregame_score는 정렬에만) |
 | 홈 카드 (진행) | 매치업, 이닝 숫자, LIVE 배지, 추천 태그, AI 한 줄 문구 | 점수, 초/말, 아웃카운트 |
 | 홈 카드 (종료) | 매치업, 다시보기 구간 수 배지, 추천 태그 | 최종 점수, 승패 |
-| 상세 (진행, 보호) | 매치업·선발, 이닝 숫자, 아웃·볼카운트, 득점권/만루 여부, 추천 태그, 태그 히스토리, AI 헤드라인, 관심 선수 출전 여부, `switchSuggestion` | 점수, 초/말, play 원문, 타석 결과 |
-| 상세 (진행, 공개) | 보호 항목 + 점수, 이닝 초/말, play 타임라인(원문), 타석 결과, 이닝별 점수 | 내부 추천 점수 |
-| 상세 (종료, 보호) | 구간 목록(이닝 범위·구간 태그·AI 요약), 구간 수 | 최종 점수, 승패, scoring_summary |
-| 상세 (종료, 공개) | + 최종 점수, 이닝별 점수, scoring_summary, 타임라인 | 내부 추천 점수 |
+| 상세 (진행, 보호) | 매치업·선발, 이닝 숫자, 아웃·볼카운트, 득점권/만루 여부, 추천 태그, 태그 히스토리, 이벤트 타임라인(보호 안전 이벤트만), AI 헤드라인, 관심 선수 출전 여부, `switchSuggestion` | 점수, 초/말, play 원문, 타석 결과, 공개 전용 이벤트 |
+| 상세 (진행, 공개) | 보호 항목 + 점수, 이닝 초/말, play 타임라인(원문), 타석 결과, 이닝별 점수, 공개 전용 이벤트와 근거 수치 | 내부 추천 점수 |
+| 상세 (종료, 보호) | 구간 목록(이닝 범위·구간 태그·AI 요약), 구간 수, 이벤트 타임라인(보호 안전 이벤트만) | 최종 점수, 승패, scoring_summary, 공개 전용 이벤트 |
+| 상세 (종료, 공개) | + 최종 점수, 이닝별 점수, scoring_summary, 타임라인, 공개 전용 이벤트와 근거 수치 | 내부 추천 점수 |
 
 ### 3.3 금지 필드 목록 (직렬화 가드 대상)
 
 | 범위 | 금지 필드 |
 |---|---|
 | 전 모드 | `watch_score` · `base_score` · `pregame_score` · `peak_base_score` · `signal_contributions` 등 내부 점수 일체, odds 전체 |
-| 보호 모드 | `runs`/`hits`/`errors`, 이닝별 점수, `inningType`(초/말), play `text`, `scoring_play`/`score_value`, 타석 `result`, `scoring_summary`, `home_score`/`away_score` |
+| 보호 모드 | `runs`/`hits`/`errors`, 이닝별 점수, `inningType`(초/말), play `text`, `scoring_play`/`score_value`, 타석 `result`, `scoring_summary`, `home_score`/`away_score`, `game_events`의 `REVEALED_ONLY` 행 전체·`payload`·`inning_type` |
+
+### 3.4 흥미 순간 이벤트 타임라인
+
+이벤트는 scorer가 라이브 중 추출해 `game_events`에 영속한 확정 결과이며([DB_SCHEMA.md](DB_SCHEMA.md) §A-5), 진행·종료 경기 모두 같은 테이블을 읽는다. 이벤트 종류·발생 조건·보호 표기의 정본은 [RECOMMENDATION_POLICY.md](RECOMMENDATION_POLICY.md) §8이다.
+
+- 노출 판정은 서버 DTO 단계에서 `spoiler_level`로 강제한다. 보호 모드는 `PROTECTED_SAFE`만 노출하며, **미분류·알 수 없는 값은 모드와 무관하게 차단한다**(기본 차단).
+- 보호 모드 응답: `{ eventType, inning, label, observedAt }`. `label`은 POLICY §8의 보호 표기 문자열이다. 초/말·근거 수치·선수명·결과는 포함하지 않는다.
+- 공개 모드 응답: 보호 필드 + `inningType`, `payload` 근거 수치, 관련 선수, `REVEALED_ONLY` 이벤트(득점·리드 변경·홈런·빅이닝).
+- 산출·영속과 스키마는 예은, `GET /api/games/{id}/events` DTO·직렬화 가드는 민석 담당(§7 domain 읽기 계약과 동일).
 
 ## 4. 경기 전환 추천 (`switchSuggestion`)
 
