@@ -19,18 +19,19 @@
 
 ## 3. backend 패키지 구조
 
-기능 간 데이터 전달은 `domain` 읽기, Redis 이벤트, 공개 서비스 인터페이스로 제한한다. `api.*` 기능 패키지 간 직접 참조는 금지한다.
+기능 간 데이터 전달은 `domain` 읽기, Redis 이벤트, RabbitMQ, 공개 서비스 인터페이스로 제한한다. `api.*` 기능 패키지 간 직접 참조 금지는 컨트롤러·서비스·DTO·구현체의 직접 참조 금지를 의미한다. 단, 각 제공 패키지 최상위에 둔 계약 인터페이스(`scorer.ScoreQueryService`, `api.user.UserPreferenceReader`, `ai.AiCopyReader` 등)의 import는 예외로 허용하며, 구현체는 제공 패키지 하위에 둔다. 그 외 기능 간 전달은 `domain` 읽기, Redis, RabbitMQ만 사용한다. 회원 엔티티를 포함한 모든 JPA 엔티티·Repository는 `domain`에 둔다.
 
 | 패키지 | 역할 | 의존 방향 |
 |---|---|---|
 | `com.pulse.api` | REST·SSE·스포일러 보호 DTO·알림 전달 진입점 | `domain` 읽기, Redis 재조회 신호, 공개 서비스 인터페이스 사용 |
 | `com.pulse.api.home` | 홈 추천 보드 API | `domain`, `ranking`, `AiCopyReader`, `UserPreferenceReader` 사용 |
 | `com.pulse.api.gamedetail` | 경기 상세·다시보기 API, 직렬화 가드 | `domain`, `ScoreQueryService`, `AiCopyReader` 사용 |
-| `com.pulse.api.user` | 회원·관심 팀·관심 선수·설정 API | `domain`, `common` 사용. 선호 조회는 `UserPreferenceReader`로 공개 |
+| `com.pulse.api.user` | 회원·관심 팀·관심 선수·설정 API(엔티티·Repository는 `domain`에 위치) | `domain`, `common` 사용. 선호 조회는 `UserPreferenceReader`로 공개 |
 | `com.pulse.api.notification` | 알림 fan-out·저장·SSE 알림 전달 | RabbitMQ `notify.events` 소비, `domain`, `UserPreferenceReader`, `SseEventPublisher` 사용 |
 | `com.pulse.poller` | 상태별 폴링, 원본 저장, `ScoreTask`·`GAME_START` 이벤트 발행 | 외부 MLB API, `domain`, RabbitMQ `score.tasks`·`notify.events` 사용 |
-| `com.pulse.scorer` | `watch_score` 계산, 추천 태그·다시보기 구간 계산, `SURGE` 판정, AI 트리거 | RabbitMQ `score.tasks` 소비, `domain`, Redis, `ai-service`, RabbitMQ `notify.events` 사용 |
+| `com.pulse.scorer` | `watch_score` 계산, 추천 태그·다시보기 구간 계산, `SURGE` 판정, AI 트리거 | RabbitMQ `score.tasks` 소비, `domain`, Redis, `ai` 패키지의 트리거 인터페이스 경유, RabbitMQ `notify.events` 사용 |
 | `com.pulse.ranking` | Redis 랭킹 반영 | Redis와 공개 서비스 인터페이스를 통해 사용 |
+| `com.pulse.ai` | ai-service HTTP 클라이언트, AI 문구 캐시 접근, `AiCopyReader` 인터페이스·구현, scorer가 사용할 AI 생성 트리거 인터페이스 | Redis, ai-service, `domain` 읽기 사용 |
 | `com.pulse.replay` | S3 재생 어댑터 | S3 임시 아카이브와 계산 재생 경로에 한정 |
 | `com.pulse.domain` | JPA 엔티티와 Repository | 전 기능에서 읽기 전용 사용 |
 | `com.pulse.common` | 설정, 외부 클라이언트, 공통 DTO | 전 기능에서 공통 기반으로 사용 |

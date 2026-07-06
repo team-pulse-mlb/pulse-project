@@ -4,12 +4,12 @@
 
 ## 1. 담당 영역별 기능 분해
 
-backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, domain, common, replay}`. `poller`·`scorer`는 신규 패키지다. `api` 하위는 기능 패키지 `api.home` / `api.gamedetail` / `api.user` / `api.notification`으로 나눈다. 점수 계산 로직은 기존 `replay` 패키지에서 `scorer`로 이관하고(담당 예은), `replay`는 S3 재생 어댑터로 유지한다. 패키지·폴더 전체 배치는 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)를 따른다.
+backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai, domain, common, replay}`. `poller`·`scorer`는 신규 패키지다. `api` 하위는 기능 패키지 `api.home` / `api.gamedetail` / `api.user` / `api.notification`으로 나눈다. 점수 계산 로직은 기존 `replay` 패키지에서 `scorer`로 이관하고(담당 예은), `replay`는 S3 재생 어댑터로 유지한다. 패키지·폴더 전체 배치는 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)를 따른다.
 
 | 담당자 | 기능 영역 | backend 패키지 | frontend 폴더 |
 |---|---|---|---|
 | 예은(조장) | 데이터 파이프라인 · 점수 · 홈 · 공통 구조 | `poller` `scorer` `ranking` `replay` `api.home` `common` `domain` | `features/home` `shared` `app` |
-| 창현 | AI 문구 생성 | ai-service 전체 + `AiCopyReader` 구현 | `features/ai-copy` |
+| 창현 | AI 문구 생성 | ai-service 전체 + `com.pulse.ai`(`AiCopyReader` 구현) | `features/ai-copy` |
 | 민석 | 경기 상세 · 다시보기 | `api.gamedetail`(직렬화 가드 포함) | `features/game-detail` |
 | 윤호 | 회원 · 알림 (+ 통합 후 운영·관측) | `api.user` `api.notification` | `features/auth` `features/notification` |
 
@@ -30,6 +30,7 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, do
 | `backend/com.pulse.poller` | 예은 |  |
 | `backend/com.pulse.scorer` | 예은 |  |
 | `backend/com.pulse.ranking` | 예은 |  |
+| `backend/com.pulse.ai` | 창현 |  |
 | `backend/com.pulse.replay` | 예은 |  |
 | `backend/com.pulse.domain` | 예은 | 공용, 쓰기 소유는 예은 |
 | `backend/com.pulse.common` | 예은 | 공용, 쓰기 소유는 예은 |
