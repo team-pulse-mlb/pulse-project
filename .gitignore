@@ -28,6 +28,8 @@ __pycache__/
 .vscode/
 *.iml
 .claude/
+CLAUDE.md
+AGENTS.md
 
 # OS
 .DS_Store

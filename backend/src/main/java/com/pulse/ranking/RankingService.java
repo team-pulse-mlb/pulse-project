@@ -1,4 +1,4 @@
-package com.pulse.scorer;
+package com.pulse.ranking;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -24,12 +24,10 @@ public class RankingService {
         redisTemplate.opsForZSet().add(LIVE_RANK_KEY, String.valueOf(gameId), watchScore);
     }
 
-    /** 종료된 경기는 실시간 랭킹에서 제거한다. */
     public void removeLive(long gameId) {
         redisTemplate.opsForZSet().remove(LIVE_RANK_KEY, String.valueOf(gameId));
     }
 
-    /** 점수 내림차순 상위 N개 (gameId → watchScore) */
     public Map<Long, Double> topLive(int count) {
         Set<TypedTuple<String>> tuples =
                 redisTemplate.opsForZSet().reverseRangeWithScores(LIVE_RANK_KEY, 0, count - 1L);

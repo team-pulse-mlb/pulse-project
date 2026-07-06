@@ -1,11 +1,10 @@
-package com.pulse.scorer;
+package com.pulse.replay;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * 내부 신호 → 보호 모드 태그 매핑. 결과(점수, 승패, 팀 방향)를 직접 드러내는
- * 표현은 쓰지 않는다.
+ * 내부 신호를 보호 모드에서도 안전한 추천 태그로 바꾼다.
  */
 public final class ReasonTags {
 

@@ -1,4 +1,4 @@
-package com.pulse.scorer;
+package com.pulse.replay;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

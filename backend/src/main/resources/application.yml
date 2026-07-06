@@ -62,9 +62,11 @@ pulse:
   bdl:
     base-url: https://api.balldontlie.io
     api-key: ${BDL_API_KEY:}
-  poller:
-    games-delay-ms: 15000   # /games tripwire
-    plays-delay-ms: 20000   # TODO: 적응형 폴링 티어 (긴장도 기반 5~60초)
+  replay:
+    s3:
+      bucket: ${PULSE_REPLAY_S3_BUCKET:}
+      region: ${AWS_REGION:ap-northeast-2}
+    max-objects-per-prefix: ${PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX:200}
 
 server:
   port: 8080
