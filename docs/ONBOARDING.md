@@ -58,7 +58,7 @@ raw/plays/game_id=<id>/plays_YYYY-MM-DD_HHMMSSZ_c<cursor>.json.gz
 raw/odds/dt=YYYY-MM-DD/odds_HHMMSSZ.json.gz
 ```
 
-`raw/odds/`는 슬레이트 단위(`dates[]`)로 games처럼 `dt=날짜`에 저장된다(한 객체에 여러 game_id). 상시 수집기가 적재하며, 수동 백필은 `scripts/archive-odds.sh [YYYY-MM-DD]`로 한다. 로더가 games/plays와 함께 읽어 `odds_snapshots`에 저장한다.
+`raw/odds/`는 슬레이트 단위(`dates[]`)로 games처럼 `dt=날짜`에 저장된다(한 객체에 여러 game_id). 상시 수집기는 `raw-archive/live-collector/collect_live_raw.py`가 적재한다. 로더가 games/plays와 함께 읽어 `odds_snapshots`에 저장한다.
 
 각 객체는 `observed_at`, `endpoint`, `params`, `response`를 가진 gzip JSON이다. `backfilled: true` 객체는 로컬 리플레이의 시간 감쇠 계산에서 제외된다.
 
