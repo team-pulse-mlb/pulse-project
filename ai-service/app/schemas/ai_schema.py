@@ -21,9 +21,6 @@ class ApiBaseModel(BaseModel):
 class SpoilerCheckRequest(ApiBaseModel):
     """
     /ai/spoiler-check 요청 형식
-
-    역할:
-    - 사용자가 노출하려는 문구가 스포일러인지 검사할 때 사용
     """
 
     text: str = Field(
@@ -36,11 +33,6 @@ class SpoilerCheckRequest(ApiBaseModel):
 class SpoilerCheckResponse(ApiBaseModel):
     """
     /ai/spoiler-check 응답 형식
-
-    역할:
-    - 문구가 안전한지 여부
-    - 감지된 위반 항목
-    - 위험할 때 사용할 fallback 문구를 반환
     """
 
     spoiler_safe: bool = Field(
@@ -60,114 +52,74 @@ class SpoilerCheckResponse(ApiBaseModel):
 class SafeContext(ApiBaseModel):
     """
     Spring Boot가 Python AI-SERVICE로 넘겨주는 안전한 경기 context
-
-    주의:
-    - 정확한 점수, 승패, 팀 우세 정보는 포함하지 않는다.
-    - AI는 이 안전한 context만 보고 문구를 생성한다.
     """
 
-    game_status: str = Field(
-        ...,
-        description="경기 상태 예: LIVE, UPCOMING, FINAL",
-        examples=["LIVE"],
-    )
-    inning_phase: str = Field(
-        ...,
-        description="이닝 구간 예: EARLY, MIDDLE, LATE, EXTRA",
-        examples=["LATE"],
-    )
-    tension_level: str = Field(
-        ...,
-        description="긴장도 수준 예: LOW, NORMAL, HIGH",
-        examples=["HIGH"],
-    )
-    score_band: str = Field(
-        ...,
-        description="추천 강도 예: LOW, NORMAL, RECOMMEND, STRONGLY_RECOMMEND",
-        examples=["RECOMMEND"],
-    )
-    safe_tags: list[str] = Field(
-        default_factory=list,
-        description="사용자에게 노출 가능한 안전 태그",
-        examples=[["후반 긴장 구간", "흐름 변화 가능성"]],
-    )
-    reason_codes: list[str] = Field(
-        default_factory=list,
-        description="추천 이유를 코드로 표현한 값",
-        examples=[["LATE_INNING", "CLOSE_GAME"]],
-    )
+    game_status: str = Field(..., examples=["LIVE"])
+    inning_phase: str = Field(..., examples=["LATE"])
+    tension_level: str = Field(..., examples=["HIGH"])
+    score_band: str = Field(..., examples=["RECOMMEND"])
+    safe_tags: list[str] = Field(default_factory=list)
+    reason_codes: list[str] = Field(default_factory=list)
 
 
 class SpoilerFreeSummaryRequest(ApiBaseModel):
     """
     /ai/spoiler-free-summary 요청 형식
-
-    역할:
-    - Spring Boot가 계산한 안전 context를 받아
-      경기 카드용 스포일러 없는 제목/이유 문구를 생성할 때 사용
     """
 
-    game_id: int = Field(
-        ...,
-        description="경기 ID",
-        examples=[12345],
-    )
-    mode: str = Field(
-        default="PROTECTED",
-        description="화면 모드. 기본은 스포일러 보호 모드",
-        examples=["PROTECTED"],
-    )
-    surface: str = Field(
-        default="HOME_CARD",
-        description="문구가 사용될 화면 위치",
-        examples=["HOME_CARD"],
-    )
-    language: str = Field(
-        default="ko",
-        description="응답 언어",
-        examples=["ko"],
-    )
-    max_length: int = Field(
-        default=80,
-        description="생성 문구 최대 길이",
-        examples=[80],
-    )
-    safe_context: SafeContext = Field(
-        ...,
-        description="스포일러 없는 안전 경기 context",
-    )
+    game_id: int = Field(..., examples=[12345])
+    mode: str = Field(default="PROTECTED", examples=["PROTECTED"])
+    surface: str = Field(default="HOME_CARD", examples=["HOME_CARD"])
+    language: str = Field(default="ko", examples=["ko"])
+    max_length: int = Field(default=80, examples=[80])
+    safe_context: SafeContext = Field(...)
 
 
 class SpoilerFreeSummaryResponse(ApiBaseModel):
     """
     /ai/spoiler-free-summary 응답 형식
+    """
 
-    역할:
-    - 사용자에게 보여줄 안전한 제목, 이유, 알림 문구를 반환
-    - 최종 반환 전 spoiler_guard.py 검수를 통과해야 한다.
+    spoiler_safe: bool
+    safe_title: str
+    safe_reason: str
+    notification_text: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    violations: list[str] = Field(default_factory=list)
+    fallback_used: bool = False
+
+
+class NotificationTextRequest(SpoilerFreeSummaryRequest):
+    """
+    /ai/notification-text 요청 형식
+
+    SpoilerFreeSummaryRequest와 같은 safe_context를 사용하되,
+    알림이 사용될 채널 정보만 추가로 받는다.
+    """
+
+    channel: str = Field(
+        default="WEB",
+        description="알림 채널 예: WEB, APP, SSE",
+        examples=["WEB"],
+    )
+
+
+class NotificationTextResponse(ApiBaseModel):
+    """
+    /ai/notification-text 응답 형식
     """
 
     spoiler_safe: bool = Field(
         ...,
-        description="최종 문구가 스포일러 안전 정책을 통과했는지 여부",
+        description="최종 알림 문구가 스포일러 안전 정책을 통과했는지 여부",
     )
-    safe_title: str = Field(
+    notification_text: str = Field(
         ...,
-        description="스포일러 없는 카드 제목",
-        examples=["후반부 긴장감이 올라간 경기"],
-    )
-    safe_reason: str = Field(
-        ...,
-        description="스포일러 없는 추천 이유",
-        examples=["지금 확인해볼 만한 흐름이 감지됐습니다."],
-    )
-    notification_text: str | None = Field(
-        default=None,
-        description="알림에 사용할 수 있는 짧은 문구",
+        description="사용자에게 보낼 스포일러 없는 알림 문구",
     )
     tags: list[str] = Field(
         default_factory=list,
-        description="화면에 노출 가능한 안전 태그",
+        description="알림과 함께 사용할 수 있는 안전 태그",
     )
     violations: list[str] = Field(
         default_factory=list,
@@ -175,5 +127,61 @@ class SpoilerFreeSummaryResponse(ApiBaseModel):
     )
     fallback_used: bool = Field(
         default=False,
-        description="AI 문구 대신 fallback 문구를 사용했는지 여부",
+        description="생성 문구 대신 fallback 문구를 사용했는지 여부",
+    )
+
+
+class ReplaySummaryRequest(SpoilerFreeSummaryRequest):
+    """
+    /ai/replay-summary 요청 형식
+
+    SpoilerFreeSummaryRequest와 같은 safe_context를 사용하되,
+    다시보기 구간을 식별하고 설명할 수 있는 안전한 정보만 추가로 받는다.
+    """
+
+    replay_segment_id: str | None = Field(
+        default=None,
+        description="다시보기 구간 ID. 없으면 null",
+        examples=["segment-5059082-001"],
+    )
+    segment_label: str = Field(
+        default="스포일러 없이 다시 보기 좋은 구간",
+        description="사용자에게 노출 가능한 다시보기 구간 라벨",
+        examples=["스포일러 없이 다시 보기 좋은 구간"],
+    )
+    segment_reason_tags: list[str] = Field(
+        default_factory=list,
+        description="다시보기 구간을 설명하는 안전 태그",
+        examples=[["후반 긴장 구간", "흐름 변화 가능성"]],
+    )
+
+
+class ReplaySummaryResponse(ApiBaseModel):
+    """
+    /ai/replay-summary 응답 형식
+    """
+
+    spoiler_safe: bool = Field(
+        ...,
+        description="최종 다시보기 문구가 스포일러 안전 정책을 통과했는지 여부",
+    )
+    replay_title: str = Field(
+        ...,
+        description="스포일러 없는 다시보기 제목",
+    )
+    replay_summary: str = Field(
+        ...,
+        description="스포일러 없는 다시보기 설명 문구",
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="다시보기 문구와 함께 사용할 수 있는 안전 태그",
+    )
+    violations: list[str] = Field(
+        default_factory=list,
+        description="스포일러 검사에서 감지된 위반 항목",
+    )
+    fallback_used: bool = Field(
+        default=False,
+        description="생성 문구 대신 fallback 문구를 사용했는지 여부",
     )

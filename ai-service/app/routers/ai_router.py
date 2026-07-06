@@ -1,6 +1,10 @@
 from fastapi import APIRouter
 
 from app.schemas.ai_schema import (
+    NotificationTextRequest,
+    NotificationTextResponse,
+    ReplaySummaryRequest,
+    ReplaySummaryResponse,
     SpoilerCheckRequest,
     SpoilerCheckResponse,
     SpoilerFreeSummaryRequest,
@@ -11,7 +15,6 @@ from app.services.openai_service import generate_spoiler_free_summary
 from app.services.spoiler_guard import check_spoiler_text
 
 
-# AI 관련 API들을 /ai 경로 아래로 묶는 라우터
 router = APIRouter(
     prefix="/ai",
     tags=["AI"],
@@ -20,14 +23,6 @@ router = APIRouter(
 
 @router.get("/test")
 def ai_test():
-    """
-    AI Router가 정상 연결되었는지 확인하는 테스트 API
-
-    사용 목적:
-    - main.py에서 ai_router가 정상 include 되었는지 확인
-    - Swagger 문서에 /ai/test가 표시되는지 확인
-    """
-
     return {
         "status": "ok",
         "message": "AI router is working",
@@ -36,15 +31,6 @@ def ai_test():
 
 @router.post("/spoiler-check", response_model=SpoilerCheckResponse)
 def spoiler_check(request: SpoilerCheckRequest):
-    """
-    입력된 문구에 스포일러성 표현이 포함되어 있는지 검사하는 API
-
-    처리 흐름:
-    1. Swagger 또는 Spring Boot에서 검사할 문구를 text로 전달
-    2. spoiler_guard.py의 check_spoiler_text 함수 호출
-    3. 검사 결과를 SpoilerCheckResponse 형식으로 반환
-    """
-
     result = check_spoiler_text(request.text)
 
     return SpoilerCheckResponse(
@@ -56,22 +42,6 @@ def spoiler_check(request: SpoilerCheckRequest):
 
 @router.post("/spoiler-free-summary", response_model=SpoilerFreeSummaryResponse)
 def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
-    """
-    경기 카드용 스포일러 없는 제목/이유 문구를 생성하는 API
-
-    현재 단계:
-    - OpenAI API는 아직 연결하지 않음
-    - openai_service.py에서 mock 문구 생성
-    - 생성된 mock 문구도 spoiler_guard.py 검수를 거친 뒤 반환
-
-    처리 흐름:
-    1. Spring Boot 또는 Swagger에서 safe_context 전달
-    2. openai_service.py에서 safe_title, safe_reason, notification_text 생성
-    3. 생성 문구를 하나로 합쳐 spoiler_guard.py로 검사
-    4. 안전하면 mock 응답 반환
-    5. 위험하면 fallback 문구로 대체 반환
-    """
-
     generated_summary = generate_spoiler_free_summary(request)
 
     combined_text = (
@@ -101,6 +71,74 @@ def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
         safe_reason=generated_summary["safe_reason"],
         notification_text=generated_summary["notification_text"],
         tags=generated_summary["tags"],
+        violations=[],
+        fallback_used=False,
+    )
+
+
+@router.post("/notification-text", response_model=NotificationTextResponse)
+def notification_text(request: NotificationTextRequest):
+    """
+    알림에 사용할 스포일러 없는 짧은 문구를 생성하는 API
+    """
+
+    generated_summary = generate_spoiler_free_summary(request)
+    notification_text_value = generated_summary["notification_text"]
+
+    guard_result = check_spoiler_text(notification_text_value)
+
+    if not guard_result["spoiler_safe"]:
+        fallback_text = guard_result["fallback_text"]
+
+        return NotificationTextResponse(
+            spoiler_safe=True,
+            notification_text=fallback_text,
+            tags=["추천 구간"],
+            violations=guard_result["violations"],
+            fallback_used=True,
+        )
+
+    return NotificationTextResponse(
+        spoiler_safe=True,
+        notification_text=notification_text_value,
+        tags=generated_summary["tags"],
+        violations=[],
+        fallback_used=False,
+    )
+
+
+@router.post("/replay-summary", response_model=ReplaySummaryResponse)
+def replay_summary(request: ReplaySummaryRequest):
+    """
+    다시보기 구간에 사용할 스포일러 없는 제목/설명 문구를 생성하는 API
+    """
+
+    generated_summary = generate_spoiler_free_summary(request)
+
+    replay_title = request.segment_label
+    replay_summary_value = generated_summary["safe_reason"]
+    tags = request.segment_reason_tags or generated_summary["tags"]
+
+    combined_text = f"{replay_title} {replay_summary_value}"
+    guard_result = check_spoiler_text(combined_text)
+
+    if not guard_result["spoiler_safe"]:
+        fallback_text = guard_result["fallback_text"]
+
+        return ReplaySummaryResponse(
+            spoiler_safe=True,
+            replay_title="스포일러 없이 다시 보기 좋은 구간",
+            replay_summary=fallback_text,
+            tags=["추천 구간"],
+            violations=guard_result["violations"],
+            fallback_used=True,
+        )
+
+    return ReplaySummaryResponse(
+        spoiler_safe=True,
+        replay_title=replay_title,
+        replay_summary=replay_summary_value,
+        tags=tags,
         violations=[],
         fallback_used=False,
     )
