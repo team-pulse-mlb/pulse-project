@@ -1,4 +1,4 @@
-package com.pulse.domain;
+package com.pulse.api.user.domain;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

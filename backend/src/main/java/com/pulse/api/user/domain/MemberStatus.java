@@ -1,4 +1,4 @@
-package com.pulse.domain;
+package com.pulse.api.user.domain;
 
 public enum MemberStatus {
     ACTIVE,     // 정상 회원

@@ -1,4 +1,4 @@
-package com.pulse.api.dto;
+package com.pulse.api.user.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

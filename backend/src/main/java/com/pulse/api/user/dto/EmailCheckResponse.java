@@ -1,4 +1,4 @@
-package com.pulse.api.dto;
+package com.pulse.api.user.dto;
 
 // 회원가입 버튼을 누르기 전에 사용하는 이메일 중복확인 API
 // 실제 회원가입 시 MemberService.signup()의 중복 검사는 그대로 유지

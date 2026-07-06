@@ -1,6 +1,5 @@
-package com.pulse.domain;
+package com.pulse.api.user.domain;
 
-import com.pulse.domain.Member;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

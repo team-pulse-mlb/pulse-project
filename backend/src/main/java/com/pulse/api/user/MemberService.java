@@ -1,12 +1,12 @@
-package com.pulse.api;
+package com.pulse.api.user;
 
-import com.pulse.api.dto.EmailCheckResponse;
-import com.pulse.api.dto.SignupRequest;
-import com.pulse.api.dto.SignupResponse;
-import com.pulse.common.exception.DuplicateEmailException;
-import com.pulse.common.exception.EmailVerificationException;
-import com.pulse.domain.Member;
-import com.pulse.domain.MemberRepository;
+import com.pulse.api.user.dto.EmailCheckResponse;
+import com.pulse.api.user.dto.SignupRequest;
+import com.pulse.api.user.dto.SignupResponse;
+import com.pulse.api.user.exception.DuplicateEmailException;
+import com.pulse.api.user.exception.EmailVerificationException;
+import com.pulse.api.user.domain.Member;
+import com.pulse.api.user.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

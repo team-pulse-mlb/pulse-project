@@ -1,4 +1,4 @@
-package com.pulse.api.dto;
+package com.pulse.api.user.dto;
 
 public record ErrorResponse(
         int result,

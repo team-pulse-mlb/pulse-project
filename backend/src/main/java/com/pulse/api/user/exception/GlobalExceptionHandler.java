@@ -1,6 +1,6 @@
-package com.pulse.common.exception;
+package com.pulse.api.user.exception;
 
-import com.pulse.api.dto.ErrorResponse;
+import com.pulse.api.user.dto.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -81,5 +81,36 @@ public class GlobalExceptionHandler {
                 .badRequest()
                 .body(response);
     }
+
+    // 로그인 이메일 또는 비밀번호 불일치
+    @ExceptionHandler(LoginFailedException.class)
+    public ResponseEntity<ErrorResponse> handleLoginFailed(
+            LoginFailedException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                0,
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED) // 401 Unauthorized
+                .body(response);
+    }
+
+    //  토큰  발급 오류 처리
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRefreshToken(
+            InvalidRefreshTokenException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                0,
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(response);
+    }
+
 
 }

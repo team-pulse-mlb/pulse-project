@@ -1,6 +1,6 @@
-package com.pulse.api;
+package com.pulse.api.user;
 
-import com.pulse.api.dto.*;
+import com.pulse.api.user.dto.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -10,8 +10,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController // React 같은 클라이언트의 HTTP 요청을 처리하고, 데이터를 응답하는 컨트롤러 반환한 객체를 json으로 변환
                 // RequestBody  + Cotroller

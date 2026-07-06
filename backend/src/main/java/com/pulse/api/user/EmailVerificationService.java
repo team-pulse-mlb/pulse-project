@@ -1,13 +1,13 @@
-package com.pulse.api;
+package com.pulse.api.user;
 
-import com.pulse.api.dto.EmailCodeSendRequest;
-import com.pulse.api.dto.EmailCodeSendResponse;
-import com.pulse.api.dto.EmailCodeVerifyRequest;
-import com.pulse.api.dto.EmailCodeVerifyResponse;
-import com.pulse.common.exception.DuplicateEmailException;
-import com.pulse.common.exception.EmailVerificationException;
-import com.pulse.common.mail.EmailSender;
-import com.pulse.domain.MemberRepository;
+import com.pulse.api.user.dto.EmailCodeSendRequest;
+import com.pulse.api.user.dto.EmailCodeSendResponse;
+import com.pulse.api.user.dto.EmailCodeVerifyRequest;
+import com.pulse.api.user.dto.EmailCodeVerifyResponse;
+import com.pulse.api.user.exception.DuplicateEmailException;
+import com.pulse.api.user.exception.EmailVerificationException;
+import com.pulse.api.user.mail.EmailSender;
+import com.pulse.api.user.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;

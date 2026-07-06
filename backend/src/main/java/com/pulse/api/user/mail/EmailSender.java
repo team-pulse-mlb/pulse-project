@@ -1,4 +1,4 @@
-package com.pulse.common.mail;
+package com.pulse.api.user.mail;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

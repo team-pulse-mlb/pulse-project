@@ -1,4 +1,4 @@
-package com.pulse.common.exception;
+package com.pulse.api.user.exception;
 
 public class EmailVerificationException extends RuntimeException {
 

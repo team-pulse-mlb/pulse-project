@@ -53,6 +53,11 @@ spring:
         timeout: 5000
         writetimeout: 5000
 
+jwt:
+  secret: ${JWT_SECRET}           # JWT에 서명하고 검증할 서버 비밀키
+  access-token-expiration: 15m    # 15분
+  refresh-token-expiration: 7d    # 7일
+
 pulse:
   bdl:
     base-url: https://api.balldontlie.io
