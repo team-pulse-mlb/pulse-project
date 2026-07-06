@@ -17,3 +17,4 @@
 | [CONVENTIONS.md](CONVENTIONS.md) | 규칙·운영 | 팀원이 같은 방식으로 브랜치, 코드, PR을 관리하기 위한 개발 기준을 정리한다. |
 | [ROLES_AND_SCHEDULE.md](ROLES_AND_SCHEDULE.md) | 규칙·운영 | 병렬 개발을 위한 담당 영역, 계약 지점, 일정 기준을 정리한다. |
 | [ONBOARDING.md](ONBOARDING.md) | 규칙·운영 | 팀원이 로컬에서 raw archive 재생 기반 개발 환경을 시작하는 절차를 정리한다. |
+| [INFRA.md](INFRA.md) | 규칙·운영 | AWS 리소스 구성, RDS 사양, 시크릿·환경변수 관리 등 배포 인프라 설정 기준을 정리한다. |
