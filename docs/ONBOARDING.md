@@ -1,10 +1,8 @@
-# PULSE — 팀원 초기 설정 가이드
+# 팀원 초기 설정 가이드
 
 이 문서는 레포를 처음 받은 팀원이 실제 라이브 경기 raw archive를 로컬에서 재생해 backend, frontend, ai-service 개발을 시작하는 절차를 정리한다.
 
----
-
-## 0. 사전 설치
+## 1. 사전 설치
 
 | 도구 | 버전 |
 |---|---|
@@ -22,7 +20,7 @@
 
 ---
 
-## 1. 레포 클론
+## 2. 레포 클론
 
 ```bash
 git clone https://github.com/team-pulse-mlb/pulse-project.git
@@ -33,7 +31,7 @@ git config user.email "본인 GitHub 이메일"
 
 ---
 
-## 2. 환경변수 설정
+## 3. 환경변수 설정
 
 ```bash
 cp .env.example .env
@@ -57,13 +55,14 @@ S3 원본은 다음 형태를 기준으로 읽는다.
 ```text
 raw/games/dt=YYYY-MM-DD/games_HHMMSSZ.json.gz
 raw/plays/game_id=<id>/plays_YYYY-MM-DD_HHMMSSZ_c<cursor>.json.gz
+raw/odds/dt=YYYY-MM-DD/odds_HHMMSSZ.json.gz
 ```
+
+`raw/odds/`는 슬레이트 단위(`dates[]`)로 games처럼 `dt=날짜`에 저장된다(한 객체에 여러 game_id). 상시 수집기가 적재하며, 수동 백필은 `scripts/archive-odds.sh [YYYY-MM-DD]`로 한다. 로더가 games/plays와 함께 읽어 `odds_snapshots`에 저장한다.
 
 각 객체는 `observed_at`, `endpoint`, `params`, `response`를 가진 gzip JSON이다. `backfilled: true` 객체는 로컬 리플레이의 시간 감쇠 계산에서 제외된다.
 
----
-
-## 3. 인프라 실행
+## 4. 인프라 실행
 
 ```bash
 docker compose -f infra/docker-compose.yml --env-file .env up -d
@@ -79,9 +78,7 @@ Docker Compose가 PostgreSQL과 Redis 컨테이너를 만든다.
 
 PostgreSQL DB/유저 기본값은 `pulse`다. Redis는 로컬 개발에서 비밀번호 없이 사용한다.
 
----
-
-## 4. S3 접근 확인
+## 5. S3 접근 확인
 
 ```bash
 aws s3 ls s3://$PULSE_REPLAY_S3_BUCKET/raw/games/dt=$PULSE_REPLAY_DATE/ | tail
@@ -90,9 +87,7 @@ aws s3 ls s3://$PULSE_REPLAY_S3_BUCKET/raw/plays/game_id=$PULSE_REPLAY_GAME_ID/ 
 
 PowerShell을 사용한다면 `$env:PULSE_REPLAY_S3_BUCKET` 형식으로 확인한다.
 
----
-
-## 5. backend 실행
+## 6. backend 실행
 
 IntelliJ에서 `backend/` 폴더를 열고 `PulseApplication`을 실행한다.
 
@@ -111,9 +106,7 @@ cd backend
 
 실행 시 backend는 S3 live archive를 시간순으로 읽고 로컬 PostgreSQL에 `games`, `plays`, `watch_scores`, `replay_segments`를 저장한다. 진행 중 경기의 최신 랭킹은 Redis `score:rank:live`에 저장된다.
 
----
-
-## 6. API 확인
+## 7. API 확인
 
 Spring Boot 실행 후 Swagger UI를 연다.
 
@@ -128,9 +121,7 @@ curl "http://localhost:8080/api/ai/games/$PULSE_REPLAY_GAME_ID/spoiler-free-cont
 curl "http://localhost:8080/api/rankings/live"
 ```
 
----
-
-## 7. DB와 Redis 확인
+## 8. DB와 Redis 확인
 
 ### DBeaver
 
@@ -165,9 +156,7 @@ curl "http://localhost:8080/api/rankings/live"
 score:rank:live
 ```
 
----
-
-## 8. frontend / ai-service
+## 9. frontend / ai-service
 
 frontend:
 
@@ -187,9 +176,7 @@ source .venv/Scripts/activate
 
 이후 `ai-service/README.md`를 따른다.
 
----
-
-## 9. 작업 흐름
+## 10. 작업 흐름
 
 `main`에는 직접 커밋하지 않는다. 작업은 새 브랜치에서 진행하고 PR로 병합한다.
 
@@ -209,9 +196,7 @@ cd backend
 ./gradlew test
 ```
 
----
-
-## 10. 자주 막히는 부분
+## 11. 자주 막히는 부분
 
 | 증상 | 확인할 것 |
 |---|---|
@@ -221,4 +206,4 @@ cd backend
 | 랭킹이 비어 있음 | `PULSE_REPLAY_GAME_ID`에 진행 중 경기 raw가 있는지 |
 | 점수 이력이 적음 | `PULSE_REPLAY_DATE`, `PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX` 값 |
 
-설정 중 막히면 이 문서를 고쳐서 PR로 올린다.
+설정 중 반복되는 문제가 있으면 이 문서에 해결 방법을 추가한다.
