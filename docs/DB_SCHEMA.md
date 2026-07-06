@@ -18,7 +18,7 @@
 
 ## 2. 스포일러 보호 규칙
 
-🔒 표시 컬럼은 **내부 계산 전용**이다. 점수·득점·승패·우세·라이브 배당·결과 텍스트가 여기에 해당한다. 보호 모드 DTO에서 반드시 제거하며 API·프론트로 그대로 내보내지 않는다. 스포일러 보호는 프론트가 아니라 **서버 응답 단계**에서 강제한다. 금지 필드 전체 목록과 화면별 노출 기준은 [API_CONTRACTS.md](API_CONTRACTS.md) §3이 단일 기준이며, 직렬화 가드 테스트와 동기화한다.
+[내부] 표시 컬럼은 **내부 계산 전용**이다. 점수·득점·승패·우세·라이브 배당·결과 텍스트가 여기에 해당한다. 보호 모드 DTO에서 반드시 제거하며 API·프론트로 그대로 내보내지 않는다. 스포일러 보호는 프론트가 아니라 **서버 응답 단계**에서 강제한다. 금지 필드 전체 목록과 화면별 노출 기준은 [API_CONTRACTS.md](API_CONTRACTS.md) §3이 단일 기준이며, 직렬화 가드 테스트와 동기화한다.
 
 ## 3. 전체 관계도 (ERD)
 
@@ -80,14 +80,14 @@ erDiagram
 | `lifecycle_state` | `TEXT` | 폴러 상태머신 값 | `SCHEDULED`…`DONE` |
 | `period` | `SMALLINT` | 현재 이닝 | 후반/연장 신호 |
 | `home_team_id` · `away_team_id` | `BIGINT` | 홈/원정팀 | FK → `teams` |
-| `home_runs` · `away_runs` | `SMALLINT` | 팀별 득점 | 🔒 점수 차 신호 |
-| `home_hits` · `away_hits` | `SMALLINT` | 팀별 안타 | 🔒 |
-| `home_errors` · `away_errors` | `SMALLINT` | 팀별 실책 | 🔒 |
-| `home_inning_scores` · `away_inning_scores` | `JSONB` | 이닝별 득점 배열 | 🔒 초반 난타·빅이닝 검증 |
+| `home_runs` · `away_runs` | `SMALLINT` | 팀별 득점 | [내부] 점수 차 신호 |
+| `home_hits` · `away_hits` | `SMALLINT` | 팀별 안타 | [내부] |
+| `home_errors` · `away_errors` | `SMALLINT` | 팀별 실책 | [내부] |
+| `home_inning_scores` · `away_inning_scores` | `JSONB` | 이닝별 득점 배열 | [내부] 초반 난타·빅이닝 검증 |
 | `venue` | `TEXT` | 경기장 | 표시용(스포일러 아님) |
 | `attendance` | `INT` | 관중 수 | 표시용 |
-| `pregame_score` | `SMALLINT` | 예정 정렬 점수 0–100 | 🔒 UI 노출 금지 |
-| `peak_base_score` | `SMALLINT` | 라이브 중 최고 base_score | 🔒 종료 정렬 키 |
+| `pregame_score` | `SMALLINT` | 예정 정렬 점수 0–100 | [내부] UI 노출 금지 |
+| `peak_base_score` | `SMALLINT` | 라이브 중 최고 base_score | [내부] 종료 정렬 키 |
 | `final_headline` | `TEXT` | 종료 경기 AI 헤드라인(검수 통과본) | 종료 후 확정, nullable |
 | `last_play_order` | `BIGINT` | `/plays` 증분 커서(마지막 order) | |
 | `last_polled_at` | `TIMESTAMPTZ` | 최근 폴링 시각 | |
@@ -109,8 +109,8 @@ erDiagram
 | `type` | `TEXT` | 이벤트 타입 | 이닝 경계 감지 |
 | `inning` | `SMALLINT` | 이닝 번호 | |
 | `inning_type` | `TEXT` | `Top`/`Bottom`/`Mid` | |
-| `text` | `TEXT` | play 설명 | 🔒 스포일러 검수 게이트 필요 |
-| `home_score` · `away_score` | `SMALLINT` | play 후 점수 | 🔒 리드 변경 감지 |
+| `text` | `TEXT` | play 설명 | [내부] 스포일러 검수 게이트 필요 |
+| `home_score` · `away_score` | `SMALLINT` | play 후 점수 | [내부] 리드 변경 감지 |
 | `scoring_play` | `BOOLEAN` | 득점 play 여부 | 최근 득점·빅이닝 |
 | `score_value` | `SMALLINT` | 득점 수(1–3, 그 외 null) | |
 | `outs` · `balls` · `strikes` | `SMALLINT` | 카운트 | 카운트/아웃 신호 |
@@ -136,11 +136,11 @@ erDiagram
 | `computed_at` | `TIMESTAMPTZ` | 계산 시각(폴링 사이클 observed_at) | |
 | `play_order` | `BIGINT` | 계산 기준 마지막 play order | |
 | `inning` · `inning_type` | `SMALLINT` · `TEXT` | 계산 시점 이닝 | |
-| `base_score` | `SMALLINT` | 8개 신호 합(보정 전) | 🔒 |
-| `importance_multiplier` | `NUMERIC(4,2)` | 경기 중요도 배수 ×0.90–×1.15 | 🔒 |
-| `pregame_bonus` | `NUMERIC(4,2)` | 사전 가산 `pregame_score/10`(0–10) | 🔒 |
-| `watch_score` | `SMALLINT` | 최종 `clamp(raw, 0, 100)` | 🔒 랭킹 정렬 키 |
-| `signal_contributions` | `JSONB` | 신호별 기여 맵 | 🔒 예: `{"후반연장":20,"점수차":15}` |
+| `base_score` | `SMALLINT` | 8개 신호 합(보정 전) | [내부] |
+| `importance_multiplier` | `NUMERIC(4,2)` | 경기 중요도 배수 ×0.90–×1.15 | [내부] |
+| `pregame_bonus` | `NUMERIC(4,2)` | 사전 가산 `pregame_score/10`(0–10) | [내부] |
+| `watch_score` | `SMALLINT` | 최종 `clamp(raw, 0, 100)` | [내부] 랭킹 정렬 키 |
+| `signal_contributions` | `JSONB` | 신호별 기여 맵 | [내부] 예: `{"후반연장":20,"점수차":15}` |
 | `tags` | `TEXT[]` | 추천 이유 태그 | 예: `접전 흐름`, `득점권 압박`, `후반 긴장 구간` — 표기는 [RECOMMENDATION_POLICY.md](RECOMMENDATION_POLICY.md) §2 기준 |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
@@ -160,7 +160,7 @@ erDiagram
 | `start_play_order` · `end_play_order` | `BIGINT` | 구간 play order 범위 | 재생 범위 |
 | `start_inning` · `end_inning` | `SMALLINT` | 이닝 범위 | |
 | `start_inning_type` · `end_inning_type` | `TEXT` | 초/말 | |
-| `peak_score` | `SMALLINT` | 구간 내 최고 base_score | 🔒 노출 상위 3개 정렬 키 |
+| `peak_score` | `SMALLINT` | 구간 내 최고 base_score | [내부] 노출 상위 3개 정렬 키 |
 | `tags` | `TEXT[]` | 구간 중 발생 태그 | |
 | `ai_summary` | `TEXT` | 구간 AI 요약(검수 통과본) | 확정 산출물로 영속, nullable |
 | `status` | `TEXT` | `OPEN`/`CLOSED` | |
@@ -304,7 +304,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 ### D-2. `odds_snapshots` — 경기 전 배당 스냅샷
 
-🔒 내부 전용, UI 노출 금지. **라이브 배당은 저장하지 않는다**(스포일러·갱신 지연). 오프닝 배당은 2026 시즌 미제공이므로, 당일 첫 관측(`FIRST_SEEN`)과 시작 직전(`PREGAME_FINAL`) 스냅샷만 남겨 접전 기대를 고정한다.
+[내부] 내부 전용, UI 노출 금지. **라이브 배당은 저장하지 않는다**(스포일러·갱신 지연). 오프닝 배당은 2026 시즌 미제공이므로, 당일 첫 관측(`FIRST_SEEN`)과 시작 직전(`PREGAME_FINAL`) 스냅샷만 남겨 접전 기대를 고정한다.
 
 **기록 조건**: 두 스냅샷 모두 `observed_at < start_time`이고 경기 상태가 시작 전일 때만 기록·갱신한다. `/odds`는 경기 중에도 같은 행이 라이브 라인으로 계속 덮어써지므로, **LIVE 전환 이후 관측값으로는 스냅샷을 생성·갱신하지 않는다**. 시작 전 스냅샷이 없으면 `pregame_score`의 접전 기대는 승률 차 폴백을 쓴다.
 
@@ -314,7 +314,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `game_id` | `BIGINT` | 경기 | FK → `games` |
 | `vendor` | `TEXT` | sportsbook(6곳) | 벤더 중앙값으로 노이즈 제거 |
 | `snapshot_type` | `TEXT` | `FIRST_SEEN`/`PREGAME_FINAL` | |
-| `moneyline_home_odds` · `moneyline_away_odds` | `INT` | 승리 배당(American) | 🔒 접전 기대 산출 |
+| `moneyline_home_odds` · `moneyline_away_odds` | `INT` | 승리 배당(American) | [내부] 접전 기대 산출 |
 | `spread_home_value` · `spread_away_value` | `NUMERIC(3,1)` | 런라인 | |
 | `spread_home_odds` · `spread_away_odds` | `INT` | 런라인 배당 | |
 | `total_value` | `NUMERIC(3,1)` | 총점 기준선 | 난타전/투수전 예상 보조 |
