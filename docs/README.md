@@ -12,8 +12,7 @@
 | [RECOMMENDATION_SCORE.md](RECOMMENDATION_SCORE.md) | 설계 | 예정, 진행 중, 종료 경기를 정렬하는 내부 추천 점수 계산 방식을 정의한다. |
 | [RECOMMENDATION_POLICY.md](RECOMMENDATION_POLICY.md) | 설계 | 계산된 신호를 화면, 알림, AI 문구에 스포일러 없이 노출하는 정책을 정의한다. |
 | [FEATURE_SPEC.md](FEATURE_SPEC.md) | 설계 | 사용자가 보는 기능 범위와 화면 동작, 스포일러 보호 기본값을 정의한다. |
-| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | 설계 | 레포 전체의 폴더·패키지 구조와 쓰기 소유자를 정리한다. |
-| [DB_MIGRATION.md](DB_MIGRATION.md) | 설계 | S3 임시 수집 데이터를 운영 PostgreSQL로 이전하고 운영 데이터 경로로 전환하는 실행 계획을 정의한다. |
+| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | 설계 | 레포 전체의 폴더·패키지 구조와 의존 방향을 정리한다. 쓰기 소유자는 ROLES_AND_SCHEDULE.md를 따른다. |
 | [EXTERNAL_DATA_API.md](EXTERNAL_DATA_API.md) | 데이터 레퍼런스 | balldontlie MLB API의 호출 제한, 실제 제공 데이터, 데이터 등장 시점을 실측 기준으로 정리한다. |
 | [CONVENTIONS.md](CONVENTIONS.md) | 규칙·운영 | 팀원이 같은 방식으로 브랜치, 코드, PR을 관리하기 위한 개발 기준을 정리한다. |
 | [ROLES_AND_SCHEDULE.md](ROLES_AND_SCHEDULE.md) | 규칙·운영 | 병렬 개발을 위한 담당 영역, 계약 지점, 일정 기준을 정리한다. |

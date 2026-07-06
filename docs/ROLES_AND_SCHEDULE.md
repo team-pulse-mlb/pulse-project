@@ -17,6 +17,35 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, do
 
 선행 리팩토링 PR은 예은 단독 주관이며, `domain` 쓰기 소유도 예은에게 있다. Spring Security 도입 시 전원에게 공지한다.
 
+아래는 경로 기준으로 쓰기 소유자를 조회하기 위한 상세 매핑이다.
+
+| 경로 | 쓰기 소유자 | 비고 |
+|---|---|---|
+| `backend/` | 패키지별 담당자 | 공용 패키지는 예은 |
+| `backend/com.pulse.api` | 하위 기능별 담당자 |  |
+| `backend/com.pulse.api.home` | 예은 |  |
+| `backend/com.pulse.api.gamedetail` | 민석 |  |
+| `backend/com.pulse.api.user` | 윤호 |  |
+| `backend/com.pulse.api.notification` | 윤호 |  |
+| `backend/com.pulse.poller` | 예은 |  |
+| `backend/com.pulse.scorer` | 예은 |  |
+| `backend/com.pulse.ranking` | 예은 |  |
+| `backend/com.pulse.replay` | 예은 |  |
+| `backend/com.pulse.domain` | 예은 | 공용, 쓰기 소유는 예은 |
+| `backend/com.pulse.common` | 예은 | 공용, 쓰기 소유는 예은 |
+| `frontend/` | 폴더별 담당자 |  |
+| `frontend/features/home` | 예은 |  |
+| `frontend/features/game-detail` | 민석 |  |
+| `frontend/features/ai-copy` | 창현 |  |
+| `frontend/features/auth` | 윤호 |  |
+| `frontend/features/notification` | 윤호 |  |
+| `frontend/shared` | 예은 |  |
+| `frontend/app` | 예은 |  |
+| `ai-service/` | 창현 |  |
+| `raw-archive/` | 예은 |  |
+| `infra/` | 확인 필요 | 확인 필요 |
+| `docs/` | 확인 필요 | 확인 필요 |
+
 ## 2. 팀 간 계약 지점
 
 아래 계약을 기준으로 구현체가 없어도 각자 목(mock)으로 개발을 시작할 수 있다. 상세 시그니처·스키마는 [API_CONTRACTS.md](API_CONTRACTS.md) §7이 단일 기준이다.
@@ -41,7 +70,7 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, do
 | ⑤ | 보호 모드 홈 노출 정책 | 매치업, 이닝 숫자(초/말 제외), 추천 이유 태그, AI 문구를 노출한다. `watch_score`는 정렬에만 쓰고 등급·순위·숫자는 노출하지 않는다 |
 | ⑥ | domain 소유권 | 공용 유지 + 소유권 규칙(예은). 경기 데이터는 3~4개 기능이 함께 읽어 이관하면 오히려 남의 패키지 내부 참조로 바뀌고 스키마 변경 리뷰 신호가 사라진다 |
 | ⑦ | 선행 리팩토링 PR | 예은 단독 |
-| ⑧ | DB 스키마 관리 | 로컬 `ddl-auto: update`, 배포 환경(RDS)은 Flyway — 베이스라인 V1은 DB 이전에 앞서 확정([DB_MIGRATION.md](DB_MIGRATION.md)) |
+| ⑧ | DB 스키마 관리 | 로컬 `ddl-auto: update`, 배포 환경(RDS)은 Flyway — 베이스라인 V1은 DB 이전에 앞서 확정(세부 계획은 소유자가 별도 관리) |
 | ⑨ | 공개 모드 세분화 | 경기 단위 전체 토글만. 계정 단위 기본 공개 설정은 두지 않고, 공개 상태는 클라이언트에만 저장 |
 | ⑩ | AI 비용 정책 | 신호 유의 변화 시에만 재생성 + 캐시. 생성은 데이터 갱신 시점 비동기, 종료 경기 문구는 DB 영속 |
 | ⑪ | 알림 처리 배치 | 판정=scorer(급상승)·poller(경기 시작), 전달·저장=api. 채널은 RabbitMQ `notify.events` |
