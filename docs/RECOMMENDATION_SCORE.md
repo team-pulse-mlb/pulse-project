@@ -170,7 +170,8 @@ pregame_score = 접전 기대(0~30) + 선발 매치업(0~40) + 순위 경쟁(0~3
 - 재생: 경기별 plays를 order 순으로 점수 함수에 주입한다.
   - `OPERATIONAL`·`S3_LIVE_ARCHIVE`(observed_at 실측 보유): 실제 시간 감쇠로 재생한다. `S3_LIVE_ARCHIVE`는 관측 주기가 운영(약 20초)과 다를 수 있어 감쇠 오차 상한이 커진다.
   - `S3_BACKFILL`(과거 시즌, 벽시계 시각 없음): 시간 감쇠 항을 order 윈도우로 근사한다(최근 득점: 이후 15 plays 선형 감쇠, 리드 변경: 이후 25 plays 선형 감쇠).
-- 압박 신호 제약: 압박은 `/plate_appearances`의 주자 상태에서 산출하나 PA 원본은 운영 DB에 영속하지 않는다([DB_SCHEMA.md](DB_SCHEMA.md) §E-1). 따라서 DB 기반 재생에서 압박 신호는 재계산·가중치 튜닝 대상에서 제외하고, `watch_scores.signal_contributions`에 저장된 기여값을 상수로 사용한다.
+- 압박 신호: 타석 시작 시 주자 상태가 `plays.runner_on_*`로 영속되므로([DB_SCHEMA.md](DB_SCHEMA.md) §E-1) DB 기반 재생에서 재계산·가중치 튜닝이 가능하다. `runner_on_*`가 `null`인 play(PA 미대응)는 해당 시점 압박을 0점 처리한다.
+- 그 외 PA 기반 상세 신호(강한 타구·구속 저하·긴 타석): 랭킹 신호가 아니라 태그·이벤트 표시 전용이므로(§2) 가중치 튜닝 대상이 아니다. PA 원본은 운영 DB에 영속하지 않으므로 DB만으로는 재산출할 수 없고, `game_events`에 저장된 추출 결과를 사용하며 소급 재추출이 필요하면 S3 PA 아카이브를 재생한다([ARCHITECTURE_AND_DATA_FLOW.md](ARCHITECTURE_AND_DATA_FLOW.md) §10).
 
 ### 8.2 검증 지표
 
