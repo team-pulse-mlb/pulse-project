@@ -32,7 +32,7 @@
 | `com.pulse.scorer` | `watch_score` 계산, 추천 태그·다시보기 구간 계산, `SURGE` 판정, AI 트리거 | RabbitMQ `score.tasks` 소비, `domain`, Redis, `ai` 패키지의 트리거 인터페이스 경유, RabbitMQ `notify.events` 사용 |
 | `com.pulse.ranking` | Redis 랭킹 반영 | Redis와 공개 서비스 인터페이스를 통해 사용 |
 | `com.pulse.ai` | ai-service HTTP 클라이언트, AI 문구 캐시 접근, `AiCopyReader` 인터페이스·구현, scorer가 사용할 AI 생성 트리거 인터페이스 | Redis, ai-service, `domain` 읽기 사용 |
-| `com.pulse.replay` | S3 재생 어댑터 | S3 임시 아카이브와 계산 재생 경로에 한정 |
+| `com.pulse.replay` | S3 재생 어댑터, S3→운영 DB 이전 배치(`replay.migration`, `migration` 프로파일) | S3 임시 아카이브와 계산 재생·이전 경로에 한정 |
 | `com.pulse.domain` | JPA 엔티티와 Repository | 전 기능에서 읽기 전용 사용 |
 | `com.pulse.common` | 설정, 외부 클라이언트, 공통 DTO | 전 기능에서 공통 기반으로 사용 |
 
