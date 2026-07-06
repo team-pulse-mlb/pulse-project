@@ -1,0 +1,258 @@
+/* src/features/game-detail/pages/GameDetailPage.css */
+
+/*
+  MLB 심볼 느낌의 색상 조합
+  - 진한 블루: 메인 배경
+  - 화이트: 기본 텍스트
+  - 레드: 강조 포인트
+*/
+:root {
+    --mlb-navy: #0a2342;
+    --mlb-blue: #123c73;
+    --mlb-red: #c8102e;
+    --mlb-white: #f8f9fb;
+    --mlb-line: rgba(255, 255, 255, 0.14);
+    --mlb-card: rgba(255, 255, 255, 0.06);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.game-detail-page {
+    min-height: 100vh;
+    padding: 32px;
+    background:
+            linear-gradient(135deg, #07182c 0%, #0a2342 55%, #123c73 100%);
+    color: var(--mlb-white);
+}
+
+.game-detail-shell {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.game-detail-main,
+.game-detail-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.game-detail-topbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.mode-button {
+    border: 1px solid var(--mlb-line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--mlb-white);
+    cursor: pointer;
+}
+
+.mode-button.active.protected {
+    background: var(--mlb-white);
+    color: var(--mlb-blue);
+    font-weight: 700;
+}
+
+.mode-button.active.revealed {
+    background: var(--mlb-red);
+    color: var(--mlb-white);
+    font-weight: 700;
+}
+
+.hero-card,
+.content-card,
+.sidebar-card {
+    border: 1px solid var(--mlb-line);
+    border-radius: 24px;
+    padding: 28px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+    backdrop-filter: blur(10px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.live-badge {
+    display: inline-block;
+    margin-bottom: 18px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(200, 16, 46, 0.18);
+    border: 1px solid rgba(200, 16, 46, 0.45);
+    color: #ffd8df;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+}
+
+.matchup-title {
+    margin: 0 0 20px 0;
+    font-size: 64px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: var(--mlb-white);
+}
+
+.summary-box {
+    margin: 0 0 24px 0;
+    padding: 18px 20px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--mlb-line);
+    color: rgba(248, 249, 251, 0.92);
+    font-size: 18px;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.info-card {
+    padding: 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--mlb-line);
+}
+
+.info-label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: rgba(248, 249, 251, 0.7);
+}
+
+.info-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--mlb-white);
+}
+
+.section-title,
+.sidebar-title {
+    margin: 0 0 16px 0;
+    font-size: 28px;
+    font-weight: 800;
+}
+
+.sidebar-description {
+    margin: 0 0 20px 0;
+    color: rgba(248, 249, 251, 0.75);
+    line-height: 1.5;
+}
+
+.timeline-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.timeline-item {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.timeline-dot {
+    width: 14px;
+    height: 14px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: var(--mlb-red);
+    box-shadow: 0 0 0 6px rgba(200, 16, 46, 0.15);
+    flex-shrink: 0;
+}
+
+.timeline-content {
+    flex: 1;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--mlb-line);
+}
+
+.timeline-title {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.timeline-text {
+    margin: 0;
+    color: rgba(248, 249, 251, 0.78);
+    line-height: 1.5;
+}
+
+.update-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.update-card {
+    padding: 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--mlb-line);
+}
+
+.update-card.empty {
+    border-style: dashed;
+}
+
+.update-title {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--mlb-white);
+}
+
+.update-text {
+    margin: 0;
+    color: rgba(248, 249, 251, 0.8);
+    line-height: 1.5;
+}
+
+.game-detail-message,
+.empty-text {
+    color: var(--mlb-white);
+    font-size: 18px;
+}
+
+@media (max-width: 1100px) {
+    .game-detail-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .matchup-title {
+        font-size: 48px;
+    }
+}
+
+@media (max-width: 768px) {
+    .game-detail-page {
+        padding: 20px;
+    }
+
+    .matchup-title {
+        font-size: 36px;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .section-title,
+    .sidebar-title {
+        font-size: 22px;
+    }
+}
