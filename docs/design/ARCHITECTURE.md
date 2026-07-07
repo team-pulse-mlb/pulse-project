@@ -76,8 +76,8 @@ flowchart TB
 | ⑧ | 경기 시작 알림 발행 | `pulse-poller`가 LIVE 전이를 감지하면 `GAME_START` 알림 이벤트를 RabbitMQ에 발행한다. |
 | ⑨ | 급상승 알림 발행 | `pulse-scorer`가 급상승 조건을 만족하면 `SURGE` 알림 이벤트를 RabbitMQ에 발행한다. |
 | ⑩ | 알림 전달 | `pulse-api`가 `notify.events`를 소비해 사용자 설정을 필터링하고 알림 저장·SSE 전달을 수행한다. |
-| ⑪ | AI 문구 요청 | `pulse-scorer`가 유의미한 변화가 있을 때만 스포일러 세이프 context로 `ai-service`에 문구 생성을 요청한다. |
-| ⑫ | 문구 생성 | `ai-service`가 OpenAI API를 호출해 문구를 생성하고 스포일러 검수를 수행한다. |
+| ⑪ | AI 문구 요청 | `pulse-scorer`가 유의미한 변화가 있을 때만 스포일러 세이프 context로 `ai-service`에 문구 생성을 요청한다. Spring Boot의 ai-service 호출 timeout은 8초다. |
+| ⑫ | 문구 생성 | `ai-service`가 OpenAI API를 호출해 문구를 생성하고 스포일러 검수를 수행한다. OpenAI 호출 timeout은 6초다. |
 | ⑬ | 검수 결과 반환 | `ai-service`는 검수 결과와 `contextHash`를 backend로 반환한다. 저장은 backend가 Redis 또는 PostgreSQL 경로로 처리하며, `ai-service`가 저장소에 직접 쓰지 않는다. `fallbackUsed=true` 응답은 기본 문구 텍스트 없이 상태만 반환하며 저장하지 않는다. |
 | ⑭ | 빠른 데이터 조회 | `pulse-api`가 Redis에서 라이브 랭킹, 현재 상태, 문구 캐시를 조회한다. |
 | ⑮ | 상세·이력 조회 | `pulse-api`가 PostgreSQL에서 경기 상세, 점수 이력, 다시보기 구간, 알림 저장 데이터를 조회한다. |
