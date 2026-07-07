@@ -209,21 +209,25 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
-| `id` | `BIGSERIAL` | 사용자 id | **PK** |
+| `user_id` | `BIGSERIAL` | 사용자 id | **PK** |
 | `email` | `TEXT` | 로그인 이메일 | UNIQUE |
 | `password_hash` | `TEXT` | BCrypt 해시 | 평문·복호화 가능 형태 저장 금지 |
+| `role` | `TEXT` | 권한(`USER`/`ADMIN`) | 기본 `USER` |
+| `status` | `TEXT` | 상태(`ACTIVE`/`WITHDRAWN`/`SUSPENDED`) | 기본 `ACTIVE` |
+| `last_login_at` | `TIMESTAMPTZ` | 최근 로그인 시각 | nullable |
+| `deleted_at` | `TIMESTAMPTZ` | 탈퇴 시각(soft delete) | nullable |
 | `created_at` · `updated_at` | `TIMESTAMPTZ` | 생성/수정 | |
 
-**키·인덱스** — PK `id` · UNIQUE(`email`)
+**키·인덱스** — PK `user_id` · UNIQUE(`email`)
 
 ### B-2. `refresh_tokens` — 리프레시 토큰 상태
 
-리프레시 토큰은 폐기·회전·재사용 감지라는 상태를 가진 보안 데이터라 Redis가 아닌 DB 행으로 관리한다(유실 시 전원 강제 로그아웃 방지, 폐기 이력 보존). 정리 배치는 `expires_at`이 지난 행만 삭제한다 — 폐기(`revoked_at`) 행도 만료 전에는 재사용 감지 근거로 보존한다.
+리프레시 토큰은 폐기·회전·재사용 감지라는 상태를 가진 보안 데이터라 DB 행으로 관리한다. 정리 배치는 `expires_at`이 지난 행만 삭제한다 — 폐기(`revoked_at`) 행도 만료 전에는 재사용 감지 근거로 보존한다.
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
 | `id` | `BIGSERIAL` | PK | **PK** |
-| `user_id` | `BIGINT` | 사용자 | FK → `users` |
+| `user_id` | `BIGINT` | 사용자 | FK → `users.user_id` |
 | `token_hash` | `TEXT` | 토큰 해시 | 원문 저장 금지 · UNIQUE |
 | `expires_at` | `TIMESTAMPTZ` | 만료 시각 | |
 | `revoked_at` | `TIMESTAMPTZ` | 폐기 시각 | 회전·로그아웃 시 기록, nullable |
