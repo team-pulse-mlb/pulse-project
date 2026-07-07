@@ -46,7 +46,7 @@ class SpoilerCheckResponse(ApiBaseModel):
     )
     fallback_text: str | None = Field(
         default=None,
-        description="스포일러가 감지됐을 때 대체할 안전 문구",
+        description="스포일러가 감지됐을 때 Spring에서 fallback 처리할 수 있는 안전 상태 문구",
     )
 
 
@@ -64,7 +64,11 @@ class SafeContext(ApiBaseModel):
     ai-service 요청에 넣지 않는다.
     """
 
-    game_status: str = Field(..., examples=["STATUS_FINAL"])
+    game_status: str = Field(
+        ...,
+        description="Spring Boot 경기 상태값",
+        examples=["STATUS_SCHEDULED", "STATUS_LIVE", "STATUS_FINAL"],
+    )
     inning_phase: str = Field(..., examples=["경기 종료"])
     tension_level: str = Field(default="NORMAL", examples=["NORMAL"])
     score_band: str = Field(default="RECOMMEND", examples=["RECOMMEND"])
@@ -82,6 +86,11 @@ class SpoilerFreeSummaryRequest(ApiBaseModel):
     surface: str = Field(default="HOME_CARD", examples=["HOME_CARD"])
     language: str = Field(default="ko", examples=["ko"])
     max_length: int = Field(default=80, examples=[80])
+    context_hash: str | None = Field(
+        default=None,
+        description="Spring Boot가 최신 context 여부를 검증하기 위해 전달하는 해시값",
+        examples=["game-5059082-status-final-v3"],
+    )
     safe_context: SafeContext = Field(...)
 
 
@@ -91,8 +100,12 @@ class SpoilerFreeSummaryResponse(ApiBaseModel):
     """
 
     spoiler_safe: bool
-    safe_title: str
-    safe_reason: str
+    context_hash: str | None = Field(
+        default=None,
+        description="요청에서 받은 contextHash를 그대로 반환한 값",
+    )
+    safe_title: str | None = None
+    safe_reason: str | None = None
     notification_text: str | None = None
     tags: list[str] = Field(default_factory=list)
     violations: list[str] = Field(default_factory=list)
@@ -123,8 +136,12 @@ class NotificationTextResponse(ApiBaseModel):
         ...,
         description="최종 알림 문구가 스포일러 안전 정책을 통과했는지 여부",
     )
-    notification_text: str = Field(
-        ...,
+    context_hash: str | None = Field(
+        default=None,
+        description="요청에서 받은 contextHash를 그대로 반환한 값",
+    )
+    notification_text: str | None = Field(
+        default=None,
         description="사용자에게 보낼 스포일러 없는 알림 문구",
     )
     tags: list[str] = Field(
@@ -175,12 +192,16 @@ class ReplaySummaryResponse(ApiBaseModel):
         ...,
         description="최종 다시보기 문구가 스포일러 안전 정책을 통과했는지 여부",
     )
-    replay_title: str = Field(
-        ...,
+    context_hash: str | None = Field(
+        default=None,
+        description="요청에서 받은 contextHash를 그대로 반환한 값",
+    )
+    replay_title: str | None = Field(
+        default=None,
         description="스포일러 없는 다시보기 제목",
     )
-    replay_summary: str = Field(
-        ...,
+    replay_summary: str | None = Field(
+        default=None,
         description="스포일러 없는 다시보기 설명 문구",
     )
     tags: list[str] = Field(

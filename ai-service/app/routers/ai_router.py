@@ -11,7 +11,6 @@ from app.schemas.ai_schema import (
     SpoilerFreeSummaryResponse,
 )
 
-from app.services.fallback_text import get_fallback_text
 from app.services.openai_service import generate_spoiler_free_summary
 from app.services.spoiler_guard import check_spoiler_text
 
@@ -41,46 +40,47 @@ def spoiler_check(request: SpoilerCheckRequest):
     )
 
 
-def _build_fallback_summary_response(guard_result: dict) -> SpoilerFreeSummaryResponse:
-    fallback_text = get_fallback_text("LIVE_HEADLINE")
-
+def _build_failed_summary_response(
+    context_hash: str | None,
+    violations: list[str],
+) -> SpoilerFreeSummaryResponse:
     return SpoilerFreeSummaryResponse(
-        spoiler_safe=True,
-        safe_title="관전 가치가 높아진 경기",
-        safe_reason=fallback_text,
-        notification_text=fallback_text,
-        tags=["추천 구간"],
-        violations=guard_result["violations"],
-        fallback_used=True,
+        spoiler_safe=False,
+        context_hash=context_hash,
+        violations=violations,
+        fallback_used=False,
     )
 
 
-def _build_fallback_notification_response(guard_result: dict) -> NotificationTextResponse:
-    fallback_text = get_fallback_text("NOTIFICATION")
-
+def _build_failed_notification_response(
+    context_hash: str | None,
+    violations: list[str],
+) -> NotificationTextResponse:
     return NotificationTextResponse(
-        spoiler_safe=True,
-        notification_text=fallback_text,
-        tags=["추천 구간"],
-        violations=guard_result["violations"],
-        fallback_used=True,
+        spoiler_safe=False,
+        context_hash=context_hash,
+        violations=violations,
+        fallback_used=False,
     )
 
 
-def _build_fallback_replay_response(guard_result: dict) -> ReplaySummaryResponse:
-    fallback_text = get_fallback_text("REPLAY_SUMMARY")
-
+def _build_failed_replay_response(
+    context_hash: str | None,
+    violations: list[str],
+) -> ReplaySummaryResponse:
     return ReplaySummaryResponse(
-        spoiler_safe=True,
-        replay_title="스포일러 없이 다시 보기 좋은 구간",
-        replay_summary=fallback_text,
-        tags=["추천 구간"],
-        violations=guard_result["violations"],
-        fallback_used=True,
+        spoiler_safe=False,
+        context_hash=context_hash,
+        violations=violations,
+        fallback_used=False,
     )
 
 
-@router.post("/spoiler-free-summary", response_model=SpoilerFreeSummaryResponse)
+@router.post(
+    "/spoiler-free-summary",
+    response_model=SpoilerFreeSummaryResponse,
+    response_model_exclude_none=True,
+)
 def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
     generated_summary = generate_spoiler_free_summary(request)
 
@@ -93,10 +93,14 @@ def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
     guard_result = check_spoiler_text(combined_text)
 
     if not guard_result["spoiler_safe"]:
-        return _build_fallback_summary_response(guard_result)
+        return _build_failed_summary_response(
+            context_hash=request.context_hash,
+            violations=guard_result["violations"],
+        )
 
     return SpoilerFreeSummaryResponse(
         spoiler_safe=True,
+        context_hash=request.context_hash,
         safe_title=generated_summary["safe_title"],
         safe_reason=generated_summary["safe_reason"],
         notification_text=generated_summary["notification_text"],
@@ -106,7 +110,11 @@ def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
     )
 
 
-@router.post("/notification-text", response_model=NotificationTextResponse)
+@router.post(
+    "/notification-text",
+    response_model=NotificationTextResponse,
+    response_model_exclude_none=True,
+)
 def notification_text(request: NotificationTextRequest):
     """
     알림에 사용할 스포일러 없는 짧은 문구를 생성하는 API
@@ -118,10 +126,14 @@ def notification_text(request: NotificationTextRequest):
     guard_result = check_spoiler_text(notification_text_value)
 
     if not guard_result["spoiler_safe"]:
-        return _build_fallback_notification_response(guard_result)
+        return _build_failed_notification_response(
+            context_hash=request.context_hash,
+            violations=guard_result["violations"],
+        )
 
     return NotificationTextResponse(
         spoiler_safe=True,
+        context_hash=request.context_hash,
         notification_text=notification_text_value,
         tags=generated_summary["tags"],
         violations=[],
@@ -129,7 +141,11 @@ def notification_text(request: NotificationTextRequest):
     )
 
 
-@router.post("/replay-summary", response_model=ReplaySummaryResponse)
+@router.post(
+    "/replay-summary",
+    response_model=ReplaySummaryResponse,
+    response_model_exclude_none=True,
+)
 def replay_summary(request: ReplaySummaryRequest):
     """
     다시보기 구간에 사용할 스포일러 없는 제목/설명 문구를 생성하는 API
@@ -145,10 +161,14 @@ def replay_summary(request: ReplaySummaryRequest):
     guard_result = check_spoiler_text(combined_text)
 
     if not guard_result["spoiler_safe"]:
-        return _build_fallback_replay_response(guard_result)
+        return _build_failed_replay_response(
+            context_hash=request.context_hash,
+            violations=guard_result["violations"],
+        )
 
     return ReplaySummaryResponse(
         spoiler_safe=True,
+        context_hash=request.context_hash,
         replay_title=replay_title,
         replay_summary=replay_summary_value,
         tags=tags,
