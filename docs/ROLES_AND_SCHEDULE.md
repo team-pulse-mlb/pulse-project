@@ -1,10 +1,8 @@
 # 역할 분담 및 일정 계획
 
-이 문서는 팀원이 병렬로 개발하기 위한 담당 영역, 계약 지점, 일정 기준을 정리한다.
-
 ## 1. 담당 영역별 기능 분해
 
-backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai, domain, common, replay}`. `poller`·`scorer`는 신규 패키지다. `api` 하위는 기능 패키지 `api.home` / `api.gamedetail` / `api.user` / `api.notification`으로 나눈다. 점수 계산 로직은 기존 `replay` 패키지에서 `scorer`로 이관하고(담당 예은), `replay`는 S3 재생 어댑터로 유지한다. 패키지·폴더 전체 배치는 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)를 따른다.
+backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai, domain, common, replay}`. `poller`·`scorer`는 신규 패키지다. `api` 하위는 기능 패키지 `api.home` / `api.gamedetail` / `api.user` / `api.notification`으로 나눈다. 점수 계산 로직은 기존 `replay` 패키지에서 `scorer`로 이관하고(담당 예은), `replay`는 S3 재생 어댑터로 유지한다.
 
 | 담당자 | 기능 영역 | backend 패키지 | frontend 폴더 |
 |---|---|---|---|
@@ -44,12 +42,12 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai
 | `frontend/app` | 예은 |  |
 | `ai-service/` | 창현 |  |
 | `raw-archive/` | 예은 |  |
-| `infra/` | 확인 필요 | 확인 필요 |
-| `docs/` | 확인 필요 | 확인 필요 |
+| `infra/` | 예은(초기 구성) → 윤호(단계 3 이후 운영) | §5 로드맵과 동일 |
+| `docs/` | 예은 | 조장 주관, 수정 제안은 PR로 |
 
 ## 2. 팀 간 계약 지점
 
-아래 계약을 기준으로 구현체가 없어도 각자 목(mock)으로 개발을 시작할 수 있다. 상세 시그니처·스키마는 [API_CONTRACTS.md](API_CONTRACTS.md) §7이 단일 기준이다.
+아래 계약을 기준으로 구현체가 없어도 각자 목(mock)으로 개발을 시작할 수 있다.
 
 | 계약 | 제공 → 사용 | 형태 |
 |---|---|---|
@@ -65,7 +63,7 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai
 | # | 항목 | 기준 |
 |---|---|---|
 | ① | 인증 방식 | JWT 액세스 토큰 + 리프레시 토큰. 소셜 로그인은 추후 확장 |
-| ② | poller→scorer 큐 | RabbitMQ `score.tasks` (선정 근거: [TECH_STACK.md](TECH_STACK.md)) |
+| ② | poller→scorer 큐 | RabbitMQ `score.tasks` |
 | ③ | 실시간 채널 | 홈·상세·알림 모두 SSE, 신호+재조회 방식(payload에 데이터를 싣지 않음) |
 | ④ | 알림 채널 범위 | 1차 인앱만, Web Push는 배포 후 여유 시 |
 | ⑤ | 보호 모드 홈 노출 정책 | 매치업, 이닝 숫자(초/말 제외), 추천 이유 태그, AI 문구를 노출한다. `watch_score`는 정렬에만 쓰고 등급·순위·숫자는 노출하지 않는다 |
@@ -77,11 +75,11 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai
 | ⑪ | 알림 처리 배치 | 판정=scorer(급상승)·poller(경기 시작), 전달·저장=api. 채널은 RabbitMQ `notify.events` |
 | ⑫ | 배포 토폴로지 | EC2 1대 Docker Compose(컨테이너 8개) + PostgreSQL만 RDS 분리 |
 | ⑬ | 알림 fan-out 범위 | SURGE 알림은 전역(관심 팀 무관), `notify_surge_enabled`로 개인 차단. GAME_START는 관심 팀 사용자에게만 fan-out |
-| ⑭ | 기본 스포일러 모드 계정 설정 | MVP 공식 제외(항상 보호 모드 시작, 공개 상태는 클라이언트 저장) — [PROJECT_PROPOSAL.md](PROJECT_PROPOSAL.md) §6.6 대비 범위 축소 |
+| ⑭ | 기본 스포일러 모드 계정 설정 | MVP 공식 제외(항상 보호 모드 시작, 공개 상태는 클라이언트 저장) |
 | ⑮ | 관심 선수 부상 표시 | 1차 제외, `player_injuries` 적재와 함께 후속 도입 |
 | ⑯ | AI 경기 유형 분류 | MVP 제외, 추후 확장(확장 포인트: AI purpose enum 추가·태그 어휘 확장·games 컬럼 Flyway 증분 — 아키텍처 변경 불필요) |
-| ⑰ | 백테스트 회귀 리포트 | 1차는 수동, 자동화는 통합 후 확정 로드맵([RECOMMENDATION_SCORE.md](RECOMMENDATION_SCORE.md) §8.3, 담당 예은) |
-| ⑱ | backend 패키지 구조 | §1 확정안(컨테이너 경계 = 패키지 경계) |
+| ⑰ | 백테스트 회귀 리포트 | 1차는 수동, 자동화는 통합 후 확정 로드맵(담당 예은) |
+| ⑱ | backend 패키지 구조 | 컨테이너 경계 = 패키지 경계 |
 
 ## 4. 단계별 일정
 
@@ -105,7 +103,7 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai
 
 **7/14 = 전체 흐름 통합:** 홈 → 상세 → 공개 전환 → 알림으로 이어지는 전체 시나리오
 
-7/14 전에는 [FEATURE_SPEC.md](FEATURE_SPEC.md) §6 데모 완료 기준 8개 외 신규 범위를 추가하지 않는다.
+7/14 전에는 통합 데모 완료 기준 8개 외 신규 범위를 추가하지 않는다.
 
 ### 단계 3 — 배포 & 테스트 (7/15 ~ 7/17)
 DB 이전 완료 즉시 시작하며, 가능한 한 조기 진행한다.

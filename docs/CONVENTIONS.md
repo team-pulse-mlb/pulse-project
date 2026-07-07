@@ -1,7 +1,5 @@
 # PULSE 팀 개발 규칙
 
-이 문서는 팀원이 같은 방식으로 브랜치를 만들고, 코드를 작성하고, PR을 올리기 위한 기준을 정리한다.
-
 ## 1. 브랜치 규칙
 
 `main`에는 직접 커밋하지 않는다. 모든 작업은 새 브랜치에서 진행하고 PR로 병합한다.
@@ -85,7 +83,7 @@ PR 본문에는 아래 내용을 적는다.
 ### backend
 
 - Java 21과 Spring Boot 기준으로 작성한다.
-- 패키지 구조는 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) §3을 따른다.
+- backend 패키지는 기능별 경계를 유지하고, `domain`과 `common`만 공용으로 사용한다.
 - 컨트롤러는 요청/응답 역할에 집중하고, 비즈니스 로직은 서비스로 옮긴다.
 - 추천 점수 상수는 `backend/src/main/resources/scoring.yml`에만 둔다.
 - `scoring.yml`을 바꾸면 `version`을 올리고 PR에 조정 근거를 적는다.
