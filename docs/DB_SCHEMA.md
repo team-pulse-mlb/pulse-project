@@ -1,7 +1,5 @@
 # DB 모델 스키마 설계
 
-이 문서는 PULSE 운영 데이터베이스(PostgreSQL)의 테이블 스키마를 정의한다. 타입은 PostgreSQL과 Spring Data JPA 기준이며, 가중치와 임계값은 DB가 아니라 `backend/src/main/resources/scoring.yml`에서 관리한다.
-
 ## 1. 명명·타입 규칙
 
 | 규칙 | 내용 |
@@ -11,14 +9,14 @@
 | 시각 | 모든 시각 컬럼은 `TIMESTAMPTZ`(UTC 저장). balldontlie `date`·`updated_at`은 UTC ISO 8601이다. |
 | `observed_at` | plays·PA에 **벽시계 타임스탬프가 없으므로** 폴러의 **최초 관측 시각**을 저장해 시간 감쇠(최근 득점·리드 변경)를 계산한다. 정밀도 하한은 폴링 주기(약 20초)다. |
 | `backfilled` | 과거 백필로 적재한 행은 `true`. 시간 기반 계산에서 제외한다(백테스트는 order 윈도우로 근사). |
-| `source` | 데이터 출처를 `OPERATIONAL`(기본)·`S3_LIVE_ARCHIVE`·`S3_BACKFILL`로 구분한다. S3에서 이전한 데이터를 운영 수집분과 구분하는 컬럼이며 상세는 §F. `backfilled`는 `source = 'S3_BACKFILL'`과 동치다. |
+| `source` | 데이터 출처를 `OPERATIONAL`(기본)·`S3_LIVE_ARCHIVE`·`S3_BACKFILL`로 구분한다. S3에서 이전한 데이터를 운영 수집분과 구분하는 컬럼이다. `backfilled`는 `source = 'S3_BACKFILL'`과 동치다. |
 | 배열·구조 | 이닝별 점수·신호 기여·태그 등 가변 구조는 `JSONB` 또는 Postgres 배열 타입을 쓴다. |
 | 상수 | 가중치·임계값·중요도 배수는 **DB에 저장하지 않는다.** `scoring.yml`에서 관리하고 변경 시 `version`을 올린다. |
 | 스키마 관리 | 로컬은 `ddl-auto: update`, 배포 환경(RDS)은 **Flyway 마이그레이션만** 사용한다. 베이스라인 V1은 DB 이전에 앞서 만들고, 이후 변경은 증분 마이그레이션으로 리뷰를 거친다. |
 
 ## 2. 스포일러 보호 규칙
 
-[내부] 표시 컬럼은 **내부 계산 전용**이다. 점수·득점·승패·우세·라이브 배당·결과 텍스트가 여기에 해당한다. 보호 모드 DTO에서 반드시 제거하며 API·프론트로 그대로 내보내지 않는다. 스포일러 보호는 프론트가 아니라 **서버 응답 단계**에서 강제한다. 금지 필드 전체 목록과 화면별 노출 기준은 [API_CONTRACTS.md](API_CONTRACTS.md) §3이 단일 기준이며, 직렬화 가드 테스트와 동기화한다.
+[내부] 표시 컬럼은 **내부 계산 전용**이다. 점수·득점·승패·우세·라이브 배당·결과 텍스트가 여기에 해당한다. 보호 모드 DTO에서 반드시 제거하며 API·프론트로 그대로 내보내지 않는다. 스포일러 보호는 프론트가 아니라 **서버 응답 단계**에서 강제한다. 직렬화 가드 테스트도 같은 금지 필드 목록을 확인한다.
 
 ## 3. 전체 관계도 (ERD)
 
@@ -95,7 +93,7 @@ erDiagram
 | `last_play_order` | `BIGINT` | `/plays` 증분 커서(마지막 order) | |
 | `last_polled_at` | `TIMESTAMPTZ` | 최근 폴링 시각 | |
 | `observed_at` | `TIMESTAMPTZ` | 최신 상태 관측 시각 | |
-| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 | `created_at` · `updated_at` | `TIMESTAMPTZ` | 생성/수정 시각 | |
 
 **키·인덱스** — PK `game_id` · idx(`lifecycle_state`), idx(`start_time`), idx(`status`)
@@ -127,7 +125,7 @@ erDiagram
 | `runner_on_first` · `runner_on_second` · `runner_on_third` | `BOOLEAN` | 타석 시작 시 주자 상태(PA `runner_on_*` 유래) | 압박·득점권 신호. PA 미대응 play는 null |
 | `observed_at` | `TIMESTAMPTZ` | 최초 관측 시각 | 시간 감쇠 기준 |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
-| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `play_order`)** · idx(`game_id`, `play_order`)
 
@@ -147,9 +145,9 @@ erDiagram
 | `pregame_bonus` | `NUMERIC(4,2)` | 사전 가산 `pregame_score/10`(0–10) | [내부] |
 | `watch_score` | `SMALLINT` | 최종 `clamp(raw, 0, 100)` | [내부] 랭킹 정렬 키 |
 | `signal_contributions` | `JSONB` | 신호별 기여 맵 | [내부] 예: `{"후반연장":20,"점수차":15}` |
-| `tags` | `TEXT[]` | 추천 이유 태그 | 예: `접전 흐름`, `득점권 압박`, `후반 긴장 구간` — 표기는 [RECOMMENDATION_POLICY.md](RECOMMENDATION_POLICY.md) §2 기준 |
+| `tags` | `TEXT[]` | 추천 이유 태그 | 예: `접전 흐름`, `득점권 압박`, `후반 긴장 구간` |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
-| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `computed_at`)** (`score.tasks` 재전달 멱등 키) · idx(`game_id`, `computed_at`)
 
@@ -171,7 +169,7 @@ erDiagram
 | `ai_summary` | `TEXT` | 구간 AI 요약(검수 통과본) | 확정 산출물로 영속, nullable |
 | `status` | `TEXT` | `OPEN`/`CLOSED` | |
 | `opened_at` · `closed_at` | `TIMESTAMPTZ` | 개폐 시각 | |
-| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · idx(`game_id`, `peak_score` DESC)
 
@@ -181,13 +179,13 @@ erDiagram
 
 ### A-5. `game_events` — 흥미로운 순간 이벤트(확정 결과)
 
-scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하는 해석 계층이다. 경기 상세 타임라인의 원천이며, `replay_segments`와 같이 라이브 1회 계산 결과를 종료 후 그대로 재사용한다. PA 유래 이벤트는 원본이 DB에 없으므로 이 테이블이 유일한 조회 저장소다(원본 소급 재추출은 S3 아카이브, §E-3). 이벤트 종류·발생 조건·보호 표기의 정본은 [RECOMMENDATION_POLICY.md](RECOMMENDATION_POLICY.md) §8이다.
+scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하는 해석 계층이다. 경기 상세 타임라인의 원천이며, `replay_segments`와 같이 라이브 1회 계산 결과를 종료 후 그대로 재사용한다. PA 유래 이벤트는 원본이 DB에 없으므로 이 테이블이 유일한 조회 저장소다. 원본 소급 재추출은 S3 아카이브를 사용한다.
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
 | `id` | `BIGSERIAL` | PK | **PK** |
 | `game_id` | `BIGINT` | 경기 | FK → `games` |
-| `event_type` | `TEXT` | 이벤트 종류 | 정본: [RECOMMENDATION_POLICY.md](RECOMMENDATION_POLICY.md) §8 |
+| `event_type` | `TEXT` | 이벤트 종류 | |
 | `spoiler_level` | `TEXT` | `PROTECTED_SAFE`/`REVEALED_ONLY` | 미분류·알 수 없는 값은 **노출 차단**(기본 차단) |
 | `source_type` · `source_ref` | `TEXT` · `BIGINT` | 원천 행: `PLAY`+`play_order` / `PA`+`pa_number` | dedupe 키 구성 |
 | `inning` | `SMALLINT` | 이닝 숫자 | 보호 모드 노출 가능 |
@@ -197,7 +195,7 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 | `ruleset_version` | `TEXT` | 추출 룰 버전(`scoring.yml` version) | |
 | `observed_at` | `TIMESTAMPTZ` | 최초 관측 시각 | 타임라인 공통 정렬 키 |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
-| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `event_type`, `source_type`, `source_ref`)** (재관측 dedupe) · idx(`game_id`, `observed_at`)
 
@@ -328,7 +326,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `position` | `TEXT` | 이 경기 포지션 | |
 | `is_probable_pitcher` | `BOOLEAN` | 선발 예상 투수 여부 | pregame 선발 매치업 입력 |
 | `observed_at` | `TIMESTAMPTZ` | 관측 시각 | 타순 공개 시점 실측용 |
-| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `lineup_item_id` · UNIQUE(`game_id`, `player_id`) · idx(`game_id`)
 
@@ -351,7 +349,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `total_over_odds` · `total_under_odds` | `INT` | 오버/언더 배당 | |
 | `vendor_updated_at` | `TIMESTAMPTZ` | 원본 `updated_at` | 신선도 판단 |
 | `observed_at` | `TIMESTAMPTZ` | 스냅샷 저장 시각 | |
-| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · UNIQUE(`game_id`, `vendor`, `snapshot_type`)
 
@@ -372,7 +370,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `streak` | `SMALLINT` | 연승/연패(음수) | 참고용 |
 | `last_ten_games` | `SMALLINT` | 최근 10경기 | 참고용 |
 | `observed_at` | `TIMESTAMPTZ` | 관측 시각 | |
-| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` (§F) |
+| `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · UNIQUE(`season`, `snapshot_date`, `team_id`)
 
@@ -389,7 +387,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 **키·인덱스** — PK(`season`, `player_id`) · `fielding_fip`는 실측 스케일 이상으로 **적재하지 않는다.**
 
-선발 매치업 입력은 pregame 계산 시점에 확정 선발 예상 투수(`is_probable_pitcher`)의 `player_ids[]`로 `/season_stats`를 온디맨드 조회하거나 일 배치로 이 테이블에 캐시한다(P2). 별도 P1 승격은 하지 않는다. 조회 실패 시 직전 캐시값을 사용하고, 선발 미확정 시 해당 선발 매치업은 0점 처리한다([RECOMMENDATION_SCORE.md](RECOMMENDATION_SCORE.md) §5).
+선발 매치업 입력은 pregame 계산 시점에 확정 선발 예상 투수(`is_probable_pitcher`)의 `player_ids[]`로 `/season_stats`를 온디맨드 조회하거나 일 배치로 이 테이블에 캐시한다(P2). 별도 P1 승격은 하지 않는다. 조회 실패 시 직전 캐시값을 사용하고, 선발 미확정 시 해당 선발 매치업은 0점 처리한다.
 
 
 ## E. 부록
@@ -398,21 +396,21 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 `/plate_appearances`는 압박(`runner_on_*`), 강한 타구(`exit_velocity >= 95`, `is_barrel`), 긴 타석, 투수 흔들림(`release_speed`·`pitcher_pitch_count`) 등 **상세 신호 산출에만 소비**한다. 원본은 S3 아카이브에 남고 산출 결과는 용도별로 영속되므로, 운영 Postgres 코어 테이블로 두지 않는다.
 
-- 라이브 압박·카운트 신호: poller가 `/plate_appearances`(`runner_on_*`)·`/plays`(카운트)에서 추출해 `ScoreTask.situation`으로 scorer에 전달한다([API_CONTRACTS.md](API_CONTRACTS.md) §8.1).
+- 라이브 압박·카운트 신호: poller가 `/plate_appearances`(`runner_on_*`)·`/plays`(카운트)에서 추출해 `ScoreTask.situation`으로 scorer에 전달한다.
 - 백테스트 재계산: 타석 시작 시 주자 상태는 `plays.runner_on_*` 3컬럼으로 영속해 압박 주자 신호를 재계산할 수 있게 한다. `plays.runner_on_*`는 전 타석의 원본 상태(사실)이고 `game_events`의 압박 이벤트는 임계 통과분(해석)이므로 서로 대체하지 않는다.
-- 상세 화면 노출: 임계를 통과한 순간(긴 승부·강한 타구·투수 흔들림 등)은 scorer가 라이브 중 `game_events`(§A-5)로 추출·영속한다.
-- 그 외 PA 필드 원본: S3 아카이브에만 남는다. 운영 이전 후에도 PA 아카이빙은 유지하므로(§E-3) 추출 룰 변경 시 소급 재추출이 가능하다.
+- 상세 화면 노출: 임계를 통과한 순간(긴 승부·강한 타구·투수 흔들림 등)은 scorer가 라이브 중 `game_events`로 추출·영속한다.
+- 그 외 PA 필드 원본: S3 아카이브에만 남는다. 운영 이전 후에도 PA 아카이빙은 유지하므로 추출 룰 변경 시 소급 재추출이 가능하다.
 
 
 ### E-2. Redis 키 (실시간 조회 전용)
 
-전체 키·pub/sub 채널 명세는 [API_CONTRACTS.md](API_CONTRACTS.md) §8.2가 기준이다. 핵심 키만 요약한다.
+핵심 키만 요약한다.
 
 | 키 | 타입 | 내용 |
 |---|---|---|
 | `score:rank:live` | `ZSET` | 진행 중 경기 `watch_score` 랭킹 (member=`game_id`, score=`watch_score`) |
 | `game:{id}:live` | `HASH` | 현재 점수·이닝·노출 태그 캐시 (내부 전용) |
-| `game:{id}:copy:{purpose}` | `STRING` | 검수 통과 AI 라이브 문구 캐시 (종료 경기 문구는 PG 영속, §A-1·A-4) |
+| `game:{id}:copy:{purpose}` | `STRING` | 검수 통과 AI 라이브 문구 캐시. 종료 경기 문구는 PG에 영속 |
 
 ### E-3. S3 원본 레이아웃 (개발·백테스트 전용)
 
@@ -425,7 +423,7 @@ raw/plays/game_id=<id>/plays_YYYY-MM-DD_HHMMSSZ_c<cursor>.json.gz
 
 각 객체는 `observed_at`, `endpoint`, `params`, `response`를 가진 gzip JSON이다. `backfilled: true` 객체는 시간 감쇠 계산에서 제외한다.
 
-이전 완료 후 raw-archive 도구의 수집은 중단하고 수집분은 운영 DB로 이전해 보존한다(§F, [ARCHITECTURE_AND_DATA_FLOW.md](ARCHITECTURE_AND_DATA_FLOW.md) §10). 단 **`/plate_appearances` 원본은 예외**로, 운영 poller가 수신한 응답을 같은 레이아웃으로 S3에 계속 업로드한다. PA는 DB에 영속하지 않는 유일한 원본이므로 이 아카이브가 `game_events` 추출 룰 변경 시 소급 재추출과 PA 신호 백테스트 확장의 자체 보존 수단이다.
+이전 완료 후 raw-archive 도구의 수집은 중단하고 수집분은 운영 DB로 이전해 보존한다. 단 **`/plate_appearances` 원본은 예외**로, 운영 poller가 수신한 응답을 같은 레이아웃으로 S3에 계속 업로드한다. PA는 DB에 영속하지 않는 유일한 원본이므로 이 아카이브가 `game_events` 추출 룰 변경 시 소급 재추출과 PA 신호 백테스트 확장의 자체 보존 수단이다.
 
 ## F. 이전 데이터 구분과 정합성
 

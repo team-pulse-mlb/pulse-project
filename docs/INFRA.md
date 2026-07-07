@@ -1,7 +1,5 @@
 # AWS 리소스 구성과 환경 설정
 
-이 문서는 PULSE 배포 환경의 AWS 리소스 구성, 시크릿·환경 변수 관리 방식, 네트워크 설정을 정리한다. 배포 컨테이너 구성은 TECH_STACK.md §3, 로컬 개발 절차는 ONBOARDING.md, S3 원본 아카이브와 운영 DB 이관 배경은 ARCHITECTURE_AND_DATA_FLOW.md §10을 따른다.
-
 ## 1. AWS 리소스 구성
 
 | 리소스 | 구성 | 비고 |
