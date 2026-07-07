@@ -37,6 +37,48 @@ class SpoilerGuardTestCase(unittest.TestCase):
         self.assertIn("SCORE_PATTERN", result["violations"])
         self.assertEqual(result["fallback_text"], DEFAULT_FALLBACK_TEXT)
 
+    def test_policy_forbidden_words_are_blocked(self):
+        forbidden_words = [
+            "홈런",
+            "역전",
+            "끝내기",
+            "실점 위기",
+            "홈팀 리드",
+            "원정팀 리드",
+            "점수 차",
+            "결말",
+            "결과",
+            "스코어",
+            "동점",
+        ]
+
+        for word in forbidden_words:
+            with self.subTest(word=word):
+                result = check_spoiler_text(f"{word}가 포함된 문구입니다.")
+
+                self.assertFalse(result["spoiler_safe"])
+                self.assertIn(f"FORBIDDEN_WORD:{word}", result["violations"])
+                self.assertEqual(result["fallback_text"], DEFAULT_FALLBACK_TEXT)
+
+    def test_policy_score_patterns_are_blocked(self):
+        unsafe_texts = [
+            "3대2 흐름입니다.",
+            "3:2 흐름입니다.",
+            "3-2 흐름입니다.",
+            "3점 차입니다.",
+            "몇 점 차인지 궁금한 경기입니다.",
+        ]
+
+        for text in unsafe_texts:
+            with self.subTest(text=text):
+                result = check_spoiler_text(text)
+
+                self.assertFalse(result["spoiler_safe"])
+                self.assertIn("SCORE_PATTERN", result["violations"])
+                self.assertEqual(result["fallback_text"], DEFAULT_FALLBACK_TEXT)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+    
