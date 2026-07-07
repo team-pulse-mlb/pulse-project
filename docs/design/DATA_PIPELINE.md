@@ -104,7 +104,7 @@ scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 S
 
 ## 4. 사용자 응답 흐름
 
-AI 문구 생성은 응답 경로에 없다. 계산 파이프라인이 미리 만들어 캐시에 넣어두고, API는 캐시를 읽기만 한다.
+AI 문구 생성은 응답 경로에 없다. 계산 파이프라인이 미리 만들어 캐시에 넣어두고, API는 캐시를 읽기만 한다. AI 문구가 아직 없으면 API는 LLM 응답을 기다리지 않고 Spring Boot의 목적별 기본 문구를 즉시 반환한다.
 
 ```mermaid
 flowchart LR

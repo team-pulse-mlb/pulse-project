@@ -78,7 +78,7 @@ flowchart TB
 | ⑩ | 알림 전달 | `pulse-api`가 `notify.events`를 소비해 사용자 설정을 필터링하고 알림 저장·SSE 전달을 수행한다. |
 | ⑪ | AI 문구 요청 | `pulse-scorer`가 유의미한 변화가 있을 때만 스포일러 세이프 context로 `ai-service`에 문구 생성을 요청한다. |
 | ⑫ | 문구 생성 | `ai-service`가 OpenAI API를 호출해 문구를 생성하고 스포일러 검수를 수행한다. |
-| ⑬ | 검수 결과 반환 | `ai-service`는 검수 결과와 `contextHash`를 backend로 반환한다. 저장은 backend가 Redis 또는 PostgreSQL 경로로 처리하며, `ai-service`가 저장소에 직접 쓰지 않는다. `fallbackUsed=true` 응답은 저장하지 않는다. |
+| ⑬ | 검수 결과 반환 | `ai-service`는 검수 결과와 `contextHash`를 backend로 반환한다. 저장은 backend가 Redis 또는 PostgreSQL 경로로 처리하며, `ai-service`가 저장소에 직접 쓰지 않는다. `fallbackUsed=true` 응답은 기본 문구 텍스트 없이 상태만 반환하며 저장하지 않는다. |
 | ⑭ | 빠른 데이터 조회 | `pulse-api`가 Redis에서 라이브 랭킹, 현재 상태, 문구 캐시를 조회한다. |
 | ⑮ | 상세·이력 조회 | `pulse-api`가 PostgreSQL에서 경기 상세, 점수 이력, 다시보기 구간, 알림 저장 데이터를 조회한다. |
 | ⑯ | 사용자 응답 | React 화면은 `pulse-api`에 REST 요청과 SSE 연결만 수행한다. 외부 MLB API, Redis, PostgreSQL을 직접 호출하지 않는다. |
@@ -93,7 +93,7 @@ flowchart TB
 | `RabbitMQ` | `score.tasks`(계산 요청), `notify.events`(알림 이벤트) | 유실되면 복구 불가능한 작업 전달용. ack·재전달·DLQ 제공 |
 | `Redis` | 라이브 랭킹(ZSET), 현재 상태·문구 캐시, 재조회 신호 pub/sub, 쿨다운·레이트리밋 키 | 유실돼도 재계산·다음 사이클로 복구되는 것만 둔다 |
 | `RDS PostgreSQL` | 운영 원본·계산 이력·사용자·알림 저장 | 라이브 1회 계산 결과는 재생성 불가라 관리형 백업이 필요하다 |
-| `ai-service` | 추천 판단 없이, 서버가 넘긴 스포일러 세이프 context로 문구 후보 생성·검수. 무상태(캐시·DB에 직접 쓰지 않음) | 응답 경로 밖(비동기+캐시)이라 장애가 사용자 응답에 영향 없다. 저장과 기본 문구 fallback 판단은 backend가 수행해 자격증명과 저장 분기 규칙(Redis/PG)을 backend에 유지한다 |
+| `ai-service` | 추천 판단 없이, 서버가 넘긴 스포일러 세이프 context로 문구 후보 생성·검수. 무상태(캐시·DB에 직접 쓰지 않음) | 응답 경로 밖(비동기+캐시)이라 장애가 사용자 응답에 영향 없다. 저장과 기본 문구 fallback 판단은 backend가 수행해 자격증명과 저장 분기 규칙(Redis/PG)을 backend에 유지한다. ai-service는 기본 문구를 내려주지 않는다 |
 
 **배치 원칙 요약**: 판정은 데이터 옆에서(SURGE=scorer, GAME_START=poller), 전달은 사용자 옆에서(fan-out·SSE=api). 채널은 **유실 불가 작업 = RabbitMQ, 유실 허용 신호 = Redis Pub/Sub**.
 
