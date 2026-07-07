@@ -86,6 +86,8 @@ def _build_spoiler_free_prompt(request: AiTextRequest) -> str:
 반드시 지켜야 할 규칙:
 - 점수, 승패, 우세 팀, 특정 선수명, 홈런, 역전, 끝내기, 득점 상황을 말하지 마세요.
 - 아래 safe_context에 있는 안전한 정보만 사용하세요.
+- recentPlays, teams, startTime, purpose, status 같은 원본 경기 필드는 사용하지 마세요.
+- safe_context에 없는 사실을 추측하지 마세요.
 - 한국어로 작성하세요.
 - 반드시 JSON만 반환하세요.
 
