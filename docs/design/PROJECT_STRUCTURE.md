@@ -1,12 +1,8 @@
 # 프로젝트 구조
 
-쓰기 소유자는 [ROLES_AND_SCHEDULE.md](ROLES_AND_SCHEDULE.md) §1을 기준으로 한다.
+쓰기 소유자는 팀 담당 영역 표에 맞춘다.
 
-## 1. 문서 목적
-
-이 문서는 PULSE 레포 전체의 폴더·패키지 구조와 의존 방향을 정리한다. 근거 문서는 `ARCHITECTURE_AND_DATA_FLOW.md`의 컴포넌트 배치, `TECH_STACK.md`의 배포 토폴로지, `API_CONTRACTS.md`의 모듈 인터페이스, `ROLES_AND_SCHEDULE.md`의 담당 영역별 기능 분해, `CONVENTIONS.md`의 코드 컨벤션이다.
-
-## 2. 레포 최상위 구성
+## 1. 레포 최상위 구성
 
 | 폴더 | 설명 |
 |---|---|
@@ -17,16 +13,16 @@
 | `infra/` | Docker Compose·CI/CD 설정 |
 | `docs/` | 프로젝트 문서 |
 
-## 3. backend 패키지 구조
+## 2. backend 패키지 구조
 
-기능 간 데이터 전달은 `domain` 읽기, Redis 이벤트, RabbitMQ, 공개 서비스 인터페이스로 제한한다. `api.*` 기능 패키지 간 직접 참조 금지는 컨트롤러·서비스·DTO·구현체의 직접 참조 금지를 의미한다. 단, 각 제공 패키지 최상위에 둔 계약 인터페이스(`scorer.ScoreQueryService`, `api.user.UserPreferenceReader`, `ai.AiCopyReader` 등)의 import는 예외로 허용하며, 구현체는 제공 패키지 하위에 둔다. 그 외 기능 간 전달은 `domain` 읽기, Redis, RabbitMQ만 사용한다. 회원 엔티티를 포함한 모든 JPA 엔티티·Repository는 `domain`에 둔다.
+기능 간 데이터 전달은 `domain` 읽기, Redis 이벤트, RabbitMQ, 공개 서비스 인터페이스로 제한한다. `api.*` 기능 패키지 간 직접 참조 금지는 컨트롤러·서비스·DTO·구현체의 직접 참조 금지를 의미한다. 단, 각 제공 패키지 최상위에 둔 계약 인터페이스(`scorer.ScoreQueryService`, `api.user.UserPreferenceReader`, `ai.AiCopyReader` 등)의 import는 예외로 허용하며, 구현체는 제공 패키지 하위에 둔다. 그 외 기능 간 전달은 `domain` 읽기, Redis, RabbitMQ만 사용한다. 경기 데이터 JPA 엔티티·Repository는 `domain`에 두고, 회원 구현은 현재 PR 기준 `api.user.domain`에 둔다.
 
 | 패키지 | 역할 | 의존 방향 |
 |---|---|---|
 | `com.pulse.api` | REST·SSE·스포일러 보호 DTO·알림 전달 진입점 | `domain` 읽기, Redis 재조회 신호, 공개 서비스 인터페이스 사용 |
 | `com.pulse.api.home` | 홈 추천 보드 API | `domain`, `ranking`, `AiCopyReader`, `UserPreferenceReader` 사용 |
 | `com.pulse.api.gamedetail` | 경기 상세·다시보기 API, 직렬화 가드 | `domain`, `ScoreQueryService`, `AiCopyReader` 사용 |
-| `com.pulse.api.user` | 회원·관심 팀·관심 선수·설정 API(엔티티·Repository는 `domain`에 위치) | `domain`, `common` 사용. 선호 조회는 `UserPreferenceReader`로 공개 |
+| `com.pulse.api.user` | 회원·관심 팀·관심 선수·설정 API. 현재 회원 엔티티·Repository는 `api.user.domain`에 위치 | `common`, Redis 사용. 선호 조회는 `UserPreferenceReader`로 공개 |
 | `com.pulse.api.notification` | 알림 fan-out·저장·SSE 알림 전달 | RabbitMQ `notify.events` 소비, `domain`, `UserPreferenceReader`, `SseEventPublisher` 사용 |
 | `com.pulse.poller` | 상태별 폴링, 원본 저장, `ScoreTask`·`GAME_START` 이벤트 발행 | 외부 MLB API, `domain`, RabbitMQ `score.tasks`·`notify.events` 사용 |
 | `com.pulse.scorer` | `watch_score` 계산, 추천 태그·다시보기 구간 계산, `SURGE` 판정, AI 트리거 | RabbitMQ `score.tasks` 소비, `domain`, Redis, `ai` 패키지의 트리거 인터페이스 경유, RabbitMQ `notify.events` 사용 |
@@ -36,13 +32,13 @@
 | `com.pulse.domain` | JPA 엔티티와 Repository | 전 기능에서 읽기 전용 사용 |
 | `com.pulse.common` | 설정, 외부 클라이언트, 공통 DTO | 전 기능에서 공통 기반으로 사용 |
 
-## 4. frontend 폴더 구조
+## 3. frontend 폴더 구조
 
-폴더 내부의 컴포넌트, API 호출, 상태 관리 배치 규칙은 코드 컨벤션의 frontend 절을 따른다.
+폴더 내부에서는 컴포넌트, API 호출, 상태 관리를 분리한다.
 
 대상 폴더는 `features/home`, `features/game-detail`, `features/ai-copy`, `features/auth`, `features/notification`, `shared`, `app`이다.
 
-## 5. ai-service·raw-archive·infra 경계
+## 4. ai-service·raw-archive·infra 경계
 
 | 영역 | 경계 |
 |---|---|

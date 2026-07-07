@@ -52,9 +52,13 @@ public record ScoringProperties(
 
     public record Thresholds(
             int alertScore,
+            int alertRearmScore,
+            int alertRiseScore,
+            int alertRiseWindowMinutes,
             int alertCooldownMinutes,
             int switchScore,
             int switchGap,
-            int replaySegmentScore
+            int replaySegmentScore,
+            int replaySegmentCloseScore
     ) {}
 }

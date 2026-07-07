@@ -2,19 +2,7 @@
 
 > **실측 기준일: 2026-07-02~05 (2026 시즌 중).** GOAT 플랜 키로 전체 엔드포인트를 실제 호출해 확인한 결과를 "실측"으로 표기했다.
 
-이 문서는 설계 문서가 아니라 balldontlie MLB API의 응답을 실제 호출로 확인한 데이터 레퍼런스다. 폴링 계획·계산 흐름 같은 설계 내용은 [ARCHITECTURE_AND_DATA_FLOW.md](ARCHITECTURE_AND_DATA_FLOW.md)를 따른다.
-
-## 1. 문서 목적
-
-이 문서는 balldontlie MLB API의 호출 제한, 엔드포인트별 실제 제공 데이터, 데이터 등장 시점(리드타임)을 정리한다.
-
-참고 스펙:
-
-```text
-https://www.balldontlie.io/openapi/mlb.yml
-```
-
-## 2. 호출 제한
+## 1. 호출 제한
 
 GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
@@ -24,7 +12,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 - `per_page` 최대값은 100이다. 초과하면 400 에러를 반환한다.
 
 
-## 3. 요청 파라미터와 응답의 공통 특성
+## 2. 요청 파라미터와 응답의 공통 특성
 
 - 날짜 필터 형식: `dates[]=YYYY-MM-DD`. 복수 지정 가능.
   - UTC 날짜 기준이다. 미국 기준 하루 슬레이트가 UTC 이틀에 걸치므로(미국 저녁 경기는 UTC 다음날 00~03시 시작), 진행 경기를 빠짐없이 잡으려면 `dates[]=어제&dates[]=오늘`(UTC) 두 날짜를 항상 한 요청으로 함께 조회해야 한다. 복수 날짜를 한 요청에 담을 수 있다.
@@ -34,7 +22,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 - `/plays`, `/plate_appearances`에는 **벽시계 타임스탬프가 없다**. "최근 득점 후 경과 시간" 같은 시간 기반 신호는 폴러가 최초 관측 시각(`observed_at`)을 저장해 계산해야 하며, 경과 시간의 정밀도 하한은 폴링 주기가 된다.
 - `/lineups`, `/stats`, `/player_injuries` 등은 player 객체(팀 정보 포함)를 통째로 내장해 응답이 크다. 저장 시 필요한 필드만 추출한다.
 
-## 4. 데이터 등장 시점 요약
+## 3. 데이터 등장 시점 요약
 
 | 데이터 | 등장·갱신 시점 |
 |---|---|
@@ -49,7 +37,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | plate_appearances | 경기당 약 74타석·275투구. 단일 페이지 응답, 증분 커서 없음 → 전체 재조회 후 `pa_number`로 dedupe |
 | 과거 데이터 보존 | odds 포함 4월 중순 과거 날짜도 전 경기 조회 확인. plays/PA/stats도 과거 경기 제공 → 백필·가중치 백테스트 가능 |
 
-## 5. 엔드포인트 요약
+## 4. 엔드포인트 요약
 
 | 엔드포인트 | 주요 제공 데이터 | 활용 |
 |---|---|---|
@@ -58,13 +46,13 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `/mlb/v1/plays` | play 이벤트, 점수, 카운트, 구종·구속, 타구 좌표 | 최근 득점·리드 변경·빅이닝·카운트 신호, 다시보기 구간 재생 |
 | `/mlb/v1/plate_appearances` | 타석 결과, 주자 상황, pitch 단위 Statcast 전체 | 상세 신호(득점권·투수 흔들림·강한 타구), 태그·알림 판단 |
 | `/mlb/v1/lineups` | 타순, 포지션, probable pitcher | pregame_score 선발 매치업, 관심 선수 선발 여부, 타순 확정 감지 |
-| `/mlb/v1/stats` | 경기별 선수 타격·투구·수비 통합 스탯 | 종료 경기 분석(C층), 다시보기 구간 신뢰도 보강 |
+| `/mlb/v1/stats` | 경기별 선수 타격·투구·수비 통합 스탯 | 종료 후 경기 분석, 다시보기 구간 신뢰도 보강 |
 | `/mlb/v1/season_stats` | 선수 시즌 누적 스탯 (WAR 포함) | 선발 매치업 강도(ERA/WAR), 스타 선수 가산 |
 | `/mlb/v1/teams/season_stats` | 팀 시즌 누적 스탯 (QS, CG, SHO 포함) | 경기 성격 분류(난타전/투수전) |
-| `/mlb/v1/standings` | 순위, 승패, 승률, games behind, 매직넘버, 최근 10경기 등 | 경기 중요도 보정(×0.9~×1.15), pregame_score |
+| `/mlb/v1/standings` | 순위, 승패, 승률, games behind, 매직넘버, 최근 10경기 등 | 경기 중요도 보정, pregame_score |
 | `/mlb/v1/players` (+`/active`) | 선수 정보, 포지션, 팀, 신체·드래프트 정보 | 선수 마스터 적재, 관심 선수 검색·등록 |
 | `/mlb/v1/teams` | 팀 정보, 리그, 디비전 | 팀 마스터 적재 |
-| `/mlb/v1/player_injuries` | 부상자 명단, 복귀 예정일, 코멘트 (문서 추가: 스펙에서 신규 발견) | 관심 선수 결장 파악, 알림 억제, 선발 변경 보조 |
+| `/mlb/v1/player_injuries` | 부상자 명단, 복귀 예정일, 코멘트 | 관심 선수 결장 파악, 알림 억제, 선발 변경 보조 |
 | `/mlb/v1/players/splits` | 상황별 선수 성적(구장/타순/카운트/상대 등 9개 카테고리) | 고급 매치업 문구 소재 |
 | `/mlb/v1/players/versus` | 타자 vs 상대팀 개별 투수 전적 | 관심 선수 매치업 표시 |
 | pitch type stats 계열 (4종) | 구종별 투수/타자 성적 (경기/시즌 단위) | 구종 매치업(고급 단계) |
@@ -72,13 +60,13 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `/mlb/v1/odds/player_props` | 선수 props (19종, 벤더별 라인) | 관심 선수 주목도 보조(선택 기능) |
 | `/mlb/v1/odds/opening` (+props) | historical opening odds (`opened_at`) | **2026 시즌 미제공 → 사용 안 함.** `/odds` 첫 관측 스냅샷으로 대체 |
 
-## 6. 엔드포인트별 상세
+## 5. 엔드포인트별 상세
 
 ### `/mlb/v1/games` — 경기 목록·상태
 
 **동작 특성**
 
-- `dates[]`는 UTC 날짜 기준. 진행 경기 커버는 `dates[]=어제&dates[]=오늘` 두 날짜를 한 요청으로 조회(3장 참고).
+- `dates[]`는 UTC 날짜 기준. 진행 경기 커버는 `dates[]=어제&dates[]=오늘` 두 날짜를 한 요청으로 조회한다.
 - 일정은 최소 7일 뒤까지 제공. `seasons[]`, `postseason`, `season_type` 필터 지원.
 - `games/{id}` 단건 응답은 목록과 동일 구조(`scoring_summary` 포함) — 평상시에는 목록 조회로 충분.
 - `clock`/`display_clock`은 야구에서는 항상 `0`/`"0:00"` — 사용하지 않는다.
@@ -91,7 +79,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `season`, `season_type`, `postseason` | 시즌 연도/타입/포스트시즌 여부 | `2026`, `"regular"`, `false` | 시즌 필터, 경기 중요도 보정 |
 | `date` | 경기 시작 시각 (UTC ISO 8601) | `"2026-06-30T00:05:00.000Z"` | 경기 생명주기 단계 전환 기준(T-36h/T-6h/시작) |
 | `status` | 경기 상태 | `"STATUS_FINAL"`, `"STATUS_IN_PROGRESS"`, `"STATUS_SCHEDULED"`, `"STATUS_POSTPONED"`, `"STATUS_CANCELED"` | 폴러 상태 머신 구동 |
-| `period` | 현재 이닝 | `9` | 후반/연장 가산 (+10/+20/+30) |
+| `period` | 현재 이닝 | `9` | 후반/연장 가산 |
 | `clock`, `display_clock` | 이닝 내 시간 | `0`, `"0:00"` (항상 0) | 미사용 |
 | `home_team_name`, `away_team_name` | 팀 이름 문자열 | `"Chicago Cubs"` | 표시용 |
 | `home_team`, `away_team` | 팀 객체 (id, abbreviation, league, division 등) | `{"id": 5, "abbreviation": "CHC", ...}` | 관심 팀 매칭, 표시용 |
@@ -121,9 +109,9 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `type` | play 이벤트 타입 | `"Start Inning"`, `"Strike Looking"`, `"Ball"`, `"Play Result"`, `"Fly Out"`, `"End Inning"` 등 | 이벤트 분류, 이닝 경계 감지 |
 | `inning`, `inning_type` | 이닝 번호, 초/말/중간 | `1`, `"Top"`/`"Bottom"`/`"Mid"` | 빅이닝 신호, 후반 판정 보조 |
 | `text` | 사람이 읽을 수 있는 play 설명 | `"Tatis Jr. struck out swinging."` | AI 문구 소재 (스포일러 검수 게이트 통과 필수) |
-| `home_score`, `away_score` | play 후 점수 | `0`, `0` | 리드 변경 감지 (+15) |
-| `scoring_play`, `score_value` | 득점 play 여부, 득점 수 | `true`, `1`~`3` (그 외 `null`) | 최근 득점 가산 (득점당 +10, 최대 +25) |
-| `outs`, `balls`, `strikes` | 아웃/볼/스트라이크 카운트 | `2`, `1`, `3` | 카운트/아웃 가산 (풀카운트 +4, 2아웃 +4) |
+| `home_score`, `away_score` | play 후 점수 | `0`, `0` | 리드 변경 감지 |
+| `scoring_play`, `score_value` | 득점 play 여부, 득점 수 | `true`, `1`~`3` (그 외 `null`) | 최근 득점 가산 |
+| `outs`, `balls`, `strikes` | 아웃/볼/스트라이크 카운트 | `2`, `1`, `3` | 카운트/아웃 가산 |
 | `batter_id`, `pitcher_id` | 타자/투수 ID | `492`, `713` | 관심 선수 매칭 |
 | `pitch_type`, `pitch_velocity` | 구종, 구속 (mph, 정수) | `"Sweeper"`, `79` | 구속 저하 감지 보조 (정밀 값은 PA의 `release_speed`) |
 | `hit_coordinate_x/y`, `trajectory` | 타구 좌표, 궤적 | `218`, `90`, `"F"`/`"P"`/`"G"`/`null` | 시각화 소재(후순위) |
@@ -140,7 +128,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 - 긴 타석 감지 (`pa_number`, `pitch_number`)
 - 득점권 승부 감지 (`runner_on_*`)
-- hard contact 감지 (`exit_velocity >= 95`, `is_barrel`)
+- hard contact 감지 (`exit_velocity`·`is_barrel`, 임계는 `scoring.yml`)
 - 투수 pitch count 추적 (`pitcher_pitch_count`)
 - 투구 위치 분석 (`plate_x`, `plate_z`, `is_in_zone`, `is_chase`)
 - 구속 저하 감지 (`release_speed` 추이)
@@ -174,12 +162,12 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `horizontal/vertical_movement`, `*_break`, `induced_vertical_break` | 무브먼트(ft), 브레이크(inch) | `1.24`, `0.19`, `14`/`-41`/`2` | 구위 분석(고급) |
 | `release_pos_*`, `velocity_*`, `acceleration_*` | 릴리스 좌표, 속도/가속 벡터 | `1.5, 50, 5.59` 등 | 미사용(저장만) |
 | `bat_speed` | 배트 스피드 (mph) | `72.7` (홈런), `75.4` (헛스윙), `null` (무스윙) | 스윙 강도 트래킹 |
-| `exit_velocity`, `launch_angle`, `hit_distance` | 타구 속도(mph)/발사각(도)/거리(ft) | `96.7`, `32`, `375` | **강한 타구 신호 (`>=95` → 장타 위험 태그)** |
+| `exit_velocity`, `launch_angle`, `hit_distance` | 타구 속도(mph)/발사각(도)/거리(ft) | `96.7`, `32`, `375` | **강한 타구 신호 (임계는 `scoring.yml`)** |
 | `is_barrel` | barrel 여부 | `false` (96.7mph/32도 — 기준 미달) | **강한 타구 신호** |
 | `expected_batting_average`, `expected_woba`, `expected_slugging` | xBA / xwOBA / xSLG | `0.28`, `0.513`~`1.839`, `0.941` | 타구 질 평가, 다시보기 신뢰도 |
 | `woba_value`, `woba_denom` | wOBA 분자/분모 (실결과) | `2`, `1` (홈런) | 종료 후 분석 |
 | `is_in_zone`, `is_swing`, `is_whiff`, `is_contact`, `is_chase`, `is_command` | 존/스윙/헛스윙/컨택/체이스/커맨드 여부 | `true`/`false` | 투수 지배력·타자 대응 분석 |
-| `game_pitch_count`, `pitcher_pitch_count` | 경기/투수 누적 투구 수 | `1`, `1` | **투수 흔들림 신호 (선발 100구 이상)** |
+| `game_pitch_count`, `pitcher_pitch_count` | 경기/투수 누적 투구 수 | `1`, `1` | **투수 흔들림 신호 (임계는 `scoring.yml`)** |
 
 ### `/mlb/v1/lineups` — 라인업·선발 투수
 
@@ -220,7 +208,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **활용**
 
-- 종료 경기 분석(C층): 다시보기 구간 신뢰도 보강, 경기 요약 문구 소재(공개 모드).
+- 종료 후 경기 분석: 다시보기 구간 신뢰도 보강, 경기 요약 문구 소재(공개 모드).
 - `pitch_count`·`ip`로 선발 투수 소화 이닝 기록 → 다음 경기 pregame 참고.
 
 ### `/mlb/v1/season_stats` — 선수 시즌 누적
@@ -262,7 +250,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 **동작 특성**
 
 - `season` 파라미터로 조회, 30팀 전체 1콜.
-- 기존 문서에 없던 필드 다수 발견: `last_ten_games`, `playoff_percent`, `division_percent`, `wildcard_percent`, `magic_number_division`, `magic_number_wildcard`, `home_wins/losses`, `road_wins/losses`, `differential`, `division_tied` 등 — **경기 중요도 보정 재료가 문서 가정보다 풍부**.
+- 경기 중요도 보정에 필요한 `last_ten_games`, `playoff_percent`, `division_percent`, `wildcard_percent`, `magic_number_division`, `magic_number_wildcard`, `home_wins/losses`, `road_wins/losses`, `differential`, `division_tied` 등을 제공한다.
 
 **필드**
 
@@ -292,7 +280,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **동작 특성**
 
-- 기존 문서에 없던 엔드포인트. OpenAPI 스펙에서 발견, 확인.
+- 부상자 명단과 복귀 예정 정보를 제공한다.
 - cursor 페이지네이션, 전체 리그 부상자 목록 제공.
 - 필드: `player`(전체 객체), `date`(부상 발생), `return_date`(복귀 예정), `type`(부위, 예: `"Oblique"`), `detail`(예: `"Strain"`), `side`(`"Left"`), `status`(`"10-Day-IL"`), `long_comment`, `short_comment`(영문 상세 코멘트).
 
@@ -324,7 +312,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **동작 특성**
 
-- 필터: `dates[]` 또는 `game_ids[]`. 기존 문서의 "game_id 필터는 400 에러"는 단수형 파라미터 이야기고, **복수형 `game_ids[]`는 정상 동작한다(정정)**.
+- 필터: `dates[]` 또는 `game_ids[]`.
 - 벤더 6곳: fanduel, draftkings, betmgm, caesars, betrivers, fanatics. 경기당 벤더별 1행 = 6행.
 - **당일 슬레이트만 제공**: 시작 13~15시간 전 경기에는 있고, 33시간 전 경기에는 없음. 미국 기준 그날 경기가 이른 아침(UTC 오전)에 일괄 등장.
 - **갱신 주기**: 경기 전에는 약 15~20분 간격 일괄 배치 갱신(10:51Z → 11:07Z 전 경기 동시 갱신 확인). 경기 중에는 종료 시각까지 계속 갱신됨 — 즉 이 엔드포인트는 **라이브 배당**이며, 행이 계속 덮어써진다.

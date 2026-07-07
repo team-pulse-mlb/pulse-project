@@ -6,20 +6,20 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 1
+  version: 2
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
-    inning-7-8: 10
-    inning-9: 20
-    extra: 30
+    inning-7-8: 6
+    inning-9: 12
+    extra: 18
   score-gap:
-    gap-0-1: 25
-    gap-2: 15
-    gap-3: 5
+    gap-0-1: 15
+    gap-2: 9
+    gap-3: 3
   recent-score:
-    per-run: 10
-    max: 25
+    per-run: 6
+    max: 15
     tau-seconds: 180
     closeness-multiplier:
       gap-0: 2.0
@@ -27,17 +27,17 @@ scoring:
       gap-2: 1.2
       default: 1.0
   lead-change:
-    bonus: 15
+    bonus: 9
     window-plays: 12
   big-inning:
-    bonus: 15
+    bonus: 9
     min-scoring-plays: 2
   count-pressure:
-    full-count: 4
-    two-outs: 4
-    max: 8
+    full-count: 3
+    two-outs: 3
+    max: 5
   early-slugfest:
-    bonus: 8
+    bonus: 5
     max-inning: 3
     min-total-runs: 7
 
@@ -50,16 +50,20 @@ scoring:
 
   # 상세 신호 (상위 경기 전용, 태그·알림에만 사용 — 랭킹 미반영)
   detail:
-    hard-contact-exit-velocity: 95
+    hard-contact-exit-velocity: 100
     starter-pitch-count: 100
-    velocity-drop-mph: 1.5
+    velocity-drop-mph: 2.0
     velocity-drop-window-pitches: 10
     long-at-bat-pitches: 8
 
   # 판단 기준
   thresholds:
-    alert-score: 70
-    alert-cooldown-minutes: 10
+    alert-score: 85
+    alert-rearm-score: 70
+    alert-rise-score: 15
+    alert-rise-window-minutes: 5
+    alert-cooldown-minutes: 15
     switch-score: 70
     switch-gap: 20
     replay-segment-score: 60
+    replay-segment-close-score: 50
