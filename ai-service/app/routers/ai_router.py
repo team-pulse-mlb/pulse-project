@@ -40,6 +40,45 @@ def spoiler_check(request: SpoilerCheckRequest):
     )
 
 
+def _build_fallback_summary_response(guard_result: dict) -> SpoilerFreeSummaryResponse:
+    fallback_text = guard_result["fallback_text"]
+
+    return SpoilerFreeSummaryResponse(
+        spoiler_safe=True,
+        safe_title="관전 가치가 높아진 경기",
+        safe_reason=fallback_text,
+        notification_text=fallback_text,
+        tags=["추천 구간"],
+        violations=guard_result["violations"],
+        fallback_used=True,
+    )
+
+
+def _build_fallback_notification_response(guard_result: dict) -> NotificationTextResponse:
+    fallback_text = guard_result["fallback_text"]
+
+    return NotificationTextResponse(
+        spoiler_safe=True,
+        notification_text=fallback_text,
+        tags=["추천 구간"],
+        violations=guard_result["violations"],
+        fallback_used=True,
+    )
+
+
+def _build_fallback_replay_response(guard_result: dict) -> ReplaySummaryResponse:
+    fallback_text = guard_result["fallback_text"]
+
+    return ReplaySummaryResponse(
+        spoiler_safe=True,
+        replay_title="스포일러 없이 다시 보기 좋은 구간",
+        replay_summary=fallback_text,
+        tags=["추천 구간"],
+        violations=guard_result["violations"],
+        fallback_used=True,
+    )
+
+
 @router.post("/spoiler-free-summary", response_model=SpoilerFreeSummaryResponse)
 def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
     generated_summary = generate_spoiler_free_summary(request)
@@ -53,17 +92,7 @@ def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
     guard_result = check_spoiler_text(combined_text)
 
     if not guard_result["spoiler_safe"]:
-        fallback_text = guard_result["fallback_text"]
-
-        return SpoilerFreeSummaryResponse(
-            spoiler_safe=True,
-            safe_title="관전 가치가 높아진 경기",
-            safe_reason=fallback_text,
-            notification_text=fallback_text,
-            tags=["추천 구간"],
-            violations=guard_result["violations"],
-            fallback_used=True,
-        )
+        return _build_fallback_summary_response(guard_result)
 
     return SpoilerFreeSummaryResponse(
         spoiler_safe=True,
@@ -88,15 +117,7 @@ def notification_text(request: NotificationTextRequest):
     guard_result = check_spoiler_text(notification_text_value)
 
     if not guard_result["spoiler_safe"]:
-        fallback_text = guard_result["fallback_text"]
-
-        return NotificationTextResponse(
-            spoiler_safe=True,
-            notification_text=fallback_text,
-            tags=["추천 구간"],
-            violations=guard_result["violations"],
-            fallback_used=True,
-        )
+        return _build_fallback_notification_response(guard_result)
 
     return NotificationTextResponse(
         spoiler_safe=True,
@@ -123,16 +144,7 @@ def replay_summary(request: ReplaySummaryRequest):
     guard_result = check_spoiler_text(combined_text)
 
     if not guard_result["spoiler_safe"]:
-        fallback_text = guard_result["fallback_text"]
-
-        return ReplaySummaryResponse(
-            spoiler_safe=True,
-            replay_title="스포일러 없이 다시 보기 좋은 구간",
-            replay_summary=fallback_text,
-            tags=["추천 구간"],
-            violations=guard_result["violations"],
-            fallback_used=True,
-        )
+        return _build_fallback_replay_response(guard_result)
 
     return ReplaySummaryResponse(
         spoiler_safe=True,
