@@ -134,23 +134,23 @@ class ScoreCalculatorTest {
         return play;
     }
 
-    /** scoring.yml version 1과 동일한 시작 상수 */
+    /** scoring.yml version 2와 동일한 시작 상수 */
     private static ScoringProperties testProps() {
         return new ScoringProperties(
-                1,
-                new ScoringProperties.LateInning(10, 20, 30),
-                new ScoringProperties.ScoreGap(25, 15, 5),
-                new ScoringProperties.RecentScore(10, 25, 180,
+                2,
+                new ScoringProperties.LateInning(6, 12, 18),
+                new ScoringProperties.ScoreGap(15, 9, 3),
+                new ScoringProperties.RecentScore(6, 15, 180,
                         Map.of("gap-0", 2.0, "gap-1", 1.5, "gap-2", 1.2, "default", 1.0)),
-                new ScoringProperties.LeadChange(15, 12),
-                new ScoringProperties.BigInning(15, 2),
-                new ScoringProperties.CountPressure(4, 4, 8),
-                new ScoringProperties.EarlySlugfest(8, 3, 7),
+                new ScoringProperties.LeadChange(9, 12),
+                new ScoringProperties.BigInning(9, 2),
+                new ScoringProperties.CountPressure(3, 3, 5),
+                new ScoringProperties.EarlySlugfest(5, 3, 7),
                 new ScoringProperties.Importance(0.9, 1.15),
                 10,
                 15,
-                new ScoringProperties.Detail(95, 100, 1.5, 10, 8),
-                new ScoringProperties.Thresholds(70, 10, 70, 20, 60)
+                new ScoringProperties.Detail(100, 100, 2.0, 10, 8),
+                new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 70, 20, 60, 50)
         );
     }
 }
