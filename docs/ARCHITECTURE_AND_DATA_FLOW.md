@@ -41,7 +41,7 @@ flowchart TB
     MQ -->|"notify.events"| API
     SCORER -->|"문구 생성 요청 (비동기)"| AI
     AI -->|"생성"| OPENAI
-    AI -->|"검수 통과 문구"| REDIS
+    AI -->|"검수 결과 반환"| SCORER
     API -->|"랭킹·캐시 조회"| REDIS
     API -->|"상세·이력 조회"| RDS
     U --> FE
@@ -58,7 +58,7 @@ flowchart TB
 | `RabbitMQ` | `score.tasks`(계산 요청), `notify.events`(알림 이벤트) | 유실되면 복구 불가능한 작업 전달용. ack·재전달·DLQ 제공 |
 | `Redis` | 라이브 랭킹(ZSET), 현재 상태·문구 캐시, 재조회 신호 pub/sub, 쿨다운·레이트리밋 키 | 유실돼도 재계산·다음 사이클로 복구되는 것만 둔다 |
 | `RDS PostgreSQL` | 운영 원본·계산 이력·사용자·알림 저장 | 라이브 1회 계산 결과는 재생성 불가라 관리형 백업이 필요하다 |
-| `ai-service` | 추천 판단 없이, 서버가 넘긴 스포일러 세이프 context로 문구 생성·검수 | 응답 경로 밖(비동기+캐시)이라 장애가 사용자 응답에 영향 없다 |
+| `ai-service` | 추천 판단 없이, 서버가 넘긴 스포일러 세이프 context로 문구 생성·검수. 무상태(캐시·DB에 직접 쓰지 않음) | 응답 경로 밖(비동기+캐시)이라 장애가 사용자 응답에 영향 없다. 저장은 backend가 수행해 자격증명과 저장 분기 규칙(Redis/PG)을 backend에 유지한다 |
 
 **배치 원칙 요약**: 판정은 데이터 옆에서(SURGE=scorer, GAME_START=poller), 전달은 사용자 옆에서(fan-out·SSE=api). 채널은 **유실 불가 작업 = RabbitMQ, 유실 허용 신호 = Redis Pub/Sub**.
 
@@ -100,6 +100,17 @@ stateDiagram-v2
 
 **일정 룩어헤드**: ①의 어제·오늘(UTC) 감시와 별도로, 향후 2~3일 일정을 저빈도(6~12시간 주기)로 동기화해 미래 경기와 시작 시각을 미리 확보한다. balldontlie `/games`는 최소 7일 뒤까지 일정을 제공하고, 미래 경기도 `date`에 실제 시작 시각(UTC ISO 8601)을 담는다. 확보한 시작 시각으로 `SCHEDULED → PREGAME_FAR`(T-36h) `→ PREGAME_NEAR`(T-6h) 전이 시점을 예약한다. 시작 시각은 확정 전 변동될 수 있으므로 룩어헤드 동기화마다 갱신하고, 시작 시각 미정(TBD) 경기는 전이 예약을 보류한 뒤 다음 동기화에서 재확인한다.
 
+**연기·취소 재진입**: `DONE`은 연기·취소가 확정된 경기의 종결 상태다. 다만 이후 ①의 상시 감시에서 같은 `game_id`의 원본 상태가 `STATUS_SCHEDULED`·`STATUS_IN_PROGRESS`로 재관측되면(연기 경기 재편성) 해당 상태로 재진입한다. 재진입 시 별도 복구 절차는 없다 — 랭킹·문구 캐시는 LIVE 사이클이 재생성하며, 연기·취소 사유는 `games.status` 원본 값이 보존한다.
+
+**경기 전 계산 경로**: poller는 ②·③에서 경기 전 입력이 갱신될 때(선발 확정·변경, 배당 스냅샷 기록, 순위 일 배치 반영, `PREGAME_NEAR` 진입) `lifecycleState=PREGAME`인 ScoreTask를 발행하고, scorer가 DB에 적재된 입력만 읽어 `pregame_score`를 계산·저장한다. 점수 로직과 `scoring.yml` 소유를 scorer 한 곳에 유지하기 위한 배치이며, 외부 API 호출(선발 시즌 스탯 온디맨드 조회 포함)은 poller가 task 발행 전에 끝낸다.
+
+### 3.1 호출 예산과 레이트리밋 대응
+
+- **호출 예산(최악 기준)**: 동시 라이브 15경기 시 `/games` 3회/분(어제·오늘 `dates[]` 한 요청) + `/plays` 15경기×3회/분 + `/plate_appearances` 15경기×3회/분 = 93회/분. 저빈도 수집(`/lineups`·`/odds`·`/standings`·마스터)을 더해도 100회/분 미만으로, 한도 600 req/min의 약 1/6이다.
+- **버스트 완화**: 사이클마다 경기별 호출이 한꺼번에 몰리지 않도록 클라이언트 토큰버킷(초당 10회 상한)과 경기별 지터(스태거)를 적용한다.
+- **429 대응**: 응답의 `Retry-After`(초)를 그대로 신뢰해 대기하고 해당 사이클을 건너뛴다. 회복 후 우선순위는 `/games` > `/plays` > `/plate_appearances`다(상태 전이 감지 > 증분 수집 > 전체 재조회).
+- **일 배치 시각**: `/standings`와 시즌 스탯 캐시는 매일 슬레이트 시작 전 1회(약 10:00 UTC), `/teams`·`/players` 마스터는 일 1회 upsert한다.
+
 ## 4. 계산 흐름
 
 
@@ -131,7 +142,7 @@ flowchart LR
 | ⑨ | 급상승 알림 판정 | 히스테리시스(85 진입 발화 / 70 미만 재무장)와 급등 조건(최근 5분 +15 이상)을 통과하면 `notify.events`로 알림 이벤트를 발행한다. 판정이 scorer에 있는 이유: 점수 이력과 히스테리시스 상태를 가진 유일한 곳이기 때문이다. |
 | ⑩ | AI 문구 트리거 | 태그 세트 변화·추천 상태 진입 같은 유의미한 변화가 있을 때만 스포일러 세이프 context로 ai-service에 비동기 생성을 요청한다. |
 
-scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: 열린 다시보기 구간 마감(`SUSPENDED_POSTPONED`은 보류), `score:rank:live`에서 제거, `signal:ranking` 발행. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
+scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: 열린 다시보기 구간 마감(`SUSPENDED_POSTPONED`은 보류), `score:rank:live`에서 제거, `signal:ranking` 발행, 종료 문구(`FINAL_HEADLINE`·마감 구간 `REPLAY_SUMMARY`) 생성 트리거. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
 
 
 ## 5. 알림 파이프라인
@@ -220,7 +231,7 @@ flowchart LR
 
 | 구간 | 한 줄 흐름 |
 |---|---|
-| 경기 전 | `poller`가 선발·배당·일 배치 데이터를 모음 -> `pregame_score` 계산 -> PostgreSQL 저장 |
+| 경기 전 | `poller`가 선발·배당·일 배치 데이터를 모음 -> PREGAME ScoreTask 발행 -> `scorer`가 `pregame_score` 계산 -> PostgreSQL 저장 |
 | 경기 중 | `poller` 20초 수집 -> RabbitMQ -> `scorer` 계산 -> Redis 랭킹 갱신 -> 재조회 신호 -> SSE |
 | 알림 | `scorer`/`poller` 판정 -> `notify.events` -> `api` fan-out·저장 -> SSE |
 | AI 문구 | `scorer`가 유의미 변화 시 비동기 요청 -> 생성·검수 -> Redis 캐시 -> 다음 조회에 반영 |

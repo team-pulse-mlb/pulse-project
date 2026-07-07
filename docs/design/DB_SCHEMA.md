@@ -89,7 +89,7 @@ erDiagram
 | `pregame_score` | `SMALLINT` | 예정 정렬 점수 0–100 | [내부] UI 노출 금지 |
 | `pregame_inputs` | `JSONB` | `pregame_score` 계산 시점 입력 스냅샷 | [내부] 불변, nullable. 아래 설명 참조 |
 | `peak_base_score` | `SMALLINT` | 라이브 중 최고 base_score | [내부] 종료 정렬 키 |
-| `final_headline` | `TEXT` | 종료 경기 AI 헤드라인(검수 통과본) | 종료 후 확정, nullable |
+| `final_headline` | `TEXT` | 종료 경기 AI 헤드라인(검수 통과본) | 종료 정리 시 생성 트리거, nullable |
 | `last_play_order` | `BIGINT` | `/plays` 증분 커서(마지막 order) | |
 | `last_polled_at` | `TIMESTAMPTZ` | 최근 폴링 시각 | |
 | `observed_at` | `TIMESTAMPTZ` | 최신 상태 관측 시각 | |
@@ -128,6 +128,8 @@ erDiagram
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `play_order`)** · idx(`game_id`, `play_order`)
+
+> `runner_on_*` 채움 규칙: poller가 PA를 `pa_number` 오름차순으로 소비하며 plays의 타석 경계 play에 순차 대응시키고, (`inning`, `half_inning`, `batter_id`) 일치로 검증한다. 검증 불일치·매핑 모호(재관측 순서 꼬임 등) 시 해당 타석은 `null`로 남긴다. 같은 이닝에 동일 타자가 다시 나오는 경우(batting around)에도 `pa_number` 순차 소비가 결정성을 보장한다.
 
 ### A-3. `watch_scores` — 점수 이력 append 로그
 
@@ -216,7 +218,7 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 
 ### B-2. `refresh_tokens` — 리프레시 토큰 상태
 
-리프레시 토큰은 폐기·회전·재사용 감지라는 상태를 가진 보안 데이터라 Redis가 아닌 DB 행으로 관리한다(유실 시 전원 강제 로그아웃 방지, 폐기 이력 보존).
+리프레시 토큰은 폐기·회전·재사용 감지라는 상태를 가진 보안 데이터라 Redis가 아닌 DB 행으로 관리한다(유실 시 전원 강제 로그아웃 방지, 폐기 이력 보존). 정리 배치는 `expires_at`이 지난 행만 삭제한다 — 폐기(`revoked_at`) 행도 만료 전에는 재사용 감지 근거로 보존한다.
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
@@ -334,7 +336,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 [내부] 내부 전용, UI 노출 금지. **라이브 배당은 저장하지 않는다**(스포일러·갱신 지연). 오프닝 배당은 2026 시즌 미제공이므로, 당일 첫 관측(`FIRST_SEEN`)과 시작 직전(`PREGAME_FINAL`) 스냅샷만 남겨 접전 기대를 고정한다.
 
-**기록 조건**: 두 스냅샷 모두 `observed_at < start_time`이고 경기 상태가 시작 전일 때만 기록·갱신한다. `/odds`는 경기 중에도 같은 행이 라이브 라인으로 계속 덮어써지므로, **LIVE 전환 이후 관측값으로는 스냅샷을 생성·갱신하지 않는다**. 시작 전 스냅샷이 없으면 `pregame_score`의 접전 기대는 승률 차 폴백을 쓴다.
+**기록 조건**: 두 스냅샷 모두 `observed_at < start_time`이고 경기 상태가 시작 전일 때만 기록·갱신한다. `/odds`는 경기 중에도 같은 행이 라이브 라인으로 계속 덮어써지므로, **LIVE 전환 이후 관측값으로는 스냅샷을 생성·갱신하지 않는다**. 시작 전 스냅샷이 없으면 `pregame_score`의 접전 기대는 승률 차 폴백을 쓴다. `FIRST_SEEN`은 당일 첫 관측 시 1회만 기록하고, `PREGAME_FINAL`은 시작 전 관측마다 같은 행을 upsert해 "시작 전 마지막 관측"을 유지한다.
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
@@ -394,7 +396,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 ### E-1. `plate_appearances`를 코어 테이블로 두지 않는 이유
 
-`/plate_appearances`는 압박(`runner_on_*`), 강한 타구(`exit_velocity >= 95`, `is_barrel`), 긴 타석, 투수 흔들림(`release_speed`·`pitcher_pitch_count`) 등 **상세 신호 산출에만 소비**한다. 원본은 S3 아카이브에 남고 산출 결과는 용도별로 영속되므로, 운영 Postgres 코어 테이블로 두지 않는다.
+`/plate_appearances`는 압박(`runner_on_*`), 강한 타구(`exit_velocity`·`is_barrel`, 임계는 `scoring.yml`), 긴 타석, 투수 흔들림(`release_speed`·`pitcher_pitch_count`) 등 **상세 신호 산출에만 소비**한다. 원본은 S3 아카이브에 남고 산출 결과는 용도별로 영속되므로, 운영 Postgres 코어 테이블로 두지 않는다.
 
 - 라이브 압박·카운트 신호: poller가 `/plate_appearances`(`runner_on_*`)·`/plays`(카운트)에서 추출해 `ScoreTask.situation`으로 scorer에 전달한다.
 - 백테스트 재계산: 타석 시작 시 주자 상태는 `plays.runner_on_*` 3컬럼으로 영속해 압박 주자 신호를 재계산할 수 있게 한다. `plays.runner_on_*`는 전 타석의 원본 상태(사실)이고 `game_events`의 압박 이벤트는 임계 통과분(해석)이므로 서로 대체하지 않는다.

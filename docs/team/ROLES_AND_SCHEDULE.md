@@ -42,8 +42,8 @@ backend 패키지 구조 확정안: `com.pulse.{api, poller, scorer, ranking, ai
 | `frontend/app` | 예은 |  |
 | `ai-service/` | 창현 |  |
 | `raw-archive/` | 예은 |  |
-| `infra/` | 확인 필요 | 확인 필요 |
-| `docs/` | 확인 필요 | 확인 필요 |
+| `infra/` | 예은(초기 구성) → 윤호(단계 3 이후 운영) | §5 로드맵과 동일 |
+| `docs/` | 예은 | 조장 주관, 수정 제안은 PR로 |
 
 ## 2. 팀 간 계약 지점
 

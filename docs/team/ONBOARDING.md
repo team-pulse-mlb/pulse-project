@@ -121,6 +121,8 @@ curl "http://localhost:8080/api/ai/games/$PULSE_REPLAY_GAME_ID/spoiler-free-cont
 curl "http://localhost:8080/api/rankings/live"
 ```
 
+`/api/ai/.../spoiler-free-context`는 개발 확인용 내부 엔드포인트다. 공개 REST 계약에는 포함되지 않는다.
+
 ## 8. DB와 Redis 확인
 
 ### DBeaver

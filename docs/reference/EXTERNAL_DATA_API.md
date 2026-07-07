@@ -49,7 +49,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `/mlb/v1/stats` | 경기별 선수 타격·투구·수비 통합 스탯 | 종료 후 경기 분석, 다시보기 구간 신뢰도 보강 |
 | `/mlb/v1/season_stats` | 선수 시즌 누적 스탯 (WAR 포함) | 선발 매치업 강도(ERA/WAR), 스타 선수 가산 |
 | `/mlb/v1/teams/season_stats` | 팀 시즌 누적 스탯 (QS, CG, SHO 포함) | 경기 성격 분류(난타전/투수전) |
-| `/mlb/v1/standings` | 순위, 승패, 승률, games behind, 매직넘버, 최근 10경기 등 | 경기 중요도 보정(×0.9~×1.15), pregame_score |
+| `/mlb/v1/standings` | 순위, 승패, 승률, games behind, 매직넘버, 최근 10경기 등 | 경기 중요도 보정, pregame_score |
 | `/mlb/v1/players` (+`/active`) | 선수 정보, 포지션, 팀, 신체·드래프트 정보 | 선수 마스터 적재, 관심 선수 검색·등록 |
 | `/mlb/v1/teams` | 팀 정보, 리그, 디비전 | 팀 마스터 적재 |
 | `/mlb/v1/player_injuries` | 부상자 명단, 복귀 예정일, 코멘트 | 관심 선수 결장 파악, 알림 억제, 선발 변경 보조 |
@@ -79,7 +79,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `season`, `season_type`, `postseason` | 시즌 연도/타입/포스트시즌 여부 | `2026`, `"regular"`, `false` | 시즌 필터, 경기 중요도 보정 |
 | `date` | 경기 시작 시각 (UTC ISO 8601) | `"2026-06-30T00:05:00.000Z"` | 경기 생명주기 단계 전환 기준(T-36h/T-6h/시작) |
 | `status` | 경기 상태 | `"STATUS_FINAL"`, `"STATUS_IN_PROGRESS"`, `"STATUS_SCHEDULED"`, `"STATUS_POSTPONED"`, `"STATUS_CANCELED"` | 폴러 상태 머신 구동 |
-| `period` | 현재 이닝 | `9` | 후반/연장 가산 (+10/+20/+30) |
+| `period` | 현재 이닝 | `9` | 후반/연장 가산 |
 | `clock`, `display_clock` | 이닝 내 시간 | `0`, `"0:00"` (항상 0) | 미사용 |
 | `home_team_name`, `away_team_name` | 팀 이름 문자열 | `"Chicago Cubs"` | 표시용 |
 | `home_team`, `away_team` | 팀 객체 (id, abbreviation, league, division 등) | `{"id": 5, "abbreviation": "CHC", ...}` | 관심 팀 매칭, 표시용 |
@@ -109,9 +109,9 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `type` | play 이벤트 타입 | `"Start Inning"`, `"Strike Looking"`, `"Ball"`, `"Play Result"`, `"Fly Out"`, `"End Inning"` 등 | 이벤트 분류, 이닝 경계 감지 |
 | `inning`, `inning_type` | 이닝 번호, 초/말/중간 | `1`, `"Top"`/`"Bottom"`/`"Mid"` | 빅이닝 신호, 후반 판정 보조 |
 | `text` | 사람이 읽을 수 있는 play 설명 | `"Tatis Jr. struck out swinging."` | AI 문구 소재 (스포일러 검수 게이트 통과 필수) |
-| `home_score`, `away_score` | play 후 점수 | `0`, `0` | 리드 변경 감지 (+15) |
-| `scoring_play`, `score_value` | 득점 play 여부, 득점 수 | `true`, `1`~`3` (그 외 `null`) | 최근 득점 가산 (득점당 +10, 최대 +25) |
-| `outs`, `balls`, `strikes` | 아웃/볼/스트라이크 카운트 | `2`, `1`, `3` | 카운트/아웃 가산 (풀카운트 +4, 2아웃 +4) |
+| `home_score`, `away_score` | play 후 점수 | `0`, `0` | 리드 변경 감지 |
+| `scoring_play`, `score_value` | 득점 play 여부, 득점 수 | `true`, `1`~`3` (그 외 `null`) | 최근 득점 가산 |
+| `outs`, `balls`, `strikes` | 아웃/볼/스트라이크 카운트 | `2`, `1`, `3` | 카운트/아웃 가산 |
 | `batter_id`, `pitcher_id` | 타자/투수 ID | `492`, `713` | 관심 선수 매칭 |
 | `pitch_type`, `pitch_velocity` | 구종, 구속 (mph, 정수) | `"Sweeper"`, `79` | 구속 저하 감지 보조 (정밀 값은 PA의 `release_speed`) |
 | `hit_coordinate_x/y`, `trajectory` | 타구 좌표, 궤적 | `218`, `90`, `"F"`/`"P"`/`"G"`/`null` | 시각화 소재(후순위) |
@@ -128,7 +128,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 - 긴 타석 감지 (`pa_number`, `pitch_number`)
 - 득점권 승부 감지 (`runner_on_*`)
-- hard contact 감지 (`exit_velocity >= 95`, `is_barrel`)
+- hard contact 감지 (`exit_velocity`·`is_barrel`, 임계는 `scoring.yml`)
 - 투수 pitch count 추적 (`pitcher_pitch_count`)
 - 투구 위치 분석 (`plate_x`, `plate_z`, `is_in_zone`, `is_chase`)
 - 구속 저하 감지 (`release_speed` 추이)
@@ -162,12 +162,12 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `horizontal/vertical_movement`, `*_break`, `induced_vertical_break` | 무브먼트(ft), 브레이크(inch) | `1.24`, `0.19`, `14`/`-41`/`2` | 구위 분석(고급) |
 | `release_pos_*`, `velocity_*`, `acceleration_*` | 릴리스 좌표, 속도/가속 벡터 | `1.5, 50, 5.59` 등 | 미사용(저장만) |
 | `bat_speed` | 배트 스피드 (mph) | `72.7` (홈런), `75.4` (헛스윙), `null` (무스윙) | 스윙 강도 트래킹 |
-| `exit_velocity`, `launch_angle`, `hit_distance` | 타구 속도(mph)/발사각(도)/거리(ft) | `96.7`, `32`, `375` | **강한 타구 신호 (`>=95` → 장타 위험 태그)** |
+| `exit_velocity`, `launch_angle`, `hit_distance` | 타구 속도(mph)/발사각(도)/거리(ft) | `96.7`, `32`, `375` | **강한 타구 신호 (임계는 `scoring.yml`)** |
 | `is_barrel` | barrel 여부 | `false` (96.7mph/32도 — 기준 미달) | **강한 타구 신호** |
 | `expected_batting_average`, `expected_woba`, `expected_slugging` | xBA / xwOBA / xSLG | `0.28`, `0.513`~`1.839`, `0.941` | 타구 질 평가, 다시보기 신뢰도 |
 | `woba_value`, `woba_denom` | wOBA 분자/분모 (실결과) | `2`, `1` (홈런) | 종료 후 분석 |
 | `is_in_zone`, `is_swing`, `is_whiff`, `is_contact`, `is_chase`, `is_command` | 존/스윙/헛스윙/컨택/체이스/커맨드 여부 | `true`/`false` | 투수 지배력·타자 대응 분석 |
-| `game_pitch_count`, `pitcher_pitch_count` | 경기/투수 누적 투구 수 | `1`, `1` | **투수 흔들림 신호 (선발 100구 이상)** |
+| `game_pitch_count`, `pitcher_pitch_count` | 경기/투수 누적 투구 수 | `1`, `1` | **투수 흔들림 신호 (임계는 `scoring.yml`)** |
 
 ### `/mlb/v1/lineups` — 라인업·선발 투수
 
