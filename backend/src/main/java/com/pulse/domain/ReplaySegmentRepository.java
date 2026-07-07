@@ -8,4 +8,6 @@ public interface ReplaySegmentRepository extends JpaRepository<ReplaySegment, Lo
     Optional<ReplaySegment> findFirstByGameIdAndOpenSegmentTrueOrderByOpenedAtDesc(Long gameId);
 
     Optional<ReplaySegment> findTopByGameIdAndOpenSegmentFalseOrderByClosedAtDesc(Long gameId);
+
+    long countByGameId(Long gameId);
 }

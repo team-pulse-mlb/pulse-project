@@ -8,6 +8,7 @@ import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
+import com.pulse.scorer.ScoreRecalculationService;
 import com.pulse.replay.S3RawArchiveClient.RawEnvelope;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,7 +32,7 @@ public class S3ReplayDataLoader implements ApplicationRunner {
     private final ObjectMapper objectMapper;
     private final GameRepository gameRepository;
     private final PlayRepository playRepository;
-    private final ReplayScoringService scoringService;
+    private final ScoreRecalculationService scoreRecalculationService;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -61,7 +62,7 @@ public class S3ReplayDataLoader implements ApplicationRunner {
             Game game = upsertGame(dto, envelope.observedAt());
             saved++;
             if (game.isLive() || game.isFinal()) {
-                scoringService.recalculate(game.getId(), envelope.observedAt());
+                scoreRecalculationService.recalculate(game.getId(), envelope.observedAt());
             }
         }
         return saved;
@@ -84,7 +85,7 @@ public class S3ReplayDataLoader implements ApplicationRunner {
         }
 
         if (saved > 0) {
-            scoringService.recalculate(gameId, envelope.observedAt());
+            scoreRecalculationService.recalculate(gameId, envelope.observedAt());
         }
         return saved;
     }
