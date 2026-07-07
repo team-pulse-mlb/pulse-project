@@ -1,5 +1,5 @@
 import axios from 'axios';
-import ApiUrl from './ApiUrl';
+import ApiUrl from '../../../axios/ApiUrl';
 
 export interface SignupRequest {
     email: string;

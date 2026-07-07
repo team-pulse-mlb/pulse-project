@@ -5,6 +5,7 @@ import com.pulse.api.user.security.JwtAuthenticationEntryPoint;
 import com.pulse.api.user.security.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -16,6 +17,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import com.pulse.api.user.security.jwt.JwtProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 
 @Configuration
@@ -50,10 +56,15 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint
+            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
+            CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
 
         http
+                .cors(cors ->
+                        cors.configurationSource(corsConfigurationSource)
+                )   // 5173 페이지 오류가 아니라 CORS 오류라서 해당 코드 추가
+
                 // React가 호출하는 REST API이므로 우선 CSRF 비활성화
                 .csrf(AbstractHttpConfigurer::disable)
 
@@ -79,6 +90,7 @@ public class SecurityConfig {
 
                 // JWT 필터를 만들기 전까지 임시로 전체 요청 허용
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // 5173 관련 오류 임시 해결
                         // 회원가입, 로그인, 이메일 인증, 토큰 재발급, 로그아웃은 공개
                         .requestMatchers(
                                 "/api/members/signup",
@@ -104,4 +116,43 @@ public class SecurityConfig {
 
         return http.build();
     }
+
+
+    // 5173 관련 임시 해결
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173"
+        ));
+
+        configuration.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+        ));
+
+        configuration.setAllowedHeaders(List.of("*"));
+
+        configuration.setAllowCredentials(true);
+
+        configuration.setExposedHeaders(List.of(
+                "Set-Cookie"
+        ));
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration(
+                "/**",
+                configuration
+        );
+
+        return source;
+    }
+
 }

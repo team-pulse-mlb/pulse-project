@@ -1,10 +1,19 @@
-import { Outlet } from 'react-router';
+import { Outlet, useLocation } from 'react-router';
+
 import Header from '../components/Header';
 
 function MainLayout() {
+  const location = useLocation();
+
+  // Header를 숨길 페이지 목록
+  const hideHeaderPaths = ['/signup'];
+
+  // 현재 경로가 숨김 목록에 포함되어 있으면 true
+  const shouldHideHeader = hideHeaderPaths.includes(location.pathname);
+
   return (
     <>
-      <Header />
+      {!shouldHideHeader && <Header />}
 
       <main>
         <Outlet />
