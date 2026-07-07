@@ -41,9 +41,10 @@ class OpenAiServiceTestCase(unittest.TestCase):
         with patch(
             "app.services.openai_service._generate_openai_spoiler_free_summary",
             side_effect=RuntimeError("OpenAI error"),
-        ):
+        ), patch("app.services.openai_service.logger.exception") as mock_logger_exception:
             result = openai_service.generate_spoiler_free_summary(self.request)
 
+        mock_logger_exception.assert_called_once()
         self.assertTrue(result["safe_title"])
         self.assertTrue(result["safe_reason"])
         self.assertTrue(result["notification_text"])
