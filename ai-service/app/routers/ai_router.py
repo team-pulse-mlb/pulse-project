@@ -11,6 +11,7 @@ from app.schemas.ai_schema import (
     SpoilerFreeSummaryResponse,
 )
 
+from app.services.fallback_text import get_fallback_text
 from app.services.openai_service import generate_spoiler_free_summary
 from app.services.spoiler_guard import check_spoiler_text
 
@@ -41,7 +42,7 @@ def spoiler_check(request: SpoilerCheckRequest):
 
 
 def _build_fallback_summary_response(guard_result: dict) -> SpoilerFreeSummaryResponse:
-    fallback_text = guard_result["fallback_text"]
+    fallback_text = get_fallback_text("LIVE_HEADLINE")
 
     return SpoilerFreeSummaryResponse(
         spoiler_safe=True,
@@ -55,7 +56,7 @@ def _build_fallback_summary_response(guard_result: dict) -> SpoilerFreeSummaryRe
 
 
 def _build_fallback_notification_response(guard_result: dict) -> NotificationTextResponse:
-    fallback_text = guard_result["fallback_text"]
+    fallback_text = get_fallback_text("NOTIFICATION")
 
     return NotificationTextResponse(
         spoiler_safe=True,
@@ -67,7 +68,7 @@ def _build_fallback_notification_response(guard_result: dict) -> NotificationTex
 
 
 def _build_fallback_replay_response(guard_result: dict) -> ReplaySummaryResponse:
-    fallback_text = guard_result["fallback_text"]
+    fallback_text = get_fallback_text("REPLAY_SUMMARY")
 
     return ReplaySummaryResponse(
         spoiler_safe=True,
