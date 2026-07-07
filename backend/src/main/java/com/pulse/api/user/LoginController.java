@@ -78,12 +78,49 @@ public class LoginController {
                     required = false
             ) String refreshToken
     ) {
-        TokenRefreshResponse response =
+        // Refresh Token 검증 후
+        // 새 Access Token + 새 Refresh Token을 발급받는다.
+        TokenRefreshResult result =
                 tokenRefreshService.refreshAccessToken(
                         refreshToken
                 );
 
-        return ResponseEntity.ok(response);
+        // 새 Refresh Token을 HttpOnly Cookie로 다시 내려보낸다.
+        //
+        // 이 부분이 Refresh Token Rotation의 Controller 핵심이다.
+        // 기존 Cookie에 들어 있던 Refresh Token을 새 Refresh Token으로 교체한다.
+        ResponseCookie refreshTokenCookie =
+                ResponseCookie.from(
+                                "refreshToken",
+                                result.refreshToken()
+                        )
+                        // JavaScript에서 쿠키를 읽지 못하도록 설정
+                        .httpOnly(true)
+
+                        // 현재 Localhost가 HTTP이므로 false
+                        // ***** 실제 HTTPS 배포 환경에서는 true로 변경 *****
+                        .secure(false)
+
+                        // 로컬 개발 환경용
+                        .sameSite("Lax")
+
+                        // refreshToken 쿠키는 회원 인증 API 범위에서만 사용
+                        .path("/api/members")
+
+                        // Refresh Token과 쿠키 만료시간을 동일하게 설정
+                        .maxAge(
+                                jwtProperties.refreshTokenExpiration()
+                        )
+
+                        .build();
+
+        return ResponseEntity
+                .ok()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        refreshTokenCookie.toString()
+                )
+                .body(result.response());
     }
 
 
