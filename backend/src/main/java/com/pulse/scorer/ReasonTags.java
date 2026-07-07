@@ -1,4 +1,4 @@
-package com.pulse.replay;
+package com.pulse.scorer;
 
 import java.util.List;
 import java.util.Map;
