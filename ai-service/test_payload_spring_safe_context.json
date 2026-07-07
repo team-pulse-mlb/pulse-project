@@ -1,0 +1,13 @@
+﻿{
+  "gameId": 5059082,
+  "mode": "PROTECTED",
+  "surface": "HOME_CARD",
+  "language": "ko",
+  "maxLength": 80,
+  "safeContext": {
+    "gameStatus": "STATUS_FINAL",
+    "inningPhase": "경기 종료",
+    "safeTags": ["후반 긴장 구간"],
+    "reasonCodes": ["late_or_extra"]
+  }
+}
