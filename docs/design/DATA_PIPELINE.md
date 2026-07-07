@@ -33,8 +33,6 @@ flowchart LR
     class SUSPENDED,POSTPONED hold
 ```
 
-노드 색상: 파랑 = 경기 전, 노랑 = 라이브, 분홍 = 중단·보류, 초록 = 종결. 번호는 아래 표의 상태 번호와 같다.
-
 ### 상태 번호별 의미와 수집
 
 | 번호 | 상태 | poller가 하는 일 | 주기 |
@@ -87,8 +85,6 @@ flowchart LR
     class I,J signal
 ```
 
-노드 색상: 파랑 = poller·scorer 처리, 노랑 = 미들웨어(RabbitMQ·Redis), 초록 = PostgreSQL 저장, 분홍 = 알림·AI 트리거.
-
 ### 계산 번호별 설명
 
 | 번호 | 단계 | 설명 |
@@ -132,8 +128,6 @@ flowchart LR
     class D,E,F app
     class G signal
 ```
-
-노드 색상: 보라 = 프론트, 노랑 = Redis 조회, 초록 = PostgreSQL 조회, 파랑 = api 응답 조립, 분홍 = SSE 신호(점선 = 유실 허용).
 
 ### 응답 번호별 설명
 
