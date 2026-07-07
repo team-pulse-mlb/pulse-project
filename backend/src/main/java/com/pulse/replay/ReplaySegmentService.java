@@ -38,7 +38,7 @@ public class ReplaySegmentService {
     }
 
     private ReplaySegment openOrMergeSegment(long gameId, Play latest, Instant now) {
-        return replaySegmentRepository.findFirstByGameIdAndOpenSegmentTrueOrderByOpenedAtDesc(gameId)
+        return replaySegmentRepository.findFirstByGameIdAndStatusOrderByOpenedAtDesc(gameId, ReplaySegment.STATUS_OPEN)
                 .orElseGet(() -> reopenNearPrevious(gameId, latest)
                         .orElseGet(() -> newSegment(gameId, latest, now)));
     }
@@ -47,12 +47,12 @@ public class ReplaySegmentService {
         if (latest == null || latest.getInning() == null) {
             return java.util.Optional.empty();
         }
-        return replaySegmentRepository.findTopByGameIdAndOpenSegmentFalseOrderByClosedAtDesc(gameId)
+        return replaySegmentRepository.findTopByGameIdAndStatusOrderByClosedAtDesc(gameId, ReplaySegment.STATUS_CLOSED)
                 .filter(previous -> previous.getEndInning() != null)
                 .filter(previous -> Math.abs(halfInningIndex(previous.getEndInning(), previous.getEndInningType())
                         - halfInningIndex(latest.getInning(), latest.getInningType())) <= 1)
                 .map(previous -> {
-                    previous.setOpenSegment(true);
+                    previous.setStatus(ReplaySegment.STATUS_OPEN);
                     previous.setClosedAt(null);
                     return previous;
                 });
@@ -62,7 +62,7 @@ public class ReplaySegmentService {
         ReplaySegment segment = new ReplaySegment();
         segment.setGameId(gameId);
         segment.setOpenedAt(now);
-        segment.setOpenSegment(true);
+        segment.setStatus(ReplaySegment.STATUS_OPEN);
         if (latest != null) {
             segment.setStartPlayOrder(latest.getPlayOrder());
             segment.setEndPlayOrder(latest.getPlayOrder());
@@ -70,29 +70,33 @@ public class ReplaySegmentService {
             segment.setStartInningType(latest.getInningType());
             segment.setEndInning(latest.getInning());
             segment.setEndInningType(latest.getInningType());
+            segment.setSource(latest.getSource() == null ? "OPERATIONAL" : latest.getSource());
         }
         return segment;
     }
 
     private void applyLatest(ReplaySegment segment, Play latest, double baseScore, List<String> tags) {
-        segment.setPeakBaseScore(Math.max(segment.getPeakBaseScore(), baseScore));
+        int currentPeak = segment.getPeakScore() == null ? 0 : segment.getPeakScore();
+        segment.setPeakScore(Math.max(currentPeak, (int) Math.round(baseScore)));
         segment.setTags(mergeTags(segment.getTags(), tags));
         if (latest != null) {
             segment.setEndPlayOrder(latest.getPlayOrder());
             segment.setEndInning(latest.getInning());
             segment.setEndInningType(latest.getInningType());
+            segment.setSource(latest.getSource() == null ? "OPERATIONAL" : latest.getSource());
         }
     }
 
     private void closeOpenSegment(long gameId, Play latest, Instant now) {
-        replaySegmentRepository.findFirstByGameIdAndOpenSegmentTrueOrderByOpenedAtDesc(gameId)
+        replaySegmentRepository.findFirstByGameIdAndStatusOrderByOpenedAtDesc(gameId, ReplaySegment.STATUS_OPEN)
                 .ifPresent(segment -> {
                     if (latest != null) {
                         segment.setEndPlayOrder(latest.getPlayOrder());
                         segment.setEndInning(latest.getInning());
                         segment.setEndInningType(latest.getInningType());
+                        segment.setSource(latest.getSource() == null ? "OPERATIONAL" : latest.getSource());
                     }
-                    segment.setOpenSegment(false);
+                    segment.setStatus(ReplaySegment.STATUS_CLOSED);
                     segment.setClosedAt(now);
                     replaySegmentRepository.save(segment);
                 });

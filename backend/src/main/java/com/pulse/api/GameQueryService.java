@@ -76,7 +76,7 @@ public class GameQueryService {
         Game game = findGame(gameId);
         WatchScore latestScore = latestScore(gameId);
         List<Play> recentPlays = recentPlays(gameId, LLM_RECENT_PLAY_COUNT);
-        Map<String, Double> signals = latestScore == null ? Map.of() : latestScore.getSignals();
+        Map<String, Double> signals = latestScore == null ? Map.of() : latestScore.getSignalContributions();
 
         return new SpoilerFreeLlmContextResponse(
                 game.getId(),
@@ -88,7 +88,7 @@ public class GameQueryService {
                         team(game.getHomeTeamId(), game.getHomeTeamName(), game.getHomeTeamAbbr()),
                         team(game.getAwayTeamId(), game.getAwayTeamName(), game.getAwayTeamAbbr())
                 ),
-                latestScore == null ? List.of() : latestScore.getReasonTags(),
+                latestScore == null || latestScore.getTags() == null ? List.of() : latestScore.getTags(),
                 positiveSignalKeys(signals),
                 recentPlays.stream()
                         .map(GameQueryService::spoilerSafePlay)
@@ -102,7 +102,7 @@ public class GameQueryService {
     }
 
     private WatchScore latestScore(long gameId) {
-        return watchScoreRepository.findTopByGameIdOrderByCreatedAtDesc(gameId).orElse(null);
+        return watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(gameId).orElse(null);
     }
 
     private List<Play> recentPlays(long gameId, int count) {
@@ -124,12 +124,12 @@ public class GameQueryService {
             return null;
         }
         return new ScoreSummaryResponse(
-                latestScore.getBaseScore(),
-                latestScore.getWatchScore(),
-                latestScore.getSignals(),
-                latestScore.getReasonTags(),
-                latestScore.getConfigVersion(),
-                latestScore.getCreatedAt()
+                numericScore(latestScore.getBaseScore()),
+                numericScore(latestScore.getWatchScore()),
+                latestScore.getSignalContributions(),
+                latestScore.getTags(),
+                null,
+                latestScore.getComputedAt()
         );
     }
 
@@ -142,8 +142,12 @@ public class GameQueryService {
         }
 
         return new ProtectedSummaryResponse(
-                latestScore.getReasonTags() == null ? List.of() : latestScore.getReasonTags()
+                latestScore.getTags() == null ? List.of() : latestScore.getTags()
         );
+    }
+
+    private static double numericScore(Integer score) {
+        return score == null ? 0.0 : score.doubleValue();
     }
 
 
@@ -389,7 +393,7 @@ public class GameQueryService {
             double watchScore,
             Map<String, Double> signals,
             List<String> reasonTags,
-            int configVersion,
+            Integer configVersion,
             Instant calculatedAt
     ) {
     }

@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -17,11 +18,14 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 점수 이력 로그. 신호별 기여 점수(signals)를 남겨 추천 근거 설명과
+ * 점수 이력 로그. 신호별 기여 점수(signal_contributions)를 남겨 추천 근거 설명과
  * 가중치 검증(lift 분석)의 재료로 쓴다.
  */
 @Entity
-@Table(name = "watch_scores", indexes = @Index(name = "idx_watch_scores_game", columnList = "game_id, created_at"))
+@Table(
+        name = "watch_scores",
+        indexes = @Index(name = "idx_watch_scores_game_computed_at", columnList = "game_id, computed_at")
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -34,22 +38,32 @@ public class WatchScore {
     @Column(name = "game_id", nullable = false)
     private Long gameId;
 
-    private double baseScore;
+    @Column(name = "computed_at")
+    private Instant computedAt;
 
-    private double watchScore;
+    @Column(name = "play_order")
+    private Long playOrder;
+
+    private Integer inning;
+
+    private String inningType;
+
+    private Integer baseScore;
+
+    private BigDecimal importanceMultiplier;
+
+    private BigDecimal pregameBonus;
+
+    private Integer watchScore;
 
     /** 신호별 기여 점수 (예: {"late_or_extra": 20.0, "score_gap": 25.0}) */
     @JdbcTypeCode(SqlTypes.JSON)
-    private Map<String, Double> signals;
+    @Column(name = "signal_contributions")
+    private Map<String, Double> signalContributions;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    private List<String> reasonTags;
-
-    /** 계산에 사용한 scoring.yml version */
-    private int configVersion;
-
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
+    private List<String> tags;
 
     @Column(name = "source")
     private String source;

@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ReplaySegmentRepository extends JpaRepository<ReplaySegment, Long> {
 
-    Optional<ReplaySegment> findFirstByGameIdAndOpenSegmentTrueOrderByOpenedAtDesc(Long gameId);
+    Optional<ReplaySegment> findFirstByGameIdAndStatusOrderByOpenedAtDesc(Long gameId, String status);
 
-    Optional<ReplaySegment> findTopByGameIdAndOpenSegmentFalseOrderByClosedAtDesc(Long gameId);
+    Optional<ReplaySegment> findTopByGameIdAndStatusOrderByClosedAtDesc(Long gameId, String status);
 }
