@@ -52,4 +52,7 @@ public class ReplaySegment {
 
     @Column(nullable = false)
     private boolean openSegment;
+
+    @Column(name = "source")
+    private String source;
 }

@@ -28,6 +28,8 @@ __pycache__/
 .vscode/
 *.iml
 .claude/
+
+# 개인 에이전트 설정 (소유자 전용, 팀 공유 안 함)
 CLAUDE.md
 AGENTS.md
 
@@ -37,3 +39,6 @@ Thumbs.db
 
 # 로그
 *.log
+
+# 로컬 문서
+local-docs/

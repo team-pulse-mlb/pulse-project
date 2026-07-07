@@ -59,6 +59,9 @@ public class Game {
 
     private Instant updatedAt;
 
+    @Column(name = "source")
+    private String source;
+
     public boolean isLive() {
         return STATUS_IN_PROGRESS.equals(status);
     }

@@ -1,4 +1,4 @@
-package com.pulse.replay;
+package com.pulse.scorer;
 
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.domain.Game;

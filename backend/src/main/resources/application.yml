@@ -3,6 +3,8 @@ spring:
     name: pulse
   config:
     import: classpath:scoring.yml
+  flyway:
+    enabled: false
 
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:pulse}

@@ -50,4 +50,10 @@ public class WatchScore {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Column(name = "source")
+    private String source;
+
+    @Column(name = "backfilled")
+    private Boolean backfilled;
 }
