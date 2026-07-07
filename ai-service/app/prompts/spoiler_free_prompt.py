@@ -1,10 +1,41 @@
 import json
 
 
+def _resolve_prompt_purpose(request) -> str:
+    surface = getattr(request, "surface", "HOME_CARD")
+
+    if hasattr(request, "replay_segment_id"):
+        return "REPLAY_SUMMARY"
+
+    if hasattr(request, "channel"):
+        return "NOTIFICATION"
+
+    if surface == "REPLAY_CARD":
+        return "REPLAY_SUMMARY"
+
+    return "LIVE_HEADLINE"
+
+
+def _build_purpose_instruction(purpose: str) -> str:
+    purpose_instructions = {
+        "LIVE_HEADLINE": "경기 카드나 상세 화면에서 사용할 짧은 스포일러 없는 제목과 추천 이유를 생성하세요.",
+        "NOTIFICATION": "사용자에게 보낼 짧은 스포일러 없는 알림 문구를 생성하세요.",
+        "SWITCH_SUGGESTION": "다른 경기를 확인해볼 만하다는 스포일러 없는 전환 안내 문구를 생성하세요.",
+        "REPLAY_SUMMARY": "종료 경기 다시보기 구간에 사용할 스포일러 없는 제목과 요약 문구를 생성하세요.",
+    }
+
+    return purpose_instructions.get(
+        purpose,
+        purpose_instructions["LIVE_HEADLINE"],
+    )
+
+
 def build_spoiler_free_prompt(request) -> str:
     safe_context = request.safe_context
+    purpose = _resolve_prompt_purpose(request)
 
     prompt_context = {
+        "purpose": purpose,
         "game_status": safe_context.game_status,
         "inning_phase": safe_context.inning_phase,
         "tension_level": safe_context.tension_level,
@@ -17,6 +48,9 @@ def build_spoiler_free_prompt(request) -> str:
 
     return f"""
 너는 MLB 경기 추천 서비스의 스포일러 방지 문구 생성기입니다.
+
+문구 목적:
+{_build_purpose_instruction(purpose)}
 
 반드시 지켜야 할 규칙:
 - 점수, 승패, 우세 팀, 특정 선수명, 홈런, 역전, 끝내기, 득점 상황을 말하지 마세요.
