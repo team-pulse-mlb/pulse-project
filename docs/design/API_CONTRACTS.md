@@ -133,10 +133,10 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 |---|---|---|
 | domain 읽기 | 예은 → 전원 | JPA 엔티티 읽기 전용. 스키마 변경은 예은만 |
 | `ScoreQueryService` | 예은 → 민석 | `getLatestSignals(gameId)` → `{ tags, phase, situation, updatedAt }`. **점수 숫자는 계약에 없음** |
-| `AiCopyReader` | 창현 → 전원 | `getCopy(gameId, purpose)` — 항상 non-null, 폴백 내장 |
+| `AiCopyReader` | 창현 → 전원 | `getCopy(gameId, purpose)` — 항상 non-null. 검수 통과 AI 문구가 없으면 Spring Boot의 목적별 기본 문구 반환 |
 | `UserPreferenceReader` | 윤호 → 예은(홈 가산)·api(알림 fan-out, 전환 쿨다운) | 관심 팀/선수·알림 설정 조회 |
 | `SseEventPublisher` | api 공통 | 이벤트 3종 발행 단일 창구 |
-| AI 생성 트리거 | 창현 → 예은(scorer) | `com.pulse.ai`의 비동기 생성 요청 인터페이스. ai-service 호출과 라이브 문구 저장까지 담당 |
+| AI 생성 트리거 | 창현 → 예은(scorer) | `com.pulse.ai`의 비동기 생성 요청 인터페이스. ai-service 호출, `contextHash` 검증, 검수 통과 문구 저장, 기본 문구 fallback 판단 담당 |
 | `notify.events` | scorer·poller → 윤호 | 알림 이벤트 |
 
 ## 5. 메시징·캐시 명세
