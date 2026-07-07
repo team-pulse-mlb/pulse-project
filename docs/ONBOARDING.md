@@ -1,8 +1,6 @@
 # 팀원 초기 설정 가이드
 
-이 문서는 레포를 처음 받은 팀원이 실제 라이브 경기 raw archive를 로컬에서 재생해 backend, frontend, ai-service 개발을 시작하는 절차를 정리한다.
-
-> 이 가이드는 DB 이전 전 S3 리플레이 기준 절차다. DB 이전 완료 후 운영 DB 기준 단계별 절차로 갱신한다([ARCHITECTURE_AND_DATA_FLOW.md](ARCHITECTURE_AND_DATA_FLOW.md) §10 후속 항목).
+> 이 가이드는 DB 이전 전 S3 리플레이 기준 절차다. DB 이전 완료 후 운영 DB 기준 단계별 절차로 갱신한다.
 
 ## 1. 사전 설치
 
@@ -166,7 +164,7 @@ frontend:
 cd frontend
 ```
 
-이후 `frontend/README.md`를 따른다.
+초기 프로젝트가 생성되면 해당 폴더의 실행 명령을 사용한다.
 
 ai-service:
 
@@ -176,7 +174,7 @@ python -m venv .venv
 source .venv/Scripts/activate
 ```
 
-이후 `ai-service/README.md`를 따른다.
+초기 프로젝트가 생성되면 해당 폴더의 실행 명령을 사용한다.
 
 ## 10. 작업 흐름
 

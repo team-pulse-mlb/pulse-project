@@ -2,19 +2,7 @@
 
 > **실측 기준일: 2026-07-02~05 (2026 시즌 중).** GOAT 플랜 키로 전체 엔드포인트를 실제 호출해 확인한 결과를 "실측"으로 표기했다.
 
-이 문서는 설계 문서가 아니라 balldontlie MLB API의 응답을 실제 호출로 확인한 데이터 레퍼런스다. 폴링 계획·계산 흐름 같은 설계 내용은 [ARCHITECTURE_AND_DATA_FLOW.md](ARCHITECTURE_AND_DATA_FLOW.md)를 따른다.
-
-## 1. 문서 목적
-
-이 문서는 balldontlie MLB API의 호출 제한, 엔드포인트별 실제 제공 데이터, 데이터 등장 시점(리드타임)을 정리한다.
-
-참고 스펙:
-
-```text
-https://www.balldontlie.io/openapi/mlb.yml
-```
-
-## 2. 호출 제한
+## 1. 호출 제한
 
 GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
@@ -24,7 +12,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 - `per_page` 최대값은 100이다. 초과하면 400 에러를 반환한다.
 
 
-## 3. 요청 파라미터와 응답의 공통 특성
+## 2. 요청 파라미터와 응답의 공통 특성
 
 - 날짜 필터 형식: `dates[]=YYYY-MM-DD`. 복수 지정 가능.
   - UTC 날짜 기준이다. 미국 기준 하루 슬레이트가 UTC 이틀에 걸치므로(미국 저녁 경기는 UTC 다음날 00~03시 시작), 진행 경기를 빠짐없이 잡으려면 `dates[]=어제&dates[]=오늘`(UTC) 두 날짜를 항상 한 요청으로 함께 조회해야 한다. 복수 날짜를 한 요청에 담을 수 있다.
@@ -34,7 +22,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 - `/plays`, `/plate_appearances`에는 **벽시계 타임스탬프가 없다**. "최근 득점 후 경과 시간" 같은 시간 기반 신호는 폴러가 최초 관측 시각(`observed_at`)을 저장해 계산해야 하며, 경과 시간의 정밀도 하한은 폴링 주기가 된다.
 - `/lineups`, `/stats`, `/player_injuries` 등은 player 객체(팀 정보 포함)를 통째로 내장해 응답이 크다. 저장 시 필요한 필드만 추출한다.
 
-## 4. 데이터 등장 시점 요약
+## 3. 데이터 등장 시점 요약
 
 | 데이터 | 등장·갱신 시점 |
 |---|---|
@@ -49,7 +37,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | plate_appearances | 경기당 약 74타석·275투구. 단일 페이지 응답, 증분 커서 없음 → 전체 재조회 후 `pa_number`로 dedupe |
 | 과거 데이터 보존 | odds 포함 4월 중순 과거 날짜도 전 경기 조회 확인. plays/PA/stats도 과거 경기 제공 → 백필·가중치 백테스트 가능 |
 
-## 5. 엔드포인트 요약
+## 4. 엔드포인트 요약
 
 | 엔드포인트 | 주요 제공 데이터 | 활용 |
 |---|---|---|
@@ -58,13 +46,13 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `/mlb/v1/plays` | play 이벤트, 점수, 카운트, 구종·구속, 타구 좌표 | 최근 득점·리드 변경·빅이닝·카운트 신호, 다시보기 구간 재생 |
 | `/mlb/v1/plate_appearances` | 타석 결과, 주자 상황, pitch 단위 Statcast 전체 | 상세 신호(득점권·투수 흔들림·강한 타구), 태그·알림 판단 |
 | `/mlb/v1/lineups` | 타순, 포지션, probable pitcher | pregame_score 선발 매치업, 관심 선수 선발 여부, 타순 확정 감지 |
-| `/mlb/v1/stats` | 경기별 선수 타격·투구·수비 통합 스탯 | 종료 경기 분석(C층), 다시보기 구간 신뢰도 보강 |
+| `/mlb/v1/stats` | 경기별 선수 타격·투구·수비 통합 스탯 | 종료 후 경기 분석, 다시보기 구간 신뢰도 보강 |
 | `/mlb/v1/season_stats` | 선수 시즌 누적 스탯 (WAR 포함) | 선발 매치업 강도(ERA/WAR), 스타 선수 가산 |
 | `/mlb/v1/teams/season_stats` | 팀 시즌 누적 스탯 (QS, CG, SHO 포함) | 경기 성격 분류(난타전/투수전) |
 | `/mlb/v1/standings` | 순위, 승패, 승률, games behind, 매직넘버, 최근 10경기 등 | 경기 중요도 보정(×0.9~×1.15), pregame_score |
 | `/mlb/v1/players` (+`/active`) | 선수 정보, 포지션, 팀, 신체·드래프트 정보 | 선수 마스터 적재, 관심 선수 검색·등록 |
 | `/mlb/v1/teams` | 팀 정보, 리그, 디비전 | 팀 마스터 적재 |
-| `/mlb/v1/player_injuries` | 부상자 명단, 복귀 예정일, 코멘트 (문서 추가: 스펙에서 신규 발견) | 관심 선수 결장 파악, 알림 억제, 선발 변경 보조 |
+| `/mlb/v1/player_injuries` | 부상자 명단, 복귀 예정일, 코멘트 | 관심 선수 결장 파악, 알림 억제, 선발 변경 보조 |
 | `/mlb/v1/players/splits` | 상황별 선수 성적(구장/타순/카운트/상대 등 9개 카테고리) | 고급 매치업 문구 소재 |
 | `/mlb/v1/players/versus` | 타자 vs 상대팀 개별 투수 전적 | 관심 선수 매치업 표시 |
 | pitch type stats 계열 (4종) | 구종별 투수/타자 성적 (경기/시즌 단위) | 구종 매치업(고급 단계) |
@@ -72,13 +60,13 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `/mlb/v1/odds/player_props` | 선수 props (19종, 벤더별 라인) | 관심 선수 주목도 보조(선택 기능) |
 | `/mlb/v1/odds/opening` (+props) | historical opening odds (`opened_at`) | **2026 시즌 미제공 → 사용 안 함.** `/odds` 첫 관측 스냅샷으로 대체 |
 
-## 6. 엔드포인트별 상세
+## 5. 엔드포인트별 상세
 
 ### `/mlb/v1/games` — 경기 목록·상태
 
 **동작 특성**
 
-- `dates[]`는 UTC 날짜 기준. 진행 경기 커버는 `dates[]=어제&dates[]=오늘` 두 날짜를 한 요청으로 조회(3장 참고).
+- `dates[]`는 UTC 날짜 기준. 진행 경기 커버는 `dates[]=어제&dates[]=오늘` 두 날짜를 한 요청으로 조회한다.
 - 일정은 최소 7일 뒤까지 제공. `seasons[]`, `postseason`, `season_type` 필터 지원.
 - `games/{id}` 단건 응답은 목록과 동일 구조(`scoring_summary` 포함) — 평상시에는 목록 조회로 충분.
 - `clock`/`display_clock`은 야구에서는 항상 `0`/`"0:00"` — 사용하지 않는다.
@@ -220,7 +208,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **활용**
 
-- 종료 경기 분석(C층): 다시보기 구간 신뢰도 보강, 경기 요약 문구 소재(공개 모드).
+- 종료 후 경기 분석: 다시보기 구간 신뢰도 보강, 경기 요약 문구 소재(공개 모드).
 - `pitch_count`·`ip`로 선발 투수 소화 이닝 기록 → 다음 경기 pregame 참고.
 
 ### `/mlb/v1/season_stats` — 선수 시즌 누적
@@ -262,7 +250,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 **동작 특성**
 
 - `season` 파라미터로 조회, 30팀 전체 1콜.
-- 기존 문서에 없던 필드 다수 발견: `last_ten_games`, `playoff_percent`, `division_percent`, `wildcard_percent`, `magic_number_division`, `magic_number_wildcard`, `home_wins/losses`, `road_wins/losses`, `differential`, `division_tied` 등 — **경기 중요도 보정 재료가 문서 가정보다 풍부**.
+- 경기 중요도 보정에 필요한 `last_ten_games`, `playoff_percent`, `division_percent`, `wildcard_percent`, `magic_number_division`, `magic_number_wildcard`, `home_wins/losses`, `road_wins/losses`, `differential`, `division_tied` 등을 제공한다.
 
 **필드**
 
@@ -292,7 +280,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **동작 특성**
 
-- 기존 문서에 없던 엔드포인트. OpenAPI 스펙에서 발견, 확인.
+- 부상자 명단과 복귀 예정 정보를 제공한다.
 - cursor 페이지네이션, 전체 리그 부상자 목록 제공.
 - 필드: `player`(전체 객체), `date`(부상 발생), `return_date`(복귀 예정), `type`(부위, 예: `"Oblique"`), `detail`(예: `"Strain"`), `side`(`"Left"`), `status`(`"10-Day-IL"`), `long_comment`, `short_comment`(영문 상세 코멘트).
 
@@ -324,7 +312,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **동작 특성**
 
-- 필터: `dates[]` 또는 `game_ids[]`. 기존 문서의 "game_id 필터는 400 에러"는 단수형 파라미터 이야기고, **복수형 `game_ids[]`는 정상 동작한다(정정)**.
+- 필터: `dates[]` 또는 `game_ids[]`.
 - 벤더 6곳: fanduel, draftkings, betmgm, caesars, betrivers, fanatics. 경기당 벤더별 1행 = 6행.
 - **당일 슬레이트만 제공**: 시작 13~15시간 전 경기에는 있고, 33시간 전 경기에는 없음. 미국 기준 그날 경기가 이른 아침(UTC 오전)에 일괄 등장.
 - **갱신 주기**: 경기 전에는 약 15~20분 간격 일괄 배치 갱신(10:51Z → 11:07Z 전 경기 동시 갱신 확인). 경기 중에는 종료 시각까지 계속 갱신됨 — 즉 이 엔드포인트는 **라이브 배당**이며, 행이 계속 덮어써진다.
@@ -363,11 +351,9 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **결론**: 현 시즌에는 사용하지 않는다. 오프닝 라인이 필요하면 `/odds`를 당일 오전 첫 등장 시점에 수집해 **첫 관측 스냅샷**으로 저장한다.
 
-## 7. 데이터 저장 정책
+## 6. 데이터 저장 정책
 
-엔드포인트별 데이터의 저장 위치와, 저장하지 않는 데이터의 유실 여부를 정리한다. 스키마 상세는 [DB_SCHEMA.md](DB_SCHEMA.md), 저장 기준은 [ARCHITECTURE_AND_DATA_FLOW.md](ARCHITECTURE_AND_DATA_FLOW.md) §6·§10을 따른다.
-
-### 7.1 저장하는 데이터
+### 6.1 저장하는 데이터
 
 | 원천 | 저장 위치 | 방식 |
 |---|---|---|
@@ -380,39 +366,39 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `/season_stats` | `player_season_stats` + `games.pregame_inputs` | 캐시는 최신 덮어쓰기. `pregame_score` 계산에 쓴 시점 값은 `pregame_inputs`에 불변 고정 |
 | `/teams` · `/players` | `teams` · `players` | 마스터 upsert |
 
-자체 계산 산출물(`watch_scores`·`replay_segments`·`game_events`·검수 통과 AI 문구)은 외부에 존재하지 않는 데이터이므로 전부 DB에 영속한다([DB_SCHEMA.md](DB_SCHEMA.md) §A).
+자체 계산 산출물(`watch_scores`·`replay_segments`·`game_events`·검수 통과 AI 문구)은 외부에 존재하지 않는 데이터이므로 전부 DB에 영속한다.
 
-### 7.2 저장하지 않는 데이터
+### 6.2 저장하지 않는 데이터
 
 | 데이터 | 사유 |
 |---|---|
 | 경기 전 배당 라인 무브먼트(두 스냅샷 사이 갱신분) | 접전 기대 산출에는 두 스냅샷으로 충분 |
-| 라이브 배당 궤적 | 스포일러 프리 원칙상 사용 금지 ([RECOMMENDATION_SCORE.md](RECOMMENDATION_SCORE.md) §9) |
-| `/odds/player_props` | 기능 범위 밖. 종료 후 원본 소실을 수락 |
+| 라이브 배당 궤적 | 스포일러 프리 원칙상 사용 금지 |
+| `/odds/player_props` | 기능 범위 밖이라 저장하지 않는다. 종료 후 원본이 줄거나 사라질 수 있다 |
 | `/stats` (경기별 선수 스탯) | 과거 경기 재조회 가능. 종료 후 재분석을 하지 않음 |
 | `scoring_summary` | 과거 경기 재조회 가능 |
-| `/teams/season_stats` | 점수 계산에 미사용. 시점값 소실 수락 |
+| `/teams/season_stats` | 점수 계산에 쓰지 않아 저장하지 않는다. 경기 당시 시점값은 보존하지 않는다 |
 | `/player_injuries` | 실시간 표시·알림 억제 용도만. 이력 미보존 |
 | splits/versus · pitch type stats 계열 | 미사용(문구 고도화 단계 소재) |
 | PA 관측 시각 | 시간 감쇠 계산은 `plays.observed_at`을 사용. 원본에 시각 자체가 없어 재조회로도 복구 불가 |
 
-### 7.3 라이브 시점에 저장하지 않으면 유실되는 데이터
+### 6.3 라이브 시점에 저장하지 않으면 유실되는 데이터
 
 **영구 유실** — 외부 API 재조회로 복구할 수 없다. 라이브 관측 시점의 저장이 유일한 확보 수단이다.
 
 | 데이터 | 유실 원인 | 대응 |
 |---|---|---|
-| plays·PA 관측 시각 | 원본에 벽시계 타임스탬프 없음 | `plays.observed_at` 저장. PA는 미저장 수락 |
-| 경기 전 배당 | `/odds` 행이 라이브 라인으로 계속 덮어써짐. 과거 조회는 종료 무렵 라인만 반환 | `odds_snapshots` 2종 저장. 그 외 갱신분 수락 |
-| 선수 props | 종료 후 대부분 소실(794행 → 59행) | 미저장 수락 |
+| plays·PA 관측 시각 | 원본에 벽시계 타임스탬프 없음 | `plays.observed_at` 저장. PA 관측 시각은 별도 저장하지 않는다 |
+| 경기 전 배당 | `/odds` 행이 라이브 라인으로 계속 덮어써짐. 과거 조회는 종료 무렵 라인만 반환 | `odds_snapshots` 2종 저장. 그 외 갱신분은 보존하지 않는다 |
+| 선수 props | 종료 후 대부분 사라짐(794행 → 59행) | 저장하지 않는다 |
 | 순위 시점값 | `/standings`는 현재 순위만 제공 | `standings` 일 스냅샷 저장 |
-| 시즌 스탯 시점값 | 선수·팀 모두 현재 누적치만 제공, 경기 당시 값 복원 불가 | 계산 사용분만 `games.pregame_inputs`에 고정. 팀 시즌 스탯은 수락 |
-| 부상자 명단 시점값 | 현재 목록만 제공 | 미저장 수락 |
+| 시즌 스탯 시점값 | 선수·팀 모두 현재 누적치만 제공, 경기 당시 값 복원 불가 | 계산 사용분만 `games.pregame_inputs`에 고정. 팀 시즌 스탯의 당시 값은 보존하지 않는다 |
+| 부상자 명단 시점값 | 현재 목록만 제공 | 저장하지 않는다 |
 
 **조건부 복구 가능** — 내용은 과거 경기 재조회로 복구되나, 벤더 보존 정책과 플랜 유지에 의존한다.
 
 | 데이터 | 자체 보존 수단 |
 |---|---|
 | `/games`·`/plays` 원본 | DB 영속(운영 핵심) |
-| `/plate_appearances` 원본 | S3 아카이브(운영 이전 후에도 유지, §7.1) |
-| `/stats`·`scoring_summary`·마스터·일정 | 자체 보존 없음(재조회 의존 수락) |
+| `/plate_appearances` 원본 | S3 아카이브(운영 이전 후에도 유지) |
+| `/stats`·`scoring_summary`·마스터·일정 | 자체 보존 없음(필요 시 외부 API 재조회에 의존) |
