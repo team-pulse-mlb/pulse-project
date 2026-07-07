@@ -52,12 +52,21 @@ class SpoilerCheckResponse(ApiBaseModel):
 class SafeContext(ApiBaseModel):
     """
     Spring Boot가 Python AI-SERVICE로 넘겨주는 안전한 경기 context
+
+    Spring 응답 매핑 기준:
+    - status -> game_status
+    - periodLabel -> inning_phase
+    - reasonTags -> safe_tags
+    - spoilerSafeSignals -> reason_codes
+
+    recentPlays는 실제 플레이 텍스트와 선수명을 포함할 수 있으므로
+    ai-service 요청에 넣지 않는다.
     """
 
-    game_status: str = Field(..., examples=["LIVE"])
-    inning_phase: str = Field(..., examples=["LATE"])
-    tension_level: str = Field(..., examples=["HIGH"])
-    score_band: str = Field(..., examples=["RECOMMEND"])
+    game_status: str = Field(..., examples=["STATUS_FINAL"])
+    inning_phase: str = Field(..., examples=["경기 종료"])
+    tension_level: str = Field(default="NORMAL", examples=["NORMAL"])
+    score_band: str = Field(default="RECOMMEND", examples=["RECOMMEND"])
     safe_tags: list[str] = Field(default_factory=list)
     reason_codes: list[str] = Field(default_factory=list)
 
