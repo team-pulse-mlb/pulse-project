@@ -19,12 +19,15 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 class RescoreJdbcRepository {
 
+    private static final String RESCORE_PLAY_SOURCE_CONDITION =
+            "source IN ('S3_LIVE_ARCHIVE', 'S3_BACKFILL')";
+
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
 
     List<Long> gameIdsWithPlays() {
         return jdbcTemplate.queryForList(
-                "SELECT DISTINCT game_id FROM plays ORDER BY game_id",
+                "SELECT DISTINCT game_id FROM plays WHERE " + RESCORE_PLAY_SOURCE_CONDITION + " ORDER BY game_id",
                 Long.class);
     }
 
@@ -34,8 +37,9 @@ class RescoreJdbcRepository {
                        scoring_play, score_value, outs, balls, strikes, observed_at, backfilled, source
                 FROM plays
                 WHERE game_id = ?
+                  AND %s
                 ORDER BY observed_at, play_order
-                """;
+                """.formatted(RESCORE_PLAY_SOURCE_CONDITION);
         return jdbcTemplate.query(sql, (rs, rowNum) -> new RescorePlayRow(
                 rs.getLong("game_id"),
                 rs.getLong("play_order"),
@@ -52,6 +56,13 @@ class RescoreJdbcRepository {
                 instant(rs.getObject("observed_at", OffsetDateTime.class)),
                 nullableBoolean(rs, "backfilled"),
                 rs.getString("source")), gameId);
+    }
+
+    void lockGameForReplaySegments(Long gameId) {
+        jdbcTemplate.queryForObject(
+                "SELECT game_id FROM games WHERE game_id = ? FOR UPDATE",
+                Long.class,
+                gameId);
     }
 
     boolean replaySegmentsExist(Long gameId) {

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @Profile("rescore")
@@ -23,6 +24,7 @@ class HistoricalScoreReplayService {
     private final RescoreJdbcRepository repository;
     private final ScoreCalculator calculator;
     private final ScoringProperties scoringProperties;
+    private final TransactionTemplate transactionTemplate;
 
     void replayAll() {
         List<Long> gameIds = repository.gameIdsWithPlays();
@@ -52,7 +54,6 @@ class HistoricalScoreReplayService {
 
     private GameReplayResult replayGame(Long gameId, RescoreSegmentBuilder segmentBuilder) {
         List<RescorePlayRow> rows = repository.playsForGame(gameId);
-        boolean skipReplaySegments = repository.replaySegmentsExist(gameId);
         List<RescorePlayRow> observedPlays = new ArrayList<>();
         List<RescoreScorePoint> segmentPoints = new ArrayList<>();
 
@@ -94,27 +95,42 @@ class HistoricalScoreReplayService {
                     latest.sourceValue()));
             scoreCycles++;
 
-            if (!skipReplaySegments) {
-                segmentPoints.add(new RescoreScorePoint(
-                        gameId,
-                        observedAt,
-                        latest.playOrder(),
-                        latest.inning(),
-                        latest.inningType(),
-                        baseScore,
-                        tags,
-                        latest.sourceValue()));
-            }
+            segmentPoints.add(new RescoreScorePoint(
+                    gameId,
+                    observedAt,
+                    latest.playOrder(),
+                    latest.inning(),
+                    latest.inningType(),
+                    baseScore,
+                    tags,
+                    latest.sourceValue()));
 
             index = nextIndex;
         }
 
-        int insertedReplaySegments = 0;
-        if (!skipReplaySegments) {
-            insertedReplaySegments = repository.insertReplaySegments(segmentBuilder.build(gameId, segmentPoints));
+        ReplaySegmentInsertResult segmentResult =
+                insertReplaySegmentsIfAbsent(gameId, segmentBuilder.build(gameId, segmentPoints));
+
+        return new GameReplayResult(
+                scoreCycles,
+                insertedWatchScores,
+                segmentResult.insertedCount(),
+                segmentResult.skipped());
+    }
+
+    private ReplaySegmentInsertResult insertReplaySegmentsIfAbsent(Long gameId, List<ReplaySegmentDraft> segments) {
+        if (segments.isEmpty()) {
+            return new ReplaySegmentInsertResult(0, false);
         }
 
-        return new GameReplayResult(scoreCycles, insertedWatchScores, insertedReplaySegments, skipReplaySegments);
+        ReplaySegmentInsertResult result = transactionTemplate.execute(ignored -> {
+            repository.lockGameForReplaySegments(gameId);
+            if (repository.replaySegmentsExist(gameId)) {
+                return new ReplaySegmentInsertResult(0, true);
+            }
+            return new ReplaySegmentInsertResult(repository.insertReplaySegments(segments), false);
+        });
+        return result == null ? new ReplaySegmentInsertResult(0, false) : result;
     }
 
     private List<Play> recentPlays(List<RescorePlayRow> observedPlays) {
@@ -164,5 +180,8 @@ class HistoricalScoreReplayService {
             int insertedReplaySegments,
             boolean replaySegmentsSkipped
     ) {
+    }
+
+    private record ReplaySegmentInsertResult(int insertedCount, boolean skipped) {
     }
 }
