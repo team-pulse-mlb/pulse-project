@@ -1,18 +1,28 @@
-/* src/features/game-detail/pages/GameDetailPage.css */
+html,
+body,
+#root {
+    min-width: 100%;
+    min-height: 100%;
+    margin: 0;
+    background: #080b10;
+}
 
-/*
-  MLB 심볼 느낌의 색상 조합
-  - 진한 블루: 메인 배경
-  - 화이트: 기본 텍스트
-  - 레드: 강조 포인트
-*/
 :root {
-    --mlb-navy: #0a2342;
-    --mlb-blue: #123c73;
-    --mlb-red: #c8102e;
-    --mlb-white: #f8f9fb;
-    --mlb-line: rgba(255, 255, 255, 0.14);
-    --mlb-card: rgba(255, 255, 255, 0.06);
+    --mlb-navy: #041e42;
+    --mlb-navy-light: #082b5f;
+    --panel-bg: #171a1f;
+    --panel-bg-dark: #10151c;
+    --line: rgba(255, 255, 255, 0.12);
+    --line-strong: rgba(255, 255, 255, 0.2);
+    --text-main: #f8fafc;
+    --text-sub: rgba(248, 250, 252, 0.7);
+    --text-dim: rgba(248, 250, 252, 0.45);
+    --green: #2fd56b;
+    --yellow: #f7cf27;
+    --red: #ef4444;
+    --orange: #ff8a2a;
+    --blue: #2f80ed;
+    --blue-strong: #1463d9;
 }
 
 * {
@@ -20,239 +30,996 @@
 }
 
 .game-detail-page {
+    width: 100%;
     min-height: 100vh;
-    padding: 32px;
+    padding: 14px 18px;
+    color: var(--text-main);
     background:
-            linear-gradient(135deg, #07182c 0%, #0a2342 55%, #123c73 100%);
-    color: var(--mlb-white);
+            radial-gradient(circle at 18% 0%, rgba(47, 128, 237, 0.12), transparent 32%),
+            linear-gradient(135deg, #080b10 0%, #0d1118 45%, #07090d 100%);
+    overflow-x: hidden;
 }
 
-.game-detail-shell {
+.game-detail-message {
+    margin: 0;
+    color: var(--text-sub);
+}
+
+.game-dashboard {
     display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 24px;
-    align-items: start;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 16px;
+    width: 100%;
+    margin: 0;
+    align-items: stretch;
 }
 
-.game-detail-main,
-.game-detail-sidebar {
+.dashboard-main {
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 24px;
-}
-
-.game-detail-topbar {
-    display: flex;
-    justify-content: flex-end;
     gap: 12px;
 }
 
-.mode-button {
-    border: 1px solid var(--mlb-line);
-    border-radius: 999px;
-    padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--mlb-white);
-    cursor: pointer;
+/* 상단: LIVE + 구장/이닝 + 모드 토글 */
+.dashboard-topbar {
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
 }
 
-.mode-button.active.protected {
-    background: var(--mlb-white);
-    color: var(--mlb-blue);
-    font-weight: 700;
+.game-state-area {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
 }
 
-.mode-button.active.revealed {
-    background: var(--mlb-red);
-    color: var(--mlb-white);
-    font-weight: 700;
-}
-
-.hero-card,
-.content-card,
-.sidebar-card {
-    border: 1px solid var(--mlb-line);
-    border-radius: 24px;
-    padding: 28px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
-    backdrop-filter: blur(10px);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
-}
-
-.live-badge {
-    display: inline-block;
-    margin-bottom: 18px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: rgba(200, 16, 46, 0.18);
-    border: 1px solid rgba(200, 16, 46, 0.45);
-    color: #ffd8df;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-}
-
-.matchup-title {
-    margin: 0 0 20px 0;
-    font-size: 64px;
-    line-height: 1;
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 7px 13px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 9px;
+    color: #ffffff;
+    background: var(--mlb-navy);
+    font-size: 14px;
     font-weight: 900;
-    letter-spacing: -0.03em;
-    color: var(--mlb-white);
+    white-space: nowrap;
 }
 
-.summary-box {
-    margin: 0 0 24px 0;
-    padding: 18px 20px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--mlb-line);
-    color: rgba(248, 249, 251, 0.92);
-    font-size: 18px;
+/* LIVE 박스 색상은 MLB 로고의 네이비 계열 */
+.status-badge.is-live {
+    background: linear-gradient(180deg, var(--mlb-navy-light) 0%, var(--mlb-navy) 100%);
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 20px rgba(4, 30, 66, 0.36);
 }
 
-.info-grid {
+.status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--red);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.55);
+    flex: 0 0 auto;
+}
+
+.venue-inning-text {
+    overflow: hidden;
+    color: var(--text-sub);
+    font-size: 16px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mode-toggle {
+    display: inline-flex;
+    padding: 3px;
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.22);
+    flex: 0 0 auto;
+}
+
+.mode-toggle-button {
+    min-width: 72px;
+    border: 0;
+    border-radius: 9px;
+    padding: 9px 14px;
+    color: var(--text-sub);
+    background: transparent;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+    transition:
+            background 140ms ease,
+            color 140ms ease,
+            transform 140ms ease;
+}
+
+.mode-toggle-button:hover {
+    color: var(--text-main);
+    transform: translateY(-1px);
+}
+
+.mode-toggle-button.is-active {
+    color: #ffffff;
+    background: linear-gradient(180deg, #3d83ff, var(--blue-strong));
+    box-shadow: 0 8px 18px rgba(47, 128, 237, 0.24);
+}
+
+/* 좌측 큰 경기판 카드 */
+.dashboard-card {
+    padding: 20px;
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    background:
+            radial-gradient(circle at 50% 0%, rgba(47, 128, 237, 0.08), transparent 36%),
+            var(--panel-bg);
+    box-shadow:
+            0 22px 56px rgba(0, 0, 0, 0.34),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* 팀 심볼, 팀명, 약어, 점수 영역 */
+.team-score-strip {
+    min-height: 118px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+    padding: 18px 22px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(7, 11, 18, 0.44);
 }
 
-.info-card {
-    padding: 18px;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--mlb-line);
-}
-
-.info-label {
-    display: block;
-    margin-bottom: 10px;
-    font-size: 13px;
-    color: rgba(248, 249, 251, 0.7);
-}
-
-.info-value {
-    font-size: 24px;
-    font-weight: 800;
-    color: var(--mlb-white);
-}
-
-.section-title,
-.sidebar-title {
-    margin: 0 0 16px 0;
-    font-size: 28px;
-    font-weight: 800;
-}
-
-.sidebar-description {
-    margin: 0 0 20px 0;
-    color: rgba(248, 249, 251, 0.75);
-    line-height: 1.5;
-}
-
-.timeline-list {
+.team-side {
+    min-width: 0;
     display: flex;
-    flex-direction: column;
-    gap: 18px;
-}
-
-.timeline-item {
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-}
-
-.timeline-dot {
-    width: 14px;
-    height: 14px;
-    margin-top: 6px;
-    border-radius: 50%;
-    background: var(--mlb-red);
-    box-shadow: 0 0 0 6px rgba(200, 16, 46, 0.15);
-    flex-shrink: 0;
-}
-
-.timeline-content {
-    flex: 1;
-    padding-bottom: 18px;
-    border-bottom: 1px solid var(--mlb-line);
-}
-
-.timeline-title {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 18px;
-    font-weight: 800;
-}
-
-.timeline-text {
-    margin: 0;
-    color: rgba(248, 249, 251, 0.78);
-    line-height: 1.5;
-}
-
-.update-list {
-    display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 14px;
 }
 
-.update-card {
-    padding: 18px;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--mlb-line);
+.team-side-away {
+    justify-content: flex-start;
+    text-align: left;
 }
 
-.update-card.empty {
-    border-style: dashed;
+.team-side-home {
+    justify-content: flex-end;
+    text-align: right;
 }
 
-.update-title {
+/* 보호 모드에서는 점수 칸이 없어도 양쪽 팀 영역 높이를 유지한다. */
+.team-side.is-protected {
+    min-height: 72px;
+}
+
+.team-identity-group {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1 1 auto;
+}
+
+/* 왼쪽 팀은 심볼 바로 옆부터 팀명/약어를 왼쪽 정렬한다. */
+.team-side-away .team-identity-group {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.team-side-away .team-copy {
+    text-align: left;
+}
+
+/* 오른쪽 팀은 기존처럼 점수 → 팀명/약어 → 심볼 구조로 오른쪽 정렬한다. */
+.team-identity-group-home {
+    justify-content: flex-end;
+    text-align: right;
+}
+
+.team-side-home .team-copy {
+    text-align: right;
+}
+
+.team-symbol {
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 64px;
+    border-radius: 50%;
+    overflow: hidden;
+    color: var(--text-sub);
+    background:
+            radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.14), transparent 35%),
+            rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: -0.02em;
+}
+
+.team-symbol img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.team-symbol span {
     display: block;
-    margin-bottom: 8px;
-    font-size: 18px;
-    font-weight: 800;
-    color: var(--mlb-white);
+    color: var(--text-sub);
+    font-size: 12px;
+    font-weight: 950;
 }
 
-.update-text {
+.team-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.team-copy strong {
+    display: block;
+    width: 100%;
+    color: var(--text-main);
+    font-size: clamp(17px, 1.45vw, 24px);
+    font-weight: 950;
+    line-height: 1.18;
+    letter-spacing: -0.04em;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+}
+
+.team-copy span {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-sub);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.vs-label {
+    display: grid;
+    place-items: center;
+    color: var(--text-sub);
+    font-size: 18px;
+    font-weight: 950;
+}
+
+.score-box {
+    width: 68px;
+    height: 62px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 68px;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 34px;
+    font-weight: 950;
+    box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.03);
+}
+
+/* 공개 모드 중간 영역: 득점판 7 : 볼카운트/베이스 3 */
+.middle-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(240px, 3fr);
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.line-score-panel,
+.count-base-panel,
+.summary-card,
+.match-info-card,
+.recent-play-card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(7, 10, 16, 0.42);
+}
+
+/* 이닝별 득점판 */
+.line-score-panel {
+    min-height: 176px;
+    padding: 16px 18px;
+    overflow: hidden;
+}
+
+.line-score-table {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(5px, 0.55vw, 8px);
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+}
+
+/* 칸을 고정하지 않고 패널 안에서 반응형으로 균등 배치한다. */
+.line-score-row {
+    display: grid;
+    grid-template-columns:
+    minmax(44px, 0.9fr)
+    repeat(9, minmax(26px, 1fr))
+    minmax(28px, 0.75fr)
+    minmax(28px, 0.75fr)
+    minmax(28px, 0.75fr);
+    gap: clamp(2px, 0.28vw, 5px);
+    align-items: center;
+    min-width: 0;
+}
+
+.line-score-row span,
+.line-score-row strong,
+.line-score-row b {
+    min-width: 0;
+    min-height: clamp(26px, 2.1vw, 34px);
+    display: grid;
+    place-items: center;
+    color: var(--text-main);
+    font-size: clamp(13px, 1.05vw, 18px);
+    font-weight: 850;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.line-score-head span {
+    color: var(--text-sub);
+    font-size: clamp(12px, 0.95vw, 16px);
+    font-weight: 800;
+}
+
+.line-score-row strong {
+    justify-content: start;
+    color: var(--text-main);
+    font-size: clamp(13px, 1.05vw, 17px);
+    font-weight: 950;
+}
+
+.line-score-row b {
+    color: var(--yellow);
+    font-size: clamp(14px, 1.15vw, 19px);
+    font-weight: 950;
+}
+
+/* 볼카운트/베이스 패널 */
+.count-base-panel {
+    min-height: 176px;
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 14px 12px;
+    overflow: hidden;
+}
+
+.count-graphic {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    min-width: 0;
+}
+
+.count-row {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+}
+
+.count-row strong {
+    color: var(--text-main);
+    font-size: 15px;
+    font-weight: 950;
+}
+
+.count-dots {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+}
+
+.count-dot {
+    width: 13px;
+    height: 13px;
+    display: block;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.13);
+    flex: 0 0 13px;
+}
+
+.count-dot.ball {
+    background: var(--green);
+    box-shadow: 0 0 12px rgba(47, 213, 107, 0.34);
+}
+
+.count-dot.strike {
+    background: var(--yellow);
+    box-shadow: 0 0 12px rgba(247, 207, 39, 0.34);
+}
+
+.count-dot.out {
+    background: var(--red);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.34);
+}
+
+/* 베이스 그래픽 */
+.base-graphic {
+    position: relative;
+    width: 138px;
+    height: 126px;
+    justify-self: center;
+}
+
+.base-graphic::before {
+    content: '';
+    position: absolute;
+    left: 28px;
+    top: 18px;
+    width: 82px;
+    height: 82px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.base {
+    position: absolute;
+    width: 27px;
+    height: 27px;
+    display: block;
+    border: 2px solid rgba(255, 255, 255, 0.42);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.08);
+    transform: rotate(45deg);
+    z-index: 1;
+}
+
+.base.is-on {
+    border-color: var(--orange);
+    background: rgba(255, 138, 42, 0.18);
+    box-shadow: 0 0 18px rgba(255, 138, 42, 0.55);
+}
+
+.base-second {
+    top: 4px;
+    left: 55px;
+}
+
+.base-third {
+    top: 48px;
+    left: 11px;
+}
+
+.base-first {
+    top: 48px;
+    right: 11px;
+}
+
+/* 홈 베이스는 오각형 */
+.home-plate {
+    position: absolute;
+    left: 55px;
+    bottom: 0;
+    width: 28px;
+    height: 25px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.34);
+    clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+    z-index: 1;
+}
+
+.mound-mark {
+    position: absolute;
+    left: 60px;
+    top: 62px;
+    width: 18px;
+    height: 12px;
+    border-radius: 0 0 12px 12px;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+/* 하단 데이터 영역 */
+.data-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr);
+    gap: 14px;
+    margin-top: 14px;
+}
+
+/* 보호 모드: 제공 가능한 정보 칸 삭제 후 요약 + 최근 흐름 */
+.protected-data {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+}
+
+.summary-card {
+    min-height: 160px;
+    padding: 18px;
+}
+
+.match-info-card {
+    min-height: 160px;
+    padding: 18px;
+}
+
+.recent-play-card {
+    grid-column: 1 / -1;
+    min-height: 166px;
+    padding: 16px 18px;
+}
+
+.protected-data .recent-play-card {
+    grid-column: auto;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+}
+
+.section-title span {
+    font-size: 16px;
+}
+
+.section-title strong {
+    color: var(--text-main);
+    font-size: 17px;
+    font-weight: 950;
+}
+
+.summary-card h3 {
+    margin: 0 0 10px;
+    color: var(--yellow);
+    font-size: 19px;
+    font-weight: 950;
+    line-height: 1.35;
+}
+
+.summary-card p {
     margin: 0;
-    color: rgba(248, 249, 251, 0.8);
+    color: var(--text-sub);
+    font-size: 15px;
     line-height: 1.5;
 }
 
-.game-detail-message,
+.mini-stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.mini-stat {
+    min-height: 52px;
+    padding: 8px 10px;
+    border-left: 1px solid var(--line);
+}
+
+.mini-stat:first-child {
+    border-left: 0;
+}
+
+.mini-stat span {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-dim);
+    font-size: 12px;
+}
+
+.mini-stat strong {
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 850;
+}
+
+.info-line {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 10px;
+    margin: 0;
+    padding: 8px 0;
+    color: var(--text-sub);
+    font-size: 14px;
+}
+
+.info-line + .info-line {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.info-line span {
+    color: var(--text-dim);
+}
+
+.info-line strong {
+    overflow: hidden;
+    color: var(--text-main);
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.play-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.play-row {
+    display: grid;
+    grid-template-columns: 62px 74px 112px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-height: 36px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.play-row:last-child {
+    border-bottom: 0;
+}
+
+/* 보호 모드 최근 흐름은 초록색 배지 없이 텍스트만 표시 */
+.protected-play-row {
+    grid-template-columns: 58px 110px minmax(0, 1fr);
+}
+
+.play-badge {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 10px;
+    border: 1px solid rgba(47, 213, 107, 0.36);
+    border-radius: 7px;
+    color: #85f1a9;
+    background: rgba(47, 213, 107, 0.14);
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.play-badge.is-scoring {
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #ffb4b4;
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.play-row span:not(.play-badge) {
+    color: var(--text-sub);
+    font-size: 13px;
+}
+
+.play-row strong {
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.play-row p {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--text-sub);
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.play-row b {
+    margin-left: 12px;
+    color: #dbeafe;
+    font-weight: 900;
+}
+
 .empty-text {
-    color: var(--mlb-white);
-    font-size: 18px;
+    margin: 0;
+    color: var(--text-sub);
 }
 
-@media (max-width: 1100px) {
-    .game-detail-shell {
+/* 우측 변동 알림 패널 */
+.update-panel {
+    position: sticky;
+    top: 14px;
+    min-height: calc(100vh - 28px);
+    max-height: calc(100vh - 28px);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    background:
+            radial-gradient(circle at 50% 0%, rgba(47, 128, 237, 0.1), transparent 34%),
+            var(--panel-bg-dark);
+    box-shadow:
+            0 22px 56px rgba(0, 0, 0, 0.36),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+}
+
+.update-panel-header {
+    display: flex;
+    align-items: center;
+    min-height: 68px;
+    padding: 20px 22px;
+    border-bottom: 1px solid var(--line);
+}
+
+.update-panel-header > div {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.bell-icon {
+    color: var(--text-sub);
+    font-size: 20px;
+}
+
+.update-panel-header h2 {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 22px;
+    font-weight: 950;
+    letter-spacing: -0.04em;
+}
+
+.update-list {
+    overflow-y: auto;
+    padding: 0 18px 12px;
+}
+
+.update-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.update-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.update-empty {
+    padding: 20px;
+    color: var(--text-sub);
+}
+
+.update-empty strong {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-main);
+}
+
+.update-empty p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.update-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) 16px;
+    gap: 12px;
+    padding: 18px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+.update-item time {
+    color: var(--text-sub);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.update-item strong {
+    display: block;
+    color: var(--text-main);
+    font-size: 15px;
+    font-weight: 950;
+    line-height: 1.35;
+}
+
+.update-item p {
+    margin: 7px 0 0;
+    color: var(--text-sub);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.update-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 9px;
+}
+
+.update-tags span {
+    padding: 3px 8px;
+    border: 1px solid rgba(47, 128, 237, 0.38);
+    border-radius: 999px;
+    color: #98c7ff;
+    background: rgba(47, 128, 237, 0.12);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.update-arrow {
+    align-self: center;
+    color: var(--text-dim);
+    font-size: 24px;
+}
+
+/* 태블릿 이하 */
+@media (max-width: 1250px) {
+    .game-dashboard {
         grid-template-columns: 1fr;
     }
 
-    .matchup-title {
-        font-size: 48px;
+    .update-panel {
+        position: static;
+        min-height: 420px;
+        max-height: 560px;
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 920px) {
     .game-detail-page {
-        padding: 20px;
+        padding: 12px;
     }
 
-    .matchup-title {
-        font-size: 36px;
+    .team-score-strip {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        text-align: center;
     }
 
-    .info-grid {
+    .team-side,
+    .team-side-home {
+        justify-content: center;
+        text-align: center;
+    }
+
+    .team-identity-group,
+    .team-identity-group-home {
+        justify-content: center;
+    }
+
+    .team-side-away .team-copy,
+    .team-side-home .team-copy {
+        text-align: center;
+    }
+
+    .vs-label {
+        order: 2;
+    }
+
+    .middle-grid {
         grid-template-columns: 1fr;
     }
 
-    .section-title,
-    .sidebar-title {
+    .count-base-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .data-grid,
+    .protected-data {
+        grid-template-columns: 1fr;
+    }
+
+    .protected-data .recent-play-card {
+        grid-column: auto;
+    }
+}
+
+/* 모바일 */
+@media (max-width: 640px) {
+    .dashboard-topbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .game-state-area {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .venue-inning-text {
+        white-space: normal;
+    }
+
+    .mode-toggle {
+        width: 100%;
+    }
+
+    .mode-toggle-button {
+        flex: 1;
+    }
+
+    .dashboard-card {
+        padding: 14px;
+    }
+
+    .team-score-strip {
+        padding: 16px;
+    }
+
+    .team-side,
+    .team-side-home {
+        flex-direction: column;
+    }
+
+    .team-identity-group,
+    .team-identity-group-home {
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .team-side-away .team-copy,
+    .team-side-home .team-copy {
+        text-align: center;
+    }
+
+    .team-copy strong {
         font-size: 22px;
+    }
+
+    .score-box {
+        width: 68px;
+        height: 60px;
+        font-size: 30px;
+    }
+
+    .line-score-panel {
+        overflow-x: auto;
+    }
+
+    .line-score-table {
+        min-width: 620px;
+    }
+
+    .mini-stat-row {
+        grid-template-columns: 1fr;
+    }
+
+    .mini-stat,
+    .mini-stat:first-child {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+    }
+
+    .mini-stat:first-child {
+        border-top: 0;
+    }
+
+    .play-row,
+    .protected-play-row {
+        grid-template-columns: 60px 1fr;
+        align-items: start;
+    }
+
+    .play-row strong,
+    .play-row p {
+        grid-column: 2 / -1;
+    }
+
+    .play-row p {
+        white-space: normal;
+    }
+
+    .update-item {
+        grid-template-columns: 48px minmax(0, 1fr);
+    }
+
+    .update-arrow {
+        display: none;
     }
 }

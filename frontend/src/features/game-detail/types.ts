@@ -3,11 +3,11 @@
  *
  * protected:
  * - 기본값
- * - 점수, 팀명, play 원문 같은 스포일러 정보를 숨긴다.
+ * - 점수, play 원문 같은 스포일러 정보를 숨긴다.
  *
  * revealed:
  * - 사용자가 공개 전환을 선택했을 때 사용한다.
- * - 점수, 팀명, play 원문을 보여준다.
+ * - 점수, play 원문을 보여준다.
  */
 export type DisplayMode = 'PROTECTED' | 'REVEALED' | 'NORMAL'
 
@@ -31,7 +31,6 @@ export interface LiveUpdateBlock {
     title: string
     description: string
     tags: string[]
-    intensity: 'LOW' | 'MEDIUM' | 'HIGH'
 }
 
 /**
@@ -68,6 +67,9 @@ export interface ProtectedGameDetailResponse {
     gameId: number
     status: string
     startTime: string
+    venueName?: string | null
+    homeTeam: Team
+    awayTeam: Team
     periodLabel: string
     summary: ProtectedSummary
     recentPlays: ProtectedPlay[]
@@ -84,6 +86,18 @@ export interface Team {
     id: number | null
     name: string | null
     abbr: string | null
+}
+
+export interface LineScoreInning {
+    inning: number
+    away: number | null
+    home: number | null
+}
+
+export interface BaseState {
+    first: boolean | null
+    second: boolean | null
+    third: boolean | null
 }
 
 /**
@@ -142,10 +156,13 @@ export interface RevealedGameDetailResponse {
     gameId: number
     status: string
     startTime: string
+    venueName?: string | null
     period: number | null
     homeTeam: Team
     awayTeam: Team
     score: Score
+    lineScores?: LineScoreInning[]
+    bases?: BaseState | null
     scoreSummary: ScoreSummary | null
     recentPlays: RevealedPlay[]
     liveUpdateBlocks: LiveUpdateBlock[]

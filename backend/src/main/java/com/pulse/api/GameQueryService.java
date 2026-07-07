@@ -8,12 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -72,6 +69,12 @@ public class GameQueryService {
                 game.getId(),
                 game.getStatus(),
                 game.getStartTime(),
+
+                // 보호 모드에서도 상세 페이지 상단 매치업 영역에는 팀 이름과 약어를 표시한다.
+                // 점수, 승패, 팀 우세 정보는 포함하지 않으므로 스포일러 보호 정책을 유지할 수 있다.
+                team(game.getHomeTeamId(), game.getHomeTeamName(), game.getHomeTeamAbbr()),
+                team(game.getAwayTeamId(), game.getAwayTeamName(), game.getAwayTeamAbbr()),
+
                 periodLabel(game),
                 protectedSummary(latestScore),
                 recentPlays.stream()
@@ -162,55 +165,25 @@ public class GameQueryService {
     }
 
     /**
-     * 최근 watch_scores 이력을 경기 상세 화면의 누적 변동 블록으로 변환한다.
+     * watch_scores 전체 이력을 경기 상세 화면의 누적 변동 블록으로 변환한다.
      *
-     * 같은 경기에서 scorer가 20초 주기로 비슷한 reasonTags를 반복 저장할 수 있으므로,
-     * 상세 화면에는 같은 제목의 블록이 계속 반복되지 않도록 중복을 제거한다.
+     * 이전 구현은 findTop10... 조회와 deduplicateLiveUpdateBlocks() 내부의 최대 5개 제한 때문에
+     * 상세 화면에 일부 알림만 내려갔다.
+     * 이제는 해당 경기의 watch_scores 전체를 최신순으로 조회한 뒤, 중복 제거 없이 모두 응답한다.
+     * 프론트에서는 우측 경기 변동 알림 패널에서 스크롤로 전체 알림을 확인한다.
      */
     private List<LiveUpdateBlockResponse> liveUpdateBlocks(long gameId) {
-        List<LiveUpdateBlockResponse> blocks = watchScoreRepository.findTop10ByGameIdOrderByCreatedAtDesc(gameId).stream()
+        return watchScoreRepository.findByGameIdOrderByCreatedAtDesc(gameId).stream()
                 // 최신순으로 조회한 watch_scores를 화면 표시용 블록으로 변환한다.
                 .map(GameQueryService::liveUpdateBlock)
                 .toList();
-
-        return deduplicateLiveUpdateBlocks(blocks);
-    }
-
-    /**
-     * 같은 제목의 liveUpdateBlock이 반복 표시되지 않도록 제거한다.
-     *
-     * watch_scores는 append log라서 짧은 시간 안에 비슷한 reasonTags가 여러 번 쌓일 수 있다.
-     * 화면에서는 같은 문구가 계속 반복되는 것보다, 최근에 감지된 주요 변화만 보여주는 것이 자연스럽다.
-     *
-     * 기준:
-     * - 같은 title은 최신 1개만 유지한다.
-     * - 상세 화면이 너무 길어지지 않도록 최대 5개까지만 내려준다.
-     */
-    private static List<LiveUpdateBlockResponse> deduplicateLiveUpdateBlocks(List<LiveUpdateBlockResponse> blocks) {
-        List<LiveUpdateBlockResponse> result = new ArrayList<>();
-        Set<String> seenTitles = new HashSet<>();
-
-        for (LiveUpdateBlockResponse block : blocks) {
-            // HashSet.add()는 처음 보는 값이면 true, 이미 있던 값이면 false를 반환한다.
-            // 이를 이용해서 같은 제목의 블록은 최신 1개만 남긴다.
-            if (seenTitles.add(block.title())) {
-                result.add(block);
-            }
-
-            // 상세 화면에 너무 많은 카드가 쌓이지 않도록 최근 주요 변화 5개까지만 제공한다.
-            if (result.size() >= 5) {
-                break;
-            }
-        }
-
-        return result;
     }
 
     /**
      * WatchScore 한 건을 상세 화면용 블록 하나로 변환한다.
      *
      * 이 블록은 protected 모드에도 그대로 사용되므로 점수, 팀명, play text, 결과 문구를 넣지 않는다.
-     * reasonTags와 watchScore 강도만 사용해 스포일러 없는 카드 정보를 만든다.
+     * reasonTags만 사용해 스포일러 없는 카드 정보를 만든다.
      */
     private static LiveUpdateBlockResponse liveUpdateBlock(WatchScore watchScore) {
         List<String> reasonTags = watchScore.getReasonTags() == null
@@ -222,8 +195,7 @@ public class GameQueryService {
                 "진행 중",
                 blockTitle(reasonTags),
                 "긴장감 있는 흐름이 감지됐습니다.",
-                reasonTags,
-                intensity(watchScore.getWatchScore())
+                reasonTags
         );
     }
 
@@ -255,26 +227,6 @@ public class GameQueryService {
                 .filter(reasonTags::contains)
                 .findFirst()
                 .orElse(reasonTags.get(0));
-    }
-
-    /**
-     * watchScore 숫자를 직접 노출하지 않고 LOW / MEDIUM / HIGH 강도로만 변환한다.
-     *
-     * protected 모드에서는 내부 점수를 사용자에게 보여주지 않는 것이 원칙이므로,
-     * 숫자 대신 화면 표시용 강도 라벨만 제공한다.
-     * 점수가 아직 없는 경우에는 안전하게 LOW로 처리한다.
-     */
-    private static String intensity(Double watchScore) {
-        if (watchScore == null) {
-            return "LOW";
-        }
-        if (watchScore >= 85) {
-            return "HIGH";
-        }
-        if (watchScore >= 70) {
-            return "MEDIUM";
-        }
-        return "LOW";
     }
 
     private static RevealedPlayResponse revealedPlayResponse(Play play) {
@@ -326,8 +278,7 @@ public class GameQueryService {
             String periodLabel,         // "초반", "중반", "후반", "연장"
             String title,               // "득점권 압박", "승부처 카운트" 같은 블록 제목
             String description,         // 스포일러 없는 설명 문구
-            List<String> tags,          // reasonTags 목록
-            String intensity            // LOW / MEDIUM / HIGH
+            List<String> tags          // reasonTags 목록
     ) {
     }
 
@@ -425,6 +376,11 @@ public class GameQueryService {
             long gameId,
             String status,
             Instant startTime,
+
+            // 보호 모드에서도 상단 매치업 표시는 허용한다.
+            // 팀 이름과 약어는 경기 식별 정보이며, 점수/승패/우세 정보는 포함하지 않는다.
+            TeamResponse homeTeam,
+            TeamResponse awayTeam,
 
             // 보호 모드에서는 정확한 점수나 팀 우세를 드러내지 않는다.
             // 이닝도 숫자 자체보다 초반/중반/후반/연장 같은 흐름 라벨로 제공한다.

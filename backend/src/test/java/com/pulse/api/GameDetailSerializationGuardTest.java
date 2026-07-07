@@ -2,16 +2,7 @@ package com.pulse.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pulse.api.GameQueryService.DisplayMode;
-import com.pulse.api.GameQueryService.LiveUpdateBlockResponse;
-import com.pulse.api.GameQueryService.ProtectedGameDetailResponse;
-import com.pulse.api.GameQueryService.ProtectedPlayResponse;
-import com.pulse.api.GameQueryService.ProtectedSummaryResponse;
-import com.pulse.api.GameQueryService.RevealedGameDetailResponse;
-import com.pulse.api.GameQueryService.RevealedPlayResponse;
-import com.pulse.api.GameQueryService.ScoreResponse;
-import com.pulse.api.GameQueryService.ScoreSummaryResponse;
-import com.pulse.api.GameQueryService.TeamResponse;
+import com.pulse.api.GameQueryService.*;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -27,12 +18,18 @@ class GameDetailSerializationGuardTest {
     @Test
     void protectedDetailResponse_shouldNotSerializeSpoilerFields() {
         // given
-        // 보호 모드 응답은 DTO 구조 자체에서 팀명, 점수, play text, 득점 여부를 제외해야 한다.
+        // 보호 모드 응답은 DTO 구조 자체에서 점수, play text, 득점 여부를 제외해야 한다.
         // 이 테스트는 나중에 누군가 protected DTO에 스포일러 필드를 추가하면 바로 실패하도록 막는 가드다.
         ProtectedGameDetailResponse response = new ProtectedGameDetailResponse(
                 900001L,
                 "STATUS_IN_PROGRESS",
                 Instant.parse("2026-07-02T00:00:00Z"),
+
+                // 보호 모드에서도 상단 매치업 표시를 위해 팀 정보는 직렬화된다.
+                // 단, 점수와 결과성 필드는 여전히 포함하지 않아야 한다.
+                new TeamResponse(1L, "Home Team", "HOM"),
+                new TeamResponse(2L, "Away Team", "AWY"),
+
                 "후반",
                 new ProtectedSummaryResponse(List.of("후반 긴장 구간", "득점권 압박")),
                 List.of(
@@ -47,7 +44,7 @@ class GameDetailSerializationGuardTest {
                 ),
 
                 // liveUpdateBlocks는 protected 모드에서도 내려가지만,
-                // 점수, 팀명, play text 같은 스포일러 필드를 포함하지 않는 안전한 블록이다.
+                // 점수, play text 같은 스포일러 필드를 포함하지 않는 안전한 블록이다.
                 // DTO 생성자에 liveUpdateBlocks가 추가되었으므로 테스트에서도 같은 순서로 넘긴다.
                 List.of(
                         new LiveUpdateBlockResponse(
@@ -55,8 +52,7 @@ class GameDetailSerializationGuardTest {
                                 "진행 중",
                                 "득점권 압박",
                                 "긴장감 있는 흐름이 감지됐습니다.",
-                                List.of("득점권 압박", "후반 긴장 구간"),
-                                "HIGH"
+                                List.of("득점권 압박", "후반 긴장 구간")
                         )
                 ),
 
@@ -66,16 +62,31 @@ class GameDetailSerializationGuardTest {
         // when
         JsonNode json = objectMapper.valueToTree(response);
         JsonNode play = json.get("recentPlays").get(0);
+        JsonNode homeTeam = json.get("homeTeam");
+        JsonNode awayTeam = json.get("awayTeam");
         JsonNode liveUpdateBlock = json.get("liveUpdateBlocks").get(0);
 
         // then
         assertThat(json.get("displayMode").asText()).isEqualTo("PROTECTED");
 
-        // 보호 모드 최상위 응답에는 팀명, 점수, 내부 점수 요약이 없어야 한다.
-        assertThat(json.has("homeTeam")).isFalse();
-        assertThat(json.has("awayTeam")).isFalse();
+        // 보호 모드 최상위 응답에는 상단 매치업 표시용 팀 정보는 포함될 수 있다.
+        // 하지만 점수와 내부 점수 요약은 여전히 포함되면 안 된다.
+        assertThat(json.has("homeTeam")).isTrue();
+        assertThat(json.has("awayTeam")).isTrue();
         assertThat(json.has("score")).isFalse();
         assertThat(json.has("scoreSummary")).isFalse();
+
+        // 보호 모드의 팀 정보는 id, name, abbr만 가져야 한다.
+        // score 같은 점수성 필드가 팀 객체 안에 들어가면 안 된다.
+        assertThat(homeTeam.has("id")).isTrue();
+        assertThat(homeTeam.has("name")).isTrue();
+        assertThat(homeTeam.has("abbr")).isTrue();
+        assertThat(homeTeam.has("score")).isFalse();
+
+        assertThat(awayTeam.has("id")).isTrue();
+        assertThat(awayTeam.has("name")).isTrue();
+        assertThat(awayTeam.has("abbr")).isTrue();
+        assertThat(awayTeam.has("score")).isFalse();
 
         // 보호 모드 play 응답에는 결과를 직접 드러내는 필드가 없어야 한다.
         assertThat(play.has("text")).isFalse();
@@ -85,17 +96,15 @@ class GameDetailSerializationGuardTest {
         assertThat(play.has("scoreValue")).isFalse();
 
         // liveUpdateBlocks는 protected 모드에서도 허용되지만,
-        // 블록 내부에도 점수, 팀명, play text 같은 스포일러 필드가 없어야 한다.
+        // 블록 내부에도 점수, play text 같은 스포일러 필드가 없어야 한다.
         assertThat(json.has("liveUpdateBlocks")).isTrue();
         assertThat(liveUpdateBlock.has("timeLabel")).isTrue();
         assertThat(liveUpdateBlock.has("periodLabel")).isTrue();
         assertThat(liveUpdateBlock.has("title")).isTrue();
         assertThat(liveUpdateBlock.has("description")).isTrue();
         assertThat(liveUpdateBlock.has("tags")).isTrue();
-        assertThat(liveUpdateBlock.has("intensity")).isTrue();
 
-        assertThat(liveUpdateBlock.has("homeTeam")).isFalse();
-        assertThat(liveUpdateBlock.has("awayTeam")).isFalse();
+        assertThat(liveUpdateBlock.has("intensity")).isFalse();
         assertThat(liveUpdateBlock.has("score")).isFalse();
         assertThat(liveUpdateBlock.has("text")).isFalse();
         assertThat(liveUpdateBlock.has("homeScore")).isFalse();
@@ -163,8 +172,7 @@ class GameDetailSerializationGuardTest {
                                 "진행 중",
                                 "접전 흐름",
                                 "긴장감 있는 흐름이 감지됐습니다.",
-                                List.of("접전 흐름", "후반 긴장 구간"),
-                                "MEDIUM"
+                                List.of("접전 흐름", "후반 긴장 구간")
                         )
                 ),
 
