@@ -80,6 +80,8 @@ erDiagram
 | `lifecycle_state` | `TEXT` | 폴러 상태머신 값 | `SCHEDULED`…`DONE` |
 | `period` | `SMALLINT` | 현재 이닝 | 후반/연장 신호 |
 | `home_team_id` · `away_team_id` | `BIGINT` | 홈/원정팀 | FK → `teams` |
+| `home_team_name` · `away_team_name` | `TEXT` | 홈/원정 팀명 | 원본 응답 비정규화, nullable |
+| `home_team_abbr` · `away_team_abbr` | `TEXT` | 홈/원정 팀 약자 | 원본 응답 비정규화, nullable |
 | `home_runs` · `away_runs` | `SMALLINT` | 팀별 득점 | [내부] 점수 차 신호 |
 | `home_hits` · `away_hits` | `SMALLINT` | 팀별 안타 | [내부] |
 | `home_errors` · `away_errors` | `SMALLINT` | 팀별 실책 | [내부] |
