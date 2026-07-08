@@ -376,7 +376,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `playoff_percent` | `NUMERIC(5,2)` | PS 진출 확률 | 경쟁권(10–90%) 판정 |
 | `wildcard_percent` | `NUMERIC(5,2)` | 와일드카드 확률 | |
 | `streak` | `SMALLINT` | 연승/연패(음수) | 참고용 |
-| `last_ten_games` | `SMALLINT` | 최근 10경기 | 참고용 |
+| `last_ten_games` | `TEXT` | 최근 10경기 전적 `승-패`(예: `5-5`) | 참고용, 원문 문자열 |
 | `observed_at` | `TIMESTAMPTZ` | 관측 시각 | |
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
