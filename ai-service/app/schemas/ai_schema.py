@@ -107,7 +107,7 @@ class SpoilerFreeSummaryResponse(ApiBaseModel):
     safe_title: str | None = None
     safe_reason: str | None = None
     notification_text: str | None = None
-    tags: list[str] = Field(default_factory=list)
+    tags: list[str] | None = Field(default=None)
     violations: list[str] = Field(default_factory=list)
     fallback_used: bool = False
 
@@ -144,8 +144,8 @@ class NotificationTextResponse(ApiBaseModel):
         default=None,
         description="사용자에게 보낼 스포일러 없는 알림 문구",
     )
-    tags: list[str] = Field(
-        default_factory=list,
+    tags: list[str] | None = Field(
+        default=None,
         description="알림과 함께 사용할 수 있는 안전 태그",
     )
     violations: list[str] = Field(
@@ -204,8 +204,8 @@ class ReplaySummaryResponse(ApiBaseModel):
         default=None,
         description="스포일러 없는 다시보기 설명 문구",
     )
-    tags: list[str] = Field(
-        default_factory=list,
+    tags: list[str] | None = Field(
+        default=None,
         description="다시보기 문구와 함께 사용할 수 있는 안전 태그",
     )
     violations: list[str] = Field(
