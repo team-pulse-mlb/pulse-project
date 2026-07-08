@@ -2,11 +2,11 @@ import { createBrowserRouter } from "react-router";
 
 import MainLayout from '../layouts/MainLayout';
 import HomePage from '../pages/HomePage';
-import SignupPage from '../features/auth/pages/SignupPage';
-import LoginPage from "../features/auth/pages/LoginPage";
-import MyPage from '../features/auth/pages/MyPage';
+import SignupPage from '../../features/auth/pages/SignupPage';
+import LoginPage from "../../features/auth/pages/LoginPage";
+import MyPage from '../../features/auth/pages/MyPage';
 
-import ProtectedRoute from '../features/auth/routes/ProtectedRoute';
+import ProtectedRoute from '../../features/auth/routes/ProtectedRoute';
 
 const router = createBrowserRouter([
   {

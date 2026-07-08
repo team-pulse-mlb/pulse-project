@@ -16,7 +16,7 @@ public class GlobalExceptionHandler {
             DuplicateEmailException exception
     ) {
         ErrorResponse response = new ErrorResponse(
-                0,
+                "DUPLICATE_EMAIL",
                 exception.getMessage()
         );
 
@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
                 .orElse("입력값을 확인해 주세요.");
 
         ErrorResponse response = new ErrorResponse(
-                0,
+                "INVALID_REQUEST",
                 message
         );
 
@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
                 .orElse("입력값을 확인해 주세요.");
 
         ErrorResponse response = new ErrorResponse(
-                0,
+                "INVALID_REQUEST",
                 message
         );
 
@@ -73,7 +73,7 @@ public class GlobalExceptionHandler {
             EmailVerificationException exception
     ) {
         ErrorResponse response = new ErrorResponse(
-                0,
+                "EMAIL_VERIFICATION_FAILED",
                 exception.getMessage()
         );
 
@@ -88,7 +88,7 @@ public class GlobalExceptionHandler {
             LoginFailedException exception
     ) {
         ErrorResponse response = new ErrorResponse(
-                0,
+                "LOGIN_FAILED",
                 exception.getMessage()
         );
 
@@ -103,7 +103,7 @@ public class GlobalExceptionHandler {
             InvalidRefreshTokenException exception
     ) {
         ErrorResponse response = new ErrorResponse(
-                0,
+                "INVALID_REFRESH_TOKEN",
                 exception.getMessage()
         );
 

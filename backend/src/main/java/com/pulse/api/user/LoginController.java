@@ -144,7 +144,7 @@ public class LoginController {
                         .build();
 
         LogoutResponse response = new LogoutResponse(
-                1,
+                "SUCCESS",
                 "로그아웃되었습니다."
         );
 
@@ -171,7 +171,7 @@ public class LoginController {
                 .toList();
 
         MeResponse response = new MeResponse(
-                1,
+                "SUCCESS",
                 email,
                 roles
         );

@@ -9,7 +9,7 @@ import axios, { AxiosError } from 'axios';
 import ApiUrl from './ApiUrl';
 
 interface TokenRefreshResponse {
-    result: number;
+    code: string;
     message: string;
     accessToken: string;
 }

@@ -43,7 +43,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
     ) throws IOException, ServletException {
 
         ErrorResponse errorResponse = new ErrorResponse(
-                0,
+                "UNAUTHORIZED",
                 "로그인이 필요합니다."
         );
 

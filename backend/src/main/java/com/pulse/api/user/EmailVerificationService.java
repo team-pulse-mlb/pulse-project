@@ -79,7 +79,7 @@ public class EmailVerificationService {
         }
 
         return new EmailCodeSendResponse(
-                1,
+                "SUCCESS",
                 "인증번호를 발급했습니다."
         );
     }
@@ -121,6 +121,7 @@ public class EmailVerificationService {
         );
 
         return new EmailCodeVerifyResponse(
+                "SUCCESS",
                 true,
                 "이메일 인증이 완료되었습니다."
         );

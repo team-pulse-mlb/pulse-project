@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from 'react-router';
 
-import Header from '../components/Header';
+import Header from '../../shared/components/Header';
 
 function MainLayout() {
   const location = useLocation();

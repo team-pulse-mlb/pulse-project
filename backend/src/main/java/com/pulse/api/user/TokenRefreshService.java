@@ -124,7 +124,7 @@ public class TokenRefreshService {
         // refreshToken은 JSON에 넣지 않고 Cookie로만 내려보낸다.
         TokenRefreshResponse response =
                 new TokenRefreshResponse(
-                        1,
+                        "SUCCESS",
                         "Access Token을 재발급했습니다.",
                         newAccessToken
                 );

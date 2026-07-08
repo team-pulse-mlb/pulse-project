@@ -1,5 +1,5 @@
 import axios from 'axios';
-import ApiUrl from '../../../axios/ApiUrl';
+import ApiUrl from '../../../shared/api/ApiUrl';
 
 export interface SignupRequest {
     email: string;
@@ -7,11 +7,12 @@ export interface SignupRequest {
 }
 
 export interface SignupResponse {
-    result?: number;
+    code?: string;
     message?: string;
 }
 
 export interface EmailCheckResponse {
+    code: string;
     available: boolean;
     message: string;
 }
@@ -33,7 +34,7 @@ export const checkEmailDuplicate = async (
     email: string
 ): Promise<EmailCheckResponse> => {
     const response = await axios.get<EmailCheckResponse>(
-        `${ApiUrl}/api/members/check-email`,
+        `${ApiUrl}/api/members/email/check`,
         {
             params: {
                 email,
@@ -45,11 +46,12 @@ export const checkEmailDuplicate = async (
 };
 
 export interface EmailCodeSendResponse {
-    result: number;
+    code: string;
     message: string;
 }
 
 export interface EmailCodeVerifyResponse {
+    code: string;
     verified: boolean;
     message: string;
 }
@@ -59,7 +61,7 @@ export const sendEmailCode = async (
     email: string,
 ): Promise<EmailCodeSendResponse> => {
     const response = await axios.post<EmailCodeSendResponse>(
-        `${ApiUrl}/api/members/email-code/send`,
+        `${ApiUrl}/api/members/email/code/send`,
         {
             email,
         },
@@ -74,7 +76,7 @@ export const verifyEmailCode = async (
     code: string,
 ): Promise<EmailCodeVerifyResponse> => {
     const response = await axios.post<EmailCodeVerifyResponse>(
-        `${ApiUrl}/api/members/email-code/verify`,
+        `${ApiUrl}/api/members/email/code/verify`,
         {
             email,
             code,

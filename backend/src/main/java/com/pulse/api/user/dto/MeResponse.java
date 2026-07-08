@@ -3,7 +3,7 @@ package com.pulse.api.user.dto;
 import java.util.List;
 
 public record MeResponse(
-        int result,
+        String code,
         String email,
         List<String> roles
 ) {

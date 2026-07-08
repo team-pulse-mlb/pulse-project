@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 
-import { getMe, logout, refreshAccessToken } from '../features/auth/api/authApi';
-import LoginModal from '../features/auth/components/LoginModal';
+import { getMe, logout, refreshAccessToken } from '../../features/auth/api/authApi';
+import LoginModal from '../../features/auth/components/LoginModal';
 
 
 function Header() {

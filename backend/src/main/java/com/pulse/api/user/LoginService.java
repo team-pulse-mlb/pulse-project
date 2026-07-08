@@ -105,7 +105,7 @@ public class LoginService {
 
             // React에 보낼 JSON 응답
             LoginResponse response = new LoginResponse(
-                    1,
+                    "SUCCESS",
                     "로그인에 성공했습니다.",
                     accessToken
             );

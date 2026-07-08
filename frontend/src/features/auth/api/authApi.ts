@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-import ApiUrl from '../../../axios/ApiUrl';
-import apiClient from '../../../axios/apiClient';
+import ApiUrl from '../../../shared/api/ApiUrl';
+import apiClient from '../../../shared/api/httpClient';
 
 export interface LoginRequest {
     email: string;
@@ -9,13 +9,13 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-    result: number;
+    code: string;
     message: string;
     accessToken: string;
 }
 
 export interface MeResponse {
-    result: number;
+    code: string;
     email: string;
     roles: string[];
 }

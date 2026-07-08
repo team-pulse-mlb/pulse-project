@@ -69,8 +69,8 @@ public class MemberService {
         );
 
         return new SignupResponse(
-                1,
-                "회원가입이 완료되었습니다."
+                "SUCCESS",
+                "회원가입 요청을 정상적으로 받았습니다."
         );
     }
 
@@ -86,12 +86,14 @@ public class MemberService {
 
         if (available) {
             return new EmailCheckResponse(
+                    "SUCCESS",
                     true,
                     "사용 가능한 이메일입니다."
             );
         }
 
         return new EmailCheckResponse(
+                "DUPLICATE_EMAIL",
                 false,
                 "이미 사용 중인 이메일입니다."
         );

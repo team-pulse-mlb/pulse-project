@@ -49,7 +49,7 @@ public class MemberController {
 
 
     // 이메일 인증번호 발급
-    @PostMapping("/email-code/send")
+    @PostMapping("/email/code/send")
     public ResponseEntity<EmailCodeSendResponse> sendEmailCode(
             @Valid @RequestBody EmailCodeSendRequest request
     ) {
@@ -61,7 +61,7 @@ public class MemberController {
 
 
     // 이메일 인증번호 확인
-    @PostMapping("/email-code/verify")
+    @PostMapping("/email/code/verify")
     public ResponseEntity<EmailCodeVerifyResponse> verifyEmailCode(
             @Valid @RequestBody EmailCodeVerifyRequest request
     ) {
@@ -73,7 +73,7 @@ public class MemberController {
 
 
     // 이메일 중복 처리
-    @GetMapping("/check-email")
+    @GetMapping("/email/check")
     public ResponseEntity<EmailCheckResponse> checkEmail(
             @RequestParam
             @NotBlank(message = "이메일을 입력해 주세요.")

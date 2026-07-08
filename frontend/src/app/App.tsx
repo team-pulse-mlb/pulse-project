@@ -1,5 +1,5 @@
-import Header from './components/Header';
-import SignupPage from './pages/SignupPage';
+import Header from '../shared/components/Header';
+import SignupPage from '../features/auth/pages/SignupPage';
 
 
 function App() {
