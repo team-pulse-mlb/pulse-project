@@ -50,8 +50,8 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(data["safeReason"], generated_summary["safe_reason"])
         self.assertEqual(data["notificationText"], generated_summary["notification_text"])
         self.assertEqual(data["tags"], generated_summary["tags"])
-        self.assertEqual(data["violations"], [])
-        self.assertFalse(data["fallbackUsed"])
+        self.assertNotIn("violations", data)
+        self.assertNotIn("fallbackUsed", data)
 
     def test_notification_text_returns_generated_text_with_context_hash(self):
         payload = {
@@ -85,8 +85,8 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(data["contextHash"], self.context_hash)
         self.assertEqual(data["notificationText"], generated_summary["notification_text"])
         self.assertEqual(data["tags"], generated_summary["tags"])
-        self.assertEqual(data["violations"], [])
-        self.assertFalse(data["fallbackUsed"])
+        self.assertNotIn("violations", data)
+        self.assertNotIn("fallbackUsed", data)
 
     def test_replay_summary_returns_generated_text_with_context_hash(self):
         payload = {
@@ -123,8 +123,8 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(data["replayTitle"], payload["segmentLabel"])
         self.assertEqual(data["replaySummary"], generated_summary["safe_reason"])
         self.assertEqual(data["tags"], payload["segmentReasonTags"])
-        self.assertEqual(data["violations"], [])
-        self.assertFalse(data["fallbackUsed"])
+        self.assertNotIn("violations", data)
+        self.assertNotIn("fallbackUsed", data)
 
     def test_spoiler_free_summary_returns_failure_state_when_generated_text_is_unsafe(self):
         payload = {
@@ -156,7 +156,7 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertFalse(data["spoilerSafe"])
         self.assertEqual(data["contextHash"], self.context_hash)
         self.assertIn("FORBIDDEN_WORD:홈런", data["violations"])
-        self.assertFalse(data["fallbackUsed"])
+        self.assertNotIn("fallbackUsed", data)
         self.assertNotIn("safeTitle", data)
         self.assertNotIn("safeReason", data)
         self.assertNotIn("notificationText", data)
@@ -193,7 +193,7 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertFalse(data["spoilerSafe"])
         self.assertEqual(data["contextHash"], self.context_hash)
         self.assertIn("FORBIDDEN_WORD:홈런", data["violations"])
-        self.assertFalse(data["fallbackUsed"])
+        self.assertNotIn("fallbackUsed", data)
         self.assertNotIn("notificationText", data)
         self.assertNotIn("tags", data)
 
@@ -230,7 +230,7 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertFalse(data["spoilerSafe"])
         self.assertEqual(data["contextHash"], self.context_hash)
         self.assertIn("FORBIDDEN_WORD:끝내기", data["violations"])
-        self.assertFalse(data["fallbackUsed"])
+        self.assertNotIn("fallbackUsed", data)
         self.assertNotIn("replayTitle", data)
         self.assertNotIn("replaySummary", data)
         self.assertNotIn("tags", data)
