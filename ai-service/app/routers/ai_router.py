@@ -80,6 +80,7 @@ def _build_failed_replay_response(
     "/spoiler-free-summary",
     response_model=SpoilerFreeSummaryResponse,
     response_model_exclude_none=True,
+    response_model_exclude_defaults=True,
 )
 def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
     generated_summary = generate_spoiler_free_summary(request)
@@ -114,6 +115,7 @@ def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
     "/notification-text",
     response_model=NotificationTextResponse,
     response_model_exclude_none=True,
+    response_model_exclude_defaults=True,
 )
 def notification_text(request: NotificationTextRequest):
     """
@@ -145,6 +147,7 @@ def notification_text(request: NotificationTextRequest):
     "/replay-summary",
     response_model=ReplaySummaryResponse,
     response_model_exclude_none=True,
+    response_model_exclude_defaults=True,
 )
 def replay_summary(request: ReplaySummaryRequest):
     """
