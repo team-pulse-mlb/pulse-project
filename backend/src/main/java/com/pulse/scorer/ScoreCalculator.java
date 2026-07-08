@@ -45,7 +45,7 @@ public class ScoreCalculator {
         signals.put("lead_change", leadChange(recentPlays));
         signals.put("big_inning", bigInning(game, recentPlays));
         signals.put("pressure", pressure(situation));
-        signals.put("count_pressure", countPressure(recentPlays));
+        signals.put("count_pressure", countPressure(situation));
         signals.put("early_slugfest", earlySlugfest(game));
 
         double baseScore = signals.values().stream().mapToDouble(Double::doubleValue).sum();
@@ -167,16 +167,15 @@ public class ScoreCalculator {
         return scoringPlays >= props.bigInning().minScoringPlays() ? props.bigInning().bonus() : 0;
     }
 
-    private double countPressure(List<Play> recentPlays) {
-        Play latest = latestPitchPlay(recentPlays);
-        if (latest == null) {
+    private double countPressure(ScoreTask.Situation situation) {
+        if (situation == null) {
             return 0;
         }
         double score = 0;
-        if (Integer.valueOf(3).equals(latest.getBalls()) && Integer.valueOf(2).equals(latest.getStrikes())) {
+        if (Integer.valueOf(3).equals(situation.balls()) && Integer.valueOf(2).equals(situation.strikes())) {
             score += props.countPressure().fullCount();
         }
-        if (Integer.valueOf(2).equals(latest.getOuts())) {
+        if (Integer.valueOf(2).equals(situation.outs())) {
             score += props.countPressure().twoOuts();
         }
         return Math.min(score, props.countPressure().max());
@@ -196,15 +195,4 @@ public class ScoreCalculator {
         return Math.abs(home - away);
     }
 
-    private Play latestPitchPlay(List<Play> recentPlays) {
-        for (int i = recentPlays.size() - 1; i >= 0; i--) {
-            Play play = recentPlays.get(i);
-            String type = play.getType();
-            if (type != null && (type.startsWith("Start") || type.startsWith("End"))) {
-                continue;
-            }
-            return play;
-        }
-        return null;
-    }
 }
