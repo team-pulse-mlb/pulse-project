@@ -3,6 +3,7 @@ package com.pulse.common.client;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -149,6 +150,10 @@ public final class BdlDtos {
             }
             return player == null ? null : player.id();
         }
+    }
+
+    /** /plate_appearances 원본 응답과 파싱 결과. 원본은 S3 아카이브 유지용이다. */
+    public record PlateAppearancesRaw(JsonNode response, List<BdlPlateAppearance> data) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

@@ -17,8 +17,12 @@ public record PollerProperties(
         Duration lineupsFarInterval,
         Duration lineupsNearInterval,
         Duration oddsInterval,
-        int standingsBatchHourUtc
+        int standingsBatchHourUtc,
+        PaArchive paArchive
 ) {
+
+    public record PaArchive(String bucket, String region) {
+    }
 
     public PollerProperties {
         tickInterval = tickInterval == null ? Duration.ofSeconds(20) : tickInterval;
@@ -33,5 +37,6 @@ public record PollerProperties(
         lineupsNearInterval = lineupsNearInterval == null ? Duration.ofMinutes(15) : lineupsNearInterval;
         oddsInterval = oddsInterval == null ? Duration.ofMinutes(30) : oddsInterval;
         standingsBatchHourUtc = standingsBatchHourUtc <= 0 ? 10 : standingsBatchHourUtc;
+        paArchive = paArchive == null ? new PaArchive(null, null) : paArchive;
     }
 }

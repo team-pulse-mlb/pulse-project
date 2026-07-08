@@ -145,7 +145,8 @@ class PregamePollerTest {
                 Duration.ofHours(1),
                 Duration.ofMinutes(15),
                 Duration.ofMinutes(30),
-                10
+                10,
+                new PollerProperties.PaArchive(null, null)
         );
     }
 

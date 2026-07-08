@@ -48,6 +48,9 @@ pulse:
     lineups-near-interval: ${PULSE_POLLER_LINEUPS_NEAR_INTERVAL:15m}
     odds-interval: ${PULSE_POLLER_ODDS_INTERVAL:30m}
     standings-batch-hour-utc: ${PULSE_POLLER_STANDINGS_BATCH_HOUR_UTC:10}
+    pa-archive:
+      bucket: ${PULSE_POLLER_PA_ARCHIVE_BUCKET:${PULSE_REPLAY_S3_BUCKET:}}
+      region: ${AWS_REGION:ap-northeast-2}
 
 server:
   port: 8080

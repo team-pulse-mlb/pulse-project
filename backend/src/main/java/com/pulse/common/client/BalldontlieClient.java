@@ -7,7 +7,11 @@ import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
 import com.pulse.common.client.BdlDtos.BdlPlayerSeasonStat;
 import com.pulse.common.client.BdlDtos.BdlStanding;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pulse.common.client.BdlDtos.ListResponse;
+import com.pulse.common.client.BdlDtos.PlateAppearancesRaw;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.core.ParameterizedTypeReference;
@@ -24,12 +28,14 @@ public class BalldontlieClient {
     private static final int PER_PAGE = 100;
 
     private final RestClient restClient;
+    private final ObjectMapper objectMapper;
 
-    public BalldontlieClient(BdlProperties props) {
+    public BalldontlieClient(BdlProperties props, ObjectMapper objectMapper) {
         this.restClient = RestClient.builder()
                 .baseUrl(props.baseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.apiKey())
                 .build();
+        this.objectMapper = objectMapper;
     }
 
     /** 특정 날짜의 경기 목록 */
@@ -126,14 +132,29 @@ public class BalldontlieClient {
 
     /** 경기의 plate appearance 전체 목록. 이 endpoint는 증분 cursor가 없다. */
     public List<BdlPlateAppearance> getPlateAppearances(long gameId) {
-        ListResponse<BdlPlateAppearance> response = restClient.get()
+        return getPlateAppearancesRaw(gameId).data();
+    }
+
+    /**
+     * 경기의 plate appearance 원본 응답과 파싱 결과.
+     * 원본은 S3 아카이브 유지(B-7)에 쓰고, 파싱 결과는 runner 상태 매칭에 쓴다.
+     */
+    public PlateAppearancesRaw getPlateAppearancesRaw(long gameId) {
+        JsonNode response = restClient.get()
                 .uri(uri -> uri.path("/mlb/v1/plate_appearances")
                         .queryParam("game_id", gameId)
                         .queryParam("per_page", PER_PAGE)
                         .build())
                 .retrieve()
-                .body(new ParameterizedTypeReference<>() {
-                });
-        return response == null || response.data() == null ? List.of() : response.data();
+                .body(JsonNode.class);
+        if (response == null) {
+            return new PlateAppearancesRaw(null, List.of());
+        }
+        JsonNode data = response.path("data");
+        List<BdlPlateAppearance> parsed = data.isArray()
+                ? objectMapper.convertValue(data, new TypeReference<List<BdlPlateAppearance>>() {
+                })
+                : List.<BdlPlateAppearance>of();
+        return new PlateAppearancesRaw(response, parsed);
     }
 }

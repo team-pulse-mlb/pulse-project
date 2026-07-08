@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.client.BalldontlieClient;
+import com.pulse.common.client.BdlDtos;
 import com.pulse.common.client.BdlDtos.BdlGame;
 import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
@@ -35,6 +36,7 @@ class OperationalPollerTest {
     private final PollerGameWriter gameWriter = mock(PollerGameWriter.class);
     private final ScoreTaskPublisher scoreTaskPublisher = mock(ScoreTaskPublisher.class);
     private final NotificationEventPublisher notificationEventPublisher = mock(NotificationEventPublisher.class);
+    private final PaRawArchiveUploader paRawArchiveUploader = mock(PaRawArchiveUploader.class);
     private final Instant now = Instant.parse("2026-07-08T00:00:00Z");
     private final OperationalPoller poller = new OperationalPoller(
             balldontlieClient,
@@ -46,6 +48,7 @@ class OperationalPollerTest {
             notificationEventPublisher,
             properties(),
             new PollerRateLimiter(1000, Clock.fixed(now, ZoneOffset.UTC)),
+            paRawArchiveUploader,
             Clock.fixed(now, ZoneOffset.UTC)
     );
 
@@ -66,8 +69,8 @@ class OperationalPollerTest {
         when(balldontlieClient.getPlays(100L, 1L))
                 .thenReturn(new ListResponse<>(List.of(fetchedPlay), new ListResponse.Meta(null, 100)));
         when(gameWriter.appendPlay(liveGame, fetchedPlay, now)).thenReturn(true);
-        when(balldontlieClient.getPlateAppearances(100L))
-                .thenReturn(List.of(plateAppearance(1L, 10L)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of(plateAppearance(1L, 10L))));
         when(gameWriter.updateRunnerStates(eq(100L), any()))
                 .thenReturn(new PollerRunnerStateMatcher.MatchResult(List.of(), 0, 0));
         when(playRepository.findByGameIdOrderByPlayOrderDesc(100L, org.springframework.data.domain.PageRequest.of(0, 1)))
@@ -118,7 +121,8 @@ class OperationalPollerTest {
                 Duration.ofHours(1),
                 Duration.ofMinutes(15),
                 Duration.ofMinutes(30),
-                10
+                10,
+                new PollerProperties.PaArchive(null, null)
         );
     }
 
