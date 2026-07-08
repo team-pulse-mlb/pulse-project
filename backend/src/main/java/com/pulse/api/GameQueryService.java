@@ -48,7 +48,6 @@ public class GameQueryService {
                     team(game.getHomeTeamId(), game.getHomeTeamName(), game.getHomeTeamAbbr()),
                     team(game.getAwayTeamId(), game.getAwayTeamName(), game.getAwayTeamAbbr()),
                     score(game),
-                    scoreSummary(latestScore),
                     recentPlays.stream()
                             .map(GameQueryService::revealedPlayResponse)
                             .toList(),
@@ -137,19 +136,7 @@ public class GameQueryService {
         return new ScoreResponse(game.getHomeRuns(), game.getAwayRuns());
     }
 
-    private static ScoreSummaryResponse scoreSummary(WatchScore latestScore) {
-        if (latestScore == null) {
-            return null;
-        }
-        return new ScoreSummaryResponse(
-                numericScore(latestScore.getBaseScore()),
-                numericScore(latestScore.getWatchScore()),
-                latestScore.getSignalContributions(),
-                latestScore.getTags(),
-                null,
-                latestScore.getComputedAt()
-        );
-    }
+
 
     private static ProtectedSummaryResponse protectedSummary(WatchScore latestScore) {
         // 아직 추천 점수가 계산되지 않은 경기일 수 있으므로 null을 허용한다.
@@ -164,9 +151,7 @@ public class GameQueryService {
         );
     }
 
-    private static double numericScore(Integer score) {
-        return score == null ? 0.0 : score.doubleValue();
-    }
+
 
     /**
      * watch_scores 전체 이력을 경기 상세 화면의 누적 변동 블록으로 변환한다.
@@ -422,16 +407,12 @@ public class GameQueryService {
             // 공개 모드에서만 점수를 제공한다.
             ScoreResponse score,
 
-            // 공개 모드에서는 내부 추천 점수와 signal도 확인할 수 있다.
-            ScoreSummaryResponse scoreSummary,
-
             // 공개 모드용 play 목록이다.
             // play text, 점수 변화, 득점 여부를 포함한다.
             List<RevealedPlayResponse> recentPlays,
 
             // 공개 모드에서도 상세 화면의 변동 블록을 함께 내려준다.
-            // 1차 구현에서는 protected와 동일한 spoiler-safe 블록을 사용하고,
-            // 점수·play text 같은 공개 전용 정보는 기존 recentPlays와 scoreSummary가 담당한다.
+            // 이 블록은 protected와 동일하게 spoiler-safe 태그와 문구만 포함한다.
             List<LiveUpdateBlockResponse> liveUpdateBlocks,
 
             DisplayMode displayMode
@@ -496,17 +477,6 @@ public class GameQueryService {
 
     public record ScoreResponse(Integer home, Integer away) {
     }
-
-    public record ScoreSummaryResponse(
-            double baseScore,
-            double watchScore,
-            Map<String, Double> signals,
-            List<String> reasonTags,
-            Integer configVersion,
-            Instant calculatedAt
-    ) {
-    }
-
 
     public record SpoilerSafePlayResponse(
             String type,

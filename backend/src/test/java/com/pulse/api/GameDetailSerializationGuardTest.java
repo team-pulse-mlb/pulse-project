@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -137,14 +136,6 @@ class GameDetailSerializationGuardTest {
                 new TeamResponse(1L, "Home Team", "HOM"),
                 new TeamResponse(2L, "Away Team", "AWY"),
                 new ScoreResponse(3, 2),
-                new ScoreSummaryResponse(
-                        45.0,
-                        72.0,
-                        Map.of("late_or_extra", 20.0, "score_gap", 25.0),
-                        List.of("후반 긴장 구간", "접전 흐름"),
-                        1,
-                        Instant.parse("2026-07-02T00:01:00Z")
-                ),
                 List.of(
                         new RevealedPlayResponse(
                                 10L,
@@ -187,11 +178,15 @@ class GameDetailSerializationGuardTest {
         // then
         assertThat(json.get("displayMode").asText()).isEqualTo("REVEALED");
 
-        // 공개 모드 최상위 응답에는 팀명, 점수, 점수 요약이 포함되어야 한다.
+        // 공개 모드 최상위 응답에는 팀명과 실제 경기 점수는 포함된다.
         assertThat(json.has("homeTeam")).isTrue();
         assertThat(json.has("awayTeam")).isTrue();
         assertThat(json.has("score")).isTrue();
-        assertThat(json.has("scoreSummary")).isTrue();
+        assertThat(json.has("scoreSummary")).isFalse();
+        assertThat(json.has("watchScore")).isFalse();
+        assertThat(json.has("baseScore")).isFalse();
+        assertThat(json.has("signals")).isFalse();
+        assertThat(json.has("signalContributions")).isFalse();
 
         // 공개 모드 play 응답에는 결과 설명과 점수 변화 정보가 포함되어야 한다.
         assertThat(play.has("text")).isTrue();
@@ -207,6 +202,6 @@ class GameDetailSerializationGuardTest {
         assertThat(liveUpdateBlock.has("title")).isTrue();
         assertThat(liveUpdateBlock.has("description")).isTrue();
         assertThat(liveUpdateBlock.has("tags")).isTrue();
-        assertThat(liveUpdateBlock.has("intensity")).isTrue();
+        assertThat(liveUpdateBlock.has("intensity")).isFalse();
     }
 }
