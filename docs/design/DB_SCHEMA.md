@@ -226,14 +226,15 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
-| `id` | `BIGSERIAL` | PK | **PK** |
+| `refresh_token_id` | `BIGSERIAL` | PK | **PK** |
 | `user_id` | `BIGINT` | 사용자 | FK → `users.user_id` |
 | `token_hash` | `TEXT` | 토큰 해시 | 원문 저장 금지 · UNIQUE |
+| `status` | `TEXT` | 토큰 상태(`ACTIVE`/`REVOKED`/`REUSED`) | 기본 `ACTIVE` |
 | `expires_at` | `TIMESTAMPTZ` | 만료 시각 | |
 | `revoked_at` | `TIMESTAMPTZ` | 폐기 시각 | 회전·로그아웃 시 기록, nullable |
 | `created_at` · `last_used_at` | `TIMESTAMPTZ` | 생성/최근 사용 | |
 
-**키·인덱스** — PK `id` · UNIQUE(`token_hash`) · idx(`user_id`)
+**키·인덱스** — PK `refresh_token_id` · UNIQUE(`token_hash`) · idx(`user_id`)
 
 ### B-3. `user_preferences` — 사용자 설정
 

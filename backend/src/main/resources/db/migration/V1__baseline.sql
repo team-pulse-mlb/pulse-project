@@ -36,9 +36,13 @@ CREATE INDEX idx_players_team_id ON players (team_id);
 CREATE INDEX idx_players_full_name ON players (full_name);
 
 CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    email TEXT,
-    password_hash TEXT,
+    user_id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'USER',
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    last_login_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ,
     CONSTRAINT uk_users_email UNIQUE (email)
@@ -161,15 +165,16 @@ CREATE TABLE replay_segments (
 CREATE INDEX idx_replay_segments_game_peak_score ON replay_segments (game_id, peak_score DESC);
 
 CREATE TABLE refresh_tokens (
-    id BIGSERIAL PRIMARY KEY,
+    refresh_token_id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    token_hash TEXT,
-    expires_at TIMESTAMPTZ,
+    token_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    expires_at TIMESTAMPTZ NOT NULL,
     revoked_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL,
     last_used_at TIMESTAMPTZ,
     CONSTRAINT uk_refresh_tokens_token_hash UNIQUE (token_hash),
-    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id)
+    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (user_id)
 );
 
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens (user_id);
@@ -185,7 +190,7 @@ CREATE TABLE user_preferences (
     show_finished_games BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ,
-    CONSTRAINT fk_user_preferences_user FOREIGN KEY (user_id) REFERENCES users (id)
+    CONSTRAINT fk_user_preferences_user FOREIGN KEY (user_id) REFERENCES users (user_id)
 );
 
 CREATE INDEX idx_user_preferences_favorite_team_ids ON user_preferences USING GIN (favorite_team_ids);
@@ -211,7 +216,7 @@ CREATE TABLE user_notifications (
     created_at TIMESTAMPTZ,
     CONSTRAINT uk_user_notifications_event_user UNIQUE (event_id, user_id),
     CONSTRAINT fk_user_notifications_event FOREIGN KEY (event_id) REFERENCES notification_events (event_id),
-    CONSTRAINT fk_user_notifications_user FOREIGN KEY (user_id) REFERENCES users (id)
+    CONSTRAINT fk_user_notifications_user FOREIGN KEY (user_id) REFERENCES users (user_id)
 );
 
 CREATE INDEX idx_user_notifications_user_created_at ON user_notifications (user_id, created_at DESC);
