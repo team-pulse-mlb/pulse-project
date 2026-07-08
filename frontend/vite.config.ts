@@ -4,7 +4,6 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-<<<<<<< HEAD
 
   server: {
     proxy: {
@@ -22,6 +21,3 @@ export default defineConfig({
     },
   },
 })
-=======
-})
->>>>>>> 119fe23499f2f79752f1a000ce522435b731b4ba
