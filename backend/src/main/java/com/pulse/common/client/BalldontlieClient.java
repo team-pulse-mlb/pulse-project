@@ -1,6 +1,7 @@
 package com.pulse.common.client;
 
 import com.pulse.common.client.BdlDtos.BdlGame;
+import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
 import com.pulse.common.client.BdlDtos.ListResponse;
 import java.time.LocalDate;
@@ -58,5 +59,18 @@ public class BalldontlieClient {
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {
                 });
+    }
+
+    /** 경기의 plate appearance 전체 목록. 이 endpoint는 증분 cursor가 없다. */
+    public List<BdlPlateAppearance> getPlateAppearances(long gameId) {
+        ListResponse<BdlPlateAppearance> response = restClient.get()
+                .uri(uri -> uri.path("/mlb/v1/plate_appearances")
+                        .queryParam("game_id", gameId)
+                        .queryParam("per_page", PER_PAGE)
+                        .build())
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {
+                });
+        return response == null || response.data() == null ? List.of() : response.data();
     }
 }

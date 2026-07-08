@@ -57,7 +57,23 @@ public final class BdlDtos {
             @JsonProperty("score_value") Integer scoreValue,
             Integer outs,
             Integer balls,
-            Integer strikes
+            Integer strikes,
+            @JsonProperty("batter_id") Long batterId,
+            @JsonProperty("pitcher_id") Long pitcherId
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlPlateAppearance(
+            @JsonProperty("pa_number") Long paNumber,
+            @JsonProperty("game_id") Long gameId,
+            Integer inning,
+            @JsonProperty("half_inning") String halfInning,
+            @JsonProperty("batter_id") Long batterId,
+            @JsonProperty("pitcher_id") Long pitcherId,
+            @JsonProperty("runner_on_first") Boolean runnerOnFirst,
+            @JsonProperty("runner_on_second") Boolean runnerOnSecond,
+            @JsonProperty("runner_on_third") Boolean runnerOnThird
     ) {
     }
 }

@@ -25,15 +25,20 @@ public class Game {
     public static final String STATUS_SCHEDULED = "STATUS_SCHEDULED";
     public static final String STATUS_IN_PROGRESS = "STATUS_IN_PROGRESS";
     public static final String STATUS_FINAL = "STATUS_FINAL";
+    public static final String STATUS_POSTPONED = "STATUS_POSTPONED";
+    public static final String STATUS_CANCELED = "STATUS_CANCELED";
 
     /** balldontlie 경기 id를 그대로 PK로 사용한다. */
     @Id
+    @Column(name = "game_id")
     private Long id;
 
     private Instant startTime;
 
     @Column(nullable = false)
     private String status;
+
+    private String lifecycleState;
 
     /** 현재 이닝 */
     private Integer period;
@@ -54,10 +59,16 @@ public class Game {
     @JdbcTypeCode(SqlTypes.JSON)
     private List<Integer> awayInningScores;
 
-    /** /plays 증분 수집용 커서 (마지막 응답의 next_cursor) */
-    private Long playsCursor;
+    /** /plays 증분 수집용 마지막 play order */
+    private Long lastPlayOrder;
+
+    private Instant lastPolledAt;
+
+    private Instant observedAt;
 
     private Instant updatedAt;
+
+    private Instant createdAt;
 
     @Column(name = "source")
     private String source;
