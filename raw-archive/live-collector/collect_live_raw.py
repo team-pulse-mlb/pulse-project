@@ -18,8 +18,10 @@ plays/plate_appearances에는 실제 관측 시각이 없으므로, 나중에 �
   POLL_PA           "false"면 plate_appearances 수집 생략
   SUBPOLL_INTERVAL  라이브 서브 폴링 간격(초)
   PA_ROUND_STRIDE   PA 수집 라운드 간격
+  LIVE_GAME_WORKERS 경기별 라이브 호출 병렬 워커 수
 """
 
+import concurrent.futures
 import gzip
 import hashlib
 import json
@@ -34,6 +36,7 @@ import boto3
 
 BASE_URL = "https://api.balldontlie.io/mlb/v1"
 MAX_PAGES = 20          # 커서 페이지 무한 루프 방지
+DEFAULT_LIVE_GAME_WORKERS = 8
 SUSPEND_AFTER_S = 600   # 10분 동안 새 play가 없으면 중단 상태로 본다
 SUSPENDED_POLL_S = 300  # 중단 상태의 plays 재확인 간격
 LINEUP_WINDOW_H = 36    # 경기 36시간 전부터 라인업을 확인한다
@@ -97,6 +100,16 @@ def dedupe_save(bucket, state, saved, hash_key, s3_key, observed_at, endpoint, p
         saved.append(hash_key)
 
 
+def run_game_tasks(items, max_workers, task):
+    if not items:
+        return []
+    workers = max(1, min(max_workers, len(items)))
+    if workers == 1:
+        return [task(item) for item in items]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        return list(executor.map(task, items))
+
+
 def classify_status(status):
     """알 수 없는 상태는 진행 중으로 보고 원본 수집을 놓치지 않는다."""
     s = (status or "").strip().upper()
@@ -134,43 +147,82 @@ def poll_games(bucket, state, saved):
     return games, live
 
 
-def poll_plays(bucket, state, saved, live_games):
+def build_play_poll_request(g, state, now, observed_at, dt, ts):
+    gid = str(g["id"])
+    suspended_poll_at = None
+    last_new = state["last_play_at"].get(gid)
+    if last_new and (now - datetime.fromisoformat(last_new)).total_seconds() > SUSPEND_AFTER_S:
+        last_poll = state["suspended_poll_at"].get(gid)
+        if last_poll and (now - datetime.fromisoformat(last_poll)).total_seconds() < SUSPENDED_POLL_S:
+            return {"gid": gid, "skip": True, "observed_at": observed_at}
+        suspended_poll_at = observed_at
+
+    return {
+        "gid": gid,
+        "skip": False,
+        "cursor": state["plays_cursor"].get(gid),
+        "observed_at": observed_at,
+        "dt": dt,
+        "ts": ts,
+        "suspended_poll_at": suspended_poll_at,
+    }
+
+
+def collect_plays_for_game(bucket, request):
+    gid = request["gid"]
+    result = {
+        "gid": gid,
+        "saved": [],
+        "got_new": False,
+        "cursor": None,
+        "observed_at": request["observed_at"],
+        "suspended_poll_at": request.get("suspended_poll_at"),
+    }
+    if request["skip"]:
+        return result
+
+    cursor = request["cursor"]
+    for _ in range(MAX_PAGES):
+        params = {"game_id": gid, "per_page": 100}
+        if cursor is not None:
+            params["cursor"] = cursor
+        try:
+            resp = api_get("/plays", params)
+        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+            print(f"plays 조회 실패(game_id={gid}): {e}")
+            break
+        if resp.get("data"):
+            key = f"raw/plays/game_id={gid}/plays_{request['dt']}_{request['ts']}Z_c{cursor or 0}.json.gz"
+            save_raw(bucket, key, request["observed_at"], "/plays", params, resp)
+            result["saved"].append(f"plays:{gid}")
+            result["got_new"] = True
+        next_cursor = resp.get("meta", {}).get("next_cursor")
+        if next_cursor is None or next_cursor == cursor:
+            break
+        cursor = next_cursor
+    result["cursor"] = cursor
+    return result
+
+
+def apply_play_poll_result(state, saved, result):
+    gid = result["gid"]
+    if result["suspended_poll_at"]:
+        state["suspended_poll_at"][gid] = result["suspended_poll_at"]
+    if result["cursor"] is not None:
+        state["plays_cursor"][gid] = result["cursor"]
+    if result["got_new"] or gid not in state["last_play_at"]:
+        state["last_play_at"][gid] = result["observed_at"]
+        state["suspended_poll_at"].pop(gid, None)
+    saved.extend(result["saved"])
+
+
+def poll_plays(bucket, state, saved, live_games, max_workers=DEFAULT_LIVE_GAME_WORKERS):
     """진행 중 경기의 새 play만 커서로 증분 수집한다."""
     now, observed_at, dt, ts = now_parts()
-    for g in live_games:
-        gid = str(g["id"])
-        last_new = state["last_play_at"].get(gid)
-        if last_new and (now - datetime.fromisoformat(last_new)).total_seconds() > SUSPEND_AFTER_S:
-            last_poll = state["suspended_poll_at"].get(gid)
-            if last_poll and (now - datetime.fromisoformat(last_poll)).total_seconds() < SUSPENDED_POLL_S:
-                continue
-            state["suspended_poll_at"][gid] = observed_at
-
-        cursor = state["plays_cursor"].get(gid)
-        got_new = False
-        for _ in range(MAX_PAGES):
-            params = {"game_id": gid, "per_page": 100}
-            if cursor is not None:
-                params["cursor"] = cursor
-            try:
-                resp = api_get("/plays", params)
-            except (urllib.error.URLError, urllib.error.HTTPError) as e:
-                print(f"plays 조회 실패(game_id={gid}): {e}")
-                break
-            if resp.get("data"):
-                key = f"raw/plays/game_id={gid}/plays_{dt}_{ts}Z_c{cursor or 0}.json.gz"
-                save_raw(bucket, key, observed_at, "/plays", params, resp)
-                saved.append(f"plays:{gid}")
-                got_new = True
-            next_cursor = resp.get("meta", {}).get("next_cursor")
-            if next_cursor is None or next_cursor == cursor:
-                break
-            cursor = next_cursor
-        if cursor is not None:
-            state["plays_cursor"][gid] = cursor
-        if got_new or gid not in state["last_play_at"]:
-            state["last_play_at"][gid] = observed_at
-            state["suspended_poll_at"].pop(gid, None)
+    requests = [build_play_poll_request(g, state, now, observed_at, dt, ts) for g in live_games]
+    results = run_game_tasks(requests, max_workers, lambda request: collect_plays_for_game(bucket, request))
+    for result in results:
+        apply_play_poll_result(state, saved, result)
 
 
 def poll_odds(bucket, state, saved):
@@ -206,19 +258,47 @@ def poll_lineups(bucket, state, saved, games):
         print(f"lineups 조회 실패: {e}")
 
 
-def poll_plate_appearances(bucket, state, saved, live_games):
+def build_plate_appearance_request(g, state, observed_at, dt, ts):
+    gid = str(g["id"])
+    hash_key = f"pa:{gid}"
+    return {
+        "gid": gid,
+        "hash_key": hash_key,
+        "previous_hash": state["hashes"].get(hash_key),
+        "observed_at": observed_at,
+        "dt": dt,
+        "ts": ts,
+    }
+
+
+def collect_plate_appearance_for_game(bucket, request):
+    gid = request["gid"]
+    try:
+        params = {"game_id": gid, "per_page": 100}
+        resp = api_get("/plate_appearances", params)
+        h = body_hash(resp)
+        if request["previous_hash"] != h:
+            save_raw(bucket,
+                     f"raw/plate_appearances/game_id={gid}/pa_{request['dt']}_{request['ts']}Z.json.gz",
+                     request["observed_at"], "/plate_appearances", params, resp)
+            return {"hash_key": request["hash_key"], "hash": h, "saved": True}
+        return {"hash_key": request["hash_key"], "hash": h, "saved": False}
+    except (urllib.error.URLError, urllib.error.HTTPError) as e:
+        print(f"plate_appearances 조회 실패(game_id={gid}): {e}")
+        return {"hash_key": request["hash_key"], "hash": None, "saved": False}
+
+
+def poll_plate_appearances(bucket, state, saved, live_games, max_workers=DEFAULT_LIVE_GAME_WORKERS):
     """진행 중 경기의 plate_appearances를 전체 재조회 후 중복 제거한다."""
     _, observed_at, dt, ts = now_parts()
-    for g in live_games:
-        gid = str(g["id"])
-        try:
-            params = {"game_id": gid, "per_page": 100}
-            resp = api_get("/plate_appearances", params)
-            dedupe_save(bucket, state, saved, f"pa:{gid}",
-                        f"raw/plate_appearances/game_id={gid}/pa_{dt}_{ts}Z.json.gz",
-                        observed_at, "/plate_appearances", params, resp)
-        except (urllib.error.URLError, urllib.error.HTTPError) as e:
-            print(f"plate_appearances 조회 실패(game_id={gid}): {e}")
+    requests = [build_plate_appearance_request(g, state, observed_at, dt, ts) for g in live_games]
+    results = run_game_tasks(requests, max_workers,
+                             lambda request: collect_plate_appearance_for_game(bucket, request))
+    for result in results:
+        if result["hash"] is not None:
+            state["hashes"][result["hash_key"]] = result["hash"]
+        if result["saved"]:
+            saved.append(result["hash_key"])
 
 
 def backfill_finished(bucket, state, saved, games):
@@ -310,8 +390,9 @@ def prune_state(state, games):
 def handler(event, context):
     bucket = os.environ["BUCKET"]
     poll_pa = os.environ.get("POLL_PA", "true").lower() != "false"
-    subpoll_interval = int(os.environ.get("SUBPOLL_INTERVAL", "15"))
+    subpoll_interval = int(os.environ.get("SUBPOLL_INTERVAL", "10"))
     pa_round_stride = max(1, int(os.environ.get("PA_ROUND_STRIDE", "1")))
+    live_game_workers = max(1, int(os.environ.get("LIVE_GAME_WORKERS", str(DEFAULT_LIVE_GAME_WORKERS))))
 
     state = load_state(bucket)
     for key in ("hashes", "plays_cursor", "last_play_at", "suspended_poll_at", "backfilled"):
@@ -322,9 +403,9 @@ def handler(event, context):
     games, live_games = poll_games(bucket, state, saved)
     poll_odds(bucket, state, saved)
     poll_lineups(bucket, state, saved, games)
-    poll_plays(bucket, state, saved, live_games)
+    poll_plays(bucket, state, saved, live_games, live_game_workers)
     if poll_pa:
-        poll_plate_appearances(bucket, state, saved, live_games)
+        poll_plate_appearances(bucket, state, saved, live_games, live_game_workers)
     backfill_finished(bucket, state, saved, games)
     daily_batch(bucket, state, saved)
 
@@ -335,10 +416,10 @@ def handler(event, context):
         while live_games and context.get_remaining_time_in_millis() > (subpoll_interval + 15) * 1000:
             time.sleep(subpoll_interval)
             games, live_games = poll_games(bucket, state, saved)
-            poll_plays(bucket, state, saved, live_games)
+            poll_plays(bucket, state, saved, live_games, live_game_workers)
             rounds += 1
             if poll_pa and rounds % pa_round_stride == 0:
-                poll_plate_appearances(bucket, state, saved, live_games)
+                poll_plate_appearances(bucket, state, saved, live_games, live_game_workers)
 
     prune_state(state, games)
     save_state(bucket, state)
