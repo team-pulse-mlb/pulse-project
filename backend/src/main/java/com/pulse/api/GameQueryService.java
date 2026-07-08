@@ -38,7 +38,7 @@ public class GameQueryService {
         boolean revealed = safeMode == DisplayMode.REVEALED || safeMode == DisplayMode.NORMAL;
 
         if (revealed) {
-            // 공개 모드는 사용자가 직접 스포일러 공개를 선택한 경우
+            // 공개 모드는 사용자가 직접 스포일러 공개를 선택한 경우다.
             // 따라서 팀명, 점수, play text, 득점 관련 필드를 포함한다.
             return new RevealedGameDetailResponse(
                     game.getId(),
@@ -94,7 +94,7 @@ public class GameQueryService {
         Game game = findGame(gameId);
         WatchScore latestScore = latestScore(gameId);
         List<Play> recentPlays = recentPlays(gameId, LLM_RECENT_PLAY_COUNT);
-        Map<String, Double> signals = latestScore == null ? Map.of() : latestScore.getSignals();
+        Map<String, Double> signals = latestScore == null ? Map.of() : latestScore.getSignalContributions();
 
         return new SpoilerFreeLlmContextResponse(
                 game.getId(),
@@ -106,7 +106,7 @@ public class GameQueryService {
                         team(game.getHomeTeamId(), game.getHomeTeamName(), game.getHomeTeamAbbr()),
                         team(game.getAwayTeamId(), game.getAwayTeamName(), game.getAwayTeamAbbr())
                 ),
-                latestScore == null ? List.of() : latestScore.getReasonTags(),
+                latestScore == null || latestScore.getTags() == null ? List.of() : latestScore.getTags(),
                 positiveSignalKeys(signals),
                 recentPlays.stream()
                         .map(GameQueryService::spoilerSafePlay)
@@ -120,7 +120,7 @@ public class GameQueryService {
     }
 
     private WatchScore latestScore(long gameId) {
-        return watchScoreRepository.findTopByGameIdOrderByCreatedAtDesc(gameId).orElse(null);
+        return watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(gameId).orElse(null);
     }
 
     private List<Play> recentPlays(long gameId, int count) {
@@ -142,12 +142,12 @@ public class GameQueryService {
             return null;
         }
         return new ScoreSummaryResponse(
-                latestScore.getBaseScore(),
-                latestScore.getWatchScore(),
-                latestScore.getSignals(),
-                latestScore.getReasonTags(),
-                latestScore.getConfigVersion(),
-                latestScore.getCreatedAt()
+                numericScore(latestScore.getBaseScore()),
+                numericScore(latestScore.getWatchScore()),
+                latestScore.getSignalContributions(),
+                latestScore.getTags(),
+                null,
+                latestScore.getComputedAt()
         );
     }
 
@@ -160,8 +160,12 @@ public class GameQueryService {
         }
 
         return new ProtectedSummaryResponse(
-                latestScore.getReasonTags() == null ? List.of() : latestScore.getReasonTags()
+                latestScore.getTags() == null ? List.of() : latestScore.getTags()
         );
+    }
+
+    private static double numericScore(Integer score) {
+        return score == null ? 0.0 : score.doubleValue();
     }
 
     /**
@@ -183,19 +187,19 @@ public class GameQueryService {
      * WatchScore 한 건을 상세 화면용 블록 하나로 변환한다.
      *
      * 이 블록은 protected 모드에도 그대로 사용되므로 점수, 팀명, play text, 결과 문구를 넣지 않는다.
-     * reasonTags만 사용해 스포일러 없는 카드 정보를 만든다.
+     * tags만 사용해 스포일러 없는 카드 정보를 만든다.
      */
     private static LiveUpdateBlockResponse liveUpdateBlock(WatchScore watchScore) {
-        List<String> reasonTags = watchScore.getReasonTags() == null
+        List<String> tags = watchScore.getTags() == null
                 ? List.of()
-                : watchScore.getReasonTags();
+                : watchScore.getTags();
 
         return new LiveUpdateBlockResponse(
                 "최근",
                 "진행 중",
-                blockTitle(reasonTags),
+                blockTitle(tags),
                 "긴장감 있는 흐름이 감지됐습니다.",
-                reasonTags
+                tags
         );
     }
 
@@ -365,6 +369,7 @@ public class GameQueryService {
         REPLAY_SUMMARY
     }
 
+
     public sealed interface GameDetailView
             permits ProtectedGameDetailResponse, RevealedGameDetailResponse {
         // 경기 상세 응답의 공통 타입이다.
@@ -402,6 +407,7 @@ public class GameQueryService {
     ) implements GameDetailView {
     }
 
+
     public record RevealedGameDetailResponse(
             long gameId,
             String status,
@@ -432,12 +438,15 @@ public class GameQueryService {
     ) implements GameDetailView {
     }
 
+
+
     public record ProtectedSummaryResponse(
             // 예: 후반 긴장 구간, 득점권 압박, 접전 흐름
             // 단, 홈런 발생/역전 성공/끝내기 같은 결과성 태그는 넣으면 안 된다.
             List<String> reasonTags
     ) {
     }
+
 
     public record RevealedPlayResponse(
             Long id,
@@ -457,6 +466,7 @@ public class GameQueryService {
     ) {
     }
 
+
     public record ProtectedPlayResponse(
             String type,
             Integer inning,
@@ -466,6 +476,7 @@ public class GameQueryService {
             Integer strikes
     ) {
     }
+
 
     public record SpoilerFreeLlmContextResponse(
             long gameId,
@@ -491,10 +502,11 @@ public class GameQueryService {
             double watchScore,
             Map<String, Double> signals,
             List<String> reasonTags,
-            int configVersion,
+            Integer configVersion,
             Instant calculatedAt
     ) {
     }
+
 
     public record SpoilerSafePlayResponse(
             String type,

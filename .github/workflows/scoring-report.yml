@@ -71,8 +71,6 @@ jobs:
             echo "## 추천 점수 상수 변경 영향 리포트"
             echo ""
             echo "scoring.yml이 변경되었습니다. 리포트 태스크(scoringReport)가 아직 구현되지 않아 자동 비교를 건너뜁니다."
-            echo ""
-            echo "리뷰 시 확인: version 증가 여부, 커밋 메시지의 조정 근거."
           } > /tmp/report.md
 
       - name: Comment on PR

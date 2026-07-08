@@ -3,6 +3,8 @@ spring:
     name: pulse
   config:
     import: classpath:scoring.yml
+  flyway:
+    enabled: false
 
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:pulse}
@@ -21,22 +23,15 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:pulse}
-    password: ${RABBITMQ_PASSWORD:pulse}
-    listener:
-      simple:
-        default-requeue-rejected: false   # 처리 실패 메시지는 재큐잉 대신 DLQ로
-
 pulse:
   bdl:
     base-url: https://api.balldontlie.io
     api-key: ${BDL_API_KEY:}
-  poller:
-    games-delay-ms: 15000   # /games tripwire
-    plays-delay-ms: 20000   # TODO: 적응형 폴링 티어 (긴장도 기반 5~60초)
+  replay:
+    s3:
+      bucket: ${PULSE_REPLAY_S3_BUCKET:}
+      region: ${AWS_REGION:ap-northeast-2}
+    max-objects-per-prefix: ${PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX:200}
 
 server:
   port: 8080
