@@ -45,15 +45,15 @@ aws s3 cp s3://pulse-raw-<account-id>/state/collector_state.json -
 aws logs tail /aws/lambda/pulse-collector --since 10m
 ```
 
-## 동작 (EventBridge 1분 주기 + 라이브 중 ~15초 서브 폴링)
+## 동작 (EventBridge 1분 주기 + 라이브 중 ~10초 서브 폴링)
 
 | 상태 | 수집 | 주기 |
 |---|---|---|
-| 상시 | `/games?dates[]=어제,오늘,내일(UTC)` 1콜 — 슬레이트 감시+라이브 커버 | 1분 (라이브 중 ~15초) |
+| 상시 | `/games?dates[]=어제,오늘,내일(UTC)` 1콜 — 슬레이트 감시+라이브 커버 | 1분 (라이브 중 ~10초) |
 | 상시 | `/odds?dates[]=오늘` — pregame 배치 갱신(~15-20분)과 라이브 라인 전부 포착 | 1분, 해시 dedupe |
 | PREGAME | T-36h 이내 경기 `/lineups?game_ids[]` 1콜 — 선발 투수 등장·타순 공개 시점이 그대로 기록됨 (문서 8장 체크리스트 항목) | 1분, 해시 dedupe |
-| LIVE | 경기별 `/plays` 커서(마지막 order) 증분 | ~15초 |
-| LIVE | 경기별 `/plate_appearances` (단일 페이지, 커서 없음) | ~15초(매 서브폴 라운드, `PA_ROUND_STRIDE`로 조정), 해시 dedupe |
+| LIVE | 경기별 `/plays` 커서(마지막 order) 증분 | ~10초 |
+| LIVE | 경기별 `/plate_appearances` (단일 페이지, 커서 없음) | ~10초(매 서브폴 라운드, `PA_ROUND_STRIDE`로 조정), 해시 dedupe |
 | SUSPENDED | 새 play 없이 10분+ → plays 5분으로 강등, `/games`로 재개 감지 | 5분 |
 | FINAL_BACKFILL | 종료 감지 시 1회: plays 전체 재수집 + PA 최종본(`backfilled: true` 표시) + `/stats` | 1회 |
 | 일 배치 | `/standings`, `/teams/season_stats`, `/player_injuries` | UTC 09시 이후 1회 |
@@ -62,19 +62,20 @@ aws logs tail /aws/lambda/pulse-collector --since 10m
 - lineups/odds를 계획(15분~1시간)보다 촘촘히 1분 간격으로 확인 — 해시 dedupe라 저장은
   변경 시에만 발생하고, 등장 시점 실측이 공짜로 얻어진다.
 - plays는 커서 증분이라 주기가 길어도 데이터 유실은 없다. 주기는 `observed_at` 해상도만
-  결정한다(라이브 중 ~15초, `SUBPOLL_INTERVAL`로 조정, 0이면 서브 폴링 끔). balldontlie
-  자체 갱신 주기가 p50 23초(실측)라 15초보다 더 당겨도 해상도 이득은 작다.
+  결정한다(라이브 중 ~10초, `SUBPOLL_INTERVAL`로 조정, 0이면 서브 폴링 끔).
+- 경기별 `/plays`, `/plate_appearances` 호출은 `LIVE_GAME_WORKERS`(기본 8)로 병렬 실행한다.
+  호출량은 같고 라운드 지연만 줄어 15경기 동시 진행 때도 10초 서브 폴링을 유지한다.
 - PA는 커서가 없어 매번 전체 재조회라 주기를 당기는 만큼 실제 지연이 줄어든다. 매 서브폴
-  라운드마다 폴링해 ~15초 주기를 낸다(`PA_ROUND_STRIDE`, 기본 1 = 매 라운드).
+  라운드마다 폴링해 ~10초 주기를 낸다(`PA_ROUND_STRIDE`, 기본 1 = 매 라운드).
 - (2026-07-04) 실측 피크가 한도의 ~20%로 여유가 있어 plays 20초→15초, PA 1분→30초로
   상향. 목표 상한은 25~30%(150~180 req/min) — 자체 토큰버킷 상한(300 req/min, 50%)은
   손대지 않고 백필·429 재시도용 여유로 남겨둔다(문서 2·7.4장 참고).
 - (2026-07-03 확정 지시) 진행 중 경기 원본을 최대 해상도로 적재하기 위해 PA를 30초→매
-  라운드(~15초)로 재단축. S3는 개발용 원본 임시 저장소이며 운영 적재(PostgreSQL)와
+  라운드로 재단축. S3는 개발용 원본 임시 저장소이며 운영 적재(PostgreSQL)와
   분리된다 — 운영 흐름은 노션 "데이터 수집·계산·저장 흐름" 문서 기준.
 
 호출량: 평시 3콜/분, 피크(라이브 15경기, PA 매 라운드 포함) 실행당 ~30콜 × 라운드 수로
-분당 ~100~130 req/min, 목표 상한 25~30%(150~180 req/min) 이내. 429는 2초 후 1회 재시도.
+분당 ~150 req/min, 목표 상한 25~30%(150~180 req/min) 이내. 429는 2초 후 1회 재시도.
 
 ## S3 레이아웃 (`pulse-raw-<account-id>`)
 
