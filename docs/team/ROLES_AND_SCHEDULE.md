@@ -11,6 +11,33 @@
 
 `common`과 `domain`은 공용 영역이지만 쓰기 소유자는 예은이다. 스키마·계약 변경은 `docs/design/API_CONTRACTS.md`의 모듈 인터페이스 범위 안에서만 진행한다.
 
+### 예은 — 데이터·점수·홈·공통
+
+- 기반 배선: V1·V2 스키마·BalldontlieClient·프로파일·RabbitMQ 큐·DLQ 설정, 공유 메시지 DTO(`ScoreTask`·`NotificationEvent`)·발행·소비 배선
+- poller 워커: 생명주기 상태머신, 상태별 폴링·백오프, `games`·`plays` 증분 수집, situation 추출, `ScoreTask`·`GAME_START`·종료 task 발행, 선발 시즌스탯 적재
+- scorer 워커: 8신호 점수·다시보기 구간 로직(`replay`→`scorer` 이관), `score.tasks` 소비, `watch_score`·`peak_base_score`·`game_events` 영속, Redis 랭킹·캐시·`signal` 발행, SURGE 판정, `pregame_score`, 종료 정리
+- api.home: `GET /api/rankings/live`(슬롯·개인화 가산·보호 DTO), `GET /api/games`(슬레이트·상태·정렬)
+- SSE: `GET /api/sse`·1회용 토큰, `signal:*` 구독 → 이벤트 3종 중계
+- 전환 후보 조회 지점(랭킹 기반) 제공 — 민석 상세가 소비
+- 프론트: Vite+React 기반·`shared`·홈 보드·SSE 연결·Vercel 배포
+
+### 창현 — AI 문구
+
+- ai-service 생성·검수 파이프라인·스포일러 게이트
+- `com.pulse.ai` AiCopyReader(폴백 내장), 라이브 Redis·종료 PG 저장, scorer 비동기 트리거
+
+### 민석 — 경기 상세·다시보기·전환 알림
+
+- 보호/공개 직렬화 가드, 상세 API·`/replay`·`/events`
+- switchSuggestion 산출·응답 포함·쿨다운(랭킹은 예은 제공)
+- 상세 화면·공개 전환 UX·타임라인·SSE `game_updated` 갱신·예정 경기 카드
+
+### 윤호 — 회원·알림
+
+- Security·JWT(회전·재사용 감지)·회원·이메일 인증·`preferences`·UserPreferenceReader 제공
+- `notify.events` 소비·fan-out·알림 센터·7일 보관·프론트
+- (통합 후) Grafana·CI/CD·백업·런북
+
 ## 2. 협업 지점
 
 | 지점 | 역할 구분 |
@@ -18,7 +45,7 @@
 | 경기 데이터·점수 신호 | 예은이 저장·계산하고, 민석·창현·윤호는 필요한 값을 읽어 사용한다. |
 | 경기 전환 추천 | 예은이 추천 후보 산출·저장을 담당하고, 민석이 경기 상세 화면과 상세 화면 내 전환 알림을 담당한다. |
 | 홈 추천 | 예은이 홈 랭킹, 추천순 정렬, 홈 화면 표시를 담당한다. |
-| AI 문구 | 창현이 문구 생성·검수와 폴백을 담당하고, 각 화면 담당자가 표시 위치에 맞게 사용한다. |
+| AI 문구 | 창현이 ai-service 문구 생성·검수와 `com.pulse.ai`의 기본 문구 fallback 판단을 담당하고, 각 화면 담당자가 표시 위치에 맞게 사용한다. |
 | 회원·알림 | 윤호가 회원, 관심 팀·선수 설정, 알림 저장·전달을 담당한다. |
 | 운영·관측 | 윤호가 통합 이후 Grafana, GitHub Actions 운영 파이프라인, 시크릿 관리, 백업·복구, 장애 런북을 담당한다. |
 

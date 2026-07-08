@@ -25,6 +25,9 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor
 public class ReplaySegment {
 
+    public static final String STATUS_OPEN = "OPEN";
+    public static final String STATUS_CLOSED = "CLOSED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -40,18 +43,20 @@ public class ReplaySegment {
     private Integer endInning;
     private String endInningType;
 
-    private double peakBaseScore;
+    private Integer peakScore;
 
-    @JdbcTypeCode(SqlTypes.JSON)
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
     private List<String> tags;
 
-    @Column(nullable = false)
+    @Column(columnDefinition = "text")
+    private String aiSummary;
+
+    private String status;
+
     private Instant openedAt;
 
     private Instant closedAt;
-
-    @Column(nullable = false)
-    private boolean openSegment;
 
     @Column(name = "source")
     private String source;
