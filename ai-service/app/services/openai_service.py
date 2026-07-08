@@ -1,6 +1,8 @@
 import json
 import logging
 
+from openai import APITimeoutError, OpenAI
+
 from app.core.config import settings
 from app.prompts.spoiler_free_prompt import build_spoiler_free_prompt
 from app.schemas.ai_schema import (
@@ -11,6 +13,7 @@ from app.schemas.ai_schema import (
 
 logger = logging.getLogger(__name__)
 
+# 세 엔드포인트가 같은 OpenAI 문구 생성 함수를 재사용할 수 있게 요청 타입을 묶어둔다.
 AiTextRequest = (
     SpoilerFreeSummaryRequest
     | NotificationTextRequest
@@ -20,7 +23,7 @@ AiTextRequest = (
 
 class SpoilerFreeSummaryGenerationError(RuntimeError):
     """
-    AI 문구 생성 실패를 router에서 상태 응답으로 변환하기 위한 예외.
+    AI 문구 생성 실패를 router에서 실패 상태 응답으로 변환하기 위한 예외.
     """
 
 
@@ -30,7 +33,7 @@ def generate_spoiler_free_summary(request: AiTextRequest) -> dict:
 
     ai-service는 fallback 기본 문구를 만들지 않는다.
     OpenAI 호출 실패 또는 응답 형식 오류는 예외로 전달하고,
-    router가 실패 상태 응답으로 변환한다.
+    router가 spoilerSafe=false 응답으로 변환한다.
     """
 
     if not settings.openai_api_key:
@@ -40,6 +43,9 @@ def generate_spoiler_free_summary(request: AiTextRequest) -> dict:
         return _generate_openai_spoiler_free_summary(request)
     except SpoilerFreeSummaryGenerationError:
         raise
+    except APITimeoutError as exc:
+        logger.exception("OpenAI summary generation timed out.")
+        raise SpoilerFreeSummaryGenerationError("OPENAI_TIMEOUT") from exc
     except Exception as exc:
         logger.exception("OpenAI summary generation failed.")
         raise SpoilerFreeSummaryGenerationError("OPENAI_GENERATION_FAILED") from exc
@@ -50,9 +56,13 @@ def _generate_openai_spoiler_free_summary(request: AiTextRequest) -> dict:
     실제 OpenAI API를 호출해서 스포일러 없는 문구를 생성한다.
     """
 
-    from openai import OpenAI
-
-    client = OpenAI(api_key=settings.openai_api_key)
+    client = OpenAI(
+        api_key=settings.openai_api_key,
+        timeout=settings.openai_timeout_seconds,
+        # 기본 retry가 켜져 있으면 6초 timeout이 여러 번 반복될 수 있으므로,
+        # Spring Boot 8초 제한을 넘기지 않도록 ai-service 내부에서는 retry를 끈다.
+        max_retries=0,
+    )
 
     response = client.responses.create(
         model=settings.openai_model,

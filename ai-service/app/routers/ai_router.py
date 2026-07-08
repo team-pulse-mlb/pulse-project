@@ -11,7 +11,10 @@ from app.schemas.ai_schema import (
     SpoilerFreeSummaryResponse,
 )
 
-from app.services.openai_service import generate_spoiler_free_summary
+from app.services.openai_service import (
+    SpoilerFreeSummaryGenerationError,
+    generate_spoiler_free_summary,
+)
 from app.services.spoiler_guard import check_spoiler_text
 
 
@@ -40,10 +43,34 @@ def spoiler_check(request: SpoilerCheckRequest):
     )
 
 
+def _generation_failure_violations(
+    error: SpoilerFreeSummaryGenerationError,
+) -> list[str]:
+    """
+    OpenAI 생성 실패 사유를 Spring Boot가 읽을 수 있는 violations 배열로 변환한다.
+
+    여기서 fallback 문구를 만들지는 않는다.
+    fallback 기본 문구의 최종 책임은 Spring Boot에 있다.
+    """
+
+    reason = str(error).strip()
+    if not reason:
+        reason = "OPENAI_GENERATION_FAILED"
+
+    return [reason]
+
+
 def _build_failed_summary_response(
     context_hash: str | None,
     violations: list[str],
 ) -> SpoilerFreeSummaryResponse:
+    """
+    /ai/spoiler-free-summary 실패 응답을 만든다.
+
+    생성 문구 필드는 내려주지 않고,
+    Spring Boot 저장 판단에 필요한 공통 필드만 채운다.
+    """
+
     return SpoilerFreeSummaryResponse(
         spoiler_safe=False,
         context_hash=context_hash,
@@ -56,6 +83,10 @@ def _build_failed_notification_response(
     context_hash: str | None,
     violations: list[str],
 ) -> NotificationTextResponse:
+    """
+    /ai/notification-text 실패 응답을 만든다.
+    """
+
     return NotificationTextResponse(
         spoiler_safe=False,
         context_hash=context_hash,
@@ -68,6 +99,10 @@ def _build_failed_replay_response(
     context_hash: str | None,
     violations: list[str],
 ) -> ReplaySummaryResponse:
+    """
+    /ai/replay-summary 실패 응답을 만든다.
+    """
+
     return ReplaySummaryResponse(
         spoiler_safe=False,
         context_hash=context_hash,
@@ -80,10 +115,15 @@ def _build_failed_replay_response(
     "/spoiler-free-summary",
     response_model=SpoilerFreeSummaryResponse,
     response_model_exclude_none=True,
-    response_model_exclude_defaults=True,
 )
 def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
-    generated_summary = generate_spoiler_free_summary(request)
+    try:
+        generated_summary = generate_spoiler_free_summary(request)
+    except SpoilerFreeSummaryGenerationError as error:
+        return _build_failed_summary_response(
+            context_hash=request.context_hash,
+            violations=_generation_failure_violations(error),
+        )
 
     combined_text = (
         f"{generated_summary['safe_title']} "
@@ -115,14 +155,20 @@ def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
     "/notification-text",
     response_model=NotificationTextResponse,
     response_model_exclude_none=True,
-    response_model_exclude_defaults=True,
 )
 def notification_text(request: NotificationTextRequest):
     """
     알림에 사용할 스포일러 없는 짧은 문구를 생성하는 API
     """
 
-    generated_summary = generate_spoiler_free_summary(request)
+    try:
+        generated_summary = generate_spoiler_free_summary(request)
+    except SpoilerFreeSummaryGenerationError as error:
+        return _build_failed_notification_response(
+            context_hash=request.context_hash,
+            violations=_generation_failure_violations(error),
+        )
+
     notification_text_value = generated_summary["notification_text"]
 
     guard_result = check_spoiler_text(notification_text_value)
@@ -147,14 +193,19 @@ def notification_text(request: NotificationTextRequest):
     "/replay-summary",
     response_model=ReplaySummaryResponse,
     response_model_exclude_none=True,
-    response_model_exclude_defaults=True,
 )
 def replay_summary(request: ReplaySummaryRequest):
     """
     다시보기 구간에 사용할 스포일러 없는 제목/설명 문구를 생성하는 API
     """
 
-    generated_summary = generate_spoiler_free_summary(request)
+    try:
+        generated_summary = generate_spoiler_free_summary(request)
+    except SpoilerFreeSummaryGenerationError as error:
+        return _build_failed_replay_response(
+            context_hash=request.context_hash,
+            violations=_generation_failure_violations(error),
+        )
 
     replay_title = request.segment_label
     replay_summary_value = generated_summary["safe_reason"]
