@@ -3,11 +3,11 @@ package com.pulse.scorer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pulse.common.config.ScoringProperties;
+import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.Play;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -76,14 +76,24 @@ class ScoreCalculatorTest {
     @DisplayName("풀카운트 2아웃은 카운트 신호 상한을 넘지 않는다")
     void countPressureIsCapped() {
         Game game = game(9, 2, 2);
-        Play fullCountTwoOuts = play(9, 2, 2, now.minusSeconds(5));
-        fullCountTwoOuts.setBalls(3);
-        fullCountTwoOuts.setStrikes(2);
-        fullCountTwoOuts.setOuts(2);
+        ScoreTask.Situation fullCountTwoOuts = ScoreTask.Situation.of(2, 3, 2, false, false, false);
 
-        double pressure = signal(game, List.of(fullCountTwoOuts), "count_pressure");
+        double pressure = calculator.calculate(game, List.of(), fullCountTwoOuts, now)
+                .signals()
+                .get("count_pressure");
 
         assertThat(pressure).isEqualTo(testProps().countPressure().max());
+    }
+
+    @Test
+    @DisplayName("situation이 없으면 압박과 카운트 신호는 0점이다")
+    void nullableSituationHasNoPressureSignals() {
+        Game game = game(9, 2, 2);
+
+        ScoreCalculator.Result result = calculator.calculate(game, List.of(), null, now);
+
+        assertThat(result.signals().get("pressure")).isZero();
+        assertThat(result.signals().get("count_pressure")).isZero();
     }
 
     @Test
@@ -134,23 +144,8 @@ class ScoreCalculatorTest {
         return play;
     }
 
-    /** scoring.yml version 2와 동일한 시작 상수 */
+    /** scoring.yml version 3과 동일한 시작 상수 */
     private static ScoringProperties testProps() {
-        return new ScoringProperties(
-                2,
-                new ScoringProperties.LateInning(6, 12, 18),
-                new ScoringProperties.ScoreGap(15, 9, 3),
-                new ScoringProperties.RecentScore(6, 15, 180,
-                        Map.of("gap-0", 2.0, "gap-1", 1.5, "gap-2", 1.2, "default", 1.0)),
-                new ScoringProperties.LeadChange(9, 12),
-                new ScoringProperties.BigInning(9, 2),
-                new ScoringProperties.CountPressure(3, 3, 5),
-                new ScoringProperties.EarlySlugfest(5, 3, 7),
-                new ScoringProperties.Importance(0.9, 1.15),
-                10,
-                15,
-                new ScoringProperties.Detail(100, 100, 2.0, 10, 8),
-                new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 70, 20, 60, 50)
-        );
+        return TestScoringProperties.version3();
     }
 }

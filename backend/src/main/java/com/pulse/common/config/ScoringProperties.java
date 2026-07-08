@@ -15,10 +15,12 @@ public record ScoringProperties(
         LeadChange leadChange,
         BigInning bigInning,
         CountPressure countPressure,
+        Pressure pressure,
         EarlySlugfest earlySlugfest,
         Importance importance,
         int pregameCarryoverMax,
         int personalizationMax,
+        Pregame pregame,
         Detail detail,
         Thresholds thresholds
 ) {
@@ -38,9 +40,31 @@ public record ScoringProperties(
 
     public record CountPressure(int fullCount, int twoOuts, int max) {}
 
+    public record Pressure(int basesLoaded, int scoringPosition) {}
+
     public record EarlySlugfest(int bonus, int maxInning, int minTotalRuns) {}
 
-    public record Importance(double min, double max) {}
+    public record Importance(
+            double min,
+            double max,
+            double postseason,
+            double bothContending,
+            double oneContending,
+            double bothOut,
+            double contentionMinPercent,
+            double contentionMaxPercent
+    ) {}
+
+    public record Pregame(
+            double closenessMax,
+            double closenessWinPercentSpan,
+            double closenessImpliedProbabilitySpan,
+            double matchupPerStarterMax,
+            double matchupEraBaseline,
+            double matchupEraSpan,
+            double contentionBoth,
+            double contentionOne
+    ) {}
 
     public record Detail(
             int hardContactExitVelocity,

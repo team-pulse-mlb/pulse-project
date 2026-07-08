@@ -8,5 +8,7 @@ public interface PlayRepository extends JpaRepository<Play, Long> {
 
     List<Play> findByGameIdOrderByPlayOrderDesc(Long gameId, Pageable pageable);
 
+    List<Play> findByGameIdOrderByPlayOrderAsc(Long gameId);
+
     boolean existsByGameIdAndPlayOrder(Long gameId, Long playOrder);
 }
