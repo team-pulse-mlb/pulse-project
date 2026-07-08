@@ -20,8 +20,10 @@ import org.springframework.stereotype.Service;
 public class HomeQueryService {
 
     private static final ZoneId SLATE_ZONE = ZoneId.of("America/New_York");
-    private static final int DEFAULT_RANKING_LIMIT = 20;
+    private static final int HOME_RANKING_LIMIT = 5;
     private static final int MAX_RANKING_LOOKUP = 1000;
+    private static final int SCHEDULED_LOOKAHEAD_HOURS = 36;
+    private static final int FINISHED_LOOKBACK_HOURS = 48;
 
     private final GameRepository gameRepository;
     private final WatchScoreRepository watchScoreRepository;
@@ -29,14 +31,43 @@ public class HomeQueryService {
     private final RankingService rankingService;
 
     public HomeRankingResponse getRanking(int count) {
-        int safeCount = count <= 0 ? DEFAULT_RANKING_LIMIT : count;
+        Instant now = Instant.now();
+        int safeCount = rankingLimit(count);
         List<HomeGameCard> live = rankingService.topLive(safeCount).keySet().stream()
                 .map(gameRepository::findById)
                 .flatMap(java.util.Optional::stream)
                 .map(this::toCard)
                 .toList();
 
-        return new HomeRankingResponse(Instant.now(), live, List.of(), List.of());
+        int remaining = safeCount - live.size();
+        if (remaining <= 0) {
+            return new HomeRankingResponse(now, live, List.of(), List.of());
+        }
+
+        List<Game> candidates = gameRepository.findAll();
+        List<Game> scheduledCandidates = candidates.stream()
+                .filter(game -> isScheduledForHome(game, now))
+                .sorted(scheduledRankingComparator())
+                .toList();
+        List<Game> finishedCandidates = candidates.stream()
+                .filter(game -> isFinishedForHome(game, now))
+                .sorted(finishedRankingComparator())
+                .toList();
+
+        int scheduledReserve = scheduledCandidates.isEmpty() ? 0 : 1;
+        int finishedLimit = Math.max(0, remaining - scheduledReserve);
+        List<HomeGameCard> finished = finishedCandidates.stream()
+                .limit(finishedLimit)
+                .map(this::toCard)
+                .toList();
+
+        remaining -= finished.size();
+        List<HomeGameCard> scheduled = scheduledCandidates.stream()
+                .limit(remaining)
+                .map(this::toCard)
+                .toList();
+
+        return new HomeRankingResponse(now, live, scheduled, finished);
     }
 
     public HomeSlateResponse getSlate(String date, String status, String sort) {
@@ -90,6 +121,48 @@ public class HomeQueryService {
 
     private static Instant startTimeOrMax(HomeGameCard card) {
         return card.startTime() == null ? Instant.MAX : card.startTime();
+    }
+
+    private static Instant startTimeOrMax(Game game) {
+        return game.getStartTime() == null ? Instant.MAX : game.getStartTime();
+    }
+
+    private static int rankingLimit(int count) {
+        if (count <= 0) {
+            return HOME_RANKING_LIMIT;
+        }
+        return Math.min(count, HOME_RANKING_LIMIT);
+    }
+
+    private static boolean isScheduledForHome(Game game, Instant now) {
+        Instant startTime = game.getStartTime();
+        return Game.STATUS_SCHEDULED.equals(game.getStatus())
+                && startTime != null
+                && !startTime.isBefore(now)
+                && !startTime.isAfter(now.plusSeconds(SCHEDULED_LOOKAHEAD_HOURS * 60L * 60L));
+    }
+
+    private static boolean isFinishedForHome(Game game, Instant now) {
+        Instant startTime = game.getStartTime();
+        return game.isFinal()
+                && startTime != null
+                && !startTime.isBefore(now.minusSeconds(FINISHED_LOOKBACK_HOURS * 60L * 60L));
+    }
+
+    private static Comparator<Game> scheduledRankingComparator() {
+        return Comparator
+                .comparingInt((Game game) -> scoreOrMin(game.getPregameScore())).reversed()
+                .thenComparing(HomeQueryService::startTimeOrMax);
+    }
+
+    private static Comparator<Game> finishedRankingComparator() {
+        return Comparator
+                .comparingInt((Game game) -> scoreOrMin(game.getPeakBaseScore())).reversed()
+                .thenComparing(HomeQueryService::startTimeOrMax);
+    }
+
+    private static int scoreOrMin(Integer score) {
+        return score == null ? Integer.MIN_VALUE : score;
     }
 
     private static boolean inSlate(Game game, Instant startInclusive, Instant endExclusive) {
