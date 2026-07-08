@@ -1,0 +1,209 @@
+/* 모든 요소의 크기 계산을 편하게 설정 */
+* {
+  box-sizing: border-box;
+}
+
+/* 브라우저 기본 여백 제거 */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+
+  font-family:
+    Arial,
+    "Noto Sans KR",
+    sans-serif;
+
+  color: #1f2937;
+  background-color: #f5f7fb;
+}
+
+/* 링크 기본 밑줄 제거 */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 버튼과 입력창 폰트 통일 */
+button,
+input {
+  font: inherit;
+}
+
+/* React 애플리케이션 전체 영역 */
+#root {
+  min-height: 100vh;
+}
+
+/* App 전체 영역 */
+.app {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* =========================
+   Header
+========================= */
+
+.header {
+  width: 100%;
+
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #ffffff;
+
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 90%;
+  max-width: 1200px;
+  height: 72px;
+  margin: 0 auto;
+}
+
+/* PULSE 로고 */
+.logo {
+  margin: 0;
+
+  color: #175cd3;
+
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 2px;
+}
+
+/* 메뉴 버튼 묶음 */
+.navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 메뉴 버튼 */
+.navigation button {
+  padding: 10px 14px;
+
+  border: 0;
+  border-radius: 8px;
+
+  color: #475467;
+  background-color: transparent;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    color 0.2s,
+    background-color 0.2s;
+}
+
+/* 메뉴 버튼에 마우스를 올렸을 때 */
+.navigation button:hover {
+  color: #175cd3;
+  background-color: #eff6ff;
+}
+
+/* =========================
+   Main
+========================= */
+
+.main-content {
+  width: 90%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 90px 0;
+}
+
+/* 메인 제목 */
+.title {
+  margin: 0 0 20px;
+
+  color: #101828;
+
+  font-size: 48px;
+  font-weight: 900;
+  letter-spacing: -2px;
+}
+
+/* 메인 설명 */
+.main-content p {
+  margin: 0;
+
+  color: #667085;
+
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+/* =========================
+   작은 화면
+========================= */
+
+@media (max-width: 600px) {
+  .header-inner {
+    width: calc(100% - 24px);
+  }
+
+  .logo {
+    font-size: 21px;
+  }
+
+  .navigation {
+    gap: 2px;
+  }
+
+  .navigation button {
+    padding: 8px;
+    font-size: 13px;
+  }
+
+  .main-content {
+    width: calc(100% - 28px);
+    padding-top: 60px;
+  }
+
+  .title {
+    font-size: 38px;
+  }
+}
+
+/* 이메일 입력창 아래 중복확인 메시지 영역 */
+.signup-email-message-area {
+  height: 18px;
+  margin-top: 4px;
+}
+
+/* 이메일 성공·실패 메시지 공통 */
+.signup-email-message {
+  margin: 0;
+  padding: 0;
+
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* 이메일 오류 메시지 */
+.signup-email-message.error {
+  color: #ff3b30;
+}
+
+/* 이메일 성공 메시지 */
+.signup-email-message.success {
+  color: #16883e;
+}
+
+.signup-input-row input:read-only {
+  color: #667085;
+  background-color: #f2f4f7;
+  cursor: not-allowed;
+}
+
+.email-action-button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
