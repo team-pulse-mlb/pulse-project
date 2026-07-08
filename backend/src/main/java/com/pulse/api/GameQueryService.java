@@ -69,6 +69,9 @@ public class GameQueryService {
                 game.getStatus(),
                 game.getStartTime(),
 
+                // 보호 모드에서는 초/말 정보는 숨기지만 이닝 숫자 자체는 허용한다.
+                protectedInning(game, recentPlays),
+
                 // 보호 모드에서도 상세 페이지 상단 매치업 영역에는 팀 이름과 약어를 표시한다.
                 // 점수, 승패, 팀 우세 정보는 포함하지 않으므로 스포일러 보호 정책을 유지할 수 있다.
                 team(game.getHomeTeamId(), game.getHomeTeamName(), game.getHomeTeamAbbr()),
@@ -126,6 +129,17 @@ public class GameQueryService {
         List<Play> plays = playRepository.findByGameIdOrderByPlayOrderDesc(gameId, PageRequest.of(0, count));
         Collections.reverse(plays);
         return plays;
+    }
+
+    private static Integer protectedInning(Game game, List<Play> recentPlays) {
+        // 보호 모드에서는 "9회 초/말"처럼 공격팀을 유추할 수 있는 정보는 숨긴다.
+        // 대신 이닝 숫자만 내려서 프론트가 안전하게 "9회"처럼 표시할 수 있게 한다.
+        if (recentPlays != null && !recentPlays.isEmpty()) {
+            return recentPlays.get(recentPlays.size() - 1).getInning();
+        }
+
+        // play 데이터가 아직 없을 경우 game.period를 fallback으로 사용한다.
+        return game.getPeriod();
     }
 
     private static TeamResponse team(Long id, String name, String abbr) {
@@ -249,7 +263,6 @@ public class GameQueryService {
         return new ProtectedPlayResponse(
                 play.getType(),
                 play.getInning(),
-                play.getInningType(),
                 play.getOuts(),
                 play.getBalls(),
                 play.getStrikes()
@@ -367,6 +380,9 @@ public class GameQueryService {
             String status,
             Instant startTime,
 
+            // 보호 모드에서는 초/말을 제외한 이닝 숫자만 제공한다.
+            Integer inning,
+
             // 보호 모드에서도 상단 매치업 표시는 허용한다.
             // 팀 이름과 약어는 경기 식별 정보이며, 점수/승패/우세 정보는 포함하지 않는다.
             TeamResponse homeTeam,
@@ -450,8 +466,10 @@ public class GameQueryService {
 
     public record ProtectedPlayResponse(
             String type,
+
+            // play 단위에서도 이닝 숫자만 허용한다.
             Integer inning,
-            String inningType,
+
             Integer outs,
             Integer balls,
             Integer strikes

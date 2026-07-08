@@ -24,6 +24,9 @@ class GameDetailSerializationGuardTest {
                 "STATUS_IN_PROGRESS",
                 Instant.parse("2026-07-02T00:00:00Z"),
 
+                // 보호 모드에서는 초/말은 숨기고 이닝 숫자만 직렬화한다.
+                8,
+
                 // 보호 모드에서도 상단 매치업 표시를 위해 팀 정보는 직렬화된다.
                 // 단, 점수와 결과성 필드는 여전히 포함하지 않아야 한다.
                 new TeamResponse(1L, "Home Team", "HOM"),
@@ -35,7 +38,6 @@ class GameDetailSerializationGuardTest {
                         new ProtectedPlayResponse(
                                 "Pitch",
                                 8,
-                                "Top",
                                 2,
                                 3,
                                 2
@@ -115,9 +117,12 @@ class GameDetailSerializationGuardTest {
         assertThat(json.has("periodLabel")).isTrue();
         assertThat(json.has("summary")).isTrue();
         assertThat(json.has("recentPlays")).isTrue();
+        assertThat(json.has("inning")).isTrue();
+        assertThat(json.get("inning").asInt()).isEqualTo(8);
+
         assertThat(play.has("type")).isTrue();
         assertThat(play.has("inning")).isTrue();
-        assertThat(play.has("inningType")).isTrue();
+        assertThat(play.has("inningType")).isFalse();
         assertThat(play.has("outs")).isTrue();
         assertThat(play.has("balls")).isTrue();
         assertThat(play.has("strikes")).isTrue();
