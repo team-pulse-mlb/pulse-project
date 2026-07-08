@@ -1,6 +1,8 @@
 package com.pulse.domain;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -11,9 +13,11 @@ public interface WatchScoreRepository extends JpaRepository<WatchScore, Long> {
     Optional<WatchScore> findTopByGameIdOrderByComputedAtDesc(Long gameId);
 
     boolean existsByGameIdAndComputedAt(Long gameId, Instant computedAt);
-    Optional<WatchScore> findTopByGameIdOrderByCreatedAtDesc(Long gameId);
 
-    List<WatchScore> findTop10ByGameIdOrderByCreatedAtDesc(Long gameId);
+    /** 급등 판정용. 창(window) 안의 최저 watch_score를 반환한다. */
+    @Query("select min(w.watchScore) from WatchScore w "
+            + "where w.gameId = :gameId and w.computedAt >= :since")
+    Integer findMinWatchScoreSince(@Param("gameId") Long gameId, @Param("since") Instant since);
 
     List<WatchScore> findByGameIdOrderByCreatedAtDesc(Long gameId);
 

@@ -59,7 +59,7 @@ $Zip = Join-Path $env:TEMP "pulse-collector.zip"
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
 Compress-Archive -Path "$PSScriptRoot\..\live-collector\collect_live_raw.py" -DestinationPath $Zip
 # PA_ROUND_STRIDE=1이면 라이브 PA를 매 서브 폴링 라운드마다 수집한다.
-$EnvVars = "Variables={BDL_API_KEY=$ApiKey,BUCKET=$Bucket,POLL_PA=true,SUBPOLL_INTERVAL=15,PA_ROUND_STRIDE=1}"
+$EnvVars = "Variables={BDL_API_KEY=$ApiKey,BUCKET=$Bucket,POLL_PA=true,SUBPOLL_INTERVAL=10,PA_ROUND_STRIDE=1,LIVE_GAME_WORKERS=8}"
 
 cmd /c "aws lambda get-function --function-name $FunctionName --region $Region 2>nul" | Out-Null
 if ($LASTEXITCODE -ne 0) {

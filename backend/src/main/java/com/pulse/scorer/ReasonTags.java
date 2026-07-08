@@ -14,6 +14,7 @@ public final class ReasonTags {
             "recent_score", "최근 점수 변화",
             "lead_change", "흐름 급변",
             "big_inning", "한 이닝 흐름 집중",
+            "pressure", "득점권 압박",
             "count_pressure", "승부처 카운트",
             "early_slugfest", "초반 난타 흐름"
     );

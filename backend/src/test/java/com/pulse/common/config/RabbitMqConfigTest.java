@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.boot.autoconfigure.amqp.RabbitProperties;
 import org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -64,5 +65,10 @@ class RabbitMqConfigTest {
 
         assertThat(ReflectionTestUtils.getField(factory, "prefetchCount")).isEqualTo(5);
         assertThat(ReflectionTestUtils.getField(factory, "defaultRequeueRejected")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    void jacksonMessageConverter_shouldUseJsonMessages() {
+        assertThat(config.jacksonMessageConverter()).isInstanceOf(Jackson2JsonMessageConverter.class);
     }
 }

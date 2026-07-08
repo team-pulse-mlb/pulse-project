@@ -1,6 +1,7 @@
 package com.pulse.scorer;
 
 import com.pulse.common.config.ScoringProperties;
+import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.Play;
 import java.time.Duration;
@@ -25,18 +26,58 @@ public class ScoreCalculator {
     public record Result(Map<String, Double> signals, double baseScore) {
     }
 
+    /**
+     * 리플레이·백테스트 경로. situation을 최신 play의 주자/카운트 컬럼에서 복원해 계산한다.
+     */
     public Result calculate(Game game, List<Play> recentPlays, Instant now) {
+        return calculate(game, recentPlays, situationFrom(recentPlays), now);
+    }
+
+    /**
+     * 라이브 경로. poller가 전달한 ScoreTask.situation으로 압박 신호를 계산한다.
+     * situation=null이면 압박 신호는 0점(null-safe)이다.
+     */
+    public Result calculate(Game game, List<Play> recentPlays, ScoreTask.Situation situation, Instant now) {
         Map<String, Double> signals = new LinkedHashMap<>();
         signals.put("late_or_extra", lateOrExtra(game));
         signals.put("score_gap", scoreGap(game));
         signals.put("recent_score", recentScore(recentPlays, now));
         signals.put("lead_change", leadChange(recentPlays));
         signals.put("big_inning", bigInning(game, recentPlays));
-        signals.put("count_pressure", countPressure(recentPlays));
+        signals.put("pressure", pressure(situation));
+        signals.put("count_pressure", countPressure(situation));
         signals.put("early_slugfest", earlySlugfest(game));
 
         double baseScore = signals.values().stream().mapToDouble(Double::doubleValue).sum();
         return new Result(signals, baseScore);
+    }
+
+    private static ScoreTask.Situation situationFrom(List<Play> recentPlays) {
+        if (recentPlays.isEmpty()) {
+            return null;
+        }
+        Play latest = recentPlays.get(recentPlays.size() - 1);
+        return ScoreTask.Situation.of(
+                latest.getOuts(),
+                latest.getBalls(),
+                latest.getStrikes(),
+                latest.getRunnerOnFirst(),
+                latest.getRunnerOnSecond(),
+                latest.getRunnerOnThird()
+        );
+    }
+
+    private double pressure(ScoreTask.Situation situation) {
+        if (situation == null) {
+            return 0;
+        }
+        if (situation.basesLoaded()) {
+            return props.pressure().basesLoaded();
+        }
+        if (situation.scoringPosition()) {
+            return props.pressure().scoringPosition();
+        }
+        return 0;
     }
 
     public double clampWatchScore(double value) {
@@ -126,16 +167,15 @@ public class ScoreCalculator {
         return scoringPlays >= props.bigInning().minScoringPlays() ? props.bigInning().bonus() : 0;
     }
 
-    private double countPressure(List<Play> recentPlays) {
-        Play latest = latestPitchPlay(recentPlays);
-        if (latest == null) {
+    private double countPressure(ScoreTask.Situation situation) {
+        if (situation == null) {
             return 0;
         }
         double score = 0;
-        if (Integer.valueOf(3).equals(latest.getBalls()) && Integer.valueOf(2).equals(latest.getStrikes())) {
+        if (Integer.valueOf(3).equals(situation.balls()) && Integer.valueOf(2).equals(situation.strikes())) {
             score += props.countPressure().fullCount();
         }
-        if (Integer.valueOf(2).equals(latest.getOuts())) {
+        if (Integer.valueOf(2).equals(situation.outs())) {
             score += props.countPressure().twoOuts();
         }
         return Math.min(score, props.countPressure().max());
@@ -155,15 +195,4 @@ public class ScoreCalculator {
         return Math.abs(home - away);
     }
 
-    private Play latestPitchPlay(List<Play> recentPlays) {
-        for (int i = recentPlays.size() - 1; i >= 0; i--) {
-            Play play = recentPlays.get(i);
-            String type = play.getType();
-            if (type != null && (type.startsWith("Start") || type.startsWith("End"))) {
-                continue;
-            }
-            return play;
-        }
-        return null;
-    }
 }

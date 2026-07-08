@@ -1,0 +1,18 @@
+package com.pulse.scorer;
+
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * AI 문구 비동기 생성 트리거 포트. 유의미한 변화가 있을 때만 scorer가 호출한다.
+ * 실구현은 창현(com.pulse.ai)이 제공하며, 없으면 no-op 스텁이 컴파일·동작을 유지한다.
+ * 생성은 응답 경로 밖에서 이뤄지고 scorer는 시그니처만 의존한다.
+ */
+public interface AiGenerationTrigger {
+
+    /** 라이브 태그 세트·추천 상태가 유의미하게 바뀌면 호출한다. */
+    void onLiveSignalChange(long gameId, List<String> tags, Instant occurredAt);
+
+    /** 경기 종료 시 최종 문구·마감 구간 요약 생성을 요청한다. */
+    void onGameFinalized(long gameId, Instant occurredAt);
+}
