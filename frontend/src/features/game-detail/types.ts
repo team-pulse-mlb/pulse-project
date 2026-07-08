@@ -48,10 +48,12 @@ export interface ProtectedSummary {
  *
  * play text, 점수, 득점 여부는 스포일러가 될 수 있으므로 포함하지 않는다.
  */
-export interface ProtectedPlay {
-    type: string
+export type ProtectedPlay = {
+    type: string | null
+
+    // play 단위에서도 이닝 숫자만 유지한다.
     inning: number | null
-    inningType: string | null
+
     outs: number | null
     balls: number | null
     strikes: number | null
@@ -67,6 +69,10 @@ export interface ProtectedGameDetailResponse {
     gameId: number
     status: string
     startTime: string
+
+    // 보호 모드에서는 초/말 정보는 숨기고 이닝 숫자만 받는다.
+    inning: number | null
+
     venueName?: string | null
     homeTeam: Team
     awayTeam: Team

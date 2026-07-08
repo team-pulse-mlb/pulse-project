@@ -76,7 +76,7 @@ export function GameDetailPage() {
          * 보호 모드에서는 초/말을 노출하지 않고 이닝만 보여준다.
          */
         if (gameDetail.displayMode === 'PROTECTED') {
-            return getProtectedInningLabel(gameDetail.recentPlays, gameDetail.periodLabel)
+            return getProtectedInningLabel(gameDetail.inning, gameDetail.periodLabel)
         }
 
         /**
@@ -210,13 +210,15 @@ function getStatusLabel(status?: string): 'LIVE' | '경기 전' | '경기 종료
 /**
  * 보호 모드에서는 이닝만 출력한다.
  */
-function getProtectedInningLabel(plays: ProtectedPlay[], periodLabel: string): string {
-    const latestInning = plays.find((play) => play.inning !== null)?.inning
-
-    if (latestInning !== undefined && latestInning !== null) {
-        return `${latestInning}회`
+function getProtectedInningLabel(inning: number | null, periodLabel: string): string {
+    // 보호 모드에서는 서버가 내려주는 최상위 inning 숫자를 우선 사용한다.
+    if (inning !== null) {
+        return `${inning}회`
     }
 
+    // 아직 서버에서 inning을 계산하지 못한 경우를 대비한 fallback이다.
+    // periodLabel이 "9회"처럼 숫자를 포함하면 숫자만 사용하고,
+    // "후반", "진행 중" 같은 라벨이면 그대로 표시한다.
     const inningNumber = periodLabel.match(/\d+/)?.[0]
     return inningNumber ? `${inningNumber}회` : periodLabel
 }
@@ -592,7 +594,7 @@ function ProtectedDataArea({
                 <div className="mini-stat-row">
                     <MiniStat
                         label="현재 이닝"
-                        value={getProtectedInningLabel(gameDetail.recentPlays, gameDetail.periodLabel)}
+                        value={getProtectedInningLabel(gameDetail.inning, gameDetail.periodLabel)}
                     />
                     <MiniStat label="보호 상태" value="스포일러 차단" />
                     <MiniStat label="팀 정보" value="표시" />
