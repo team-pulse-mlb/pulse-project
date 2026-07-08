@@ -42,6 +42,7 @@ public class OperationalPoller {
     private final ScoreTaskPublisher scoreTaskPublisher;
     private final NotificationEventPublisher notificationEventPublisher;
     private final PollerProperties properties;
+    private final PollerRateLimiter rateLimiter;
     private final Clock clock;
     private final PollerBackoff gamesBackoff;
     private final PollerBackoff playsBackoff;
@@ -56,7 +57,8 @@ public class OperationalPoller {
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
-            PollerProperties properties
+            PollerProperties properties,
+            PollerRateLimiter rateLimiter
     ) {
         this(
                 balldontlieClient,
@@ -67,6 +69,7 @@ public class OperationalPoller {
                 scoreTaskPublisher,
                 notificationEventPublisher,
                 properties,
+                rateLimiter,
                 Clock.systemUTC()
         );
     }
@@ -80,6 +83,7 @@ public class OperationalPoller {
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
             PollerProperties properties,
+            PollerRateLimiter rateLimiter,
             Clock clock
     ) {
         this.balldontlieClient = balldontlieClient;
@@ -90,6 +94,7 @@ public class OperationalPoller {
         this.scoreTaskPublisher = scoreTaskPublisher;
         this.notificationEventPublisher = notificationEventPublisher;
         this.properties = properties;
+        this.rateLimiter = rateLimiter;
         this.clock = clock;
         this.gamesBackoff = new PollerBackoff(properties.initialBackoff(), properties.maxBackoff());
         this.playsBackoff = new PollerBackoff(properties.initialBackoff(), properties.maxBackoff());
@@ -115,6 +120,7 @@ public class OperationalPoller {
         int changedGames = 0;
         try {
             for (LocalDate date : slateDates(now)) {
+                rateLimiter.acquire();
                 for (BdlGame dto : balldontlieClient.getGames(date)) {
                     GameUpsertResult result = gameWriter.upsertGame(dto, now);
                     changedGames++;
@@ -165,6 +171,7 @@ public class OperationalPoller {
         int pages = 0;
 
         while (pages < properties.maxPlayPagesPerGame()) {
+            rateLimiter.acquire();
             ListResponse<BdlPlay> response = balldontlieClient.getPlays(game.getId(), cursor);
             List<BdlPlay> plays = response == null || response.data() == null ? List.of() : response.data();
             for (BdlPlay play : plays) {
@@ -188,6 +195,7 @@ public class OperationalPoller {
     }
 
     private void syncPlateAppearances(long gameId) {
+        rateLimiter.acquire();
         List<BdlPlateAppearance> plateAppearances = balldontlieClient.getPlateAppearances(gameId);
         PollerRunnerStateMatcher.MatchResult result = gameWriter.updateRunnerStates(gameId, plateAppearances);
         log.info(

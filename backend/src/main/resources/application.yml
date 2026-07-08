@@ -42,6 +42,12 @@ pulse:
     max-play-pages-per-game: ${PULSE_POLLER_MAX_PLAY_PAGES_PER_GAME:5}
     initial-backoff: ${PULSE_POLLER_INITIAL_BACKOFF:30s}
     max-backoff: ${PULSE_POLLER_MAX_BACKOFF:5m}
+    rate-limit-per-second: ${PULSE_POLLER_RATE_LIMIT_PER_SECOND:10}
+    pregame-tick-delay-ms: ${PULSE_POLLER_PREGAME_TICK_DELAY_MS:60000}
+    lineups-far-interval: ${PULSE_POLLER_LINEUPS_FAR_INTERVAL:1h}
+    lineups-near-interval: ${PULSE_POLLER_LINEUPS_NEAR_INTERVAL:15m}
+    odds-interval: ${PULSE_POLLER_ODDS_INTERVAL:30m}
+    standings-batch-hour-utc: ${PULSE_POLLER_STANDINGS_BATCH_HOUR_UTC:10}
 
 server:
   port: 8080

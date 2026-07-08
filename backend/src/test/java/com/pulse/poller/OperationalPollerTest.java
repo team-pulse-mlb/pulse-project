@@ -45,6 +45,7 @@ class OperationalPollerTest {
             scoreTaskPublisher,
             notificationEventPublisher,
             properties(),
+            new PollerRateLimiter(1000, Clock.fixed(now, ZoneOffset.UTC)),
             Clock.fixed(now, ZoneOffset.UTC)
     );
 
@@ -112,7 +113,12 @@ class OperationalPollerTest {
                 0,
                 5,
                 Duration.ofSeconds(30),
-                Duration.ofMinutes(5)
+                Duration.ofMinutes(5),
+                1000,
+                Duration.ofHours(1),
+                Duration.ofMinutes(15),
+                Duration.ofMinutes(30),
+                10
         );
     }
 
