@@ -17,9 +17,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +45,6 @@ public class LiveScoringService {
     private final SurgeDetector surgeDetector;
     private final NotificationEventPublisher notificationEventPublisher;
     private final NotificationEventLogRepository notificationEventLogRepository;
-    private final AiGenerationTrigger aiGenerationTrigger;
     private final ScoringProperties props;
 
     @Transactional
@@ -78,9 +75,6 @@ public class LiveScoringService {
         int watchScoreRounded = (int) Math.round(watchScore);
 
         List<String> tags = ReasonTags.from(result.signals());
-        List<String> previousTags = watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(gameId)
-                .map(WatchScore::getTags)
-                .orElse(List.of());
         Play latestPlay = recentPlays.isEmpty() ? null : recentPlays.get(recentPlays.size() - 1);
 
         persistWatchScore(game, observedAt, latestPlay, result, importance, pregameBonus, watchScoreRounded, tags);
@@ -102,9 +96,6 @@ public class LiveScoringService {
 
         if (surgeDetector.evaluate(gameId, watchScoreRounded, observedAt)) {
             publishSurge(gameId, tags, observedAt);
-        }
-        if (!new HashSet<>(tags).equals(new HashSet<>(previousTags))) {
-            aiGenerationTrigger.onLiveSignalChange(gameId, tags, observedAt);
         }
         log.debug("라이브 점수 계산 gameId={} watchScore={} observedAt={}", gameId, watchScoreRounded, observedAt);
     }

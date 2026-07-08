@@ -177,7 +177,7 @@ erDiagram
 
 > 히스테리시스: `base_score >= 60`이면 구간 열기, `base_score < 50`이면 닫기. 직전 구간과 1 하프이닝 이내면 병합. 노출은 `peak_score` 상위 3개, 보호 모드에서는 최종 점수·승패를 드러내지 않는 문구만 사용.
 >
-> `ai_summary`는 라이브 문구와 달리 Redis가 아니라 이 테이블에 영속한다. 종료 경기 문구는 몇 년 뒤 상세 화면에도 나와야 하는 확정 산출물이고, 재생성에 LLM 비용이 들어 "Redis = 재계산 가능한 것만" 기준에 해당하지 않는다.
+> `ai_summary`는 종료 경기 확정 산출물이므로 Redis가 아니라 이 테이블에 영속한다. 종료 경기 문구는 몇 년 뒤 상세 화면에도 나와야 하고, 재생성에 LLM 비용이 들어 "Redis = 재계산 가능한 것만" 기준에 해당하지 않는다.
 
 ### A-5. `game_events` — 흥미로운 순간 이벤트(확정 결과)
 
@@ -417,7 +417,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 |---|---|---|
 | `score:rank:live` | `ZSET` | 진행 중 경기 `watch_score` 랭킹 (member=`game_id`, score=`watch_score`) |
 | `game:{id}:live` | `HASH` | 현재 점수·이닝·노출 태그 캐시 (내부 전용) |
-| `game:{id}:copy:{purpose}` | `STRING` | 검수 통과 AI 라이브 문구 캐시. 종료 경기 문구는 PG에 영속 |
+| `game:{id}:copy:{purpose}` | `STRING` | 종료 경기 AI 문구 읽기 캐시. 원본은 `games.final_headline`·`replay_segments.ai_summary`에 영속 |
 
 ### E-3. S3 원본 레이아웃 (개발·백테스트 전용)
 

@@ -269,8 +269,7 @@ public class GameQueryService {
     }
 
     public enum LlmPurpose {
-        CARD_SUMMARY,
-        NOTIFICATION,
+        FINAL_HEADLINE,
         REPLAY_SUMMARY
     }
 

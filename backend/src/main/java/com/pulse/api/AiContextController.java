@@ -27,7 +27,7 @@ public class AiContextController {
             @Parameter(description = "balldontlie 경기 ID", example = "5059041")
             @PathVariable long gameId,
             @Parameter(description = "LLM 문구 생성 목적")
-            @RequestParam(defaultValue = "CARD_SUMMARY") LlmPurpose purpose
+            @RequestParam(defaultValue = "FINAL_HEADLINE") LlmPurpose purpose
     ) {
         return gameQueryService.getSpoilerFreeLlmContext(gameId, purpose);
     }
