@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -27,7 +28,7 @@ public class JwtTokenProvider {
         this.jwtProperties = jwtProperties;
 
         // 환경변수에 저장한 Base64 문자열을 원래 byte[]로 변환
-        byte[] keyBytes = Decoders.BASE64.decode(
+        byte[] keyBytes = Decoders.BASE64URL.decode(
                 jwtProperties.secret()
         );
 
@@ -90,6 +91,10 @@ public class JwtTokenProvider {
         );
 
         return Jwts.builder()
+                // JWT ID
+                // Refresh Token마다 고유값을 넣어 같은 사용자의 토큰도 서로 다르게 만든다.
+                .id(UUID.randomUUID().toString())
+
                 // 이 Refresh Token의 주인
                 .subject(email)
 
