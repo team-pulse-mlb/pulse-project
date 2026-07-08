@@ -60,10 +60,10 @@ public class HomeQueryService {
     }
 
     private HomeGameCard toCard(Game game) {
-        WatchScore latestScore = watchScoreRepository.findTopByGameIdOrderByCreatedAtDesc(game.getId()).orElse(null);
-        List<String> tags = latestScore == null || latestScore.getReasonTags() == null
+        WatchScore latestScore = watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(game.getId()).orElse(null);
+        List<String> tags = latestScore == null || latestScore.getTags() == null
                 ? List.of()
-                : latestScore.getReasonTags();
+                : latestScore.getTags();
         return new HomeGameCard(
                 game.getId(),
                 stateOf(game),

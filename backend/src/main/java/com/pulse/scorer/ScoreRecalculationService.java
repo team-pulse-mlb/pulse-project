@@ -32,6 +32,11 @@ public class ScoreRecalculationService {
 
     @Transactional
     public void recalculate(long gameId, Instant observedAt) {
+        if (watchScoreRepository.existsByGameIdAndComputedAt(gameId, observedAt)) {
+            log.debug("replay score skipped for already computed cycle: gameId={} observedAt={}", gameId, observedAt);
+            return;
+        }
+
         Game game = gameRepository.findById(gameId).orElse(null);
         if (game == null) {
             log.debug("replay score skipped for unknown game: {}", gameId);
@@ -54,19 +59,28 @@ public class ScoreRecalculationService {
         ScoreCalculator.Result result = calculator.calculate(game, recentPlays, observedAt);
         double watchScore = calculator.clampWatchScore(result.baseScore());
         List<String> reasonTags = ReasonTags.from(result.signals());
+        Play latestPlay = recentPlays.isEmpty() ? null : recentPlays.get(recentPlays.size() - 1);
 
         WatchScore record = new WatchScore();
         record.setGameId(gameId);
-        record.setBaseScore(result.baseScore());
-        record.setWatchScore(watchScore);
-        record.setSignals(result.signals());
-        record.setReasonTags(reasonTags);
-        record.setConfigVersion(props.version());
-        record.setCreatedAt(observedAt);
+        record.setComputedAt(observedAt);
+        record.setPlayOrder(latestPlay == null ? null : latestPlay.getPlayOrder());
+        record.setInning(latestPlay == null ? game.getPeriod() : latestPlay.getInning());
+        record.setInningType(latestPlay == null ? null : latestPlay.getInningType());
+        record.setBaseScore(roundScore(result.baseScore()));
+        record.setWatchScore(roundScore(watchScore));
+        record.setSignalContributions(result.signals());
+        record.setTags(reasonTags);
+        record.setBackfilled(false);
+        record.setSource("OPERATIONAL");
         watchScoreRepository.save(record);
 
         replaySegmentService.update(gameId, recentPlays, result.baseScore(), reasonTags, observedAt);
         rankingService.updateLive(gameId, watchScore);
         log.debug("replayed score gameId={} watchScore={} observedAt={}", gameId, watchScore, observedAt);
+    }
+
+    private static int roundScore(double score) {
+        return (int) Math.round(score);
     }
 }
