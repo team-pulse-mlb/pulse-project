@@ -80,6 +80,8 @@ erDiagram
 | `lifecycle_state` | `TEXT` | 폴러 상태머신 값 | `SCHEDULED`…`DONE` |
 | `period` | `SMALLINT` | 현재 이닝 | 후반/연장 신호 |
 | `home_team_id` · `away_team_id` | `BIGINT` | 홈/원정팀 | FK → `teams` |
+| `home_team_name` · `away_team_name` | `TEXT` | 홈/원정 팀명 | 원본 응답 비정규화, nullable |
+| `home_team_abbr` · `away_team_abbr` | `TEXT` | 홈/원정 팀 약자 | 원본 응답 비정규화, nullable |
 | `home_runs` · `away_runs` | `SMALLINT` | 팀별 득점 | [내부] 점수 차 신호 |
 | `home_hits` · `away_hits` | `SMALLINT` | 팀별 안타 | [내부] |
 | `home_errors` · `away_errors` | `SMALLINT` | 팀별 실책 | [내부] |
@@ -375,7 +377,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `playoff_percent` | `NUMERIC(5,2)` | PS 진출 확률 | 경쟁권(10–90%) 판정 |
 | `wildcard_percent` | `NUMERIC(5,2)` | 와일드카드 확률 | |
 | `streak` | `SMALLINT` | 연승/연패(음수) | 참고용 |
-| `last_ten_games` | `SMALLINT` | 최근 10경기 | 참고용 |
+| `last_ten_games` | `TEXT` | 최근 10경기 전적 `승-패`(예: `5-5`) | 참고용, 원문 문자열 |
 | `observed_at` | `TIMESTAMPTZ` | 관측 시각 | |
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 

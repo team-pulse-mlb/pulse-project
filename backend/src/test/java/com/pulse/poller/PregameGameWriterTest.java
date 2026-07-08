@@ -185,7 +185,7 @@ class PregameGameWriterTest {
                 new BigDecimal("72.50"),
                 new BigDecimal("40.00"),
                 3,
-                7
+                "7-3"
         );
     }
 

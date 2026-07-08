@@ -63,7 +63,7 @@ final class MigrationRows {
     record StandingRow(Integer season, LocalDate snapshotDate, Long teamId, String leagueName,
                        String divisionName, Integer wins, Integer losses, BigDecimal winPercent,
                        BigDecimal gamesBehind, BigDecimal playoffPercent, BigDecimal wildcardPercent,
-                       Integer streak, Integer lastTenGames, Instant observedAt) {
+                       Integer streak, String lastTenGames, Instant observedAt) {
     }
 
     record LineupRow(Long lineupItemId, Long gameId, Long playerId, Long teamId, Integer battingOrder,

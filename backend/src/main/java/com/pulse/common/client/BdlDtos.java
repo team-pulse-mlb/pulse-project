@@ -120,7 +120,7 @@ public final class BdlDtos {
             @JsonProperty("playoff_percent") BigDecimal playoffPercent,
             @JsonProperty("wildcard_percent") BigDecimal wildcardPercent,
             Integer streak,
-            @JsonProperty("last_ten_games") Integer lastTenGames
+            @JsonProperty("last_ten_games") String lastTenGames
     ) {
         @JsonIgnoreProperties(ignoreUnknown = true)
         public record Team(Long id) {

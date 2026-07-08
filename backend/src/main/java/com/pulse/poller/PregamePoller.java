@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -54,6 +55,7 @@ public class PregamePoller {
     private Instant nextOddsPollAt = Instant.EPOCH;
     private LocalDate lastStandingsBatchDate;
 
+    @Autowired
     public PregamePoller(
             BalldontlieClient balldontlieClient,
             GameRepository gameRepository,

@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -47,6 +48,7 @@ public class PaRawArchiveUploader {
 
     private S3Client s3Client;
 
+    @Autowired
     public PaRawArchiveUploader(PollerProperties properties, ObjectMapper objectMapper) {
         this(properties, objectMapper, null);
     }

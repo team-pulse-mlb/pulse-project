@@ -206,7 +206,7 @@ class MigrationJsonMapper {
                 decimalValue(node.path("playoff_percent")),
                 decimalValue(node.path("wildcard_percent")),
                 intValue(node.path("streak")),
-                intValue(node.path("last_ten_games")),
+                textValue(node.path("last_ten_games")),
                 envelope.observedAt()
         );
     }

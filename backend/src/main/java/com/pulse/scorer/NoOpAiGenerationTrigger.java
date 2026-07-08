@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
  * AI 생성 트리거 기본 구현. 창현(com.pulse.ai)이 실제 빈을 제공하면 그쪽이 우선한다.
  */
 @Configuration
-class NoOpAiGenerationTrigger {
+class NoOpAiGenerationTriggerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AiGenerationTrigger.class)

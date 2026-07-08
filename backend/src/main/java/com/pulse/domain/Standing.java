@@ -61,7 +61,7 @@ public class Standing {
 
     private Integer streak;
 
-    private Integer lastTenGames;
+    private String lastTenGames;
 
     private Instant observedAt;
 
