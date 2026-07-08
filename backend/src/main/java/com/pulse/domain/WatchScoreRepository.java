@@ -19,8 +19,6 @@ public interface WatchScoreRepository extends JpaRepository<WatchScore, Long> {
             + "where w.gameId = :gameId and w.computedAt >= :since")
     Integer findMinWatchScoreSince(@Param("gameId") Long gameId, @Param("since") Instant since);
 
-    List<WatchScore> findByGameIdOrderByCreatedAtDesc(Long gameId);
-
-    List<WatchScore> findTop10ByGameIdOrderByCreatedAtDesc(Long gameId);
+    List<WatchScore> findTop10ByGameIdOrderByComputedAtDesc(Long gameId);
 
 }

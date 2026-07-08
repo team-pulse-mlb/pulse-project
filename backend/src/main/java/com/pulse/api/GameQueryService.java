@@ -174,17 +174,13 @@ public class GameQueryService {
 
 
     /**
-     * watch_scores 전체 이력을 경기 상세 화면의 누적 변동 블록으로 변환한다.
-     *
-     * 이전 구현은 findTop10... 조회와 deduplicateLiveUpdateBlocks() 내부의 최대 5개 제한 때문에
-     * 상세 화면에 일부 알림만 내려갔다.
-     * 이제는 해당 경기의 watch_scores 전체를 최신순으로 조회한 뒤, 중복 제거 없이 모두 응답한다.
-     * 프론트에서는 우측 경기 변동 알림 패널에서 스크롤로 전체 알림을 확인한다.
+     * 최근 watch_scores를 경기 상세 화면의 누적 변동 블록으로 변환한다.
+     * 태그 조합이 실제로 바뀐 흐름만 추출하고 최근 건수를 제한한다.
+     * 점수, 팀명, play text 같은 스포일러 필드는 포함하지 않는다.
      */
     private List<LiveUpdateBlockResponse> liveUpdateBlocks(long gameId) {
-        return watchScoreRepository.findTop10ByGameIdOrderByCreatedAtDesc(gameId).stream()
-                // 최신순으로 조회한 최근 watch_scores만 화면 표시용 블록으로 변환한다.
-                // 내부 점수 숫자는 liveUpdateBlock()에서 사용하지 않고, spoiler-safe tags만 사용한다.
+        return watchScoreRepository.findTop10ByGameIdOrderByComputedAtDesc(gameId).stream()
+                // computedAt 최신순으로 가져온 watch_scores를 화면 표시용 블록으로 변환한다.
                 .map(GameQueryService::liveUpdateBlock)
 
                 // 같은 tags 조합이 연속으로 반복되면 같은 알림이 누적되는 것처럼 보일 수 있다.
@@ -207,12 +203,42 @@ public class GameQueryService {
                 : watchScore.getTags();
 
         return new LiveUpdateBlockResponse(
-                "최근",
-                "진행 중",
+                blockTimeLabel(watchScore),
+                blockPeriodLabel(watchScore),
                 blockTitle(tags),
                 "긴장감 있는 흐름이 감지됐습니다.",
                 tags
         );
+    }
+
+    private static String blockTimeLabel(WatchScore watchScore) {
+        // liveUpdateBlocks의 timeLabel은 이닝 숫자 기반으로 표시한다.
+        // inning이 아직 없으면 안전한 기본 문구를 사용한다.
+        Integer inning = watchScore.getInning();
+        if (inning == null) {
+            return "최근";
+        }
+
+        return inning + "회";
+    }
+
+    private static String blockPeriodLabel(WatchScore watchScore) {
+        // periodLabel은 초/말이 아니라 초반/중반/후반/연장 같은 구간 정보만 제공한다.
+        // inningType은 공격팀을 유추할 수 있으므로 protected 모드용 블록에 사용하지 않는다.
+        Integer inning = watchScore.getInning();
+        if (inning == null) {
+            return "진행 중";
+        }
+        if (inning >= 10) {
+            return "연장";
+        }
+        if (inning >= 7) {
+            return "후반";
+        }
+        if (inning >= 4) {
+            return "중반";
+        }
+        return "초반";
     }
 
     /**
