@@ -29,6 +29,17 @@ dependencies {
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
     implementation 'software.amazon.awssdk:s3:2.25.70'
 
+    // Spring Security 로그인·인증·인가
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // JWT 생성 및 검증
+    implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
+
+    // 이메일 인증
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

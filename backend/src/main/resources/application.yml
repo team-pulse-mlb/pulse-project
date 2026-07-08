@@ -23,6 +23,43 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:pulse}
+    password: ${RABBITMQ_PASSWORD:pulse}
+    listener:
+      simple:
+        default-requeue-rejected: false   # 처리 실패 메시지는 재큐잉 대신 DLQ로
+
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
+    properties:
+      mail:
+        smtp:
+          auth: true
+
+          starttls:
+            enable: true
+            required: true
+
+          ssl:
+            trust: smtp.gmail.com
+
+        connectiontimeout: 5000
+        timeout: 5000
+        writetimeout: 5000
+
+jwt:
+  secret: ${JWT_SECRET}           # JWT에 서명하고 검증할 서버 비밀키
+  access-token-expiration: 15m    # 15분
+  refresh-token-expiration: 7d    # 7일
+
 pulse:
   bdl:
     base-url: https://api.balldontlie.io
