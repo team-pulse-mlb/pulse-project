@@ -2,9 +2,9 @@ package com.pulse.poller;
 
 import com.pulse.common.client.BalldontlieClient;
 import com.pulse.common.client.BdlDtos.BdlGame;
-import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
 import com.pulse.common.client.BdlDtos.ListResponse;
+import com.pulse.common.client.BdlDtos.PlateAppearancesRaw;
 import com.pulse.common.message.NotificationEvent;
 import com.pulse.common.message.NotificationEvent.NotificationType;
 import com.pulse.common.message.NotificationEventPublisher;
@@ -42,6 +42,8 @@ public class OperationalPoller {
     private final ScoreTaskPublisher scoreTaskPublisher;
     private final NotificationEventPublisher notificationEventPublisher;
     private final PollerProperties properties;
+    private final PollerRateLimiter rateLimiter;
+    private final PaRawArchiveUploader paRawArchiveUploader;
     private final Clock clock;
     private final PollerBackoff gamesBackoff;
     private final PollerBackoff playsBackoff;
@@ -56,7 +58,9 @@ public class OperationalPoller {
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
-            PollerProperties properties
+            PollerProperties properties,
+            PollerRateLimiter rateLimiter,
+            PaRawArchiveUploader paRawArchiveUploader
     ) {
         this(
                 balldontlieClient,
@@ -67,6 +71,8 @@ public class OperationalPoller {
                 scoreTaskPublisher,
                 notificationEventPublisher,
                 properties,
+                rateLimiter,
+                paRawArchiveUploader,
                 Clock.systemUTC()
         );
     }
@@ -80,6 +86,8 @@ public class OperationalPoller {
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
             PollerProperties properties,
+            PollerRateLimiter rateLimiter,
+            PaRawArchiveUploader paRawArchiveUploader,
             Clock clock
     ) {
         this.balldontlieClient = balldontlieClient;
@@ -90,6 +98,8 @@ public class OperationalPoller {
         this.scoreTaskPublisher = scoreTaskPublisher;
         this.notificationEventPublisher = notificationEventPublisher;
         this.properties = properties;
+        this.rateLimiter = rateLimiter;
+        this.paRawArchiveUploader = paRawArchiveUploader;
         this.clock = clock;
         this.gamesBackoff = new PollerBackoff(properties.initialBackoff(), properties.maxBackoff());
         this.playsBackoff = new PollerBackoff(properties.initialBackoff(), properties.maxBackoff());
@@ -115,6 +125,7 @@ public class OperationalPoller {
         int changedGames = 0;
         try {
             for (LocalDate date : slateDates(now)) {
+                rateLimiter.acquire();
                 for (BdlGame dto : balldontlieClient.getGames(date)) {
                     GameUpsertResult result = gameWriter.upsertGame(dto, now);
                     changedGames++;
@@ -148,7 +159,7 @@ public class OperationalPoller {
             for (Game game : liveGames) {
                 int inserted = pollPlays(game, now);
                 if (inserted > 0) {
-                    syncPlateAppearances(game.getId());
+                    syncPlateAppearances(game.getId(), now);
                     latestPlay(game.getId()).ifPresent(play ->
                             scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now)));
                 }
@@ -165,6 +176,7 @@ public class OperationalPoller {
         int pages = 0;
 
         while (pages < properties.maxPlayPagesPerGame()) {
+            rateLimiter.acquire();
             ListResponse<BdlPlay> response = balldontlieClient.getPlays(game.getId(), cursor);
             List<BdlPlay> plays = response == null || response.data() == null ? List.of() : response.data();
             for (BdlPlay play : plays) {
@@ -187,9 +199,11 @@ public class OperationalPoller {
         return inserted;
     }
 
-    private void syncPlateAppearances(long gameId) {
-        List<BdlPlateAppearance> plateAppearances = balldontlieClient.getPlateAppearances(gameId);
-        PollerRunnerStateMatcher.MatchResult result = gameWriter.updateRunnerStates(gameId, plateAppearances);
+    private void syncPlateAppearances(long gameId, Instant observedAt) {
+        rateLimiter.acquire();
+        PlateAppearancesRaw fetch = balldontlieClient.getPlateAppearancesRaw(gameId);
+        paRawArchiveUploader.upload(gameId, fetch.response(), observedAt);
+        PollerRunnerStateMatcher.MatchResult result = gameWriter.updateRunnerStates(gameId, fetch.data());
         log.info(
                 "plate appearances matched: gameId={}, updates={}, unmatchedPlateAppearances={}, unmatchedGroups={}",
                 gameId,
