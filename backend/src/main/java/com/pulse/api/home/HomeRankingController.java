@@ -15,7 +15,7 @@ public class HomeRankingController {
     private final HomeQueryService homeQueryService;
 
     @GetMapping("/live")
-    public HomeRankingResponse live(@RequestParam(defaultValue = "20") int count) {
+    public HomeRankingResponse live(@RequestParam(defaultValue = "5") int count) {
         return homeQueryService.getRanking(count);
     }
 }
