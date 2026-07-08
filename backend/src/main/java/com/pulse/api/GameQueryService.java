@@ -19,6 +19,11 @@ public class GameQueryService {
     private static final int DETAIL_RECENT_PLAY_COUNT = 20;
     private static final int LLM_RECENT_PLAY_COUNT = 8;
 
+    // 경기 상세 화면의 변동 블록은 watch_scores 전체 이력을 그대로 내려주지 않는다.
+    // scorer가 주기적으로 watch_scores를 저장하면 데이터가 계속 늘어나므로,
+    // 상세 응답에서는 최근 N건 안에서만 화면용 블록을 만든다.
+    private static final int DETAIL_LIVE_UPDATE_BLOCK_LIMIT = 10;
+
     private final GameRepository gameRepository;
     private final PlayRepository playRepository;
     private final WatchScoreRepository watchScoreRepository;
@@ -60,6 +65,7 @@ public class GameQueryService {
                     DisplayMode.REVEALED
             );
         }
+
 
         // 보호 모드는 기본 응답
         // DTO 자체에서 팀명, 점수, 득점 여부, play text를 제외
@@ -176,9 +182,16 @@ public class GameQueryService {
      * 프론트에서는 우측 경기 변동 알림 패널에서 스크롤로 전체 알림을 확인한다.
      */
     private List<LiveUpdateBlockResponse> liveUpdateBlocks(long gameId) {
-        return watchScoreRepository.findByGameIdOrderByCreatedAtDesc(gameId).stream()
-                // 최신순으로 조회한 watch_scores를 화면 표시용 블록으로 변환한다.
+        return watchScoreRepository.findTop10ByGameIdOrderByCreatedAtDesc(gameId).stream()
+                // 최신순으로 조회한 최근 watch_scores만 화면 표시용 블록으로 변환한다.
+                // 내부 점수 숫자는 liveUpdateBlock()에서 사용하지 않고, spoiler-safe tags만 사용한다.
                 .map(GameQueryService::liveUpdateBlock)
+
+                // 같은 tags 조합이 연속으로 반복되면 같은 알림이 누적되는 것처럼 보일 수 있다.
+                // 전체 중복 제거가 아니라 연속 중복만 제거해서 A → B → A 흐름은 유지한다.
+                .filter(new ConsecutiveTagChangePredicate())
+
+                .limit(DETAIL_LIVE_UPDATE_BLOCK_LIMIT)
                 .toList();
     }
 
@@ -203,13 +216,42 @@ public class GameQueryService {
     }
 
     /**
-     * reasonTags 중 화면 제목으로 가장 적합한 태그를 우선순위에 따라 선택한다.
+     * 연속된 liveUpdateBlock의 tags 조합이 같은 경우를 제외한다.
+     *
+     * scorer는 짧은 주기로 비슷한 태그를 반복 저장할 수 있다.
+     * 같은 태그 조합이 계속 반복되면 사용자는 "새로운 흐름 변화"가 아니라
+     * 같은 알림이 중복으로 쌓인 것처럼 느낄 수 있으므로 연속 중복만 제거한다.
+     *
+     */
+    private static final class ConsecutiveTagChangePredicate implements java.util.function.Predicate<LiveUpdateBlockResponse> {
+
+        private List<String> previousTags = null;
+
+        @Override
+        public boolean test(LiveUpdateBlockResponse currentBlock) {
+            // tags가 null인 경우도 비교 가능하도록 빈 리스트로 통일한다.
+            // liveUpdateBlocks는 protected 모드에서도 쓰이므로, 내부 점수 대신 tags만 비교 기준으로 사용한다.
+            List<String> currentTags = currentBlock.tags() == null
+                    ? List.of()
+                    : currentBlock.tags();
+
+            if (currentTags.equals(previousTags)) {
+                return false;
+            }
+
+            previousTags = currentTags;
+            return true;
+        }
+    }
+
+    /**
+     * tags 중 화면 제목으로 가장 적합한 태그를 우선순위에 따라 선택한다.
      *
      * "후반 긴장 구간"처럼 넓은 구간 태그보다
      * "득점권 압박", "투수 흔들림", "장타 위험"처럼 사용자가 변화로 느끼기 쉬운 태그를 우선한다.
      */
-    private static String blockTitle(List<String> reasonTags) {
-        if (reasonTags == null || reasonTags.isEmpty()) {
+    private static String blockTitle(List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
             return "경기 흐름 변화";
         }
 
@@ -227,9 +269,9 @@ public class GameQueryService {
         );
 
         return priorityTags.stream()
-                .filter(reasonTags::contains)
+                .filter(tags::contains)
                 .findFirst()
-                .orElse(reasonTags.get(0));
+                .orElse(tags.get(0));
     }
 
     private static RevealedPlayResponse revealedPlayResponse(Play play) {

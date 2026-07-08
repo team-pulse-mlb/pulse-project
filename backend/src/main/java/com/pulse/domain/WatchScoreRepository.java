@@ -21,4 +21,6 @@ public interface WatchScoreRepository extends JpaRepository<WatchScore, Long> {
 
     List<WatchScore> findByGameIdOrderByCreatedAtDesc(Long gameId);
 
+    List<WatchScore> findTop10ByGameIdOrderByCreatedAtDesc(Long gameId);
+
 }
