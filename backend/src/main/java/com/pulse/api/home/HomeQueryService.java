@@ -72,7 +72,7 @@ public class HomeQueryService {
                 game.getStartTime(),
                 game.isLive() ? game.getPeriod() : null,
                 tags,
-                headline(game, tags),
+                headline(game),
                 game.isFinal() ? replaySegmentRepository.countByGameId(game.getId()) : null
         );
     }
@@ -155,9 +155,9 @@ public class HomeQueryService {
         return name;
     }
 
-    private static String headline(Game game, List<String> tags) {
-        if (game.isLive() && !tags.isEmpty()) {
-            return "지금 볼 만한 흐름이 감지됐습니다.";
+    private static String headline(Game game) {
+        if (game.isFinal() && game.getFinalHeadline() != null && !game.getFinalHeadline().isBlank()) {
+            return game.getFinalHeadline();
         }
         return null;
     }
