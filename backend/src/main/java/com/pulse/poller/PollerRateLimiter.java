@@ -2,6 +2,7 @@ package com.pulse.poller;
 
 import java.time.Clock;
 import java.time.Instant;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,6 +20,7 @@ public class PollerRateLimiter {
     private long windowEpochSecond = Long.MIN_VALUE;
     private int usedInWindow;
 
+    @Autowired
     public PollerRateLimiter(PollerProperties properties) {
         this(properties.rateLimitPerSecond(), Clock.systemUTC());
     }

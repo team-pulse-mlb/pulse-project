@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -50,6 +51,7 @@ public class OperationalPoller {
 
     private Instant nextGamesPollAt = Instant.EPOCH;
 
+    @Autowired
     public OperationalPoller(
             BalldontlieClient balldontlieClient,
             GameRepository gameRepository,
