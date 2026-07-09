@@ -29,7 +29,7 @@
 | [BACKTEST.md](design/BACKTEST.md) | 가중치 백테스트 재생·지표·튜닝·영향 리포트 |
 | [SPOILER_POLICY.md](design/SPOILER_POLICY.md) | 보호/공개 모드, 화면별 노출·금지 필드, 태그·이벤트 표기 |
 | [NOTIFICATIONS.md](design/NOTIFICATIONS.md) | 알림 판정 조건, 파이프라인, 이벤트 스키마·fan-out |
-| [AI_COPY.md](design/AI_COPY.md) | AI 문구 생성 트리거, 컨텍스트·HTTP 계약, 검수·저장·폴백 |
+| [AI_COPY.md](design/AI_COPY.md) | AI 문구 생성 트리거, 컨텍스트·HTTP 계약, 검수·저장 |
 | [API_CONTRACTS.md](design/API_CONTRACTS.md) | REST/SSE 명세, 모듈 인터페이스, 메시징·캐시 스키마 |
 | [TECH_STACK.md](design/TECH_STACK.md) | 기술 스택 선정 이유, 배포 토폴로지, 기각 목록 |
 | [PROJECT_STRUCTURE.md](design/PROJECT_STRUCTURE.md) | 레포 폴더·패키지 구조와 의존 방향 |

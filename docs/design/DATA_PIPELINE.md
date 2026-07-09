@@ -96,13 +96,13 @@ flowchart LR
 | ⑦ | Redis 갱신 + 신호 | 실시간 랭킹을 갱신하고 `signal:ranking`·`signal:game:{id}` 채널로 재조회 신호를 발행한다. api가 이를 SSE로 중계한다. |
 | ⑧ | PostgreSQL 저장 | 점수 이력, 다시보기 구간, 흥미 순간 이벤트(`game_events`)를 남긴다. 이벤트는 라이브 중 임계 통과 시 추출·영속하며 종료 후 재계산하지 않는다. |
 | ⑨ | 급상승 알림 판정 | 히스테리시스(85 진입 발화 / 70 미만 재무장)와 급등 조건(최근 5분 +15 이상)을 통과하면 `notify.events`로 알림 이벤트를 발행한다. 판정이 scorer에 있는 이유: 점수 이력과 히스테리시스 상태를 가진 유일한 곳이기 때문이다. |
-| ⑩ | AI 문구 트리거 | 경기 종료 정리 시 `FINAL_HEADLINE`과 마감된 구간의 `REPLAY_SUMMARY`를 스포일러 세이프 `safeContext`와 `contextHash`로 ai-service에 비동기 생성을 요청한다. |
+| ⑩ | AI 문구 트리거 | 경기 종료 정리 시 `FINAL_HEADLINE`을 보호/공개 모드별 `safeContext`와 `contextHash`로 ai-service에 비동기 생성을 요청한다. |
 
-scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: 열린 다시보기 구간 마감(`SUSPENDED_POSTPONED`은 보류), `score:rank:live`에서 제거, `signal:ranking` 발행, 종료 문구(`FINAL_HEADLINE`·마감 구간 `REPLAY_SUMMARY`) 생성 트리거. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
+scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: 열린 다시보기 구간 마감(`SUSPENDED_POSTPONED`은 보류), `score:rank:live`에서 제거, `signal:ranking` 발행, 종료 헤드라인(`FINAL_HEADLINE`) 생성 트리거. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
 
 ## 4. 사용자 응답 흐름
 
-종료 경기 AI 문구 생성은 응답 경로에 없다. 계산 파이프라인이 종료 정리 시 미리 만들고, API는 PostgreSQL과 읽기 캐시를 조회한다. AI 문구가 아직 없으면 API는 LLM 응답을 기다리지 않고 Spring Boot의 목적별 기본 문구를 즉시 반환한다.
+종료 경기 AI 헤드라인 생성은 응답 경로에 없다. 계산 파이프라인이 종료 정리 시 미리 만들고, API는 PostgreSQL과 읽기 캐시를 조회한다. AI 헤드라인이 아직 없으면 API는 LLM 응답을 기다리지 않고 `headline=null`을 반환한다.
 
 ```mermaid
 flowchart LR
@@ -115,7 +115,7 @@ flowchart LR
     A["① React<br/>랭킹/상세 요청"] --> B["② pulse-api<br/>Redis 조회"]
     B --> C["③ 필요하면<br/>PostgreSQL 상세 조회"]
     C --> D["④ 보호 모드 DTO 생성<br/>(금지 필드 제거)"]
-    D --> E["⑤ 종료 AI 문구 조회<br/>없으면 Spring Boot 기본 문구"]
+    D --> E["⑤ 종료 AI 문구 조회<br/>없으면 headline=null"]
     E --> F["⑥ React에 응답<br/>(관심 팀/선수 가산 정렬)"]
     B -.-> G["⑦ SSE 재조회 신호<br/>ranking_changed 등 3종"]
     G -.->|"신호 수신 즉시 재조회"| A
@@ -135,6 +135,6 @@ flowchart LR
 | ② | Redis 조회 | 라이브 랭킹과 현재 상태 캐시를 빠르게 읽는다. 종료 문구는 PostgreSQL을 기준으로 읽고 필요하면 Redis 읽기 캐시를 사용한다. |
 | ③ | 상세 조회 | 경기 상세, 이력, 다시보기 구간은 PostgreSQL에서 읽는다. |
 | ④ | 보호 모드 DTO 생성 | 스포일러가 될 수 있는 필드는 서버에서 제거한다. 직렬화 가드 테스트도 같은 금지 필드 목록을 확인한다. |
-| ⑤ | 문구 조회 | 종료 경기의 검수를 통과한 AI 문구가 있으면 사용, 없으면 Spring Boot의 목적별 기본 문구를 사용한다. 진행 중·예정 경기는 AI 헤드라인이나 요약을 조회하지 않는다. |
+| ⑤ | 문구 조회 | 종료 경기의 검수를 통과한 AI 헤드라인이 있으면 사용하고, 없으면 `headline=null`을 반환한다. 진행 중·예정 경기와 다시보기 구간은 AI 문구를 조회하지 않는다. |
 | ⑥ | 화면 응답 | 개인화(관심 팀/선수 가산)는 이 시점에 서버가 적용한다. 공용 랭킹은 하나만 유지한다. |
 | ⑦ | SSE 신호 | payload에 데이터를 싣지 않는 재조회 신호만 보낸다. 클라이언트는 신호 수신 즉시 재조회하므로 체감은 푸시와 동일하고, 스포일러 필터링 지점은 REST 한 곳에 유지된다. |

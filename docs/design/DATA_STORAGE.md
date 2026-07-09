@@ -11,14 +11,14 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 
 | 테이블 | 성격 | 저장 내용 |
 |---|---|---|
-| `games` | 최신 스냅샷 | 경기 상태, 이닝, 점수, `pregame_score`와 계산 시점 입력(`pregame_inputs`), `peak_base_score` |
+| `games` | 최신 스냅샷 | 경기 상태, 이닝, 점수, `pregame_score`와 계산 시점 입력(`pregame_inputs`), `peak_base_score`, 종료 헤드라인 |
 | `plays` | append 로그 | 새 play 이벤트와 최초 관측 시각 |
 | `game_events` | append 로그 | 라이브 중 추출한 흥미 순간 이벤트(보호/공개 등급 포함). 종료 경기 타임라인에 그대로 재사용 |
 | `odds_snapshots` | 경기 전 스냅샷 | 벤더별 배당. `FIRST_SEEN`·`PREGAME_FINAL` 두 개만, 시작 전 관측만 허용 |
 | `watch_scores` | append 로그 | `base_score`, `watch_score`, 신호별 기여, 추천 태그 |
 | `replay_segments` | 확정 결과 | 다시보기 구간 범위, 최고 점수, 구간 태그 |
 | `users` · `refresh_tokens` | 계정 | 인증 정보, 리프레시 토큰 상태 |
-| `user_preferences` | 사용자 설정 | 관심 팀/선수, 알림 설정 |
+| `user_settings` · `user_favorite_teams` | 사용자 설정 | 알림·전환 설정, 관심 팀 |
 | `notification_events` · `user_notifications` | 알림 | 전역 이벤트 원본 1행 + 사용자별 수신함(읽음 상태, 7일 보관) |
 
 ### Redis
@@ -27,7 +27,7 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 |---|---|
 | `score:rank:live` | 진행 중 경기의 `watch_score` 랭킹 (ZSET) |
 | `game:{id}:live` | 현재 점수, 이닝, 노출 태그 캐시 |
-| `game:{id}:copy:{purpose}` | 종료 경기 AI 문구 읽기 캐시 |
+| `game:{id}:copy:FINAL_HEADLINE:{mode}` | 종료 경기 AI 헤드라인 읽기 캐시 |
 | `notify:*`, `switch:cooldown:*` | 알림 히스테리시스·레이트리밋·전환 안내 쿨다운 |
 | (pub/sub) `signal:ranking`, `signal:game:{id}` | 재조회 신호 채널 |
 
@@ -44,7 +44,7 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 | `/season_stats` | `player_season_stats` + `games.pregame_inputs` | 캐시는 최신 덮어쓰기. `pregame_score` 계산에 쓴 시점 값은 `pregame_inputs`에 불변 고정 |
 | `/teams` · `/players` | `teams` · `players` | 마스터 upsert |
 
-자체 계산 산출물(`watch_scores`·`replay_segments`·`game_events`·종료 경기 AI 문구)은 외부에 존재하지 않는 데이터이므로 전부 DB에 영속한다.
+자체 계산 산출물(`watch_scores`·`replay_segments`·`game_events`·종료 경기 AI 헤드라인)은 외부에 존재하지 않는 데이터이므로 전부 DB에 영속한다.
 
 ## 3. 저장하지 않는 데이터
 
@@ -54,7 +54,7 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 | 라이브 배당 궤적 | 스포일러 프리 원칙상 사용 금지 |
 | `/odds/player_props` | 기능 범위 밖이라 저장하지 않는다. 종료 후 원본이 줄거나 사라질 수 있다 |
 | `/stats` (경기별 선수 스탯) | 과거 경기 재조회 가능. 종료 후 재분석을 하지 않음 |
-| `scoring_summary` | 과거 경기 재조회 가능 |
+| 외부 API `scoring_summary` | 과거 경기 재조회 가능. 공개 상세의 득점 play 목록은 저장된 `plays`에서 파생한다. |
 | `/teams/season_stats` | 점수 계산에 쓰지 않아 저장하지 않는다. 경기 당시 시점값은 보존하지 않는다 |
 | `/player_injuries` | 실시간 표시·알림 억제 용도만. 이력 미보존 |
 | splits/versus · pitch type stats 계열 | 미사용(문구 고도화 단계 소재) |
@@ -79,7 +79,7 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 |---|---|
 | `/games`·`/plays` 원본 | DB 영속(운영 핵심) |
 | `/plate_appearances` 원본 | S3 아카이브(운영 이전 후에도 유지) |
-| `/stats`·`scoring_summary`·마스터·일정 | 자체 보존 없음(필요 시 외부 API 재조회에 의존) |
+| `/stats`·외부 API `scoring_summary`·마스터·일정 | 자체 보존 없음(필요 시 외부 API 재조회에 의존). 공개 상세의 득점 play 목록은 저장된 `plays`에서 파생한다. |
 
 ## 5. S3 임시 수집과 운영 DB 이전
 
