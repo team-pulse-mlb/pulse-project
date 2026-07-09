@@ -90,6 +90,25 @@ pulse:
       bucket: ${PULSE_REPLAY_S3_BUCKET:}
       region: ${AWS_REGION:ap-northeast-2}
     max-objects-per-prefix: ${PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX:200}
+  poller:
+    enabled: ${PULSE_POLLER_ENABLED:false}
+    tick-delay-ms: ${PULSE_POLLER_TICK_DELAY_MS:20000}
+    tick-interval: ${PULSE_POLLER_TICK_INTERVAL:20s}
+    idle-games-interval: ${PULSE_POLLER_IDLE_GAMES_INTERVAL:10m}
+    slate-lookback-days: ${PULSE_POLLER_SLATE_LOOKBACK_DAYS:1}
+    slate-lookahead-days: ${PULSE_POLLER_SLATE_LOOKAHEAD_DAYS:1}
+    max-play-pages-per-game: ${PULSE_POLLER_MAX_PLAY_PAGES_PER_GAME:5}
+    initial-backoff: ${PULSE_POLLER_INITIAL_BACKOFF:30s}
+    max-backoff: ${PULSE_POLLER_MAX_BACKOFF:5m}
+    rate-limit-per-second: ${PULSE_POLLER_RATE_LIMIT_PER_SECOND:10}
+    pregame-tick-delay-ms: ${PULSE_POLLER_PREGAME_TICK_DELAY_MS:60000}
+    lineups-far-interval: ${PULSE_POLLER_LINEUPS_FAR_INTERVAL:1h}
+    lineups-near-interval: ${PULSE_POLLER_LINEUPS_NEAR_INTERVAL:15m}
+    odds-interval: ${PULSE_POLLER_ODDS_INTERVAL:30m}
+    standings-batch-hour-utc: ${PULSE_POLLER_STANDINGS_BATCH_HOUR_UTC:10}
+    pa-archive:
+      bucket: ${PULSE_POLLER_PA_ARCHIVE_BUCKET:${PULSE_REPLAY_S3_BUCKET:}}
+      region: ${AWS_REGION:ap-northeast-2}
 
 server:
   port: 8080

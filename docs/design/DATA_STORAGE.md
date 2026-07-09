@@ -29,7 +29,7 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 |---|---|
 | `score:rank:live` | 진행 중 경기의 `watch_score` 랭킹 (ZSET) |
 | `game:{id}:live` | 현재 점수, 이닝, 노출 태그 캐시 |
-| `game:{id}:copy:{purpose}` | 검수 통과한 AI 문구 캐시 |
+| `game:{id}:copy:{purpose}` | 종료 경기 AI 문구 읽기 캐시 |
 | `notify:*`, `switch:cooldown:*` | 알림 히스테리시스·레이트리밋·전환 안내 쿨다운 |
 | (pub/sub) `signal:ranking`, `signal:game:{id}` | 재조회 신호 채널 |
 
@@ -46,7 +46,7 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 | `/season_stats` | `player_season_stats` + `games.pregame_inputs` | 캐시는 최신 덮어쓰기. `pregame_score` 계산에 쓴 시점 값은 `pregame_inputs`에 불변 고정 |
 | `/teams` · `/players` | `teams` · `players` | 마스터 upsert |
 
-자체 계산 산출물(`watch_scores`·`replay_segments`·`game_events`·검수 통과 AI 문구)은 외부에 존재하지 않는 데이터이므로 전부 DB에 영속한다.
+자체 계산 산출물(`watch_scores`·`replay_segments`·`game_events`·종료 경기 AI 문구)은 외부에 존재하지 않는 데이터이므로 전부 DB에 영속한다.
 
 ## 3. 저장하지 않는 데이터
 

@@ -49,7 +49,7 @@ flowchart LR
 
 **일정 룩어헤드**: ①의 어제·오늘(UTC) 감시와 별도로, 향후 2~3일 일정을 저빈도(6~12시간 주기)로 동기화해 미래 경기와 시작 시각을 미리 확보한다. balldontlie `/games`는 최소 7일 뒤까지 일정을 제공하고, 미래 경기도 `date`에 실제 시작 시각(UTC ISO 8601)을 담는다. 확보한 시작 시각으로 `SCHEDULED → PREGAME_FAR`(T-36h) `→ PREGAME_NEAR`(T-6h) 전이 시점을 예약한다. 시작 시각은 확정 전 변동될 수 있으므로 룩어헤드 동기화마다 갱신하고, 시작 시각 미정(TBD) 경기는 전이 예약을 보류한 뒤 다음 동기화에서 재확인한다.
 
-**연기·취소 재진입**: `DONE`은 연기·취소가 확정된 경기의 종결 상태다. 다만 이후 ①의 상시 감시에서 같은 `game_id`의 원본 상태가 `STATUS_SCHEDULED`·`STATUS_IN_PROGRESS`로 재관측되면(연기 경기 재편성) 해당 상태로 재진입한다. 재진입 시 별도 복구 절차는 없다 — 랭킹·문구 캐시는 LIVE 사이클이 재생성하며, 연기·취소 사유는 `games.status` 원본 값이 보존한다.
+**연기·취소 재진입**: `DONE`은 연기·취소가 확정된 경기의 종결 상태다. 다만 이후 ①의 상시 감시에서 같은 `game_id`의 원본 상태가 `STATUS_SCHEDULED`·`STATUS_IN_PROGRESS`로 재관측되면(연기 경기 재편성) 해당 상태로 재진입한다. 재진입 시 별도 복구 절차는 없다 — 라이브 랭킹과 현재 상태 캐시는 LIVE 사이클이 재생성하며, 연기·취소 사유는 `games.status` 원본 값이 보존한다.
 
 **경기 전 계산 경로**: poller는 ②·③에서 경기 전 입력이 갱신될 때(선발 확정·변경, 배당 스냅샷 기록, 순위 일 배치 반영, `PREGAME_NEAR` 진입) `lifecycleState=PREGAME`인 ScoreTask를 발행하고, scorer가 DB에 적재된 입력만 읽어 `pregame_score`를 계산·저장한다. 점수 로직과 `scoring.yml` 소유를 scorer 한 곳에 유지하기 위한 배치이며, 외부 API 호출(선발 시즌 스탯 온디맨드 조회 포함)은 poller가 task 발행 전에 끝낸다.
 
@@ -77,7 +77,7 @@ flowchart LR
     E --> G["⑦ Redis 랭킹 갱신<br/>+ 재조회 신호 발행"]
     F --> H["⑧ PostgreSQL<br/>이력 저장"]
     D --> I["⑨ 급상승 알림 판정<br/>→ notify.events"]
-    E --> J["⑩ 유의미 변화 시<br/>AI 문구 생성 트리거"]
+    C --> J["⑩ 종료 task 처리 시<br/>AI 문구 생성 트리거"]
 
     class A,C,D,E,F app
     class B,G mw
@@ -98,13 +98,13 @@ flowchart LR
 | ⑦ | Redis 갱신 + 신호 | 실시간 랭킹을 갱신하고 `signal:ranking`·`signal:game:{id}` 채널로 재조회 신호를 발행한다. api가 이를 SSE로 중계한다. |
 | ⑧ | PostgreSQL 저장 | 점수 이력, 다시보기 구간, 흥미 순간 이벤트(`game_events`)를 남긴다. 이벤트는 라이브 중 임계 통과 시 추출·영속하며 종료 후 재계산하지 않는다. |
 | ⑨ | 급상승 알림 판정 | 히스테리시스(85 진입 발화 / 70 미만 재무장)와 급등 조건(최근 5분 +15 이상)을 통과하면 `notify.events`로 알림 이벤트를 발행한다. 판정이 scorer에 있는 이유: 점수 이력과 히스테리시스 상태를 가진 유일한 곳이기 때문이다. |
-| ⑩ | AI 문구 트리거 | 태그 세트 변화·추천 상태 진입 같은 유의미한 변화가 있을 때만 스포일러 세이프 `safeContext`와 `contextHash`로 ai-service에 비동기 생성을 요청한다. |
+| ⑩ | AI 문구 트리거 | 경기 종료 정리 시 `FINAL_HEADLINE`과 마감된 구간의 `REPLAY_SUMMARY`를 스포일러 세이프 `safeContext`와 `contextHash`로 ai-service에 비동기 생성을 요청한다. |
 
 scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: 열린 다시보기 구간 마감(`SUSPENDED_POSTPONED`은 보류), `score:rank:live`에서 제거, `signal:ranking` 발행, 종료 문구(`FINAL_HEADLINE`·마감 구간 `REPLAY_SUMMARY`) 생성 트리거. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
 
 ## 4. 사용자 응답 흐름
 
-AI 문구 생성은 응답 경로에 없다. 계산 파이프라인이 미리 만들어 캐시에 넣어두고, API는 캐시를 읽기만 한다. AI 문구가 아직 없으면 API는 LLM 응답을 기다리지 않고 Spring Boot의 목적별 기본 문구를 즉시 반환한다.
+종료 경기 AI 문구 생성은 응답 경로에 없다. 계산 파이프라인이 종료 정리 시 미리 만들고, API는 PostgreSQL과 읽기 캐시를 조회한다. AI 문구가 아직 없으면 API는 LLM 응답을 기다리지 않고 Spring Boot의 목적별 기본 문구를 즉시 반환한다.
 
 ```mermaid
 flowchart LR
@@ -117,7 +117,7 @@ flowchart LR
     A["① React<br/>랭킹/상세 요청"] --> B["② pulse-api<br/>Redis 조회"]
     B --> C["③ 필요하면<br/>PostgreSQL 상세 조회"]
     C --> D["④ 보호 모드 DTO 생성<br/>(금지 필드 제거)"]
-    D --> E["⑤ AI 문구 캐시 조회<br/>없으면 Spring Boot 기본 문구"]
+    D --> E["⑤ 종료 AI 문구 조회<br/>없으면 Spring Boot 기본 문구"]
     E --> F["⑥ React에 응답<br/>(관심 팀/선수 가산 정렬)"]
     B -.-> G["⑦ SSE 재조회 신호<br/>ranking_changed 등 3종"]
     G -.->|"신호 수신 즉시 재조회"| A
@@ -134,9 +134,9 @@ flowchart LR
 | 번호 | 단계 | 설명 |
 |---|---|---|
 | ① | 요청 | 프론트는 `pulse-api`만 호출한다. 상세는 현재 모드(`PROTECTED`/`REVEALED`)를 파라미터로 보낸다. |
-| ② | Redis 조회 | 라이브 랭킹·문구 캐시를 빠르게 읽는다. |
+| ② | Redis 조회 | 라이브 랭킹과 현재 상태 캐시를 빠르게 읽는다. 종료 문구는 PostgreSQL을 기준으로 읽고 필요하면 Redis 읽기 캐시를 사용한다. |
 | ③ | 상세 조회 | 경기 상세, 이력, 다시보기 구간은 PostgreSQL에서 읽는다. |
 | ④ | 보호 모드 DTO 생성 | 스포일러가 될 수 있는 필드는 서버에서 제거한다. 직렬화 가드 테스트도 같은 금지 필드 목록을 확인한다. |
-| ⑤ | 문구 조회 | 검수를 통과한 AI 문구가 캐시에 있으면 사용, 없으면 Spring Boot의 목적별 기본 문구를 사용한다. 소비자는 폴백 여부를 모른다. |
+| ⑤ | 문구 조회 | 종료 경기의 검수를 통과한 AI 문구가 있으면 사용, 없으면 Spring Boot의 목적별 기본 문구를 사용한다. 진행 중·예정 경기는 AI 헤드라인이나 요약을 조회하지 않는다. |
 | ⑥ | 화면 응답 | 개인화(관심 팀/선수 가산)는 이 시점에 서버가 적용한다. 공용 랭킹은 하나만 유지한다. |
 | ⑦ | SSE 신호 | payload에 데이터를 싣지 않는 재조회 신호만 보낸다. 클라이언트는 신호 수신 즉시 재조회하므로 체감은 푸시와 동일하고, 스포일러 필터링 지점은 REST 한 곳에 유지된다. |

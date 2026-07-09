@@ -80,6 +80,8 @@ erDiagram
 | `lifecycle_state` | `TEXT` | 폴러 상태머신 값 | `SCHEDULED`…`DONE` |
 | `period` | `SMALLINT` | 현재 이닝 | 후반/연장 신호 |
 | `home_team_id` · `away_team_id` | `BIGINT` | 홈/원정팀 | FK → `teams` |
+| `home_team_name` · `away_team_name` | `TEXT` | 홈/원정 팀명 | 원본 응답 비정규화, nullable |
+| `home_team_abbr` · `away_team_abbr` | `TEXT` | 홈/원정 팀 약자 | 원본 응답 비정규화, nullable |
 | `home_runs` · `away_runs` | `SMALLINT` | 팀별 득점 | [내부] 점수 차 신호 |
 | `home_hits` · `away_hits` | `SMALLINT` | 팀별 안타 | [내부] |
 | `home_errors` · `away_errors` | `SMALLINT` | 팀별 실책 | [내부] |
@@ -177,7 +179,7 @@ erDiagram
 
 > 히스테리시스: `base_score >= 60`이면 구간 열기, `base_score < 50`이면 닫기. 직전 구간과 1 하프이닝 이내면 병합. 노출은 `peak_score` 상위 3개, 보호 모드에서는 최종 점수·승패를 드러내지 않는 문구만 사용.
 >
-> `ai_summary`는 라이브 문구와 달리 Redis가 아니라 이 테이블에 영속한다. 종료 경기 문구는 몇 년 뒤 상세 화면에도 나와야 하는 확정 산출물이고, 재생성에 LLM 비용이 들어 "Redis = 재계산 가능한 것만" 기준에 해당하지 않는다.
+> `ai_summary`는 종료 경기 확정 산출물이므로 Redis가 아니라 이 테이블에 영속한다. 종료 경기 문구는 몇 년 뒤 상세 화면에도 나와야 하고, 재생성에 LLM 비용이 들어 "Redis = 재계산 가능한 것만" 기준에 해당하지 않는다.
 
 ### A-5. `game_events` — 흥미로운 순간 이벤트(확정 결과)
 
@@ -226,14 +228,15 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
-| `id` | `BIGSERIAL` | PK | **PK** |
+| `refresh_token_id` | `BIGSERIAL` | PK | **PK** |
 | `user_id` | `BIGINT` | 사용자 | FK → `users.user_id` |
 | `token_hash` | `TEXT` | 토큰 해시 | 원문 저장 금지 · UNIQUE |
+| `status` | `TEXT` | 토큰 상태(`ACTIVE`/`REVOKED`/`REUSED`) | 기본 `ACTIVE` |
 | `expires_at` | `TIMESTAMPTZ` | 만료 시각 | |
 | `revoked_at` | `TIMESTAMPTZ` | 폐기 시각 | 회전·로그아웃 시 기록, nullable |
 | `created_at` · `last_used_at` | `TIMESTAMPTZ` | 생성/최근 사용 | |
 
-**키·인덱스** — PK `id` · UNIQUE(`token_hash`) · idx(`user_id`)
+**키·인덱스** — PK `refresh_token_id` · UNIQUE(`token_hash`) · idx(`user_id`)
 
 ### B-3. `user_preferences` — 사용자 설정
 
@@ -374,7 +377,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | `playoff_percent` | `NUMERIC(5,2)` | PS 진출 확률 | 경쟁권(10–90%) 판정 |
 | `wildcard_percent` | `NUMERIC(5,2)` | 와일드카드 확률 | |
 | `streak` | `SMALLINT` | 연승/연패(음수) | 참고용 |
-| `last_ten_games` | `SMALLINT` | 최근 10경기 | 참고용 |
+| `last_ten_games` | `TEXT` | 최근 10경기 전적 `승-패`(예: `5-5`) | 참고용, 원문 문자열 |
 | `observed_at` | `TIMESTAMPTZ` | 관측 시각 | |
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
@@ -416,7 +419,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 |---|---|---|
 | `score:rank:live` | `ZSET` | 진행 중 경기 `watch_score` 랭킹 (member=`game_id`, score=`watch_score`) |
 | `game:{id}:live` | `HASH` | 현재 점수·이닝·노출 태그 캐시 (내부 전용) |
-| `game:{id}:copy:{purpose}` | `STRING` | 검수 통과 AI 라이브 문구 캐시. 종료 경기 문구는 PG에 영속 |
+| `game:{id}:copy:{purpose}` | `STRING` | 종료 경기 AI 문구 읽기 캐시. 원본은 `games.final_headline`·`replay_segments.ai_summary`에 영속 |
 
 ### E-3. S3 원본 레이아웃 (개발·백테스트 전용)
 

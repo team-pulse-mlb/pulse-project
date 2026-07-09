@@ -6,7 +6,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 2
+  version: 3
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
@@ -36,6 +36,9 @@ scoring:
     full-count: 3
     two-outs: 3
     max: 5
+  pressure:
+    bases-loaded: 6
+    scoring-position: 4
   early-slugfest:
     bonus: 5
     max-inning: 3
@@ -45,8 +48,25 @@ scoring:
   importance:
     min: 0.9
     max: 1.15
+    postseason: 1.15
+    both-contending: 1.10
+    one-contending: 1.05
+    both-out: 0.90
+    contention-min-percent: 10
+    contention-max-percent: 90
   pregame-carryover-max: 10
   personalization-max: 15
+
+  # 예정 경기 점수 (pregame_score)
+  pregame:
+    closeness-max: 30
+    closeness-win-percent-span: 0.15
+    closeness-implied-probability-span: 0.25
+    matchup-per-starter-max: 20
+    matchup-era-baseline: 4.6
+    matchup-era-span: 2.0
+    contention-both: 30
+    contention-one: 15
 
   # 상세 신호 (상위 경기 전용, 태그·알림에만 사용 — 랭킹 미반영)
   detail:

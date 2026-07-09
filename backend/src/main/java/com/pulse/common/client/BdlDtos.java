@@ -1,7 +1,10 @@
 package com.pulse.common.client;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -57,7 +60,113 @@ public final class BdlDtos {
             @JsonProperty("score_value") Integer scoreValue,
             Integer outs,
             Integer balls,
-            Integer strikes
+            Integer strikes,
+            @JsonProperty("batter_id") Long batterId,
+            @JsonProperty("pitcher_id") Long pitcherId
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlLineup(
+            Long id,
+            @JsonProperty("game_id") Long gameId,
+            Player player,
+            TeamRef team,
+            @JsonProperty("batting_order") Integer battingOrder,
+            String position,
+            @JsonProperty("is_probable_pitcher") Boolean isProbablePitcher
+    ) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public record Player(
+                Long id,
+                @JsonProperty("full_name") @JsonAlias({"display_name", "name"}) String fullName,
+                @JsonProperty("first_name") String firstName,
+                @JsonProperty("last_name") String lastName,
+                @JsonAlias("primary_position") String position
+        ) {
+        }
+
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public record TeamRef(Long id) {
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlOdds(
+            @JsonProperty("game_id") Long gameId,
+            @JsonAlias({"sportsbook", "book"}) String vendor,
+            @JsonProperty("moneyline_home_odds") @JsonAlias({"home_moneyline", "home_ml"}) Integer moneylineHomeOdds,
+            @JsonProperty("moneyline_away_odds") @JsonAlias({"away_moneyline", "away_ml"}) Integer moneylineAwayOdds,
+            @JsonProperty("spread_home_value") @JsonAlias("home_spread") BigDecimal spreadHomeValue,
+            @JsonProperty("spread_away_value") @JsonAlias("away_spread") BigDecimal spreadAwayValue,
+            @JsonProperty("spread_home_odds") @JsonAlias("home_spread_odds") Integer spreadHomeOdds,
+            @JsonProperty("spread_away_odds") @JsonAlias("away_spread_odds") Integer spreadAwayOdds,
+            @JsonProperty("total_value") @JsonAlias("total") BigDecimal totalValue,
+            @JsonProperty("total_over_odds") @JsonAlias("over_odds") Integer totalOverOdds,
+            @JsonProperty("total_under_odds") @JsonAlias("under_odds") Integer totalUnderOdds,
+            @JsonProperty("updated_at") String vendorUpdatedAt
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlStanding(
+            Team team,
+            @JsonProperty("league_name") String leagueName,
+            @JsonProperty("division_name") String divisionName,
+            Integer wins,
+            Integer losses,
+            @JsonProperty("win_percent") BigDecimal winPercent,
+            @JsonProperty("games_behind") BigDecimal gamesBehind,
+            @JsonProperty("playoff_percent") BigDecimal playoffPercent,
+            @JsonProperty("wildcard_percent") BigDecimal wildcardPercent,
+            Integer streak,
+            @JsonProperty("last_ten_games") String lastTenGames
+    ) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public record Team(Long id) {
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlPlayerSeasonStat(
+            @JsonProperty("player_id") Long playerId,
+            Player player,
+            Integer season,
+            @JsonProperty("pitching_era") @JsonAlias("era") BigDecimal pitchingEra,
+            @JsonProperty("pitching_war") BigDecimal pitchingWar,
+            @JsonProperty("pitching_whip") @JsonAlias("whip") BigDecimal pitchingWhip,
+            @JsonProperty("pitching_k_per_9") @JsonAlias("k_per_9") BigDecimal pitchingKPer9,
+            @JsonProperty("batting_war") BigDecimal battingWar,
+            @JsonProperty("batting_ops") @JsonAlias("ops") BigDecimal battingOps,
+            @JsonProperty("batting_hr") @JsonAlias("hr") Integer battingHr
+    ) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public record Player(Long id) {
+        }
+
+        public Long resolvedPlayerId() {
+            if (playerId != null) {
+                return playerId;
+            }
+            return player == null ? null : player.id();
+        }
+    }
+
+    /** /plate_appearances 원본 응답과 파싱 결과. 원본은 S3 아카이브 유지용이다. */
+    public record PlateAppearancesRaw(JsonNode response, List<BdlPlateAppearance> data) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlPlateAppearance(
+            @JsonProperty("pa_number") Long paNumber,
+            @JsonProperty("game_id") Long gameId,
+            Integer inning,
+            @JsonProperty("half_inning") String halfInning,
+            @JsonProperty("batter_id") Long batterId,
+            @JsonProperty("pitcher_id") Long pitcherId,
+            @JsonProperty("runner_on_first") Boolean runnerOnFirst,
+            @JsonProperty("runner_on_second") Boolean runnerOnSecond,
+            @JsonProperty("runner_on_third") Boolean runnerOnThird
     ) {
     }
 }
