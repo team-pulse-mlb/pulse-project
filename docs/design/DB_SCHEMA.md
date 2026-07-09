@@ -249,7 +249,6 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 | `notify_game_start` | `BOOLEAN` | 관심 팀 경기 시작 알림 | 기본 `true` |
 | `notify_surge_enabled` | `BOOLEAN` | 급상승 경기 알림 | 기본 `true` |
 | `recommend_switch_enabled` | `BOOLEAN` | 경기 전환 추천 | 기본 `true` |
-| `show_finished_games` | `BOOLEAN` | 종료 경기 추천 표시 | 기본 `true` |
 | `created_at` · `updated_at` | `TIMESTAMPTZ` | 생성/수정 | |
 
 **키·인덱스** — PK `user_id` · GIN idx(`favorite_team_ids`), GIN idx(`favorite_player_ids`)
