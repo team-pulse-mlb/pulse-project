@@ -15,7 +15,7 @@
 
 - 기반 배선: V1·V2 스키마·BalldontlieClient·프로파일·RabbitMQ 큐·DLQ 설정, 공유 메시지 DTO(`ScoreTask`·`NotificationEvent`)·발행·소비 배선
 - poller 워커: 생명주기 상태머신, 상태별 폴링·백오프, `games`·`plays` 증분 수집, situation 추출, `ScoreTask`·`GAME_START`·종료 task 발행, 선발 시즌스탯 적재
-- scorer 워커: 8신호 점수·다시보기 구간 로직(`replay`→`scorer` 이관), `score.tasks` 소비, `watch_score`·`peak_base_score`·`game_events` 영속, Redis 랭킹·캐시·`signal` 발행, SURGE 판정, `pregame_score`, 종료 정리
+- scorer 워커: 8신호 점수 로직, `score.tasks` 소비, `watch_score`·`peak_base_score`·`game_events` 영속, Redis 랭킹·캐시·`signal` 발행, SURGE 판정, `pregame_score`, 종료 정리
 - api.home: `GET /api/rankings/live`(슬롯·개인화 가산·보호 DTO), `GET /api/games`(슬레이트·상태·정렬)
 - SSE: `GET /api/sse`·1회용 토큰, `signal:*` 구독 → 이벤트 3종 중계
 - 전환 후보 조회 지점(랭킹 기반) 제공 — 민석 상세가 소비

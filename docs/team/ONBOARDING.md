@@ -102,7 +102,7 @@ cd backend
 ./gradlew bootRun --args='--spring.profiles.active=api,replay'
 ```
 
-실행 시 backend는 S3 live archive를 시간순으로 읽고 로컬 PostgreSQL에 `games`, `plays`, `watch_scores`, `replay_segments`를 저장한다. 진행 중 경기의 최신 랭킹은 Redis `score:rank:live`에 저장된다.
+실행 시 backend는 S3 live archive를 시간순으로 읽고 로컬 PostgreSQL에 `games`, `plays`, `watch_scores`, `game_events`를 저장한다. 진행 중 경기의 최신 랭킹은 Redis `score:rank:live`에 저장된다.
 
 ## 7. API 확인
 
@@ -140,7 +140,7 @@ curl "http://localhost:8080/api/rankings/live"
 | `games` | 경기 최신 상태 |
 | `plays` | S3 raw archive에서 재생한 play 로그 |
 | `watch_scores` | 리플레이 중 계산한 추천 점수 이력 |
-| `replay_segments` | 라이브 계산 중 열린 다시보기 추천 구간 |
+| `game_events` | 라이브 계산 중 추출한 흥미 순간 이벤트 |
 
 ### RedisInsight
 

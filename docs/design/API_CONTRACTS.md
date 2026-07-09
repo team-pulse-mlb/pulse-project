@@ -7,7 +7,6 @@
 | `GET /api/rankings/live` | 홈 상단 추천 영역(예정/진행/종료 슬롯, 추천순). 로그인 시 관심 팀/선수 가산이 적용된 순서 | 선택 |
 | `GET /api/games?date=&status=&sort=` | 홈 하단 전체 경기 목록(슬레이트 단위). `date` 미지정 시 오늘 슬레이트, `status` in `all\|scheduled\|live\|finished`(기본 `all`), `sort` in `recommended\|startTime`(기본 `startTime`) | 선택 |
 | `GET /api/games/{id}?mode=PROTECTED\|REVEALED` | 경기 상세. `mode` 기본값 `PROTECTED`. 진행 중이면 `switchSuggestion` 포함 | 선택 |
-| `GET /api/games/{id}/replay?mode=` | 종료 경기 다시보기 구간 목록 | 선택 |
 | `GET /api/games/{id}/events?mode=` | 흥미 순간 이벤트 타임라인(진행·종료 공통) | 선택 |
 | `GET /api/teams` | 온보딩 관심 팀 선택용 팀 목록 | 선택 |
 | `GET /api/sse` | SSE 구독(이벤트 3종) | 선택 |
@@ -153,7 +152,7 @@
 
 종료 경기 상세 응답의 `headline`은 nullable이다. 보호 모드 `headline`은 `games.final_headline_protected`, 공개 모드 `headline`은 `games.final_headline_revealed`를 원천으로 하며 두 컬럼 모두 nullable이다(AI_COPY.md `FINAL_HEADLINE` 참고). 저장된 문구가 없으면 `headline=null`을 반환하고 프론트는 헤드라인 영역을 렌더링하지 않는다.
 
-종료 경기에는 `tensionCurve`를 포함할 수 있다. 보호 모드는 이닝 단위 `{ inning, level }`, 공개 모드는 하프이닝 단위까지 허용하며 `level`은 1~5 양자화 값이다. `tensionCurve`에는 원 `base_score`, 축 눈금 숫자, 경기 간 비교용 절대 순위를 포함하지 않는다. 구간 음영 밴드는 `bands: [{ startInning, endInning }]` 형태의 이닝 범위로 표현한다.
+종료 경기에는 `tensionCurve`를 포함할 수 있다. 보호 모드는 이닝 단위 `{ inning, level }`, 공개 모드는 하프이닝 단위까지 허용하며 `level`은 1~5 양자화 값이다. `tensionCurve`에는 원 `base_score`, 축 눈금 숫자, 경기 간 비교용 절대 순위를 포함하지 않는다.
 
 ```jsonc
 // GET /api/games/{id}?mode=protected (종료)
@@ -164,9 +163,6 @@
     { "inning": 5, "level": 3 },
     { "inning": 6, "level": 4 },
     { "inning": 7, "level": 5 }
-  ],
-  "bands": [
-    { "startInning": 5, "endInning": 7 }
   ]
 }
 
@@ -290,7 +286,7 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 
 재전달 멱등: `watch_scores`의 UNIQUE(`game_id`, `computed_at`) 충돌 시 scorer는 해당 사이클 저장을 건너뛴다(`computed_at` = `observedAt`).
 
-종료 task 멱등: `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 task는 scorer가 종료 정리(구간 마감·`score:rank:live` 제거·`signal:ranking` 발행)를 경기 상태 전이 기준으로 1회만 수행한다. 이미 정리된 경기의 종료 task가 중복·역순·재전달로 도착해도 재실행하지 않는다. 종료 task 유실 대비로 poller는 상시 감시를 통해 상태 전이가 확정될 때까지 종료 task를 재발행할 수 있다.
+종료 task 멱등: `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 task는 scorer가 종료 정리(`score:rank:live` 제거·`signal:ranking` 발행)를 경기 상태 전이 기준으로 1회만 수행한다. 이미 정리된 경기의 종료 task가 중복·역순·재전달로 도착해도 재실행하지 않는다. 종료 task 유실 대비로 poller는 상시 감시를 통해 상태 전이가 확정될 때까지 종료 task를 재발행할 수 있다.
 
 ### 5.2 Redis 키
 
