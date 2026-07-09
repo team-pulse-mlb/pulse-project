@@ -7,7 +7,7 @@
 | 유형 | 조건 | 대상 | 빈도 제한 | 전달 |
 |---|---|---|---|---|
 | 급상승 경기 알림 (`SURGE`) | `watch_score` 85 이상 진입 **그리고** 최근 5분 내 +15 이상 상승. 발화 후 70 미만으로 내려가야 재무장(히스테리시스) | 전역(관심 팀 무관), `notify_surge_enabled`로 개인별 차단 가능 | 전체 15분 1회 | 인앱 토스트 + 알림 센터 |
-| 관심 팀 경기 시작 (`GAME_START`) | 관심 팀 경기의 진행 중 전환 감지 | 관심 팀(`favorite_team_ids`)이 홈·원정에 포함되고 `notify_game_start`를 켠 사용자 | 경기당 1회 | 인앱 토스트 + 알림 센터 |
+| 관심 팀 경기 시작 (`GAME_START`) | 관심 팀 경기의 진행 중 전환 감지 | `user_favorite_teams`에 홈·원정 팀이 있고 `notify_game_start`를 켠 사용자 | 경기당 1회 | 인앱 토스트 + 알림 센터 |
 | 경기 전환 안내 | 다른 경기의 `watch_score`가 현재 경기보다 20점 이상 높고 70 이상 | 상세 화면 조회 중인 사용자 | 같은 후보 경기 15분 1회 | 상세 화면 토스트 (알림 파이프라인이 아니라 상세 응답의 `switchSuggestion` 필드) |
 
 - 급상승 판정은 scorer가, 경기 시작 판정은 poller가 하고, 사용자별 전달·저장은 api가 한다.
@@ -50,6 +50,6 @@ flowchart LR
 ```
 
 - 소비: api의 notification 모듈이 fan-out → `user_notifications` insert → SSE `notification_created` 푸시.
-- fan-out 대상: `SURGE`는 `notify_enabled`·`notify_surge_enabled`가 켜진 전체 사용자. `GAME_START`는 그중 `notify_game_start`가 켜져 있고 `favorite_team_ids`에 홈 또는 원정 팀이 포함된 사용자만.
+- fan-out 대상: `SURGE`는 `user_settings.notify_surge_enabled`가 켜진 전체 사용자. `GAME_START`는 `user_settings.notify_game_start`가 켜져 있고 `user_favorite_teams`에 홈 또는 원정 팀이 포함된 사용자만.
 - 멱등: `(event_id, user_id)` 유니크 제약. 중복 전달을 전제로 한다.
 - 알림 payload·문구에 점수 숫자를 싣지 않는다.

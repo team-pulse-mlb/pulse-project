@@ -34,13 +34,15 @@ erDiagram
     games ||--o{ lineups : "라인업"
     games ||--o{ odds_snapshots : "배당 스냅샷"
     games ||--o{ notification_events : "알림 발화"
-    users ||--o| user_preferences : "설정"
+    users ||--o| user_settings : "설정"
+    users ||--o{ user_favorite_teams : "관심 팀"
+    teams ||--o{ user_favorite_teams : "관심 팀"
     users ||--o{ refresh_tokens : "토큰"
     users ||--o{ user_notifications : "수신함"
     notification_events ||--o{ user_notifications : "fan-out"
 ```
 
-`user_preferences`는 `favorite_team_ids`·`favorite_player_ids` 배열로 `teams`·`players`를 앱 레벨에서 참조한다(물리 FK 미설정).
+관심 팀은 `user_favorite_teams` 조인 테이블로 관리한다. 관심 선수 저장 구조는 후속 작업에서 확정한다.
 
 ## 4. 테이블 개요
 
@@ -53,7 +55,8 @@ erDiagram
 | 운영 핵심 | `game_events` | append 로그(확정 결과) | P1 |
 | 사용자 | `users` | 계정 | P0 |
 | 사용자 | `refresh_tokens` | 토큰 상태 | P0 |
-| 사용자 | `user_preferences` | 설정 | P0 |
+| 사용자 | `user_settings` | 알림·전환 설정 | P0 |
+| 사용자 | `user_favorite_teams` | 관심 팀 조인 | P0 |
 | 알림 | `notification_events` | 전역 이벤트 원본 | P0 |
 | 알림 | `user_notifications` | 사용자별 수신함 | P0 |
 | 마스터 | `teams` | 정적 마스터 | P1 |
@@ -171,16 +174,13 @@ erDiagram
 | `start_inning_type` · `end_inning_type` | `TEXT` | 초/말 | |
 | `peak_score` | `SMALLINT` | 구간 내 최고 base_score | [내부] 노출 상위 3개 정렬 키 |
 | `tags` | `TEXT[]` | 구간 중 발생 태그 | |
-| `ai_summary` | `TEXT` | 구간 AI 요약(검수 통과본) | 확정 산출물로 영속, nullable |
 | `status` | `TEXT` | `OPEN`/`CLOSED` | |
 | `opened_at` · `closed_at` | `TIMESTAMPTZ` | 개폐 시각 | |
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · idx(`game_id`, `peak_score` DESC)
 
-> 히스테리시스: `base_score >= 60`이면 구간 열기, `base_score < 50`이면 닫기. 직전 구간과 1 하프이닝 이내면 병합. 노출은 `peak_score` 상위 3개, 보호 모드에서는 최종 점수·승패를 드러내지 않는 문구만 사용.
->
-> `ai_summary`는 종료 경기 확정 산출물이므로 Redis가 아니라 이 테이블에 영속한다. 종료 경기 문구는 몇 년 뒤 상세 화면에도 나와야 하고, 재생성에 LLM 비용이 들어 "Redis = 재계산 가능한 것만" 기준에 해당하지 않는다.
+> 히스테리시스: `base_score >= 60`이면 구간 열기, `base_score < 50`이면 닫기. 직전 구간과 1 하프이닝 이내면 병합. 노출은 `peak_score` 상위 3개 구간의 이닝 범위와 태그를 사용하되, `peak_score` 값은 노출하지 않는다.
 
 ### A-5. `game_events` — 흥미로운 순간 이벤트(확정 결과)
 
@@ -239,24 +239,33 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 
 **키·인덱스** — PK `refresh_token_id` · UNIQUE(`token_hash`) · idx(`user_id`)
 
-### B-3. `user_preferences` — 사용자 설정
+### B-3. `user_settings` — 사용자 설정
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
 | `user_id` | `BIGINT` | 사용자 id | **PK** · FK → `users` |
-| `favorite_team_ids` | `BIGINT[]` | 관심 팀 | GIN idx · `teams` 소프트 참조 |
-| `favorite_player_ids` | `BIGINT[]` | 관심 선수 | GIN idx · `players` 소프트 참조 |
-| `notify_enabled` | `BOOLEAN` | 알림 마스터 스위치 | 기본 `true` |
 | `notify_game_start` | `BOOLEAN` | 관심 팀 경기 시작 알림 | 기본 `true` |
 | `notify_surge_enabled` | `BOOLEAN` | 급상승 경기 알림 | 기본 `true` |
 | `recommend_switch_enabled` | `BOOLEAN` | 경기 전환 추천 | 기본 `true` |
 | `created_at` · `updated_at` | `TIMESTAMPTZ` | 생성/수정 | |
 
-**키·인덱스** — PK `user_id` · GIN idx(`favorite_team_ids`), GIN idx(`favorite_player_ids`)
+**키·인덱스** — PK `user_id`
 
 > 알림 임계(85)·재무장(70)·급등 조건은 사용자별 설정이 아니라 `scoring.yml` 전역 상수다. 기본 스포일러 모드 설정은 두지 않는다 — 모든 경기는 항상 보호 모드로 시작하고, 경기 단위 공개 상태는 서버에 저장하지 않고 클라이언트(localStorage)에만 둔다.
 
-### B-4. `notification_events` — 알림 이벤트 원본 (전역 1행)
+### B-4. `user_favorite_teams` — 관심 팀
+
+| 컬럼 | 타입 | 설명 | 제약·비고 |
+|---|---|---|---|
+| `user_id` | `BIGINT` | 사용자 id | FK → `users.user_id` |
+| `team_id` | `BIGINT` | 관심 팀 id | FK → `teams.team_id` |
+| `created_at` | `TIMESTAMPTZ` | 등록 시각 | |
+
+**키·인덱스** — PK(`user_id`, `team_id`) · idx(`team_id`)
+
+관심 선수 저장(`user_favorite_players`)은 후속 작업으로 둔다.
+
+### B-5. `notification_events` — 알림 이벤트 원본 (전역 1행)
 
 scorer(급상승)·poller(경기 시작)가 판정해 발행한 이벤트의 원본. 사용자별 수신함과 분리해 발화 이력을 남긴다.
 
@@ -270,7 +279,7 @@ scorer(급상승)·poller(경기 시작)가 판정해 발행한 이벤트의 원
 
 **키·인덱스** — PK `event_id` · idx(`game_id`, `occurred_at`)
 
-### B-5. `user_notifications` — 사용자별 수신함
+### B-6. `user_notifications` — 사용자별 수신함
 
 api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한다. 알림 센터의 최신순 목록·미읽음 배지·읽음 처리·7일 보관을 지원한다.
 
@@ -292,6 +301,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
 | `team_id` | `BIGINT` | balldontlie 팀 id | **PK** |
+| `logo_team_id` | `BIGINT` | 로고 매핑용 팀 id | nullable |
 | `abbreviation` | `TEXT` | 약칭(예: `CHC`) | |
 | `display_name` | `TEXT` | 표시명(예: `Chicago Cubs`) | |
 | `short_display_name` · `name` · `location` | `TEXT` | 짧은 표시명·팀명·연고 | |
@@ -419,7 +429,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 |---|---|---|
 | `score:rank:live` | `ZSET` | 진행 중 경기 `watch_score` 랭킹 (member=`game_id`, score=`watch_score`) |
 | `game:{id}:live` | `HASH` | 현재 점수·이닝·노출 태그 캐시 (내부 전용) |
-| `game:{id}:copy:{purpose}` | `STRING` | 종료 경기 AI 문구 읽기 캐시. 원본은 `games.final_headline`·`replay_segments.ai_summary`에 영속 |
+| `game:{id}:copy:FINAL_HEADLINE:{mode}` | `STRING` | 종료 경기 AI 헤드라인 읽기 캐시. 원본은 `games.final_headline_protected`·`games.final_headline_revealed`에 영속 |
 
 ### E-3. S3 원본 레이아웃 (개발·백테스트 전용)
 

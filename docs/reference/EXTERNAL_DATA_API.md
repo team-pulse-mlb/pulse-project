@@ -88,7 +88,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `home_team_data.inning_scores` | 이닝별 득점 배열 | `[0, 0, 0, 1, 1, 0, 0, 0, 1]` | 초반 난타 신호, 빅이닝 검증 |
 | `venue`, `attendance` | 경기장, 관중 수 | `"Wrigley Field"`, `37607` | 표시용(스포일러 아님) |
 | `conference_play` | 컨퍼런스 경기 여부 | `false` | 미사용 |
-| `scoring_summary` | 득점 이벤트 배열 (play 텍스트, inning, period) | `[{"play": "Tatis Jr. grounded...", "inning": "top", ...}]` | 다시보기 구간 검증 보조 (공개 모드 전용 — 결과 텍스트 포함) |
+| `scoring_summary` | 득점 이벤트 배열 (play 텍스트, inning, period) | `[{"play": "Tatis Jr. grounded...", "inning": "top", ...}]` | 참고용 원본 필드. 공개 상세의 득점 play 목록은 `plays.scoring_play=true` 행의 `text`에서 파생한다. |
 
 ### `/mlb/v1/plays` — play 이벤트 스트림
 
