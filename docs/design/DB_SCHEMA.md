@@ -197,6 +197,9 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 | `inning_type` | `TEXT` | 초/말 | [내부] 보호 DTO에서 제거 |
 | `batter_id` · `pitcher_id` | `BIGINT` | 관련 선수 | FK → `players`, nullable. 공개 모드·관심 선수 매칭용 |
 | `payload` | `JSONB` | 근거 수치(투구 수·구속 추이·exit_velocity 등) | [내부] 공개 모드 표시용 |
+| `copy_protected` | `TEXT` | 이벤트 AI 문구 · 보호 모드용(검수 통과본) | nullable. `contextHash` 일치 시에만 갱신 |
+| `copy_revealed` | `TEXT` | 이벤트 AI 문구 · 공개 모드용(검수 통과본) | nullable. `contextHash` 일치 시에만 갱신 |
+| `copy_context_hash` | `TEXT` | 이벤트 문구 생성 컨텍스트 해시 | nullable. 모드별 문구 저장 시 최신 context 검증 |
 | `ruleset_version` | `TEXT` | 추출 룰 버전(`scoring.yml` version) | |
 | `observed_at` | `TIMESTAMPTZ` | 최초 관측 시각 | 타임라인 공통 정렬 키 |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
