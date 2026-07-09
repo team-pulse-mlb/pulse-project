@@ -1,6 +1,12 @@
 # 팀원 초기 설정 가이드
 
-> 이 가이드는 DB 이전 전 S3 리플레이 기준 절차다. DB 이전 완료 후 운영 DB 기준 단계별 절차로 갱신한다.
+## 현재 운영 기준
+
+- 운영 앱은 EC2 `i-08eec3a0a7d90c8fe`에서 통합 Spring Boot jar로 실행한다.
+- 운영 DB는 RDS PostgreSQL `pulse-postgres`이며, 신규 운영 수집 데이터는 `source=OPERATIONAL`로 적재된다.
+- Redis와 RabbitMQ는 운영 EC2의 Docker 컨테이너(`pulse-redis`, `pulse-rabbitmq`)로 실행한다.
+- S3 `raw-archive`는 이전·백필 원본과 PA 원본 보존에 사용한다. 운영 DB 전환 이후 일반 개발 흐름은 운영 DB 기준 API를 확인한다.
+- ai-service, Prometheus, Grafana는 아직 운영 EC2에 배치되지 않았다. 해당 영역은 담당자와 배포 범위를 별도로 확인한다.
 
 ## 1. 사전 설치
 
@@ -15,7 +21,7 @@
 | IDE | IntelliJ IDEA / VS Code |
 
 - Docker Desktop은 실행 중이어야 한다.
-- S3 리플레이를 실행하는 사람은 AWS CLI 로그인 또는 환경변수 방식으로 `pulse-raw-<account-id>` 읽기 권한을 준비한다.
+- S3 리플레이나 백필을 실행하는 사람은 AWS CLI 로그인 또는 환경변수 방식으로 `pulse-raw-<account-id>` 읽기 권한을 준비한다.
 - 터미널 명령어는 Git Bash 기준이다.
 
 ---
@@ -37,20 +43,20 @@ git config user.email "본인 GitHub 이메일"
 cp .env.example .env
 ```
 
-`.env`에서 로컬 DB와 S3 리플레이 값을 채운다.
+`.env`에서 로컬 DB 값을 채운다. S3 리플레이나 백필을 실행할 때만 S3 관련 값을 추가로 채운다.
 
 | 변수 | 설명 |
 |---|---|
 | `POSTGRES_PASSWORD` | 로컬 PostgreSQL 비밀번호. 예: `pulse` |
 | `PULSE_REPLAY_S3_BUCKET` | S3 raw archive 버킷. 예: `pulse-raw-<account-id>` |
-| `PULSE_REPLAY_GAME_ID` | 재생할 실제 라이브 경기 ID |
-| `PULSE_REPLAY_DATE` | `raw/games/dt=YYYY-MM-DD/` 조회 날짜 |
+| `PULSE_REPLAY_GAME_ID` | S3 리플레이 시 재생할 실제 라이브 경기 ID |
+| `PULSE_REPLAY_DATE` | S3 리플레이 시 `raw/games/dt=YYYY-MM-DD/` 조회 날짜 |
 | `AWS_REGION` | 기본값 `ap-northeast-2` |
 | `OPENAI_API_KEY` | ai-service 담당만 필요 |
 
 `.env`는 커밋하지 않는다.
 
-S3 원본은 다음 형태를 기준으로 읽는다.
+S3 리플레이·백필 원본은 다음 형태를 기준으로 읽는다.
 
 ```text
 raw/games/dt=YYYY-MM-DD/games_HHMMSSZ.json.gz
@@ -104,7 +110,7 @@ cd backend
 ./gradlew bootRun --args='--spring.profiles.active=api,replay'
 ```
 
-실행 시 backend는 S3 live archive를 시간순으로 읽고 로컬 PostgreSQL에 `games`, `plays`, `watch_scores`, `replay_segments`를 저장한다. 진행 중 경기의 최신 랭킹은 Redis `score:rank:live`에 저장된다.
+로컬 개발 실행 시 backend는 로컬 PostgreSQL과 Redis를 사용한다. S3 리플레이 프로필을 사용할 때만 S3 원본을 시간순으로 읽어 로컬 PostgreSQL에 `games`, `plays`, `watch_scores`, `replay_segments`를 저장한다. 운영 환경에서는 RDS에 적재된 데이터와 운영 poller의 `source=OPERATIONAL` 데이터를 기준으로 API를 확인한다. 진행 중 경기의 최신 랭킹은 Redis `score:rank:live`에 저장된다.
 
 ## 7. API 확인
 
@@ -140,9 +146,9 @@ curl "http://localhost:8080/api/rankings/live"
 | 테이블 | 의미 |
 |---|---|
 | `games` | 경기 최신 상태 |
-| `plays` | S3 raw archive에서 재생한 play 로그 |
-| `watch_scores` | 리플레이 중 계산한 추천 점수 이력 |
-| `replay_segments` | 라이브 계산 중 열린 다시보기 추천 구간 |
+| `plays` | 운영 poller 또는 S3 이전·백필로 적재한 play 로그 |
+| `watch_scores` | scorer가 계산한 추천 점수 이력 |
+| `replay_segments` | 다시보기 추천 구간 |
 
 ### RedisInsight
 
@@ -205,7 +211,7 @@ cd backend
 | DB 연결 실패 | Docker Desktop 실행 여부, `docker ps`, `.env` 비밀번호 |
 | Swagger가 안 열림 | Spring Boot를 `api,replay` 프로필로 실행했는지 |
 | S3 접근 실패 | AWS 로그인, 버킷명, `AWS_REGION`, S3 읽기 권한 |
-| 랭킹이 비어 있음 | `PULSE_REPLAY_GAME_ID`에 진행 중 경기 raw가 있는지 |
-| 점수 이력이 적음 | `PULSE_REPLAY_DATE`, `PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX` 값 |
+| 랭킹이 비어 있음 | 로컬 Redis `score:rank:live`, 운영 poller 실행 상태, 진행 중 경기 데이터 |
+| 점수 이력이 적음 | scorer 실행 상태, `watch_scores.source`, S3 리플레이 사용 시 `PULSE_REPLAY_DATE` 값 |
 
 설정 중 반복되는 문제가 있으면 이 문서에 해결 방법을 추가한다.
