@@ -116,7 +116,7 @@
 
 `liveUpdateBlocks`는 진행 중 경기의 추천 태그 변화를 보호 모드에서도 볼 수 있는 카드 목록이다. `watch_scores` 원본을 그대로 내려주지 않고 태그 조합이 실제로 바뀐 시점만 추출해 최근 건수를 제한한다(예: 최근 10건). 점수·팀명·play 원문 등 금지 필드는 포함하지 않는다.
 
-종료 경기 상세 응답은 보호 모드와 공개 모드(스포일러 공개 모드) 모두 `headline`에 종료 경기 AI 헤드라인을 포함한다. 다시보기 구간 목록도 두 모드 모두 구간별 `replayTitle`, `replaySummary`, `tags`를 포함한다. 이 문구들은 AI 문구 설계 문서의 검수 기준을 통과한 스포일러 안전 문구이므로 모드별로 다른 문구를 만들지 않는다. 공개 모드는 여기에 최종 점수, 이닝별 점수, 공개 전용 이벤트 같은 결과 필드만 추가한다.
+종료 경기 상세 응답은 보호 모드와 공개 모드(스포일러 공개 모드) 모두 `headline`을 포함하지만, 두 모드는 각각 별도로 생성·검수된 문구다. 보호 모드 `headline`은 결과를 드러내지 않는 안전 문구이고, 공개 모드 `headline`은 최종 점수·승패 같은 실제 결과를 반영할 수 있는 문구다(AI_COPY.md `FINAL_HEADLINE` 참고). 다시보기 구간 목록의 구간별 `replayTitle`, `replaySummary`, `tags`는 두 모드 모두 같은 문구를 사용한다(AI 문구 설계 문서의 검수 기준을 통과한 스포일러 안전 문구라 모드별로 분기하지 않는다). 공개 모드는 여기에 최종 점수, 이닝별 점수, 공개 전용 이벤트 같은 결과 필드만 추가한다.
 
 ## 2. SSE 이벤트
 
@@ -150,7 +150,7 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 |---|---|---|
 | domain 읽기 | 예은 → 전원 | JPA 엔티티 읽기 전용. 스키마 변경은 예은만 |
 | `ScoreQueryService` | 예은 → 민석 | `getLatestSignals(gameId)` → `{ tags, phase, situation, updatedAt }`. **점수 숫자는 계약에 없음** |
-| `AiCopyReader` | 창현 → 전원 | `getCopy(gameId, purpose)` — 항상 non-null. 검수 통과 AI 문구가 없으면 Spring Boot의 목적별 기본 문구 반환 |
+| `AiCopyReader` | 창현 → 전원 | `getCopy(gameId, purpose, mode)` — 항상 non-null. 검수 통과 AI 문구가 없으면 Spring Boot의 목적·모드별 기본 문구 반환. `FINAL_HEADLINE`은 모드별로 다른 문구, `REPLAY_SUMMARY`는 모드 무관 동일 문구 |
 | `UserPreferenceReader` | 윤호 → 예은(홈 가산)·api(알림 fan-out, 전환 쿨다운) | 관심 팀/선수·알림 설정 조회 |
 | `SseEventPublisher` | api 공통 | 이벤트 3종 발행 단일 창구 |
 | AI 생성 트리거 | 창현 → 예은(scorer) | `com.pulse.ai`의 비동기 생성 요청 인터페이스. ai-service 호출, `contextHash` 검증, 검수 통과 문구 저장, 기본 문구 fallback 판단 담당 |

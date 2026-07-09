@@ -91,7 +91,8 @@ erDiagram
 | `pregame_score` | `SMALLINT` | 예정 정렬 점수 0–100 | [내부] UI 노출 금지 |
 | `pregame_inputs` | `JSONB` | `pregame_score` 계산 시점 입력 스냅샷 | [내부] 불변, nullable. 아래 설명 참조 |
 | `peak_base_score` | `SMALLINT` | 라이브 중 최고 base_score | [내부] 종료 정렬 키 |
-| `final_headline` | `TEXT` | 종료 경기 AI 헤드라인(검수 통과본) | 종료 정리 시 생성 트리거, nullable |
+| `final_headline_protected` | `TEXT` | 종료 경기 AI 헤드라인 · 보호 모드용(검수 통과본) | 종료 정리 시 생성 트리거, nullable |
+| `final_headline_revealed` | `TEXT` | 종료 경기 AI 헤드라인 · 공개 모드용(검수 통과본, 최종 결과 반영 가능) | 종료 정리 시 생성 트리거, nullable |
 | `last_play_order` | `BIGINT` | `/plays` 증분 커서(마지막 order) | |
 | `last_polled_at` | `TIMESTAMPTZ` | 최근 폴링 시각 | |
 | `observed_at` | `TIMESTAMPTZ` | 최신 상태 관측 시각 | |
@@ -249,7 +250,6 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 | `notify_game_start` | `BOOLEAN` | 관심 팀 경기 시작 알림 | 기본 `true` |
 | `notify_surge_enabled` | `BOOLEAN` | 급상승 경기 알림 | 기본 `true` |
 | `recommend_switch_enabled` | `BOOLEAN` | 경기 전환 추천 | 기본 `true` |
-| `show_finished_games` | `BOOLEAN` | 종료 경기 추천 표시 | 기본 `true` |
 | `created_at` · `updated_at` | `TIMESTAMPTZ` | 생성/수정 | |
 
 **키·인덱스** — PK `user_id` · GIN idx(`favorite_team_ids`), GIN idx(`favorite_player_ids`)
