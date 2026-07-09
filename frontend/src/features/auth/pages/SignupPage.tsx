@@ -3,6 +3,7 @@ import axios from 'axios';
 import {
     type ChangeEvent,
     type SubmitEventHandler,
+    useEffect,
     useState,
 } from 'react';
 
@@ -16,6 +17,11 @@ import {
     sendEmailCode, 
     verifyEmailCode 
 } from '../api/memberApi';
+
+import {
+    getTeams,
+    type TeamResponse,
+} from '../../../shared/api/teamApi';
 
 
 interface SignupFormData {
@@ -34,12 +40,6 @@ interface SignupErrors {
 
 type SignupStep = 1 | 2 | 3;
 
-interface Team {
-    id: number;
-    name: string;
-    league: string;
-}
-
 interface NotificationSettings {
     // 전체 알림 ON/OFF
     all: boolean;
@@ -53,15 +53,6 @@ interface NotificationSettings {
     // 사용자가 보던 경기보다 더 추천할 만한 경기로 전환할 때 알림을 받을지 여부
     gameSwitch: boolean;
 }
-
-const teams: Team[] = [
-    { id: 1, name: 'LA Dodgers', league: 'MLB' },
-    { id: 2, name: 'New York Yankees', league: 'MLB' },
-    { id: 3, name: 'San Diego Padres', league: 'MLB' },
-    { id: 4, name: 'Boston Red Sox', league: 'MLB' },
-    { id: 5, name: 'Chicago Cubs', league: 'MLB' },
-    { id: 6, name: 'Atlanta Braves', league: 'MLB' },
-];
 
 const initialFormData: SignupFormData = {
     email: '',
@@ -92,6 +83,29 @@ function SignupPage() {
     const [selectedTeamIds, setSelectedTeamIds] =
         useState<number[]>([]);
 
+    /*
+     * 백엔드 GET /api/teams에서 받아온 전체 팀 목록입니다.
+     *
+     * 기존에는 프론트에서 임시 하드코딩했지만,
+     * 이제 DB teams 테이블 기준으로 받아옵니다.
+     */
+    const [teams, setTeams] =
+        useState<TeamResponse[]>([]);
+
+    /*
+     * 팀 목록 로딩 상태입니다.
+     *
+     * API 요청 중일 때 "팀 목록을 불러오는 중입니다" 같은 메시지를 보여주는 데 사용합니다.
+     */
+    const [isTeamsLoading, setIsTeamsLoading] =
+        useState(false);
+
+    /*
+     * 팀 목록 조회 실패 메시지입니다.
+     */
+    const [teamLoadError, setTeamLoadError] =
+        useState('');
+
     // 알림 설정 기본값
     // 사용자가 알림 단계를 건너뛰거나 따로 수정하지 않으면 이 값이 기본 적용됨
     const [notificationSettings, setNotificationSettings] =
@@ -120,6 +134,50 @@ function SignupPage() {
 
     const [isEmailVerified, setIsEmailVerified] = useState(false);
     const [verificationMessage, setVerificationMessage] = useState('');
+
+    /*
+     * 회원가입 화면 진입 시 팀 목록을 한 번 불러옵니다.
+     *
+     * 관심팀 선택은 Step 2에서 사용하지만,
+     * 미리 불러와도 데이터가 30개뿐이라 부담이 작습니다.
+     */
+    useEffect(() => {
+        let ignore = false;
+
+        const fetchTeams = async () => {
+            setIsTeamsLoading(true);
+            setTeamLoadError('');
+
+            try {
+                const result = await getTeams();
+
+                if (!ignore) {
+                    setTeams(result);
+                }
+            } catch (error) {
+                console.error('팀 목록 조회 오류:', error);
+
+                if (!ignore) {
+                    setTeamLoadError(
+                        '팀 목록을 불러오지 못했습니다.',
+                    );
+                }
+            } finally {
+                if (!ignore) {
+                    setIsTeamsLoading(false);
+                }
+            }
+        };
+
+        fetchTeams();
+
+        /*
+         * 컴포넌트가 사라진 뒤 setState가 실행되는 것을 막기 위한 정리 함수입니다.
+         */
+        return () => {
+            ignore = true;
+        };
+    }, []);
 
     // 모든 입력창의 값을 formData에 저장
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -411,10 +469,22 @@ function SignupPage() {
         setSignupStep(2);
     };
 
+    /*
+     * 관심팀 선택/해제 처리.
+     *
+     * P1 정책:
+     * - 관심팀은 최대 3개까지 선택 가능
+     * - 이미 선택된 팀을 다시 누르면 선택 해제
+     */
     const handleToggleTeam = (teamId: number) => {
         setSelectedTeamIds((prev) => {
             if (prev.includes(teamId)) {
                 return prev.filter((id) => id !== teamId);
+            }
+
+            if (prev.length >= 3) {
+                alert('관심팀은 최대 3개까지 선택할 수 있습니다.');
+                return prev;
             }
 
             return [...prev, teamId];
@@ -479,38 +549,36 @@ function SignupPage() {
     const handleFinalSignup = async () => {
         const email = formData.email.trim();
 
-        // 현재 백엔드 회원가입 API가 받는 데이터
+        /*
+         * 최종 회원가입 요청 데이터.
+         *
+         * 백엔드 SignupRequest와 필드명을 정확히 맞춘다.
+         *
+         * selectedTeamIds:
+         * - 회원가입 Step 2에서 선택한 팀 ID 목록
+         *
+         * notificationSettings:
+         * - 회원가입 Step 3에서 설정한 알림 값
+         * - all은 DB 저장 대상은 아니지만, 백엔드 DTO에서 받을 수 있도록 함께 보낸다.
+         */
         const signupRequest = {
             email,
             password: formData.password,
-        };
-
-        // 현재 백엔드 회원가입 API는 email/password만 받는다.
-        // 그래서 관심팀/알림 설정은 아직 서버로 보내지 않고 console.log로만 확인한다.
-        // 나중에 백엔드에 관심팀/알림 설정 저장 API가 생기면
-        // selectedTeamIds와 notificationSettings를 함께 보내면 된다.
-        const preferenceRequest = {
-            teamIds: selectedTeamIds,
-
-            // all은 프론트에서 전체 ON/OFF 버튼 표시용으로만 사용한다.
-            // DB에는 개별 알림 설정 3개만 저장한다.
-            notifications: {
+            selectedTeamIds,
+            notificationSettings: {
+                all: notificationSettings.all,
                 gameStart: notificationSettings.gameStart,
                 surge: notificationSettings.surge,
                 gameSwitch: notificationSettings.gameSwitch,
             },
         };
 
-        // 현재 회원가입 화면에서 최종적으로 모인 데이터
-        const finalSignupData = {
-            account: signupRequest,
-            preferences: preferenceRequest,
-        };
-
-        console.log('최종 회원가입 데이터:', finalSignupData);
+        console.log('최종 회원가입 요청:', signupRequest);
 
         try {
-            // 현재는 백엔드 회원가입 API가 email/password만 받으므로 signupRequest만 전송
+            /*
+             * 회원 계정, 관심팀, 알림 설정을 한 번에 회원가입 API로 전송한다.
+             */
             const result = await signupMember(signupRequest);
 
             console.log('회원가입 응답:', result);
@@ -750,35 +818,61 @@ function SignupPage() {
                             </button>
                         </div>
 
-                        <div className="signup-team-board">
-                            {teams.map((team) => {
-                                const isSelected =
-                                    selectedTeamIds.includes(team.id);
+                                                <div className="signup-team-board">
+                            {isTeamsLoading && (
+                                <p className="signup-step-help">
+                                    팀 목록을 불러오는 중입니다.
+                                </p>
+                            )}
 
-                                return (
-                                    <button
-                                        key={team.id}
-                                        type="button"
-                                        className={`signup-team-row ${
-                                            isSelected ? 'selected' : ''
-                                        }`}
-                                        onClick={() => handleToggleTeam(team.id)}
-                                    >
-                                        <div className="signup-team-badge">
-                                            {team.name.slice(0, 2).toUpperCase()}
-                                        </div>
+                            {!isTeamsLoading && teamLoadError && (
+                                <p className="signup-error-message">
+                                    {teamLoadError}
+                                </p>
+                            )}
 
-                                        <div className="signup-team-info">
-                                            <strong>{team.name}</strong>
-                                            <span>{team.league}</span>
-                                        </div>
+                            {!isTeamsLoading &&
+                                !teamLoadError &&
+                                teams.map((team) => {
+                                    const isSelected =
+                                        selectedTeamIds.includes(team.teamId);
 
-                                        <div className="signup-team-check">
-                                            {isSelected ? '✓' : '+'}
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                                    return (
+                                        <button
+                                            key={team.teamId}
+                                            type="button"
+                                            className={`signup-team-row ${
+                                                isSelected ? 'selected' : ''
+                                            }`}
+                                            onClick={() =>
+                                                handleToggleTeam(team.teamId)
+                                            }
+                                        >
+                                            <div className="signup-team-badge">
+                                                {team.logoUrl ? (
+                                                    <img
+                                                        className="signup-team-logo"
+                                                        src={team.logoUrl}
+                                                        alt={`${team.displayName} 로고`}
+                                                    />
+                                                ) : (
+                                                    team.abbreviation
+                                                )}
+                                            </div>
+
+                                            <div className="signup-team-info">
+                                                <strong>{team.displayName}</strong>
+                                                <span>
+                                                    {team.league} · {team.division}
+                                                </span>
+                                            </div>
+
+                                            <div className="signup-team-check">
+                                                {isSelected ? '✓' : '+'}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                         </div>
 
                         <p className="signup-step-help">
