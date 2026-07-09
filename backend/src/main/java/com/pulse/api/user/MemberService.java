@@ -13,6 +13,8 @@ import com.pulse.api.user.dto.SignupRequest;
 import com.pulse.api.user.dto.SignupResponse;
 import com.pulse.api.user.exception.DuplicateEmailException;
 import com.pulse.api.user.exception.EmailVerificationException;
+import com.pulse.api.user.exception.FavoriteTeamLimitExceededException;
+import com.pulse.api.user.exception.InvalidFavoriteTeamException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -199,7 +201,7 @@ public class MemberService {
              * 존재하지 않는 team_id가 포함된 것이다.
              */
             if (teams.size() != selectedTeamIds.size()) {
-                throw new IllegalArgumentException(
+                throw new InvalidFavoriteTeamException(
                         "존재하지 않는 관심팀이 포함되어 있습니다."
                 );
             }
@@ -276,7 +278,7 @@ public class MemberService {
                 .anyMatch(teamId -> teamId == null || teamId <= 0);
 
         if (hasInvalidTeamId) {
-            throw new IllegalArgumentException(
+            throw new InvalidFavoriteTeamException(
                     "관심팀 ID가 올바르지 않습니다."
             );
         }
@@ -286,7 +288,7 @@ public class MemberService {
          * 관심팀은 최대 3개까지만 선택 가능.
          */
         if (uniqueTeamIds.size() > 3) {
-            throw new IllegalArgumentException(
+            throw new FavoriteTeamLimitExceededException(
                     "관심팀은 최대 3개까지 선택할 수 있습니다."
             );
         }
