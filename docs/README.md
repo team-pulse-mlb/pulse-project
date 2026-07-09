@@ -14,7 +14,8 @@
 | 문서 | 문서 범위 |
 |---|---|
 | [PROJECT_PROPOSAL.md](product/PROJECT_PROPOSAL.md) | 서비스 개요, 해결하려는 문제, 핵심 관전 경험 |
-| [FEATURE_SPEC.md](product/FEATURE_SPEC.md) | 사용자 기능 범위, 화면 동작, 데모 완료 기준 |
+| [FEATURE_SPEC.md](product/FEATURE_SPEC.md) | 사용자 기능 범위, 데모 완료 기준 |
+| [USER_FLOW.md](product/USER_FLOW.md) | 사용자 여정, 화면별 레이아웃·상태·인터랙션, 실 데이터 예시 |
 
 ## design — 시스템 설계
 
