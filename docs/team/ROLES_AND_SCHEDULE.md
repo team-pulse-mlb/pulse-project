@@ -9,7 +9,7 @@
 | 민석 | 경기 상세, 상세 화면 다시보기, 상세 화면 내 전환 알림 | `api.gamedetail` | `features/game-detail` |
 | 윤호 | 회원, 알림, 통합 후 운영·관측 | `api.user`, `api.notification` | `features/auth`, `features/notification` |
 
-`common`과 `domain`은 공용 영역이지만 쓰기 소유자는 예은이다. 스키마·계약 변경은 `docs/design/API_CONTRACTS.md`의 모듈 인터페이스 범위 안에서만 진행한다.
+`common`과 `domain`은 공용 영역이지만 쓰기 소유자는 예은이다. 스키마·계약 변경은 모듈 인터페이스 영향 범위 안에서만 진행한다.
 
 ### 예은 — 데이터·점수·홈·공통
 
@@ -51,7 +51,7 @@
 
 ## 3. 단계별 일정
 
-### 단계 1 — 핵심 백엔드 + UI 확정 (7/2 ~ 7/8)
+### 단계 1 — 핵심 백엔드 + UI 정리 (7/2 ~ 7/8)
 
 | 팀원 | 작업 |
 |---|---|
