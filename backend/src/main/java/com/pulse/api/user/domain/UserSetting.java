@@ -113,4 +113,32 @@ public class UserSetting {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+
+    /*
+     * 마이페이지 / 사용자 설정 화면에서 변경한 선호 설정을 반영한다.
+     *
+     * 이 메서드를 엔티티 내부에 두는 이유:
+     * - UserSetting의 필드는 private이고 setter를 열지 않았기 때문
+     * - 아무 곳에서나 필드를 막 바꾸는 것보다,
+     *   "설정 수정"이라는 의미 있는 메서드로 변경하는 것이 안전하다.
+     *
+     * 파라미터 매핑:
+     * - spoilerMode                 -> spoiler_mode
+     * - favoriteTeamGameStartAlert  -> favorite_team_game_start_alert
+     * - importantMomentAlert        -> important_moment_alert
+     * - gameSwitchAlert             -> game_switch_alert
+     */
+    public void updatePreferences(
+            SpoilerMode spoilerMode,
+            boolean favoriteTeamGameStartAlert,
+            boolean importantMomentAlert,
+            boolean gameSwitchAlert
+    ) {
+        this.spoilerMode = spoilerMode;
+        this.favoriteTeamGameStartAlert = favoriteTeamGameStartAlert;
+        this.importantMomentAlert = importantMomentAlert;
+        this.gameSwitchAlert = gameSwitchAlert;
+    }
+
 }

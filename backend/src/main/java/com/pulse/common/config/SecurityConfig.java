@@ -109,7 +109,10 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // 현재 로그인 사용자 확인 API는 Access Token 필요
-                        .requestMatchers("/api/members/me").authenticated()
+                        .requestMatchers(
+                                "/api/members/me",
+                                "/api/members/me/**"
+                        ).authenticated()
 
                         // 아직 다른 팀 API 차단 방지를 위해 나머지는 임시 허용
                         .anyRequest().permitAll()
