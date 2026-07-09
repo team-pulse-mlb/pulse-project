@@ -7,11 +7,15 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.Instant;
 
 @Entity
 @Table(name = "teams")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
 public class Team {
 
     /*
@@ -112,4 +116,9 @@ public class Team {
      */
     @Column(name = "division", length = 50)
     private String division;
+
+    private Instant createdAt;
+
+    private Instant updatedAt;
+
 }

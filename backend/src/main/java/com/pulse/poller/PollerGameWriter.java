@@ -7,8 +7,8 @@ import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
-import com.pulse.domain.Team;
-import com.pulse.domain.TeamRepository;
+import com.pulse.api.team.domain.Team;
+import com.pulse.api.team.domain.TeamRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -154,7 +154,7 @@ public class PollerGameWriter {
         }
         Team team = teamRepository.findById(dto.id()).orElseGet(() -> {
             Team created = new Team();
-            created.setId(dto.id());
+            created.setTeamId(dto.id());
             created.setCreatedAt(observedAt);
             return created;
         });
