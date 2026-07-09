@@ -7,7 +7,7 @@
 | 예은(조장) | 데이터 파이프라인, 점수·추천 로직, 홈, 공통 구조 | `poller`, `scorer`, `ranking`, `replay`, `api.home`, `common`, `domain` | `features/home`, `shared`, `app` |
 | 창현 | AI 문구 생성·검수 | `ai-service/`, `com.pulse.ai` | `features/ai-copy` |
 | 민석 | 경기 상세, 상세 화면 다시보기, 상세 화면 내 전환 알림 | `api.gamedetail` | `features/game-detail` |
-| 윤호 | 회원, 알림, 통합 후 운영·관측 | `api.user`, `api.notification` | `features/auth`, `features/notification` |
+| 윤호 | 회원, 알림, 통합 후 관측 | `api.user`, `api.notification` | `features/auth`, `features/notification` |
 
 `common`과 `domain`은 공용 영역이지만 쓰기 소유자는 예은이다. 스키마·계약 변경은 모듈 인터페이스 영향 범위 안에서만 진행한다.
 
@@ -36,7 +36,7 @@
 
 - Security·JWT(회전·재사용 감지)·회원·이메일 인증·`preferences`·UserPreferenceReader 제공
 - `notify.events` 소비·fan-out·알림 센터·7일 보관·프론트
-- (통합 후) Grafana·CI/CD·백업·런북
+- (통합 후) Grafana 관측 대시보드·알림 운영 상태 점검
 
 ## 2. 협업 지점
 
@@ -47,7 +47,7 @@
 | 홈 추천 | 예은이 홈 랭킹, 추천순 정렬, 홈 화면 표시를 담당한다. |
 | AI 문구 | 창현이 ai-service 문구 생성·검수와 `com.pulse.ai`의 기본 문구 fallback 판단을 담당하고, 각 화면 담당자가 표시 위치에 맞게 사용한다. |
 | 회원·알림 | 윤호가 회원, 관심 팀·선수 설정, 알림 저장·전달을 담당한다. |
-| 운영·관측 | 윤호가 통합 이후 Grafana, GitHub Actions 운영 파이프라인, 시크릿 관리, 백업·복구, 장애 런북을 담당한다. |
+| 관측 | 윤호가 통합 이후 Grafana 관측 대시보드와 알림 운영 상태 점검을 담당한다. |
 
 ## 3. 단계별 일정
 
@@ -80,7 +80,7 @@
 | 예은 | 백엔드·워커 배포 지원, 점수·데이터 파이프라인 검증 |
 | 창현 | AI 서비스 배포 지원, 문구 생성·검수 흐름 검증 |
 | 민석 | 경기 상세·다시보기 화면 통합 검증 |
-| 윤호 | 배포 파이프라인, 운영 시크릿, 관측·알림 운영 준비 |
+| 윤호 | 관측·알림 운영 준비 |
 
 ### 발표 준비 (7/18 ~ 7/21)
 
@@ -89,6 +89,6 @@
 | 예은 | 추천 점수 변화 시연 구간, 정상·장애 비교 데모 준비 |
 | 창현 | AI 문구 데모와 스포일러 검수 사례 준비 |
 | 민석 | 경기 상세·다시보기·전환 알림 데모 준비 |
-| 윤호 | 회원·알림·운영 흐름 데모 준비 |
+| 윤호 | 회원·알림·관측 흐름 데모 준비 |
 
 ### 발표일 (7/22)
