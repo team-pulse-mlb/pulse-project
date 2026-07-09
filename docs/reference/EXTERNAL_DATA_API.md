@@ -227,7 +227,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `pitching_era`, `pitching_whip`, `pitching_k_per_9` | ERA/WHIP/K9 | `3.12` 등 | **선발 매치업 강도 (pregame_score)** |
 | `batting_avg`, `batting_ops`, `batting_hr` 등 | 타격 시즌 지표 | `0.301` 등 | 선수 카드 표시, 스타 판정 |
 | `fielding_dwar`, `fielding_rf` | 수비 dWAR, Range Factor | `1.14`, `3.65` | 참고용 |
-| `fielding_fip` | 이름과 달리 FIP 아님 | `65.7`~`97`(에이스), `3.67`(부진 투수) | **사용 안 함**(FIP 스케일 아님, 성적과 무상관) |
+| `fielding_fip` | 이름과 달리 FIP 아님 | `65.7`~`97`(에이스), `3.67`(부진 투수) | **사용 안 함 확정**(FIP 스케일 아님, 성적과 무상관) |
 
 **투구 시즌 필드 전체**: `pitching_gp`, `pitching_gs`, `pitching_qs`, `pitching_w`, `pitching_l`, `pitching_era`, `pitching_sv`, `pitching_hld`, `pitching_ip`, `pitching_h`, `pitching_er`, `pitching_hr`, `pitching_bb`, `pitching_whip`, `pitching_k`, `pitching_k_per_9`, `pitching_war`
 

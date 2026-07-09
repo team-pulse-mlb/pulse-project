@@ -131,7 +131,7 @@ erDiagram
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `play_order`)** · idx(`game_id`, `play_order`)
 
-> `runner_on_*` 채움 규칙: poller가 PA를 `pa_number` 오름차순으로 소비하며 plays의 타석 경계 play에 순차 대응시키고, (`inning`, `half_inning`, `batter_id`) 일치로 검증한다. 검증 불일치·매핑 모호(재관측 순서 꼬임 등) 시 해당 타석은 `null`로 남긴다. 같은 이닝에 동일 타자가 다시 나오는 경우(batting around)에도 `pa_number` 순차 소비로 같은 결과를 보장한다.
+> `runner_on_*` 채움 규칙: poller가 PA를 `pa_number` 오름차순으로 소비하며 plays의 타석 경계 play에 순차 대응시키고, (`inning`, `half_inning`, `batter_id`) 일치로 검증한다. 검증 불일치·매핑 모호(재관측 순서 꼬임 등) 시 해당 타석은 `null`로 남긴다. 같은 이닝에 동일 타자가 다시 나오는 경우(batting around)에도 `pa_number` 순차 소비가 결정성을 보장한다.
 
 ### A-3. `watch_scores` — 점수 이력 append 로그
 

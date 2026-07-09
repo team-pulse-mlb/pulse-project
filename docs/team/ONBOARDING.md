@@ -1,5 +1,7 @@
 # 팀원 초기 설정 가이드
 
+> 이 가이드는 DB 이전 전 S3 리플레이 기준 절차다. DB 이전 완료 후 운영 DB 기준 단계별 절차로 갱신한다.
+
 ## 1. 사전 설치
 
 | 도구 | 버전 |
@@ -205,3 +207,5 @@ cd backend
 | S3 접근 실패 | AWS 로그인, 버킷명, `AWS_REGION`, S3 읽기 권한 |
 | 랭킹이 비어 있음 | `PULSE_REPLAY_GAME_ID`에 진행 중 경기 raw가 있는지 |
 | 점수 이력이 적음 | `PULSE_REPLAY_DATE`, `PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX` 값 |
+
+설정 중 반복되는 문제가 있으면 이 문서에 해결 방법을 추가한다.
