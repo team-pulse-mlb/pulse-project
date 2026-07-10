@@ -25,5 +25,13 @@ class NoOpAiGenerationTriggerConfiguration {
         public void onGameFinalized(long gameId, Instant occurredAt) {
             log.debug("AI 생성 트리거 미구현(no-op): final gameId={}", gameId);
         }
+
+        @Override
+        public void onGameEventPersisted(long gameId, long eventId, String mode, Instant occurredAt) {
+            log.debug("AI 생성 트리거 미구현(no-op): eventCopy gameId={} eventId={} mode={}",
+                    gameId,
+                    eventId,
+                    mode);
+        }
     }
 }

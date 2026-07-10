@@ -9,6 +9,12 @@ import java.time.Instant;
  */
 public interface AiGenerationTrigger {
 
+    String MODE_PROTECTED = "PROTECTED";
+    String MODE_REVEALED = "REVEALED";
+
     /** 경기 종료 시 최종 문구·마감 구간 요약 생성을 요청한다. */
     void onGameFinalized(long gameId, Instant occurredAt);
+
+    /** game_events 영속 직후 이벤트 타임라인 문구 생성을 요청한다. */
+    void onGameEventPersisted(long gameId, long eventId, String mode, Instant occurredAt);
 }
