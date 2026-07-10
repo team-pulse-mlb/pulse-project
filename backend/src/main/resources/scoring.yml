@@ -85,5 +85,3 @@ scoring:
     alert-cooldown-minutes: 15
     switch-score: 70
     switch-gap: 20
-    replay-segment-score: 60
-    replay-segment-close-score: 50

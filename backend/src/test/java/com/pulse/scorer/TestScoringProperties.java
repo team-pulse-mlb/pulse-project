@@ -25,7 +25,7 @@ final class TestScoringProperties {
                 15,
                 new ScoringProperties.Pregame(30, 0.15, 0.25, 20, 4.6, 2.0, 30, 15),
                 new ScoringProperties.Detail(100, 100, 2.0, 10, 8),
-                new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 70, 20, 60, 50)
+                new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 70, 20)
         );
     }
 }
