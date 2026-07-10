@@ -9,6 +9,10 @@ import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
+import com.pulse.domain.LineupRepository;
+import com.pulse.domain.Lineup;
+import com.pulse.domain.Player;
+import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
@@ -26,6 +30,8 @@ class HomeQueryServiceTest {
     private final GameRepository gameRepository = mock(GameRepository.class);
     private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
     private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
+    private final LineupRepository lineupRepository = mock(LineupRepository.class);
+    private final PlayerRepository playerRepository = mock(PlayerRepository.class);
     private final RankingService rankingService = mock(RankingService.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     @SuppressWarnings("unchecked")
@@ -34,6 +40,8 @@ class HomeQueryServiceTest {
             gameRepository,
             watchScoreRepository,
             gameEventRepository,
+            lineupRepository,
+            playerRepository,
             rankingService,
             redisTemplate
     );
@@ -44,7 +52,7 @@ class HomeQueryServiceTest {
     void setUp() {
         when(watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(anyLong())).thenReturn(Optional.empty());
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
-        when(gameEventRepository.findFirstByGameIdAndSpoilerLevelOrderByObservedAtDesc(
+        when(gameEventRepository.findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
                 anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
     }
 
@@ -97,6 +105,31 @@ class HomeQueryServiceTest {
         assertThat(totalCards(response)).isEqualTo(5);
     }
 
+    @Test
+    void getRanking_shouldResolveProbablePitcherNamesFromLineups() {
+        Game scheduled = scheduled(20L, 90);
+        scheduled.setHomeTeamId(1L);
+        scheduled.setAwayTeamId(2L);
+        Lineup homePitcher = probablePitcher(20L, 101L, 1L);
+        Lineup awayPitcher = probablePitcher(20L, 202L, 2L);
+        Player homePlayer = player(101L, "Home Starter");
+        Player awayPlayer = player(202L, "Away Starter");
+
+        when(rankingService.topLive(5)).thenReturn(Map.of());
+        when(gameRepository.findAll()).thenReturn(List.of(scheduled));
+        when(lineupRepository.findByGameIdInAndIsProbablePitcherTrue(List.of(20L)))
+                .thenReturn(List.of(homePitcher, awayPitcher));
+        when(playerRepository.findAllById(List.of(101L, 202L)))
+                .thenReturn(List.of(homePlayer, awayPlayer));
+
+        HomeRankingResponse response = service.getRanking(5);
+
+        assertThat(response.scheduled()).singleElement().satisfies(card -> {
+            assertThat(card.probablePitchers().home()).isEqualTo("Home Starter");
+            assertThat(card.probablePitchers().away()).isEqualTo("Away Starter");
+        });
+    }
+
     private static int totalCards(HomeRankingResponse response) {
         return response.live().size() + response.finished().size() + response.scheduled().size();
     }
@@ -147,5 +180,21 @@ class HomeQueryServiceTest {
         game.setHomeTeamAbbr("H" + id);
         game.setAwayTeamAbbr("A" + id);
         return game;
+    }
+
+    private static Lineup probablePitcher(long gameId, long playerId, long teamId) {
+        Lineup lineup = new Lineup();
+        lineup.setGameId(gameId);
+        lineup.setPlayerId(playerId);
+        lineup.setTeamId(teamId);
+        lineup.setIsProbablePitcher(true);
+        return lineup;
+    }
+
+    private static Player player(long id, String fullName) {
+        Player player = new Player();
+        player.setId(id);
+        player.setFullName(fullName);
+        return player;
     }
 }

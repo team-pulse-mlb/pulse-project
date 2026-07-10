@@ -7,10 +7,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.poller.GameLifecycle;
-import com.pulse.ranking.RankingService;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,6 @@ import org.springframework.data.redis.core.ValueOperations;
 class GameFinalizationServiceTest {
 
     private final GameRepository gameRepository = mock(GameRepository.class);
-    private final RankingService rankingService = mock(RankingService.class);
     private final LiveSignalPublisher liveSignalPublisher = mock(LiveSignalPublisher.class);
     private final AiGenerationTrigger aiGenerationTrigger = mock(AiGenerationTrigger.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -28,9 +27,9 @@ class GameFinalizationServiceTest {
     private final ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
     private final GameFinalizationService service = new GameFinalizationService(
             gameRepository,
-            rankingService,
             liveSignalPublisher,
             aiGenerationTrigger,
+            new AfterCommitExecutor(),
             redisTemplate
     );
 
@@ -44,7 +43,7 @@ class GameFinalizationServiceTest {
 
         service.handle(task(GameLifecycle.FINAL.name()));
 
-        verify(rankingService).removeLive(100L);
+        verify(liveSignalPublisher).removeLiveGame(100L);
         verify(liveSignalPublisher).evictGameCache(100L);
         verify(liveSignalPublisher).publishGameSignal(100L);
         verify(liveSignalPublisher).publishRankingSignal();
@@ -59,7 +58,7 @@ class GameFinalizationServiceTest {
 
         service.handle(task(GameLifecycle.FINAL.name()));
 
-        verifyNoInteractions(rankingService, liveSignalPublisher, aiGenerationTrigger);
+        verifyNoInteractions(liveSignalPublisher, aiGenerationTrigger);
     }
 
     @Test
@@ -70,7 +69,7 @@ class GameFinalizationServiceTest {
 
         service.handle(task(GameLifecycle.SUSPENDED_POSTPONED.name()));
 
-        verify(rankingService).removeLive(100L);
+        verify(liveSignalPublisher).removeLiveGame(100L);
         verify(aiGenerationTrigger, never()).onGameFinalized(100L, observedAt);
     }
 

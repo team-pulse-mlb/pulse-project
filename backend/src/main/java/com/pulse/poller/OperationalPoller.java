@@ -2,6 +2,7 @@ package com.pulse.poller;
 
 import com.pulse.common.client.BalldontlieClient;
 import com.pulse.common.client.BdlDtos.BdlGame;
+import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
 import com.pulse.common.client.BdlDtos.ListResponse;
 import com.pulse.common.client.BdlDtos.PlateAppearancesRaw;
@@ -11,6 +12,8 @@ import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
+import com.pulse.domain.NotificationEventLog;
+import com.pulse.domain.NotificationEventLogRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
 import com.pulse.poller.PollerGameWriter.GameUpsertResult;
@@ -42,6 +45,7 @@ public class OperationalPoller {
     private final ScoreTaskFactory scoreTaskFactory;
     private final ScoreTaskPublisher scoreTaskPublisher;
     private final NotificationEventPublisher notificationEventPublisher;
+    private final NotificationEventLogRepository notificationEventLogRepository;
     private final PollerProperties properties;
     private final PollerRateLimiter rateLimiter;
     private final PaRawArchiveUploader paRawArchiveUploader;
@@ -60,6 +64,7 @@ public class OperationalPoller {
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
+            NotificationEventLogRepository notificationEventLogRepository,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PaRawArchiveUploader paRawArchiveUploader
@@ -72,6 +77,7 @@ public class OperationalPoller {
                 scoreTaskFactory,
                 scoreTaskPublisher,
                 notificationEventPublisher,
+                notificationEventLogRepository,
                 properties,
                 rateLimiter,
                 paRawArchiveUploader,
@@ -87,6 +93,7 @@ public class OperationalPoller {
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
+            NotificationEventLogRepository notificationEventLogRepository,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PaRawArchiveUploader paRawArchiveUploader,
@@ -99,6 +106,7 @@ public class OperationalPoller {
         this.scoreTaskFactory = scoreTaskFactory;
         this.scoreTaskPublisher = scoreTaskPublisher;
         this.notificationEventPublisher = notificationEventPublisher;
+        this.notificationEventLogRepository = notificationEventLogRepository;
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.paRawArchiveUploader = paRawArchiveUploader;
@@ -161,9 +169,9 @@ public class OperationalPoller {
             for (Game game : liveGames) {
                 int inserted = pollPlays(game, now);
                 if (inserted > 0) {
-                    syncPlateAppearances(game.getId(), now);
+                    List<BdlPlateAppearance> plateAppearances = syncPlateAppearances(game.getId(), now);
                     latestPlay(game.getId()).ifPresent(play ->
-                            scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now)));
+                            scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now, plateAppearances)));
                 }
             }
             playsBackoff.recordSuccess();
@@ -201,7 +209,7 @@ public class OperationalPoller {
         return inserted;
     }
 
-    private void syncPlateAppearances(long gameId, Instant observedAt) {
+    private List<BdlPlateAppearance> syncPlateAppearances(long gameId, Instant observedAt) {
         rateLimiter.acquire();
         PlateAppearancesRaw fetch = balldontlieClient.getPlateAppearancesRaw(gameId);
         paRawArchiveUploader.upload(gameId, fetch.response(), observedAt);
@@ -213,21 +221,49 @@ public class OperationalPoller {
                 result.unmatchedPlateAppearances(),
                 result.unmatchedGroups()
         );
+        return fetch.data();
     }
 
     private void publishTransitionEvents(GameUpsertResult result, Instant now) {
         if (result.enteredLive()) {
+            UUID eventId = UUID.randomUUID();
+            NotificationEventLog eventLog = new NotificationEventLog();
+            eventLog.setEventId(eventId);
+            eventLog.setType(NotificationType.GAME_START.name());
+            eventLog.setGameId(result.game().getId());
+            eventLog.setTags(List.of());
+            eventLog.setOccurredAt(now);
+            notificationEventLogRepository.save(eventLog);
+
             notificationEventPublisher.publish(new NotificationEvent(
-                    UUID.randomUUID(),
+                    eventId,
                     NotificationType.GAME_START,
                     result.game().getId(),
-                    List.of(),
+                    gameStartMessage(result.game()),
+                    null,
                     now
             ));
         }
         if (result.enteredTerminalState()) {
             scoreTaskPublisher.publish(scoreTaskFactory.terminalTask(result.game(), now));
         }
+    }
+
+    private static String gameStartMessage(Game game) {
+        return "관심 팀 경기가 시작됐어요 — "
+                + teamLabel(game.getAwayTeamAbbr(), game.getAwayTeamName())
+                + " @ "
+                + teamLabel(game.getHomeTeamAbbr(), game.getHomeTeamName());
+    }
+
+    private static String teamLabel(String abbreviation, String name) {
+        if (abbreviation != null && !abbreviation.isBlank()) {
+            return abbreviation;
+        }
+        if (name != null && !name.isBlank()) {
+            return name;
+        }
+        return "미정";
     }
 
     private List<LocalDate> slateDates(Instant now) {
