@@ -157,7 +157,7 @@ public class PollerGameWriter {
         }
         Team team = teamRepository.findById(dto.id()).orElseGet(() -> {
             Team created = new Team();
-            created.setId(dto.id());
+            created.setTeamId(dto.id());
             created.setCreatedAt(observedAt);
             return created;
         });
