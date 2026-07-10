@@ -1,12 +1,40 @@
-import EmptyState from '../../../shared/components/EmptyState';
+import { useState } from 'react';
+import { useNavigate } from 'react-router';
 
-// 알림 센터 골격 (USER_FLOW §4.10).
-// 최신순 목록, 미읽음 ●/읽음 ○, 클릭 시 읽음 처리 + 상세 이동.
-// 구현은 local-docs/CODEX_FRONTEND_PROMPT.md 위임 명세를 따른다. 데이터 연결은 윤호 담당.
+import Card from '../../../shared/components/Card';
+import { notificationFixtures } from '../fixtures';
+
 function NotificationsPage() {
+  const navigate = useNavigate();
+  const [notifications, setNotifications] = useState(notificationFixtures);
+  const markAllRead = () => setNotifications((current) => current.map((item) => ({ ...item, unread: false })));
+  const openGame = (notificationId: number, gameId: number) => {
+    setNotifications((current) => current.map((item) => item.id === notificationId ? { ...item, unread: false } : item));
+    navigate(`/games/${gameId}`, { state: { fromCard: true } });
+  };
+
   return (
     <div className="mx-auto max-w-[560px] px-4 py-8">
-      <EmptyState message="알림 센터 화면 구현 예정" />
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <h1 className="font-display text-2xl font-bold text-text-strong">알림</h1>
+        <button type="button" onClick={markAllRead} className="text-sm font-semibold text-text-faint hover:text-text-strong">모두 읽음</button>
+      </div>
+      <Card flush>
+        <ul className="divide-y divide-divider overflow-hidden rounded-card">
+          {notifications.map((notification) => (
+            <li key={notification.id}>
+              <button type="button" onClick={() => openGame(notification.id, notification.gameId)} className={`flex w-full items-center gap-4 px-5 py-5 text-left hover:bg-page ${notification.unread ? 'bg-red-tint-soft' : 'bg-white'}`}>
+                <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${notification.unread ? 'bg-mlb-red' : 'border border-card-border bg-white'}`} />
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-[15px] text-text-strong ${notification.unread ? 'font-bold' : 'font-medium'}`}>{notification.message}</span>
+                  <span className="mt-2 block text-sm text-text-faint"><strong className="font-display text-text-muted">{notification.matchup}</strong><span className="mx-2">·</span>{notification.relativeTime}</span>
+                </span>
+                <span aria-hidden="true" className="text-text-faint">→</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Card>
     </div>
   );
 }
