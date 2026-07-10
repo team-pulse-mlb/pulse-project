@@ -36,7 +36,8 @@ public final class BdlDtos {
             @JsonProperty("home_team") Team homeTeam,
             @JsonProperty("away_team") Team awayTeam,
             @JsonProperty("home_team_data") TeamData homeTeamData,
-            @JsonProperty("away_team_data") TeamData awayTeamData
+            @JsonProperty("away_team_data") TeamData awayTeamData,
+            String venue
     ) {
         @JsonIgnoreProperties(ignoreUnknown = true)
         public record Team(long id, @JsonProperty("display_name") String displayName, String abbreviation) {

@@ -149,7 +149,7 @@ class OperationalPollerTest {
     }
 
     private static BdlGame gameDto(String status) {
-        return new BdlGame(100L, "2026-07-08T00:00:00Z", status, 1, null, null, null, null);
+        return new BdlGame(100L, "2026-07-08T00:00:00Z", status, 1, null, null, null, null, null);
     }
 
     private static BdlPlay play(Long order, Long batterId) {
