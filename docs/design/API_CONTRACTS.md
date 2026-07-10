@@ -104,12 +104,6 @@
                  "runnerOnFirst": false, "runnerOnSecond": true,
                  "runnerOnThird": false, "scoringPosition": true,
                  "basesLoaded": false },
-  "tensionCurve": [
-    { "inning": 5, "level": 3 },
-    { "inning": 6, "level": 4 },
-    { "inning": 7, "level": 5 },
-    { "inning": 8, "level": 4 }
-  ],
   "favoritePlayersPlaying": ["Shohei Ohtani"],
   "switchSuggestion": {
     "gameId": 5059002,
@@ -119,7 +113,7 @@
 }
 ```
 
-진행 중 상세의 `situation`은 양 모드에 포함한다. 이닝 교대 중이거나 현재 타석이 없으면 `situation=null`이다. 현재 타자/투수는 공개 모드에서만 `currentMatchup: { batter, pitcher }`로 포함한다. 진행 보호 모드의 `tensionCurve`는 이닝 단위이며 현재 이닝까지만 포함한다.
+진행 중 상세의 `situation`은 양 모드에 포함한다. 이닝 교대 중이거나 현재 타석이 없으면 `situation=null`이다. 현재 타자/투수는 공개 모드에서만 `currentMatchup: { batter, pitcher }`로 포함한다. **진행 중 상세는 보호·공개 모두 `tensionCurve`를 포함하지 않는다**(펄스 그래프는 종료 경기 전용, USER_FLOW.md §4.5). `favoritePlayersPlaying`은 양 모드 응답에 포함하되, 보호 모드는 현재 타자/투수 자체를 노출하지 않으므로 이 필드를 강조 표시에 쓰지 않는다. 공개 모드는 `currentMatchup.batter`/`pitcher.name`과 최근 플레이 등장 선수명을 이 목록과 대조해 일치하면 강조 표시한다.
 
 ```jsonc
 // GET /api/games/{id}?mode=revealed (진행 중)
@@ -138,13 +132,11 @@
     "batter": { "id": 1001, "name": "..." },
     "pitcher": { "id": 2001, "name": "..." }
   },
+  "favoritePlayersPlaying": ["Shohei Ohtani"],
   "inningScores": {
     "away": [0, 1, 0, 2, 0, 0, 1, 0],
     "home": [0, 0, 1, 0, 2, 0, 0, 0]
-  },
-  "tensionCurve": [
-    { "inning": 8, "inningType": "Top", "level": 4 }
-  ]
+  }
 }
 ```
 
