@@ -39,7 +39,6 @@ public class LiveScoringService {
     private final WatchScoreRepository watchScoreRepository;
     private final ScoreCalculator calculator;
     private final ImportanceCalculator importanceCalculator;
-    private final ReplaySegmentService replaySegmentService;
     private final GameEventExtractor gameEventExtractor;
     private final LiveSignalPublisher liveSignalPublisher;
     private final SurgeDetector surgeDetector;
@@ -79,7 +78,6 @@ public class LiveScoringService {
 
         persistWatchScore(game, observedAt, latestPlay, result, importance, pregameBonus, watchScoreRounded, tags);
         updatePeakBaseScore(game, baseScore);
-        replaySegmentService.update(gameId, recentPlays, baseScore, tags, observedAt);
         gameEventExtractor.extract(gameId, recentPlays, observedAt);
 
         liveSignalPublisher.publishLiveUpdate(

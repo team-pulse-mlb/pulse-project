@@ -81,8 +81,6 @@ public record ScoringProperties(
             int alertRiseWindowMinutes,
             int alertCooldownMinutes,
             int switchScore,
-            int switchGap,
-            int replaySegmentScore,
-            int replaySegmentCloseScore
+            int switchGap
     ) {}
 }

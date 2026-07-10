@@ -24,6 +24,7 @@ public class GameEventExtractor {
     static final String EVENT_LEAD_CHANGE = "LEAD_CHANGE";
 
     private final GameEventRepository gameEventRepository;
+    private final AiGenerationTrigger aiGenerationTrigger;
     private final ScoringProperties props;
 
     /** 최근 play 창에서 득점·리드 변경 이벤트를 추출해 dedupe append한다. */
@@ -67,7 +68,17 @@ public class GameEventExtractor {
         event.setObservedAt(observedAt);
         event.setBackfilled(false);
         event.setSource("OPERATIONAL");
-        gameEventRepository.save(event);
+        GameEvent saved = gameEventRepository.save(event);
+        requestEventCopy(saved, observedAt);
+    }
+
+    private void requestEventCopy(GameEvent event, Instant observedAt) {
+        if (GameEvent.SPOILER_PROTECTED_SAFE.equals(event.getSpoilerLevel())) {
+            aiGenerationTrigger.onGameEventPersisted(
+                    event.getGameId(), event.getId(), AiGenerationTrigger.MODE_PROTECTED, observedAt);
+        }
+        aiGenerationTrigger.onGameEventPersisted(
+                event.getGameId(), event.getId(), AiGenerationTrigger.MODE_REVEALED, observedAt);
     }
 
     private static Map<String, Object> scorePayload(Play play) {

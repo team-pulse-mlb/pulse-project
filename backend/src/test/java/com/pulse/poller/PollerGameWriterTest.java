@@ -93,7 +93,8 @@ class PollerGameWriterTest {
                 new BdlGame.Team(1L, "Home", "HOM"),
                 new BdlGame.Team(2L, "Away", "AWY"),
                 new BdlGame.TeamData(1, List.of(1)),
-                new BdlGame.TeamData(0, List.of(0))
+                new BdlGame.TeamData(0, List.of(0)),
+                "Test Park"
         );
     }
 

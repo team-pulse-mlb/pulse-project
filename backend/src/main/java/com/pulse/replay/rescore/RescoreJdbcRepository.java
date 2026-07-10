@@ -58,21 +58,6 @@ class RescoreJdbcRepository {
                 rs.getString("source")), gameId);
     }
 
-    void lockGameForReplaySegments(Long gameId) {
-        jdbcTemplate.queryForObject(
-                "SELECT game_id FROM games WHERE game_id = ? FOR UPDATE",
-                Long.class,
-                gameId);
-    }
-
-    boolean replaySegmentsExist(Long gameId) {
-        Boolean exists = jdbcTemplate.queryForObject(
-                "SELECT EXISTS (SELECT 1 FROM replay_segments WHERE game_id = ?)",
-                Boolean.class,
-                gameId);
-        return Boolean.TRUE.equals(exists);
-    }
-
     int insertWatchScore(RescoreWatchScoreRow row) {
         String sql = """
                 INSERT INTO watch_scores (
@@ -98,38 +83,6 @@ class RescoreJdbcRepository {
             ps.setString(11, row.source());
             return ps;
         });
-    }
-
-    int insertReplaySegments(List<ReplaySegmentDraft> segments) {
-        String sql = """
-                INSERT INTO replay_segments (
-                    game_id, start_play_order, end_play_order, start_inning, end_inning,
-                    start_inning_type, end_inning_type, peak_score, tags, ai_summary,
-                    status, opened_at, closed_at, source
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
-                """;
-        int inserted = 0;
-        for (ReplaySegmentDraft segment : segments) {
-            inserted += jdbcTemplate.update(connection -> {
-                PreparedStatement ps = connection.prepareStatement(sql);
-                ps.setLong(1, segment.gameId());
-                ps.setObject(2, segment.startPlayOrder(), Types.BIGINT);
-                ps.setObject(3, segment.endPlayOrder(), Types.BIGINT);
-                ps.setObject(4, segment.startInning(), Types.SMALLINT);
-                ps.setObject(5, segment.endInning(), Types.SMALLINT);
-                ps.setString(6, segment.startInningType());
-                ps.setString(7, segment.endInningType());
-                ps.setObject(8, segment.peakScore(), Types.SMALLINT);
-                setTextArray(ps, 9, segment.tags());
-                ps.setString(10, segment.status());
-                setInstant(ps, 11, segment.openedAt());
-                setInstant(ps, 12, segment.closedAt());
-                ps.setString(13, segment.source());
-                return ps;
-            });
-        }
-        return inserted;
     }
 
     private String json(RescoreWatchScoreRow row) {

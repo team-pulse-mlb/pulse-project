@@ -20,7 +20,6 @@ import org.springframework.data.redis.core.ValueOperations;
 class GameFinalizationServiceTest {
 
     private final GameRepository gameRepository = mock(GameRepository.class);
-    private final ReplaySegmentService replaySegmentService = mock(ReplaySegmentService.class);
     private final RankingService rankingService = mock(RankingService.class);
     private final LiveSignalPublisher liveSignalPublisher = mock(LiveSignalPublisher.class);
     private final AiGenerationTrigger aiGenerationTrigger = mock(AiGenerationTrigger.class);
@@ -29,7 +28,6 @@ class GameFinalizationServiceTest {
     private final ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
     private final GameFinalizationService service = new GameFinalizationService(
             gameRepository,
-            replaySegmentService,
             rankingService,
             liveSignalPublisher,
             aiGenerationTrigger,
@@ -39,14 +37,13 @@ class GameFinalizationServiceTest {
     private final Instant observedAt = Instant.parse("2026-07-08T04:00:00Z");
 
     @Test
-    void handle_shouldCloseReplayAndRemoveLiveStateOnce() {
+    void handle_shouldRemoveLiveStateOnce() {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game()));
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent("score:finalized:100", observedAt.toString())).thenReturn(true);
 
         service.handle(task(GameLifecycle.FINAL.name()));
 
-        verify(replaySegmentService).closeOpenSegment(100L, observedAt);
         verify(rankingService).removeLive(100L);
         verify(liveSignalPublisher).evictGameCache(100L);
         verify(liveSignalPublisher).publishGameSignal(100L);
@@ -62,18 +59,17 @@ class GameFinalizationServiceTest {
 
         service.handle(task(GameLifecycle.FINAL.name()));
 
-        verifyNoInteractions(replaySegmentService, rankingService, liveSignalPublisher, aiGenerationTrigger);
+        verifyNoInteractions(rankingService, liveSignalPublisher, aiGenerationTrigger);
     }
 
     @Test
-    void handle_shouldKeepOpenReplaySegmentForSuspendedGame() {
+    void handle_shouldNotRequestAiForSuspendedGame() {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game()));
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent("score:finalized:100", observedAt.toString())).thenReturn(true);
 
         service.handle(task(GameLifecycle.SUSPENDED_POSTPONED.name()));
 
-        verify(replaySegmentService, never()).closeOpenSegment(100L, observedAt);
         verify(rankingService).removeLive(100L);
         verify(aiGenerationTrigger, never()).onGameFinalized(100L, observedAt);
     }

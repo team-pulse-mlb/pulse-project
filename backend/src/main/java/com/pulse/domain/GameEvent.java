@@ -71,6 +71,15 @@ public class GameEvent {
     @JdbcTypeCode(SqlTypes.JSON)
     private Map<String, Object> payload;
 
+    @Column(name = "copy_protected", columnDefinition = "text")
+    private String copyProtected;
+
+    @Column(name = "copy_revealed", columnDefinition = "text")
+    private String copyRevealed;
+
+    @Column(name = "copy_context_hash")
+    private String copyContextHash;
+
     @Column(name = "ruleset_version")
     private String rulesetVersion;
 
