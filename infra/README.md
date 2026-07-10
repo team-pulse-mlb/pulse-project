@@ -11,7 +11,20 @@
 
 ## 실행
 
-저장소 루트에서 환경 파일을 만든다.
+### VS Code와 Docker Desktop
+
+1. VS Code Explorer에서 `.env.example`을 복사해 `.env`를 만든다.
+2. `.env`의 `POSTGRES_PASSWORD`를 설정한다.
+3. Microsoft Container Tools 확장을 설치한다.
+4. `infra/docker-compose.yml`을 우클릭하고 **Compose Up**을 선택한다.
+5. Docker 보기 또는 Docker Desktop의 **Containers**에서 `pulse-postgres`, `pulse-redis` 상태를 확인한다.
+
+- Spring Boot와 DB 클라이언트에도 같은 접속값을 사용한다.
+- `.env`는 커밋하지 않는다.
+
+### 터미널 대체 방법
+
+VS Code의 Compose 메뉴를 사용할 수 없을 때 저장소 루트에서 실행한다.
 
 ```bash
 cp .env.example .env
@@ -23,15 +36,15 @@ PowerShell:
 Copy-Item .env.example .env
 ```
 
-- `.env`의 `POSTGRES_PASSWORD`를 설정한다.
-- Spring Boot와 DB 클라이언트에도 같은 접속값을 사용한다.
-- `.env`는 커밋하지 않는다.
-
 ```powershell
 docker compose -f infra/docker-compose.yml --env-file .env up -d
 ```
 
 ## 확인
+
+Docker Desktop의 **Containers**에서 두 컨테이너가 `Running (healthy)`인지 확인한다. 로그는 컨테이너 이름을 선택한 뒤 **Logs** 탭에서 확인한다.
+
+명령으로 상태를 확인해야 할 때만 다음을 사용한다.
 
 ```powershell
 docker compose -f infra/docker-compose.yml --env-file .env ps
@@ -55,7 +68,9 @@ docker exec pulse-redis redis-cli ping
 
 ## 중지와 초기화
 
-데이터 볼륨을 유지하고 컨테이너만 제거한다.
+일반 중지는 VS Code Docker 보기 또는 Docker Desktop에서 두 컨테이너의 **Stop**을 선택한다. 데이터 볼륨은 유지된다.
+
+Compose 리소스를 제거할 때만 다음 명령을 사용한다.
 
 ```powershell
 docker compose -f infra/docker-compose.yml --env-file .env down
