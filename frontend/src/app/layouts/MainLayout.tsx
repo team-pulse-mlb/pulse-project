@@ -1,14 +1,14 @@
 import { Outlet, useLocation } from 'react-router';
 
 import Header from '../../shared/components/Header';
+import { ToastHost } from '../../shared/components/toast';
+
+// 헤더 없이 전체 화면을 쓰는 경로 (다크 배경 온보딩·회원가입)
+const hideHeaderPaths = ['/signup', '/onboarding'];
 
 function MainLayout() {
   const location = useLocation();
 
-  // Header를 숨길 페이지 목록
-  const hideHeaderPaths = ['/signup'];
-
-  // 현재 경로가 숨김 목록에 포함되어 있으면 true
   const shouldHideHeader = hideHeaderPaths.includes(location.pathname);
 
   return (
@@ -18,6 +18,8 @@ function MainLayout() {
       <main>
         <Outlet />
       </main>
+
+      <ToastHost />
     </>
   );
 }
