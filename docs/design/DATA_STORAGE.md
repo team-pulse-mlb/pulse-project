@@ -16,7 +16,6 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 | `game_events` | append 로그 | 라이브 중 추출한 흥미 순간 이벤트(보호/공개 등급 포함). 종료 경기 타임라인에 그대로 재사용 |
 | `odds_snapshots` | 경기 전 스냅샷 | 벤더별 배당. `FIRST_SEEN`·`PREGAME_FINAL` 두 개만, 시작 전 관측만 허용 |
 | `watch_scores` | append 로그 | `base_score`, `watch_score`, 신호별 기여, 추천 태그 |
-| `replay_segments` | 확정 결과 | 다시보기 구간 범위, 최고 점수, 구간 태그 |
 | `users` · `refresh_tokens` | 계정 | 인증 정보, 리프레시 토큰 상태 |
 | `user_settings` · `user_favorite_teams` | 사용자 설정 | 알림·전환 설정, 관심 팀 |
 | `notification_events` · `user_notifications` | 알림 | 전역 이벤트 원본 1행 + 사용자별 수신함(읽음 상태, 7일 보관) |
@@ -44,7 +43,7 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 | `/season_stats` | `player_season_stats` + `games.pregame_inputs` | 캐시는 최신 덮어쓰기. `pregame_score` 계산에 쓴 시점 값은 `pregame_inputs`에 불변 고정 |
 | `/teams` · `/players` | `teams` · `players` | 마스터 upsert |
 
-자체 계산 산출물(`watch_scores`·`replay_segments`·`game_events`·종료 경기 AI 헤드라인)은 외부에 존재하지 않는 데이터이므로 전부 DB에 영속한다.
+자체 계산 산출물(`watch_scores`·`game_events`·종료 경기 AI 헤드라인)은 외부에 존재하지 않는 데이터이므로 전부 DB에 영속한다.
 
 ## 3. 저장하지 않는 데이터
 

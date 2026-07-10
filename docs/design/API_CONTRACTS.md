@@ -7,7 +7,6 @@
 | `GET /api/rankings/live` | 홈 상단 추천 영역(예정/진행/종료 슬롯, 추천순). 로그인 시 관심 팀/선수 가산이 적용된 순서 | 선택 |
 | `GET /api/games?date=&status=&sort=` | 홈 하단 전체 경기 목록(슬레이트 단위). `date` 미지정 시 오늘 슬레이트, `status` in `all\|scheduled\|live\|finished`(기본 `all`), `sort` in `recommended\|startTime`(기본 `startTime`) | 선택 |
 | `GET /api/games/{id}?mode=PROTECTED\|REVEALED` | 경기 상세. `mode` 기본값 `PROTECTED`. 진행 중이면 `switchSuggestion` 포함 | 선택 |
-| `GET /api/games/{id}/replay?mode=` | 종료 경기 다시보기 구간 목록 | 선택 |
 | `GET /api/games/{id}/events?mode=` | 흥미 순간 이벤트 타임라인(진행·종료 공통) | 선택 |
 | `GET /api/teams` | 온보딩 관심 팀 선택용 팀 목록 | 선택 |
 | `GET /api/sse` | SSE 구독(이벤트 3종) | 선택 |
@@ -21,7 +20,7 @@
 
 공통 에러 응답: `{ "code": "GAME_NOT_FOUND", "message": "..." }` 형식, HTTP 상태 코드와 함께.
 
-`GET /api/games`의 `date`는 MLB 슬레이트 날짜(미국 동부시간 기준 `YYYY-MM-DD`)다. 서버가 해당 슬레이트를 `start_time`(UTC) 범위로 변환해 조회한다. `sort=recommended`는 상태 탭(`scheduled`/`live`/`finished`)에서만 유효하며, `status=all`이면 `startTime`으로 강제하고 진행 중 경기를 상단에 고정한다. 추천순 정렬 키는 예정 `pregame_score`, 진행 `watch_score`, 종료 `peak_base_score`이고, 응답에는 점수·순위 숫자를 포함하지 않는다. 홈 카드의 `tags`는 최대 2개이며, 예정 카드는 `venue`와 `probablePitchers`를 포함한다. 이 엔드포인트는 홈(api.home) 소유이며 경기 상세(`GET /api/games/{id}`)와 경로 네임스페이스를 공유한다.
+`GET /api/games`의 `date`는 MLB 슬레이트 날짜(미국 동부시간 기준 `YYYY-MM-DD`)다. 서버가 해당 슬레이트를 `start_time`(UTC) 범위로 변환해 조회한다. `sort=recommended`는 상태 탭(`scheduled`/`live`/`finished`)에서만 유효하며, `status=all`이면 `startTime`으로 강제하고 진행 중 경기를 상단에 고정한다. 추천순 정렬 키는 예정 `pregame_score`, 진행 `watch_score`, 종료 `peak_base_score`이고, 응답에는 점수·순위 숫자를 포함하지 않는다. 홈 카드 필드는 상태별로 다르며 진행 카드는 `latestTag` 단일 필드만 포함하고, 예정 카드는 태그 필드를 포함하지 않으며, 종료 카드는 `headline`과 `keyMoment`만 포함한다. 이 엔드포인트는 홈(api.home) 소유이며 경기 상세(`GET /api/games/{id}`)와 경로 네임스페이스를 공유한다.
 
 ### 1.1 인증 토큰 정책
 
@@ -56,18 +55,17 @@
   "generatedAt": "2026-07-07T02:10:40Z",
   "live": [
     { "gameId": 5059041, "matchup": { "home": "CHC", "away": "SD" },
-      "inning": 8, "tags": ["접전 흐름", "득점권 압박"] }
+      "inning": 8, "latestTag": "득점권 압박" }
   ],
   "scheduled": [
     { "gameId": 5059100, "matchup": { "home": "NYY", "away": "BOS" },
       "startTime": "2026-07-07T23:05:00Z", "venue": "Yankee Stadium",
-      "probablePitchers": { "home": "...", "away": "..." },
-      "tags": ["순위 경쟁"] }
+      "probablePitchers": { "home": "...", "away": "..." } }
   ],
   "finished": [
     { "gameId": 5058990, "matchup": { "home": "LAD", "away": "SF" },
-      "replaySegmentCount": 2, "tags": ["후반 긴장 구간"],
-      "headline": "경기 후반까지 긴장감이 이어진 경기입니다." }
+      "headline": "7회 만루 승부가 등장한, 끝까지 긴장감이 이어진 경기입니다.",
+      "keyMoment": "만루 승부" }
   ]
 }
 
@@ -78,20 +76,22 @@
     { "gameId": 5059041, "gameState": "LIVE",
       "matchup": { "home": "CHC", "away": "SD" },
       "startTime": "2026-07-06T23:05:00Z", "inning": 8,
-      "tags": ["접전 흐름", "득점권 압박"] },
+      "latestTag": "득점권 압박" },
     { "gameId": 5059100, "gameState": "SCHEDULED",
       "matchup": { "home": "NYY", "away": "BOS" },
       "startTime": "2026-07-07T23:05:00Z", "venue": "Yankee Stadium",
-      "probablePitchers": { "home": "...", "away": "..." },
-      "tags": ["순위 경쟁"] },
+      "probablePitchers": { "home": "...", "away": "..." } },
     { "gameId": 5058990, "gameState": "FINAL",
       "matchup": { "home": "LAD", "away": "SF" },
       "startTime": "2026-07-06T20:10:00Z",
-      "replaySegmentCount": 2, "tags": ["후반 긴장 구간"],
-      "headline": "경기 후반까지 긴장감이 이어진 경기입니다." }
+      "headline": null, "keyMoment": "만루 승부" }
   ]
 }
+```
 
+`status`·`displayMode`는 `GameQueryService`가 이미 사용 중인 필드명이다(`gameState`/`mode`가 아님). `homeTeam`/`awayTeam`은 `{ id, name, abbr }` 객체이며, 보호 모드에서도 매치업 식별을 위해 노출한다(팀 우세·점수는 미포함). `inning`은 이닝 숫자만 노출하고 초/말(`inningType`)은 보호 모드 어떤 필드에도 포함하지 않는다.
+
+```jsonc
 // GET /api/games/{id}?mode=protected (진행 중)
 {
   "gameId": 5059041, "status": "STATUS_IN_PROGRESS", "displayMode": "PROTECTED",
@@ -104,20 +104,22 @@
                  "runnerOnFirst": false, "runnerOnSecond": true,
                  "runnerOnThird": false, "scoringPosition": true,
                  "basesLoaded": false },
-  "summary": { "reasonTags": ["접전 흐름", "득점권 압박"] },
-  "recentPlays": [ { "type": "STRIKEOUT", "inning": 8, "outs": 2, "balls": 3, "strikes": 2 } ],
-  "liveUpdateBlocks": [
-    { "timeLabel": "8회", "title": "득점권 압박",
-      "description": "긴장감 있는 흐름이 감지됐습니다.", "tags": ["득점권 압박"] }
+  "tensionCurve": [
+    { "inning": 5, "level": 3 },
+    { "inning": 6, "level": 4 },
+    { "inning": 7, "level": 5 },
+    { "inning": 8, "level": 4 }
   ],
   "favoritePlayersPlaying": ["Shohei Ohtani"],
-  "switchSuggestion": null
+  "switchSuggestion": {
+    "gameId": 5059002,
+    "matchup": { "home": "SEA", "away": "HOU" },
+    "latestTag": "후반 긴장 구간"
+  }
 }
 ```
 
-`status`·`displayMode`는 `GameQueryService`가 이미 사용 중인 필드명이다(`gameState`/`mode`가 아님). `homeTeam`/`awayTeam`은 `{ id, name, abbr }` 객체이며, 보호 모드에서도 매치업 식별을 위해 노출한다(팀 우세·점수는 미포함). `inning`은 이닝 숫자만 노출하고 초/말(`inningType`)은 보호 모드 어떤 필드에도 포함하지 않는다.
-
-진행 중 상세의 `situation`은 양 모드에 포함한다. 이닝 교대 중이거나 현재 타석이 없으면 `situation=null`이다. 현재 타자/투수는 공개 모드에서만 `currentMatchup: { batter, pitcher }`로 포함한다.
+진행 중 상세의 `situation`은 양 모드에 포함한다. 이닝 교대 중이거나 현재 타석이 없으면 `situation=null`이다. 현재 타자/투수는 공개 모드에서만 `currentMatchup: { batter, pitcher }`로 포함한다. 진행 보호 모드의 `tensionCurve`는 이닝 단위이며 현재 이닝까지만 포함한다.
 
 ```jsonc
 // GET /api/games/{id}?mode=revealed (진행 중)
@@ -139,31 +141,28 @@
   "inningScores": {
     "away": [0, 1, 0, 2, 0, 0, 1, 0],
     "home": [0, 0, 1, 0, 2, 0, 0, 0]
-  }
+  },
+  "tensionCurve": [
+    { "inning": 8, "inningType": "Top", "level": 4 }
+  ]
 }
 ```
 
-`liveUpdateBlocks`는 진행 중 경기의 추천 태그 변화를 보호 모드에서도 볼 수 있는 카드 목록이다. `watch_scores` 원본을 그대로 내려주지 않고 태그 조합이 실제로 바뀐 시점만 추출해 최근 건수를 제한한다(예: 최근 10건). 점수·팀명·play 원문 등 금지 필드는 포함하지 않는다.
+`summary.reasonTags`, `liveUpdateBlocks`, 종료 상세의 `eventMarkers`는 응답에 포함하지 않는다. 이벤트는 `GET /api/games/{id}/events`를 단일 원천으로 사용한다.
 
 종료 경기 상세 응답의 `headline`은 nullable이다. 보호 모드 `headline`은 `games.final_headline_protected`, 공개 모드 `headline`은 `games.final_headline_revealed`를 원천으로 하며 두 컬럼 모두 nullable이다(AI_COPY.md `FINAL_HEADLINE` 참고). 저장된 문구가 없으면 `headline=null`을 반환하고 프론트는 헤드라인 영역을 렌더링하지 않는다.
 
-종료 경기에는 `tensionCurve`를 포함할 수 있다. 보호 모드는 이닝 단위 `{ inning, level }`, 공개 모드는 하프이닝 단위까지 허용하며 `level`은 1~5 양자화 값이다. `tensionCurve`에는 원 `base_score`, 축 눈금 숫자, 경기 간 비교용 절대 순위를 포함하지 않는다. 구간 음영 밴드는 `band: { startInning, endInning }` 형태의 이닝 범위로 표현하고, 이벤트 마커는 `events`의 보호 표기 라벨을 참조한다.
+종료 경기에는 `tensionCurve`를 포함할 수 있다. 보호 모드는 이닝 단위 `{ inning, level }`, 공개 모드는 하프이닝 단위까지 허용하며 `level`은 1~5 양자화 값이다. `tensionCurve`에는 원 `base_score`, 축 눈금 숫자, 경기 간 비교용 절대 순위를 포함하지 않는다.
 
 ```jsonc
 // GET /api/games/{id}?mode=protected (종료)
 {
   "gameId": 5058990, "status": "STATUS_FINAL", "displayMode": "PROTECTED",
-  "headline": "경기 후반까지 긴장감이 이어진 경기입니다.",
+  "headline": "7회 만루 승부가 등장한, 끝까지 긴장감이 이어진 경기입니다.",
   "tensionCurve": [
     { "inning": 5, "level": 3 },
     { "inning": 6, "level": 4 },
     { "inning": 7, "level": 5 }
-  ],
-  "bands": [
-    { "startInning": 5, "endInning": 7, "tags": ["후반 긴장 구간"] }
-  ],
-  "eventMarkers": [
-    { "inning": 7, "label": "만루 승부" }
   ]
 }
 
@@ -187,6 +186,32 @@
 
 `scoringSummary`는 외부 API의 `scoring_summary` 원문을 직접 전달하지 않고, `plays`에서 `scoring_play=true`인 행의 `text`로 파생한 득점 play 목록이다. 보호 모드에는 포함하지 않는다.
 
+```jsonc
+// GET /api/games/{id}/events?mode=protected
+{
+  "events": [
+    { "eventId": 91, "eventType": "pressure_bases_loaded", "inning": 7,
+      "label": "만루 승부",
+      "copy": "7회 만루 상황에서 긴 승부가 이어졌습니다.",
+      "observedAt": "2026-07-07T02:31:12Z" }
+  ]
+}
+
+// GET /api/games/{id}/events?mode=revealed
+{
+  "events": [
+    { "eventId": 91, "eventType": "pressure_bases_loaded", "inning": 7,
+      "inningType": "Top", "label": "만루 승부",
+      "copy": "7회 초 Kim과 Steele의 만루 승부가 길게 이어졌습니다.",
+      "players": { "batter": "Kim", "pitcher": "Steele" },
+      "evidence": { "outs": 2, "balls": 3, "strikes": 2 },
+      "observedAt": "2026-07-07T02:31:12Z" }
+  ]
+}
+```
+
+보호 모드의 `copy`는 nullable이며, 프론트 폴백은 `label`이다. 공개 모드는 `REVEALED_ONLY` 이벤트를 포함할 수 있고, `copy`는 공개 문구를 반환한다.
+
 ## 2. SSE 이벤트
 
 payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언트는 신호 수신 즉시 해당 REST를 재조회한다(개인화·스포일러 필터링은 항상 서버 REST 응답에서 적용). `notification_created`는 인증된 연결에만 발행한다.
@@ -194,7 +219,7 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 | 이벤트 | payload | 클라이언트 동작 |
 |---|---|---|
 | `ranking_changed` | `{ sequence, generatedAt }` | 홈 랭킹 재조회 |
-| `game_updated` | `{ gameId, sequence, generatedAt }` | 보고 있는 경기면 상세 재조회(현재 mode 유지) |
+| `game_updated` | `{ gameId, sequence, generatedAt }` | 보고 있는 경기면 상세·이벤트 재조회(현재 mode 유지) |
 | `notification_created` | `{ notificationId }` | 알림 목록 재조회, 토스트 표시 |
 
 ### 2.1 연결·인증·재연결
@@ -210,7 +235,7 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 알림 파이프라인을 타지 않는다. `GET /api/games/{id}` 응답에 포함한다.
 
 - 판정: 서버가 Redis 랭킹에서 "현재 경기보다 `watch_score` 20점 이상 높고 70 이상"인 경기를 찾는다. 점수는 서버 내부에서만 사용.
-- 응답: `switchSuggestion: { gameId, matchup, tags } | null`
+- 응답: `switchSuggestion: { gameId, matchup, latestTag } | null`
 - 쿨다운: 같은 후보 15분 1회, 로그인 사용자는 Redis 키(사용자별), 비로그인은 클라이언트 보조.
 
 ## 4. 모듈 인터페이스 (팀 계약 지점)
@@ -218,12 +243,13 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 | 인터페이스 | 제공 → 사용 | 시그니처·내용 |
 |---|---|---|
 | domain 읽기 | 예은 → 전원 | JPA 엔티티 읽기 전용. 스키마 변경은 예은만 |
-| `ScoreQueryService` | 예은 → 민석 | `getLatestSignals(gameId)` → `{ tags, phase, situation, updatedAt }`. **점수 숫자는 계약에 없음** |
-| `AiCopyReader` | 창현 → 전원 | `getCopy(gameId, purpose, mode)` — 검수 통과 AI 문구가 있으면 문구를 반환하고, 저장된 문구가 없거나 미생성이면 `null`을 반환한다. `FINAL_HEADLINE`은 모드별로 다른 문구를 조회한다. |
+| `ScoreQueryService` | 예은 → 민석 | `getLatestSignals(gameId)` → `{ latestTag, phase, situation, updatedAt }`. **점수 숫자는 계약에 없음** |
+| `AiCopyReader` | 창현 → 전원 | `getCopy(gameId, purpose, mode)` — `FINAL_HEADLINE` 전용. 검수 통과 헤드라인이 있으면 문구를 반환하고, 저장된 문구가 없거나 미생성이면 `null`을 반환한다. |
+| 이벤트 문구 조회 | 예은 → 민석 | `game_events.copy_protected`·`copy_revealed` 직접 조회. 이벤트 API가 단일 원천이다. |
 | `UserPreferenceReader` | 윤호 → 예은(홈 가산)·api(알림 fan-out, 전환 쿨다운) | 관심 팀/선수·알림 설정 조회 |
 | `SseEventPublisher` | api 공통 | 이벤트 3종 발행 단일 창구 |
-| AI 생성 트리거 | 창현 → 예은(scorer) | `com.pulse.ai`의 비동기 생성 요청 인터페이스. ai-service 호출, `contextHash` 검증, 검수 통과 문구 저장 담당 |
-| `notify.events` | scorer·poller → 윤호 | 알림 이벤트 |
+| AI 생성 트리거 | 창현 → 예은(scorer) | `FINAL_HEADLINE`, `EVENT_COPY` 비동기 생성 요청 인터페이스. ai-service 호출, `contextHash` 검증, 검수 통과 문구 저장 담당 |
+| `notify.events` | scorer·poller → 윤호 | 알림 이벤트. 서버가 고정 템플릿으로 완성한 `message` 전달 |
 
 ## 5. 메시징·캐시 명세
 
@@ -260,19 +286,21 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 
 재전달 멱등: `watch_scores`의 UNIQUE(`game_id`, `computed_at`) 충돌 시 scorer는 해당 사이클 저장을 건너뛴다(`computed_at` = `observedAt`).
 
-종료 task 멱등: `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 task는 scorer가 종료 정리(구간 마감·`score:rank:live` 제거·`signal:ranking` 발행)를 경기 상태 전이 기준으로 1회만 수행한다. 이미 정리된 경기의 종료 task가 중복·역순·재전달로 도착해도 재실행하지 않는다. 종료 task 유실 대비로 poller는 상시 감시를 통해 상태 전이가 확정될 때까지 종료 task를 재발행할 수 있다.
+종료 task 멱등: `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 task는 scorer가 종료 정리(`score:rank:live` 제거·`signal:ranking` 발행)를 경기 상태 전이 기준으로 1회만 수행한다. 이미 정리된 경기의 종료 task가 중복·역순·재전달로 도착해도 재실행하지 않는다. 종료 task 유실 대비로 poller는 상시 감시를 통해 상태 전이가 확정될 때까지 종료 task를 재발행할 수 있다.
 
 ### 5.2 Redis 키
 
 | 키 | 타입 | 내용 |
 |---|---|---|
 | `score:rank:live` | ZSET | 진행 중 경기 랭킹 (member=game_id, score=watch_score) |
-| `game:{id}:live` | HASH | 현재 점수·이닝·태그 캐시 (내부 전용) |
-| `game:{id}:copy:{purpose}` | STRING | 종료 경기 AI 문구 읽기 캐시 |
+| `game:{id}:live` | HASH | 현재 점수·이닝·최신 태그 캐시 (내부 전용) |
+| `game:{id}:copy:FINAL_HEADLINE:{mode}` | STRING | 종료 경기 AI 헤드라인 읽기 캐시. 원본은 `games.final_headline_protected`·`games.final_headline_revealed` |
 | `notify:armed:{gameId}` | STRING | 급상승 히스테리시스 상태 |
 | `notify:cooldown:global` | STRING | 전역 15분 레이트리밋 |
 | `switch:cooldown:{userId}:{gameId}` | STRING | 전환 안내 쿨다운 |
 | `sse:token:{token}` | STRING | SSE 연결용 1회용 토큰 (TTL 60초) |
 | (pub/sub) `signal:ranking`, `signal:game:{id}` | 채널 | 재조회 신호. api가 SSE로 중계 |
 
-라이프사이클 정리: 경기가 LIVE에서 이탈하면(`FINAL`·`DONE`·`SUSPENDED_POSTPONED`) scorer가 poller의 종료 ScoreTask(`lifecycleState`)를 받아 `score:rank:live`에서 해당 경기를 제거하고 `signal:ranking`을 발행한다. `game:{id}:live`·`game:{id}:copy:*`는 TTL로 소멸한다.
+이벤트 문구(`EVENT_COPY`)는 Redis 캐시를 두지 않고 `game_events`에서 직접 조회한다.
+
+라이프사이클 정리: 경기가 LIVE에서 이탈하면(`FINAL`·`DONE`·`SUSPENDED_POSTPONED`) scorer가 poller의 종료 ScoreTask(`lifecycleState`)를 받아 `score:rank:live`에서 해당 경기를 제거하고 `signal:ranking`을 발행한다. `game:{id}:live`·`game:{id}:copy:FINAL_HEADLINE:*`는 TTL로 소멸한다.
