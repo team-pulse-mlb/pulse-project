@@ -1,7 +1,5 @@
 # 팀원 초기 설정 가이드
 
-> 이 가이드는 DB 이전 전 S3 리플레이 기준 절차다. DB 이전 완료 후 운영 DB 기준 단계별 절차로 갱신한다.
-
 ## 1. 사전 설치
 
 | 도구 | 버전 |
@@ -104,7 +102,7 @@ cd backend
 ./gradlew bootRun --args='--spring.profiles.active=api,replay'
 ```
 
-실행 시 backend는 S3 live archive를 시간순으로 읽고 로컬 PostgreSQL에 `games`, `plays`, `watch_scores`, `replay_segments`를 저장한다. 진행 중 경기의 최신 랭킹은 Redis `score:rank:live`에 저장된다.
+실행 시 backend는 S3 live archive를 시간순으로 읽고 로컬 PostgreSQL에 `games`, `plays`, `watch_scores`, `game_events`를 저장한다. 진행 중 경기의 최신 랭킹은 Redis `score:rank:live`에 저장된다.
 
 ## 7. API 확인
 
@@ -142,7 +140,7 @@ curl "http://localhost:8080/api/rankings/live"
 | `games` | 경기 최신 상태 |
 | `plays` | S3 raw archive에서 재생한 play 로그 |
 | `watch_scores` | 리플레이 중 계산한 추천 점수 이력 |
-| `replay_segments` | 라이브 계산 중 열린 다시보기 추천 구간 |
+| `game_events` | 라이브 계산 중 추출한 흥미 순간 이벤트 |
 
 ### RedisInsight
 
@@ -207,5 +205,3 @@ cd backend
 | S3 접근 실패 | AWS 로그인, 버킷명, `AWS_REGION`, S3 읽기 권한 |
 | 랭킹이 비어 있음 | `PULSE_REPLAY_GAME_ID`에 진행 중 경기 raw가 있는지 |
 | 점수 이력이 적음 | `PULSE_REPLAY_DATE`, `PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX` 값 |
-
-설정 중 반복되는 문제가 있으면 이 문서에 해결 방법을 추가한다.

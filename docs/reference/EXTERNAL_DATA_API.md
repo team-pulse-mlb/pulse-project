@@ -43,10 +43,10 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 |---|---|---|
 | `/mlb/v1/games` | 경기 목록, 팀, 상태, 이닝(period), 점수, 이닝별 점수, scoring summary | 상태 머신 구동, 기본 신호(후반/점수차/초반 난타), 점수 계산 트리거 |
 | `/mlb/v1/games/{id}` | 특정 경기 상세(목록과 동일 구조) | 정합성 보정용 단건 조회 |
-| `/mlb/v1/plays` | play 이벤트, 점수, 카운트, 구종·구속, 타구 좌표 | 최근 득점·리드 변경·빅이닝·카운트 신호, 다시보기 구간 재생 |
+| `/mlb/v1/plays` | play 이벤트, 점수, 카운트, 구종·구속, 타구 좌표 | 최근 득점·리드 변경·빅이닝·카운트 신호, 종료 경기 분석 |
 | `/mlb/v1/plate_appearances` | 타석 결과, 주자 상황, pitch 단위 Statcast 전체 | 상세 신호(득점권·투수 흔들림·강한 타구), 태그·알림 판단 |
 | `/mlb/v1/lineups` | 타순, 포지션, probable pitcher | pregame_score 선발 매치업, 관심 선수 선발 여부, 타순 확정 감지 |
-| `/mlb/v1/stats` | 경기별 선수 타격·투구·수비 통합 스탯 | 종료 후 경기 분석, 다시보기 구간 신뢰도 보강 |
+| `/mlb/v1/stats` | 경기별 선수 타격·투구·수비 통합 스탯 | 종료 후 경기 분석, 이벤트 검증 |
 | `/mlb/v1/season_stats` | 선수 시즌 누적 스탯 (WAR 포함) | 선발 매치업 강도(ERA/WAR), 스타 선수 가산 |
 | `/mlb/v1/teams/season_stats` | 팀 시즌 누적 스탯 (QS, CG, SHO 포함) | 경기 성격 분류(난타전/투수전) |
 | `/mlb/v1/standings` | 순위, 승패, 승률, games behind, 매직넘버, 최근 10경기 등 | 경기 중요도 보정, pregame_score |
@@ -88,7 +88,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `home_team_data.inning_scores` | 이닝별 득점 배열 | `[0, 0, 0, 1, 1, 0, 0, 0, 1]` | 초반 난타 신호, 빅이닝 검증 |
 | `venue`, `attendance` | 경기장, 관중 수 | `"Wrigley Field"`, `37607` | 표시용(스포일러 아님) |
 | `conference_play` | 컨퍼런스 경기 여부 | `false` | 미사용 |
-| `scoring_summary` | 득점 이벤트 배열 (play 텍스트, inning, period) | `[{"play": "Tatis Jr. grounded...", "inning": "top", ...}]` | 다시보기 구간 검증 보조 (공개 모드 전용 — 결과 텍스트 포함) |
+| `scoring_summary` | 득점 이벤트 배열 (play 텍스트, inning, period) | `[{"play": "Tatis Jr. grounded...", "inning": "top", ...}]` | 참고용 원본 필드. 공개 상세의 득점 play 목록은 `plays.scoring_play=true` 행의 `text`에서 파생한다. |
 
 ### `/mlb/v1/plays` — play 이벤트 스트림
 
@@ -105,7 +105,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | 제공 데이터 | 설명 | 실제 예시 | 활용 |
 |---|---|---|---|
 | `game_id` | 경기 식별자 | `5059041` | 경기 연결 키 |
-| `order` | 경기 내 play 순서 (large integer) | `217414761` | 증분 커서, replay 구간 범위 저장 |
+| `order` | 경기 내 play 순서 (large integer) | `217414761` | 증분 커서, 이벤트 원천 참조 |
 | `type` | play 이벤트 타입 | `"Start Inning"`, `"Strike Looking"`, `"Ball"`, `"Play Result"`, `"Fly Out"`, `"End Inning"` 등 | 이벤트 분류, 이닝 경계 감지 |
 | `inning`, `inning_type` | 이닝 번호, 초/말/중간 | `1`, `"Top"`/`"Bottom"`/`"Mid"` | 빅이닝 신호, 후반 판정 보조 |
 | `text` | 사람이 읽을 수 있는 play 설명 | `"Tatis Jr. struck out swinging."` | AI 문구 소재 (스포일러 검수 게이트 통과 필수) |
@@ -139,7 +139,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | 제공 데이터 | 설명 | 실제 예시 | 활용 |
 |---|---|---|---|
 | `batter_id`, `pitcher_id` | 타자/투수 ID | `492`, `713` | 관심 선수 타석 알림 |
-| `inning`, `half_inning` | 이닝과 초/말 | `1`, `"top"` | 구간 매핑 |
+| `inning`, `half_inning` | 이닝과 초/말 | `1`, `"top"` | 이벤트 시점 매핑 |
 | `pa_number` | 경기 내 타석 순서 | `1` | dedupe 키, 긴 타석 감지 |
 | `outs` | 타석 시작 시 아웃 카운트 | `1` | 압박 상황 판단 |
 | `batter_side`, `pitcher_hand` | 타자 방향 / 투수 손 | `"R"`/`"L"` | 매치업 표시 |
@@ -164,7 +164,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `bat_speed` | 배트 스피드 (mph) | `72.7` (홈런), `75.4` (헛스윙), `null` (무스윙) | 스윙 강도 트래킹 |
 | `exit_velocity`, `launch_angle`, `hit_distance` | 타구 속도(mph)/발사각(도)/거리(ft) | `96.7`, `32`, `375` | **강한 타구 신호 (임계는 `scoring.yml`)** |
 | `is_barrel` | barrel 여부 | `false` (96.7mph/32도 — 기준 미달) | **강한 타구 신호** |
-| `expected_batting_average`, `expected_woba`, `expected_slugging` | xBA / xwOBA / xSLG | `0.28`, `0.513`~`1.839`, `0.941` | 타구 질 평가, 다시보기 신뢰도 |
+| `expected_batting_average`, `expected_woba`, `expected_slugging` | xBA / xwOBA / xSLG | `0.28`, `0.513`~`1.839`, `0.941` | 타구 질 평가, 이벤트 검증 |
 | `woba_value`, `woba_denom` | wOBA 분자/분모 (실결과) | `2`, `1` (홈런) | 종료 후 분석 |
 | `is_in_zone`, `is_swing`, `is_whiff`, `is_contact`, `is_chase`, `is_command` | 존/스윙/헛스윙/컨택/체이스/커맨드 여부 | `true`/`false` | 투수 지배력·타자 대응 분석 |
 | `game_pitch_count`, `pitcher_pitch_count` | 경기/투수 누적 투구 수 | `1`, `1` | **투수 흔들림 신호 (임계는 `scoring.yml`)** |
@@ -208,7 +208,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **활용**
 
-- 종료 후 경기 분석: 다시보기 구간 신뢰도 보강, 경기 요약 문구 소재(공개 모드).
+- 종료 후 경기 분석: 이벤트 검증, 경기 요약 문구 소재(공개 모드).
 - `pitch_count`·`ip`로 선발 투수 소화 이닝 기록 → 다음 경기 pregame 참고.
 
 ### `/mlb/v1/season_stats` — 선수 시즌 누적
@@ -227,7 +227,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `pitching_era`, `pitching_whip`, `pitching_k_per_9` | ERA/WHIP/K9 | `3.12` 등 | **선발 매치업 강도 (pregame_score)** |
 | `batting_avg`, `batting_ops`, `batting_hr` 등 | 타격 시즌 지표 | `0.301` 등 | 선수 카드 표시, 스타 판정 |
 | `fielding_dwar`, `fielding_rf` | 수비 dWAR, Range Factor | `1.14`, `3.65` | 참고용 |
-| `fielding_fip` | 이름과 달리 FIP 아님 | `65.7`~`97`(에이스), `3.67`(부진 투수) | **사용 안 함 확정**(FIP 스케일 아님, 성적과 무상관) |
+| `fielding_fip` | 이름과 달리 FIP 아님 | `65.7`~`97`(에이스), `3.67`(부진 투수) | **사용 안 함**(FIP 스케일 아님, 성적과 무상관) |
 
 **투구 시즌 필드 전체**: `pitching_gp`, `pitching_gs`, `pitching_qs`, `pitching_w`, `pitching_l`, `pitching_era`, `pitching_sv`, `pitching_hld`, `pitching_ip`, `pitching_h`, `pitching_er`, `pitching_hr`, `pitching_bb`, `pitching_whip`, `pitching_k`, `pitching_k_per_9`, `pitching_war`
 

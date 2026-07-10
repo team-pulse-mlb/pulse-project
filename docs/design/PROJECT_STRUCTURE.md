@@ -1,7 +1,5 @@
 # 프로젝트 구조
 
-쓰기 소유자는 팀 담당 영역 표에 맞춘다.
-
 ## 1. 레포 최상위 구성
 
 | 폴더 | 설명 |
@@ -25,7 +23,7 @@
 | `com.pulse.api.user` | 회원·관심 팀·관심 선수·설정 API. 현재 회원 엔티티·Repository는 `api.user.domain`에 위치 | `common`, Redis 사용. 선호 조회는 `UserPreferenceReader`로 공개 |
 | `com.pulse.api.notification` | 알림 fan-out·저장·SSE 알림 전달 | RabbitMQ `notify.events` 소비, `domain`, `UserPreferenceReader`, `SseEventPublisher` 사용 |
 | `com.pulse.poller` | 상태별 폴링, 원본 저장, `ScoreTask`·`GAME_START` 이벤트 발행 | 외부 MLB API, `domain`, RabbitMQ `score.tasks`·`notify.events` 사용 |
-| `com.pulse.scorer` | `watch_score` 계산, 추천 태그·다시보기 구간 계산, `SURGE` 판정, AI 트리거 | RabbitMQ `score.tasks` 소비, `domain`, Redis, `ai` 패키지의 트리거 인터페이스 경유, RabbitMQ `notify.events` 사용 |
+| `com.pulse.scorer` | `watch_score` 계산, 추천 태그 계산, 흥미 순간 이벤트 추출, `SURGE` 판정, AI 트리거 | RabbitMQ `score.tasks` 소비, `domain`, Redis, `ai` 패키지의 트리거 인터페이스 경유, RabbitMQ `notify.events` 사용 |
 | `com.pulse.ranking` | Redis 랭킹 반영 | Redis와 공개 서비스 인터페이스를 통해 사용 |
 | `com.pulse.ai` | ai-service HTTP 클라이언트, AI 문구 캐시 접근, `AiCopyReader` 인터페이스·구현, scorer가 사용할 AI 생성 트리거 인터페이스 | Redis, ai-service, `domain` 읽기 사용 |
 | `com.pulse.replay` | S3 재생 어댑터, S3→운영 DB 이전 배치(`replay.migration`, `migration` 프로파일) | S3 임시 아카이브와 계산 재생·이전 경로에 한정 |
