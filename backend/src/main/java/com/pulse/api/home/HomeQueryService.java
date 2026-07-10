@@ -4,6 +4,10 @@ import com.pulse.domain.Game;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
+import com.pulse.domain.Lineup;
+import com.pulse.domain.LineupRepository;
+import com.pulse.domain.Player;
+import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
@@ -11,8 +15,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -30,6 +38,8 @@ public class HomeQueryService {
     private final GameRepository gameRepository;
     private final WatchScoreRepository watchScoreRepository;
     private final GameEventRepository gameEventRepository;
+    private final LineupRepository lineupRepository;
+    private final PlayerRepository playerRepository;
     private final RankingService rankingService;
     private final StringRedisTemplate redisTemplate;
 
@@ -65,9 +75,12 @@ public class HomeQueryService {
                 .toList();
 
         remaining -= finished.size();
-        List<RankingScheduledGameCard> scheduled = scheduledCandidates.stream()
+        List<Game> selectedScheduled = scheduledCandidates.stream()
                 .limit(remaining)
-                .map(this::toRankingScheduledCard)
+                .toList();
+        Map<Long, ProbablePitchersResponse> probablePitchers = probablePitchersByGame(selectedScheduled);
+        List<RankingScheduledGameCard> scheduled = selectedScheduled.stream()
+                .map(game -> toRankingScheduledCard(game, probablePitchers.get(game.getId())))
                 .toList();
 
         return new HomeRankingResponse(now, live, scheduled, finished);
@@ -83,11 +96,14 @@ public class HomeQueryService {
                 ? rankingService.topLive(MAX_RANKING_LOOKUP)
                 : Map.of();
 
-        List<SlateGameCard> games = gameRepository.findAll().stream()
+        List<Game> selectedGames = gameRepository.findAll().stream()
                 .filter(game -> inSlate(game, startInclusive, endExclusive))
                 .filter(game -> matchesStatus(game, normalizedStatus))
                 .sorted(gameComparator(normalizedSort, liveScores))
-                .map(this::toSlateCard)
+                .toList();
+        Map<Long, ProbablePitchersResponse> probablePitchers = probablePitchersByGame(selectedGames);
+        List<SlateGameCard> games = selectedGames.stream()
+                .map(game -> toSlateCard(game, probablePitchers.get(game.getId())))
                 .toList();
 
         return new HomeSlateResponse(slateDate, games);
@@ -102,13 +118,16 @@ public class HomeQueryService {
         );
     }
 
-    private RankingScheduledGameCard toRankingScheduledCard(Game game) {
+    private RankingScheduledGameCard toRankingScheduledCard(
+            Game game,
+            ProbablePitchersResponse probablePitchers
+    ) {
         return new RankingScheduledGameCard(
                 game.getId(),
                 matchup(game),
                 game.getStartTime(),
                 game.getVenue(),
-                null
+                probablePitchers
         );
     }
 
@@ -121,7 +140,7 @@ public class HomeQueryService {
         );
     }
 
-    private SlateGameCard toSlateCard(Game game) {
+    private SlateGameCard toSlateCard(Game game, ProbablePitchersResponse probablePitchers) {
         String state = stateOf(game);
         if (game.isLive()) {
             return new SlateLiveGameCard(
@@ -149,8 +168,60 @@ public class HomeQueryService {
                 matchup(game),
                 game.getStartTime(),
                 game.getVenue(),
-                null
+                probablePitchers
         );
+    }
+
+    private Map<Long, ProbablePitchersResponse> probablePitchersByGame(List<Game> games) {
+        Map<Long, Game> scheduledGames = games.stream()
+                .filter(game -> Game.STATUS_SCHEDULED.equals(game.getStatus()))
+                .collect(Collectors.toMap(Game::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        if (scheduledGames.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Lineup> probablePitchers = lineupRepository.findByGameIdInAndIsProbablePitcherTrue(
+                List.copyOf(scheduledGames.keySet()));
+        Map<Long, Player> playersById = playerRepository.findAllById(
+                        probablePitchers.stream().map(Lineup::getPlayerId).distinct().toList())
+                .stream()
+                .collect(Collectors.toMap(Player::getId, Function.identity()));
+        Map<Long, String> homePitchers = new HashMap<>();
+        Map<Long, String> awayPitchers = new HashMap<>();
+
+        for (Lineup lineup : probablePitchers) {
+            Game game = scheduledGames.get(lineup.getGameId());
+            Player player = playersById.get(lineup.getPlayerId());
+            String name = playerName(player);
+            if (game == null || name == null) {
+                continue;
+            }
+            if (java.util.Objects.equals(lineup.getTeamId(), game.getHomeTeamId())) {
+                homePitchers.putIfAbsent(game.getId(), name);
+            } else if (java.util.Objects.equals(lineup.getTeamId(), game.getAwayTeamId())) {
+                awayPitchers.putIfAbsent(game.getId(), name);
+            }
+        }
+
+        Map<Long, ProbablePitchersResponse> result = new LinkedHashMap<>();
+        scheduledGames.keySet().forEach(gameId -> result.put(
+                gameId,
+                new ProbablePitchersResponse(homePitchers.get(gameId), awayPitchers.get(gameId))
+        ));
+        return result;
+    }
+
+    private static String playerName(Player player) {
+        if (player == null) {
+            return null;
+        }
+        if (player.getFullName() != null && !player.getFullName().isBlank()) {
+            return player.getFullName();
+        }
+        String fallback = java.util.stream.Stream.of(player.getFirstName(), player.getLastName())
+                .filter(value -> value != null && !value.isBlank())
+                .collect(Collectors.joining(" "));
+        return fallback.isBlank() ? null : fallback;
     }
 
     private Comparator<Game> gameComparator(String sort, Map<Long, Double> liveScores) {
@@ -316,7 +387,7 @@ public class HomeQueryService {
             return null;
         }
         return gameEventRepository
-                .findFirstByGameIdAndSpoilerLevelOrderByObservedAtDesc(
+                .findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
                         game.getId(), GameEvent.SPOILER_PROTECTED_SAFE)
                 .map(GameEvent::getEventType)
                 .map(HomeQueryService::eventLabel)
