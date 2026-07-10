@@ -37,11 +37,6 @@ public class UserSetting {
     @JoinColumn(name = "user_id")
     private Member member;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "spoiler_mode", nullable = false, length = 20)
-    @Builder.Default
-    private SpoilerMode spoilerMode = SpoilerMode.PROTECTED;
-
     @Column(name = "favorite_team_game_start_alert", nullable = false)
     @Builder.Default
     private boolean favoriteTeamGameStartAlert = true;
@@ -97,7 +92,6 @@ public class UserSetting {
     ) {
         return UserSetting.builder()
                 .member(member)
-                .spoilerMode(SpoilerMode.PROTECTED)
                 .favoriteTeamGameStartAlert(favoriteTeamGameStartAlert)
                 .importantMomentAlert(importantMomentAlert)
                 .gameSwitchAlert(gameSwitchAlert)
@@ -124,18 +118,15 @@ public class UserSetting {
      *   "설정 수정"이라는 의미 있는 메서드로 변경하는 것이 안전하다.
      *
      * 파라미터 매핑:
-     * - spoilerMode                 -> spoiler_mode
      * - favoriteTeamGameStartAlert  -> favorite_team_game_start_alert
      * - importantMomentAlert        -> important_moment_alert
      * - gameSwitchAlert             -> game_switch_alert
      */
     public void updatePreferences(
-            SpoilerMode spoilerMode,
             boolean favoriteTeamGameStartAlert,
             boolean importantMomentAlert,
             boolean gameSwitchAlert
     ) {
-        this.spoilerMode = spoilerMode;
         this.favoriteTeamGameStartAlert = favoriteTeamGameStartAlert;
         this.importantMomentAlert = importantMomentAlert;
         this.gameSwitchAlert = gameSwitchAlert;

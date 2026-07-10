@@ -1,6 +1,6 @@
 package com.pulse.api.user.domain;
 
-import com.pulse.api.team.domain.Team;
+import com.pulse.domain.Team;
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;

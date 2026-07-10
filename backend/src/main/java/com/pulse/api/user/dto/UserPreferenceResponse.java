@@ -1,7 +1,6 @@
 package com.pulse.api.user.dto;
 
-import com.pulse.api.team.domain.Team;
-import com.pulse.api.user.domain.SpoilerMode;
+import com.pulse.domain.Team;
 import com.pulse.api.user.domain.UserFavoriteTeam;
 import com.pulse.api.user.domain.UserSetting;
 import lombok.Builder;
@@ -23,11 +22,6 @@ public class UserPreferenceResponse {
      */
     private NotificationSettingsResponse notificationSettings;
 
-    /*
-     * 스포일러 보호 모드.
-     */
-    private SpoilerMode spoilerMode;
-
     public static UserPreferenceResponse of(
             UserSetting userSetting,
             List<UserFavoriteTeam> favoriteTeams
@@ -41,7 +35,6 @@ public class UserPreferenceResponse {
                 .notificationSettings(
                         NotificationSettingsResponse.from(userSetting)
                 )
-                .spoilerMode(userSetting.getSpoilerMode())
                 .build();
     }
 

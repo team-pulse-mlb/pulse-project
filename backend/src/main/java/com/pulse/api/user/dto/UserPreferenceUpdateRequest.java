@@ -1,6 +1,5 @@
 package com.pulse.api.user.dto;
 
-import com.pulse.api.user.domain.SpoilerMode;
 import jakarta.validation.Valid;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -37,12 +36,6 @@ public class UserPreferenceUpdateRequest {
     private NotificationSettingsRequest notificationSettings =
             new NotificationSettingsRequest();
 
-    /*
-     * 스포일러 보호 모드.
-     *
-     * 현재 UserSetting 기본값은 SpoilerMode.PROTECTED다.
-     */
-    private SpoilerMode spoilerMode = SpoilerMode.PROTECTED;
 
     @Getter
     @Setter

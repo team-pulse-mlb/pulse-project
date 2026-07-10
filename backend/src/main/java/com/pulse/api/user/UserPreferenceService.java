@@ -1,7 +1,7 @@
 package com.pulse.api.user;
 
-import com.pulse.api.team.domain.Team;
-import com.pulse.api.team.domain.TeamRepository;
+import com.pulse.domain.Team;
+import com.pulse.domain.TeamRepository;
 import com.pulse.api.user.domain.Member;
 import com.pulse.api.user.domain.MemberRepository;
 import com.pulse.api.user.domain.UserFavoriteTeam;
@@ -99,7 +99,6 @@ public class UserPreferenceService {
         }
 
         userSetting.updatePreferences(
-                request.getSpoilerMode(),
                 notificationSettings.isGameStart(),
                 notificationSettings.isSurge(),
                 notificationSettings.isGameSwitch()

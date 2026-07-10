@@ -9,7 +9,7 @@ import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
-import com.pulse.api.team.domain.TeamRepository;
+import com.pulse.domain.TeamRepository;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;

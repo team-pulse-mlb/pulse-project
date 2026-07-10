@@ -1,6 +1,6 @@
 package com.pulse.api.team.dto;
 
-import com.pulse.api.team.domain.Team;
+import com.pulse.domain.Team;
 
 /*
  * 프론트 관심팀 선택 화면에 내려줄 팀 응답 DTO입니다.

@@ -1,11 +1,11 @@
 package com.pulse.api.team;
 
-import com.pulse.api.team.domain.TeamRepository;
+import com.pulse.domain.TeamRepository;
 import com.pulse.api.team.dto.TeamResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.pulse.api.team.domain.Team;
+import com.pulse.domain.Team;
 
 import java.util.Comparator;
 import java.util.List;
