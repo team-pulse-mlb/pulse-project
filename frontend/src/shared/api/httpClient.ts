@@ -4,7 +4,7 @@
 // - 재발급 성공 시 원래 요청을 한 번 더 재시도
 // - Refresh Token Rotation 때문에 refresh 요청은 동시에 1번만 보내도록 처리
 
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 import ApiUrl from './ApiUrl';
 
@@ -36,6 +36,10 @@ delete refreshClient.defaults.headers.common.Authorization;
 // 현재 refresh 요청이 진행 중인지 저장하는 Promise
 // null이면 refresh 진행 중이 아님
 let refreshPromise: Promise<string> | null = null;
+
+interface RetryableRequestConfig extends InternalAxiosRequestConfig {
+    _retry?: boolean;
+}
 
 /**
  * refreshToken 쿠키를 이용해 새 accessToken 발급
@@ -96,7 +100,7 @@ apiClient.interceptors.response.use(
     (response) => response,
 
     async (error: AxiosError) => {
-        const originalRequest = error.config as any;
+        const originalRequest = error.config as RetryableRequestConfig | undefined;
 
         // 401이 아니면 refresh할 필요 없음
         if (error.response?.status !== 401 || !originalRequest) {
