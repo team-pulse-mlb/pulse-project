@@ -71,7 +71,8 @@ public record ScoringProperties(
             int starterPitchCount,
             double velocityDropMph,
             int velocityDropWindowPitches,
-            int longAtBatPitches
+            int longAtBatPitches,
+            int maxEventsPerTypePerGame
     ) {}
 
     public record Thresholds(
@@ -81,8 +82,6 @@ public record ScoringProperties(
             int alertRiseWindowMinutes,
             int alertCooldownMinutes,
             int switchScore,
-            int switchGap,
-            int replaySegmentScore,
-            int replaySegmentCloseScore
+            int switchGap
     ) {}
 }

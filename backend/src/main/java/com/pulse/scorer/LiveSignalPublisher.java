@@ -1,14 +1,12 @@
 package com.pulse.scorer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +16,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class LiveSignalPublisher {
 
     public static final String RANKING_CHANNEL = "signal:ranking";
@@ -28,7 +25,7 @@ public class LiveSignalPublisher {
 
     private final RankingService rankingService;
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     /** 랭킹 ZSET·경기 HASH 캐시를 갱신하고 재조회 신호 2종을 발행한다. */
     public void publishLiveUpdate(
@@ -42,17 +39,33 @@ public class LiveSignalPublisher {
             String lifecycleState,
             Instant updatedAt
     ) {
-        rankingService.updateLive(gameId, watchScore);
-        cacheGameState(gameId, watchScore, baseScore, tags, inning, inningType, lastPlayOrder, lifecycleState, updatedAt);
-        publishGameSignal(gameId);
-        publishRankingSignal();
+        afterCommitExecutor.execute(() -> {
+            rankingService.updateLive(gameId, watchScore);
+            cacheGameState(gameId, watchScore, baseScore, tags, inning, inningType, lastPlayOrder, lifecycleState, updatedAt);
+            publishGameSignalNow(gameId);
+            publishRankingSignalNow();
+        });
     }
 
     public void publishGameSignal(long gameId) {
-        redisTemplate.convertAndSend(GAME_CHANNEL_PREFIX + gameId, String.valueOf(gameId));
+        afterCommitExecutor.execute(() -> publishGameSignalNow(gameId));
     }
 
     public void publishRankingSignal() {
+        afterCommitExecutor.execute(this::publishRankingSignalNow);
+    }
+
+    /** 현재 Redis 상태를 기준으로 이번 사이클의 가장 최근 활성 태그를 계산한다. */
+    public String resolveLatestTag(long gameId, List<String> tags, Instant updatedAt) {
+        String latestTag = latestTagState(gameId, tags, updatedAt).latestTag();
+        return latestTag.isBlank() ? null : latestTag;
+    }
+
+    private void publishGameSignalNow(long gameId) {
+        redisTemplate.convertAndSend(GAME_CHANNEL_PREFIX + gameId, String.valueOf(gameId));
+    }
+
+    private void publishRankingSignalNow() {
         redisTemplate.convertAndSend(RANKING_CHANNEL, "changed");
     }
 
@@ -67,10 +80,13 @@ public class LiveSignalPublisher {
             String lifecycleState,
             Instant updatedAt
     ) {
+        LatestTagState latestTagState = latestTagState(gameId, tags, updatedAt);
         Map<String, String> hash = new LinkedHashMap<>();
         hash.put("watchScore", String.valueOf((int) Math.round(watchScore)));
         hash.put("baseScore", String.valueOf(baseScore));
-        hash.put("tags", writeTags(tags));
+        hash.put("latestTag", latestTagState.latestTag());
+        hash.put("latestTagActivatedAt", latestTagState.activatedAt());
+        hash.put("activeTagSignature", tagSignature(tags));
         hash.put("lifecycleState", lifecycleState == null ? "" : lifecycleState);
         hash.put("updatedAt", updatedAt.toString());
         if (inning != null) {
@@ -86,19 +102,54 @@ public class LiveSignalPublisher {
     }
 
     public void evictGameCache(long gameId) {
-        redisTemplate.delete(cacheKey(gameId));
+        afterCommitExecutor.execute(() -> redisTemplate.delete(cacheKey(gameId)));
     }
 
-    private String writeTags(List<String> tags) {
-        try {
-            return objectMapper.writeValueAsString(tags == null ? List.of() : tags);
-        } catch (JsonProcessingException e) {
-            log.warn("태그 직렬화 실패: {}", tags, e);
-            return "[]";
+    public void removeLiveGame(long gameId) {
+        afterCommitExecutor.execute(() -> rankingService.removeLive(gameId));
+    }
+
+    private LatestTagState latestTagState(long gameId, List<String> tags, Instant updatedAt) {
+        List<String> current = tags == null ? List.of() : tags;
+        String key = cacheKey(gameId);
+        String previousSignature = valueOf(redisTemplate.opsForHash().get(key, "activeTagSignature"));
+        String previousLatestTag = valueOf(redisTemplate.opsForHash().get(key, "latestTag"));
+        String previousActivatedAt = valueOf(redisTemplate.opsForHash().get(key, "latestTagActivatedAt"));
+
+        if (current.isEmpty()) {
+            return new LatestTagState("", "");
         }
+
+        List<String> previousTags = previousSignature == null || previousSignature.isBlank()
+                ? List.of()
+                : List.of(previousSignature.split("\\|", -1));
+        String newlyActivated = current.stream()
+                .filter(tag -> !previousTags.contains(tag))
+                .reduce((first, second) -> second)
+                .orElse(null);
+
+        if (newlyActivated != null) {
+            return new LatestTagState(newlyActivated, updatedAt.toString());
+        }
+        if (previousLatestTag != null && current.contains(previousLatestTag)) {
+            String activatedAt = previousActivatedAt == null ? updatedAt.toString() : previousActivatedAt;
+            return new LatestTagState(previousLatestTag, activatedAt);
+        }
+        return new LatestTagState(current.get(current.size() - 1), updatedAt.toString());
+    }
+
+    private static String tagSignature(List<String> tags) {
+        return String.join("|", tags == null ? List.of() : tags);
+    }
+
+    private static String valueOf(Object value) {
+        return value == null ? null : value.toString();
     }
 
     private static String cacheKey(long gameId) {
         return GAME_CACHE_PREFIX + gameId + GAME_CACHE_SUFFIX;
+    }
+
+    private record LatestTagState(String latestTag, String activatedAt) {
     }
 }

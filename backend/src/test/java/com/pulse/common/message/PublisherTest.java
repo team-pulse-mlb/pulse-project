@@ -4,9 +4,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.pulse.common.config.RabbitMqConfig;
+import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.common.message.NotificationEvent.NotificationType;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -30,11 +30,12 @@ class PublisherTest {
                 UUID.randomUUID(),
                 NotificationType.GAME_START,
                 1L,
-                List.of(),
+                "관심 팀 경기가 시작됐어요 — BOS @ NYY",
+                null,
                 Instant.parse("2026-07-08T00:00:00Z")
         );
 
-        new NotificationEventPublisher(rabbitTemplate).publish(event);
+        new NotificationEventPublisher(rabbitTemplate, new AfterCommitExecutor()).publish(event);
 
         verify(rabbitTemplate).convertAndSend(RabbitMqConfig.NOTIFY_EVENTS_QUEUE, event);
     }

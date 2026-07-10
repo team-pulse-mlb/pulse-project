@@ -11,4 +11,6 @@ public interface LineupRepository extends JpaRepository<Lineup, Long> {
     Optional<Lineup> findByGameIdAndPlayerId(Long gameId, Long playerId);
 
     List<Lineup> findByGameIdAndIsProbablePitcherTrue(Long gameId);
+
+    List<Lineup> findByGameIdInAndIsProbablePitcherTrue(List<Long> gameIds);
 }

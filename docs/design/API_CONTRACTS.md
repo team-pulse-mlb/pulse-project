@@ -104,12 +104,6 @@
                  "runnerOnFirst": false, "runnerOnSecond": true,
                  "runnerOnThird": false, "scoringPosition": true,
                  "basesLoaded": false },
-  "tensionCurve": [
-    { "inning": 5, "level": 3 },
-    { "inning": 6, "level": 4 },
-    { "inning": 7, "level": 5 },
-    { "inning": 8, "level": 4 }
-  ],
   "favoritePlayersPlaying": ["Shohei Ohtani"],
   "switchSuggestion": {
     "gameId": 5059002,
@@ -119,7 +113,7 @@
 }
 ```
 
-진행 중 상세의 `situation`은 양 모드에 포함한다. 이닝 교대 중이거나 현재 타석이 없으면 `situation=null`이다. 현재 타자/투수는 공개 모드에서만 `currentMatchup: { batter, pitcher }`로 포함한다. 진행 보호 모드의 `tensionCurve`는 이닝 단위이며 현재 이닝까지만 포함한다.
+진행 중 상세의 `situation`은 양 모드에 포함한다. 이닝 교대 중이거나 현재 타석이 없으면 `situation=null`이다. 현재 타자/투수는 공개 모드에서만 `currentMatchup: { batter, pitcher }`로 포함한다. **진행 중 상세는 보호·공개 모두 `tensionCurve`를 포함하지 않는다**(펄스 그래프는 종료 경기 전용, USER_FLOW.md §4.5). `favoritePlayersPlaying`은 양 모드 응답에 포함하되, 보호 모드는 현재 타자/투수 자체를 노출하지 않으므로 이 필드를 강조 표시에 쓰지 않는다. 공개 모드는 `currentMatchup.batter`/`pitcher.name`과 최근 플레이 등장 선수명을 이 목록과 대조해 일치하면 강조 표시한다.
 
 ```jsonc
 // GET /api/games/{id}?mode=revealed (진행 중)
@@ -138,13 +132,11 @@
     "batter": { "id": 1001, "name": "..." },
     "pitcher": { "id": 2001, "name": "..." }
   },
+  "favoritePlayersPlaying": ["Shohei Ohtani"],
   "inningScores": {
     "away": [0, 1, 0, 2, 0, 0, 1, 0],
     "home": [0, 0, 1, 0, 2, 0, 0, 0]
-  },
-  "tensionCurve": [
-    { "inning": 8, "inningType": "Top", "level": 4 }
-  ]
+  }
 }
 ```
 
@@ -267,7 +259,16 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
   "situation": {
     "outs": 2, "balls": 3, "strikes": 2,
     "runnerOnFirst": true, "runnerOnSecond": true, "runnerOnThird": true,
-    "basesLoaded": true, "scoringPosition": true } }
+    "basesLoaded": true, "scoringPosition": true },
+  "plateAppearances": [
+    { "paNumber": 47, "inning": 7, "inningType": "top",
+      "batterId": 492, "pitcherId": 713, "outs": 2,
+      "runnerOnFirst": true, "runnerOnSecond": true, "runnerOnThird": true,
+      "pitches": [
+        { "pitchNumber": 8, "pitcherPitchCount": 101,
+          "releaseSpeed": 92.1, "exitVelocity": 101.4, "barrel": true }
+      ] }
+  ] }
 
 // 종료 task: lifecycleState in {FINAL, DONE, SUSPENDED_POSTPONED}, situation=null
 { "gameId": 5059041, "observedAt": "2026-07-06T05:40:00Z",
@@ -281,7 +282,8 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 - `situation`: 현재 타석의 압박·카운트 스칼라. poller가 `/plate_appearances`(주자)·`/plays`(카운트)에서 추출해 전달한다. PA는 운영 Postgres에 없으므로 scorer는 이 값으로 압박·카운트 신호를 계산한다.
 - `situation`은 nullable이다. 종료 task·구버전 task·현재 타석 없음이면 `null`이며, scorer는 null-safe로 해당 신호를 0점 처리한다. `runnerOn*`이 모두 `false`인 상태("압박 없음")와 `situation=null`("계산 불가")을 구분한다.
 - `scoringPosition` = `runnerOnSecond || runnerOnThird`, `basesLoaded` = 세 주자 모두 점유. scorer가 재유도할 수 있으나 계약에 명시해 소비 측 파싱을 단순화한다.
-- 하위호환: scorer는 `situation` 유무와 무관하게 동작해야 하며, poller·scorer 배포 순서나 브로커에 남은 구버전 task에 안전하다.
+- `plateAppearances`: PA 원본 전체가 아니라 이벤트 추출에 필요한 사실만 전달한다. 결과·설명 원문은 포함하지 않는다. scorer는 이 값으로 긴 타석·투수 흔들림·강한 타구 이벤트를 판정한다.
+- 하위호환: scorer는 `situation`과 `plateAppearances` 유무와 무관하게 동작해야 하며, poller·scorer 배포 순서나 브로커에 남은 구버전 task에 안전하다. `plateAppearances` 누락·null은 빈 목록으로 처리한다.
 - `PREGAME` task: poller가 경기 전 입력이 갱신될 때(선발 확정·변경, `odds_snapshots` 기록, `standings` 일 배치 반영, `PREGAME_NEAR` 진입) 발행한다. scorer는 DB의 `lineups`·`odds_snapshots`·`standings`·`player_season_stats`만 읽어 `pregame_score`를 계산하고 `games.pregame_score`·`pregame_inputs`를 덮어쓴다. 최신 입력 기준 재계산이므로 중복·재전달에 멱등이며, `watch_scores`에는 행을 남기지 않는다. 선발 시즌 스탯의 온디맨드 외부 조회는 poller가 task 발행 전에 수행해 `player_season_stats`에 적재한다(외부 API 호출은 poller로 한정).
 
 재전달 멱등: `watch_scores`의 UNIQUE(`game_id`, `computed_at`) 충돌 시 scorer는 해당 사이클 저장을 건너뛴다(`computed_at` = `observedAt`).

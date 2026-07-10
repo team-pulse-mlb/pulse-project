@@ -27,7 +27,6 @@ public class ScoreRecalculationService {
     private final WatchScoreRepository watchScoreRepository;
     private final ScoreCalculator calculator;
     private final RankingService rankingService;
-    private final ReplaySegmentService replaySegmentService;
     private final ScoringProperties props;
 
     @Transactional
@@ -44,7 +43,6 @@ public class ScoreRecalculationService {
         }
 
         if (game.isFinal()) {
-            replaySegmentService.closeOpenSegment(gameId, observedAt);
             rankingService.removeLive(gameId);
             return;
         }
@@ -75,7 +73,6 @@ public class ScoreRecalculationService {
         record.setSource("OPERATIONAL");
         watchScoreRepository.save(record);
 
-        replaySegmentService.update(gameId, recentPlays, result.baseScore(), reasonTags, observedAt);
         rankingService.updateLive(gameId, watchScore);
         log.debug("replayed score gameId={} watchScore={} observedAt={}", gameId, watchScore, observedAt);
     }

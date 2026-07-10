@@ -146,6 +146,6 @@ class ScoreCalculatorTest {
 
     /** scoring.yml version 3과 동일한 시작 상수 */
     private static ScoringProperties testProps() {
-        return TestScoringProperties.version3();
+        return TestScoringProperties.version4();
     }
 }

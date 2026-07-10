@@ -6,9 +6,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
+import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
-import com.pulse.domain.ReplaySegmentRepository;
+import com.pulse.domain.LineupRepository;
+import com.pulse.domain.Lineup;
+import com.pulse.domain.Player;
+import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
@@ -18,18 +22,28 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.HashOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 class HomeQueryServiceTest {
 
     private final GameRepository gameRepository = mock(GameRepository.class);
     private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
-    private final ReplaySegmentRepository replaySegmentRepository = mock(ReplaySegmentRepository.class);
+    private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
+    private final LineupRepository lineupRepository = mock(LineupRepository.class);
+    private final PlayerRepository playerRepository = mock(PlayerRepository.class);
     private final RankingService rankingService = mock(RankingService.class);
+    private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+    @SuppressWarnings("unchecked")
+    private final HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
     private final HomeQueryService service = new HomeQueryService(
             gameRepository,
             watchScoreRepository,
-            replaySegmentRepository,
-            rankingService
+            gameEventRepository,
+            lineupRepository,
+            playerRepository,
+            rankingService,
+            redisTemplate
     );
 
     private final Instant now = Instant.now();
@@ -37,7 +51,9 @@ class HomeQueryServiceTest {
     @BeforeEach
     void setUp() {
         when(watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(anyLong())).thenReturn(Optional.empty());
-        when(replaySegmentRepository.countByGameId(anyLong())).thenReturn(0L);
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(gameEventRepository.findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
+                anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -54,7 +70,7 @@ class HomeQueryServiceTest {
 
         HomeRankingResponse response = service.getRanking(20);
 
-        assertThat(response.live()).extracting(HomeQueryService.HomeGameCard::gameId)
+        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
                 .containsExactly(1L, 2L, 3L, 4L, 5L);
         assertThat(response.scheduled()).isEmpty();
         assertThat(response.finished()).isEmpty();
@@ -80,13 +96,38 @@ class HomeQueryServiceTest {
 
         HomeRankingResponse response = service.getRanking(5);
 
-        assertThat(response.live()).extracting(HomeQueryService.HomeGameCard::gameId)
+        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
                 .containsExactly(1L);
-        assertThat(response.finished()).extracting(HomeQueryService.HomeGameCard::gameId)
+        assertThat(response.finished()).extracting(HomeQueryService.RankingFinishedGameCard::gameId)
                 .containsExactly(10L, 11L, 12L);
-        assertThat(response.scheduled()).extracting(HomeQueryService.HomeGameCard::gameId)
+        assertThat(response.scheduled()).extracting(HomeQueryService.RankingScheduledGameCard::gameId)
                 .containsExactly(20L);
         assertThat(totalCards(response)).isEqualTo(5);
+    }
+
+    @Test
+    void getRanking_shouldResolveProbablePitcherNamesFromLineups() {
+        Game scheduled = scheduled(20L, 90);
+        scheduled.setHomeTeamId(1L);
+        scheduled.setAwayTeamId(2L);
+        Lineup homePitcher = probablePitcher(20L, 101L, 1L);
+        Lineup awayPitcher = probablePitcher(20L, 202L, 2L);
+        Player homePlayer = player(101L, "Home Starter");
+        Player awayPlayer = player(202L, "Away Starter");
+
+        when(rankingService.topLive(5)).thenReturn(Map.of());
+        when(gameRepository.findAll()).thenReturn(List.of(scheduled));
+        when(lineupRepository.findByGameIdInAndIsProbablePitcherTrue(List.of(20L)))
+                .thenReturn(List.of(homePitcher, awayPitcher));
+        when(playerRepository.findAllById(List.of(101L, 202L)))
+                .thenReturn(List.of(homePlayer, awayPlayer));
+
+        HomeRankingResponse response = service.getRanking(5);
+
+        assertThat(response.scheduled()).singleElement().satisfies(card -> {
+            assertThat(card.probablePitchers().home()).isEqualTo("Home Starter");
+            assertThat(card.probablePitchers().away()).isEqualTo("Away Starter");
+        });
     }
 
     private static int totalCards(HomeRankingResponse response) {
@@ -139,5 +180,21 @@ class HomeQueryServiceTest {
         game.setHomeTeamAbbr("H" + id);
         game.setAwayTeamAbbr("A" + id);
         return game;
+    }
+
+    private static Lineup probablePitcher(long gameId, long playerId, long teamId) {
+        Lineup lineup = new Lineup();
+        lineup.setGameId(gameId);
+        lineup.setPlayerId(playerId);
+        lineup.setTeamId(teamId);
+        lineup.setIsProbablePitcher(true);
+        return lineup;
+    }
+
+    private static Player player(long id, String fullName) {
+        Player player = new Player();
+        player.setId(id);
+        player.setFullName(fullName);
+        return player;
     }
 }

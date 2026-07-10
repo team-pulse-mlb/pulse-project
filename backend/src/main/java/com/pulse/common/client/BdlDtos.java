@@ -36,7 +36,8 @@ public final class BdlDtos {
             @JsonProperty("home_team") Team homeTeam,
             @JsonProperty("away_team") Team awayTeam,
             @JsonProperty("home_team_data") TeamData homeTeamData,
-            @JsonProperty("away_team_data") TeamData awayTeamData
+            @JsonProperty("away_team_data") TeamData awayTeamData,
+            String venue
     ) {
         @JsonIgnoreProperties(ignoreUnknown = true)
         public record Team(long id, @JsonProperty("display_name") String displayName, String abbreviation) {
@@ -164,9 +165,51 @@ public final class BdlDtos {
             @JsonProperty("half_inning") String halfInning,
             @JsonProperty("batter_id") Long batterId,
             @JsonProperty("pitcher_id") Long pitcherId,
+            Integer outs,
             @JsonProperty("runner_on_first") Boolean runnerOnFirst,
             @JsonProperty("runner_on_second") Boolean runnerOnSecond,
-            @JsonProperty("runner_on_third") Boolean runnerOnThird
+            @JsonProperty("runner_on_third") Boolean runnerOnThird,
+            List<BdlPitch> pitches
+    ) {
+
+        public BdlPlateAppearance(
+                Long paNumber,
+                Long gameId,
+                Integer inning,
+                String halfInning,
+                Long batterId,
+                Long pitcherId,
+                Boolean runnerOnFirst,
+                Boolean runnerOnSecond,
+                Boolean runnerOnThird
+        ) {
+            this(
+                    paNumber,
+                    gameId,
+                    inning,
+                    halfInning,
+                    batterId,
+                    pitcherId,
+                    null,
+                    runnerOnFirst,
+                    runnerOnSecond,
+                    runnerOnThird,
+                    List.of()
+            );
+        }
+
+        public BdlPlateAppearance {
+            pitches = pitches == null ? List.of() : List.copyOf(pitches);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlPitch(
+            @JsonProperty("pitch_number") Integer pitchNumber,
+            @JsonProperty("pitcher_pitch_count") Integer pitcherPitchCount,
+            @JsonProperty("release_speed") Double releaseSpeed,
+            @JsonProperty("exit_velocity") Double exitVelocity,
+            @JsonProperty("is_barrel") Boolean isBarrel
     ) {
     }
 }
