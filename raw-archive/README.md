@@ -1,12 +1,15 @@
 # PULSE 원본 데이터 아카이브
 
-balldontlie MLB API 원본 응답을 수집 시각(`observed_at`)과 함께 S3에 그대로 적재하는 Lambda.
-plays/plate_appearances에는 벽시계 타임스탬프가 없어서, 나중에 시간 감쇠 신호를 복원하려면
-수집 시각을 지금부터 같이 저장해둬야 한다. 스키마 확정 전이므로 DB 없이 원본 JSON만 쌓고,
-스코어링 로직이 정해지면 S3 → Postgres 백필한다.
+`raw-archive/`는 balldontlie MLB API 원본 응답을 수집 시각(`observed_at`)과 함께 S3에 보존하는 도구 모음이다. 로컬 PostgreSQL·Redis를 실행하는 인프라 폴더도, EC2·RDS 운영 배포 설정도 아니다.
 
-폴링 설계는 노션 "외부 데이터 API 명세 및 활용 계획" 7장을 따르되, 스코어러(랭킹)가 아직
-없는 수집 전용 환경에 맞게 조정했다.
+| 경로 | 역할 | 주 실행 위치 |
+|---|---|---|
+| `live-collector/` | 라이브 원본을 수집하는 Lambda 코드 | AWS Lambda |
+| `backfill/` | 과거 시즌 원본을 일회성 적재 | VS Code 로컬 실행 |
+| `deploy/` | 수집기 AWS 리소스 생성·갱신 자동화 | 승인된 운영 작업 환경 |
+| `analysis/` | 수집 데이터 분석 스크립트 | VS Code 로컬 실행 |
+
+운영 애플리케이션은 원본과 계산 결과를 RDS에 저장한다. 이 S3 아카이브는 DB 이전 전의 개발·백테스트 입력과, DB에 영속하지 않는 `/plate_appearances` 원본 보존에 사용한다.
 
 ## 현재 저장 방식과 확인 위치
 
@@ -22,13 +25,15 @@ raw archive다. 이후 스코어러가 추천 점수와 노출 결과를 같이 
 s3://pulse-raw-<account-id>/
 ```
 
-확인은 보통 세 군데에서 한다:
+확인은 AWS Management Console의 세 곳에서 한다.
 
-- S3 `raw/`: 실제 수집된 gzip JSON 객체. endpoint별로 prefix가 나뉜다.
-- S3 `state/collector_state.json`: 라이브 수집기가 마지막 cursor, dedupe hash, 백필 여부를 저장하는 내부 상태.
-- CloudWatch Logs `/aws/lambda/pulse-collector`: 매 분 실행 결과와 에러 로그.
+- **S3 → Buckets → `pulse-raw-<account-id>` → `raw/`**: endpoint별 gzip JSON 객체
+- **S3 → Buckets → `pulse-raw-<account-id>` → `state/collector_state.json`**: 마지막 cursor, dedupe hash, 백필 여부
+- **CloudWatch → Log groups → `/aws/lambda/pulse-collector`**: 매 분 실행 결과와 오류
 
-예시:
+리전은 `ap-northeast-2`를 선택한다. 수집 일정은 **EventBridge → Rules → `pulse-collector-every-minute`**, Lambda 설정은 **Lambda → Functions → `pulse-collector`**에서 확인한다.
+
+AWS CLI가 필요한 자동 확인에서는 다음 명령을 사용한다.
 
 ```powershell
 # 최근 수집 객체 확인
@@ -114,6 +119,10 @@ raw/historical/season=YYYY/games/game_id=<id>.json.gz  # 경기당 1번들: play
                                                        #  + plate_appearances + stats
 ```
 
+VS Code에서 `raw-archive/backfill/backfill.py`를 열고 **Run and Debug** 구성을 만든다. 환경 변수에는 `BDL_API_KEY`, 인수에는 `--bucket pulse-raw-<account-id> --seasons 2023 2024 2025`를 지정한다. 실제 버킷과 시즌 범위를 확인한 뒤 실행한다.
+
+터미널 대체 명령은 다음과 같다.
+
 ```powershell
 $env:BDL_API_KEY = "<key>"
 python raw-archive\backfill\backfill.py --bucket pulse-raw-<account-id> --seasons 2023 2024 2025
@@ -131,7 +140,7 @@ python raw-archive\backfill\backfill.py --bucket pulse-raw-<account-id> --season
 
 ## 배포
 
-사전 조건: AWS CLI 설치 + `aws configure` 완료.
+배포 스크립트는 Lambda·S3·EventBridge 구성을 함께 맞추는 자동화 도구이므로 터미널 실행을 유지한다. AWS 콘솔은 배포 후 상태 확인과 수동 중지·재개에 사용한다. 사전 조건은 AWS CLI 설치와 승인된 AWS 자격 증명이다.
 
 ```powershell
 .\raw-archive\deploy\deploy-collector.ps1 -ApiKey "<balldontlie API key>"
@@ -146,6 +155,12 @@ Lambda 1분 주기(월 4.3만 회, 라이브 중 ~50초 실행)는 프리 티어
 과거 시즌당 ~200MB — 25시즌을 담아도 5GB 안이다.
 
 ## 확인/중지
+
+- 수집 확인: **S3 → Buckets → `pulse-raw-<account-id>` → `raw/`**
+- 로그 확인: **CloudWatch → Log groups → `/aws/lambda/pulse-collector`**
+- 일시 중지·재개: **EventBridge → Rules → `pulse-collector-every-minute` → Disable/Enable**
+
+자동 확인이나 장애 대응에서만 다음 명령을 사용한다.
 
 ```powershell
 # 수집 확인
