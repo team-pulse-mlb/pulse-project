@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import Card from '../../../shared/components/Card';
 
 // 진행 중 상세의 "현재 상황" 영역 (USER_FLOW §4.3).
@@ -73,9 +75,11 @@ function BaseDiamond({ situation }: { situation: Situation }) {
 interface CurrentSituationCardProps {
   /** 이닝 교대 중이거나 타석이 없는 시점이면 null */
   situation: Situation | null;
+  /** 공개 모드에서 현재 타석 등 추가로 노출할 내용 */
+  children?: ReactNode;
 }
 
-function CurrentSituationCard({ situation }: CurrentSituationCardProps) {
+function CurrentSituationCard({ situation, children }: CurrentSituationCardProps) {
   return (
     <Card>
       <h3 className="mb-4 text-[15px] font-bold text-text-strong">현재 상황</h3>
@@ -106,6 +110,10 @@ function CurrentSituationCard({ situation }: CurrentSituationCardProps) {
             )}
           </div>
         </div>
+      )}
+
+      {situation !== null && children && (
+        <div className="mt-5 border-t border-divider pt-4">{children}</div>
       )}
     </Card>
   );
