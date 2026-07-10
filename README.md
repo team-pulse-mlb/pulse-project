@@ -47,34 +47,20 @@ pulse-project/
 - [프론트엔드 가이드](frontend/README.md)
 - [백엔드 가이드](backend/README.md)
 - [로컬 인프라 가이드](infra/README.md)
+- [원본 데이터 아카이브 가이드](raw-archive/README.md)
+- [AWS 운영 인프라 가이드](docs/team/INFRA.md)
 
 ## 빠른 시작
 
-1. 로컬 인프라를 실행한다.
-
-   ```powershell
-   Copy-Item .env.example .env
-   docker compose -f infra/docker-compose.yml --env-file .env up -d
-   ```
-
-2. 백엔드를 실행한다.
-
-   ```powershell
-   cd backend
-   .\gradlew.bat bootRun
-   ```
-
-3. 새 터미널에서 프론트엔드를 실행한다.
-
-   ```powershell
-   cd frontend
-   npm.cmd install
-   npm.cmd run dev
-   ```
+1. VS Code에서 저장소를 열고 `.env.example`을 `.env`로 복사해 로컬 값을 입력한다.
+2. VS Code의 Container Tools 확장으로 `infra/docker-compose.yml`의 PostgreSQL·Redis를 실행하고 Docker Desktop에서 상태를 확인한다.
+3. IntelliJ에서 `backend/`를 Gradle 프로젝트로 열고 `PulseApplication`을 실행한다.
+4. VS Code의 NPM Scripts 보기에서 `frontend`의 `dev` 스크립트를 실행한다.
 
 - 프론트엔드: `http://localhost:5173`
 - 백엔드: `http://localhost:8080`
-- 백엔드 실행 전 `.env.example`을 참고해 `JWT_SECRET` 등 필요한 환경 변수를 셸이나 IDE 실행 구성에 설정한다.
+- 백엔드 실행 전 `.env.example`을 참고해 `JWT_SECRET` 등 필요한 환경 변수를 IntelliJ 실행 구성에 설정한다.
+- 터미널 실행과 세부 설정은 각 폴더의 README에서 보조 방법으로 제공한다.
 
 ## 문서 인덱스
 
@@ -82,7 +68,7 @@ pulse-project/
 |---|---|
 | 제품 | [기능 명세](docs/product/FEATURE_SPEC.md), [사용자 흐름](docs/product/USER_FLOW.md), [프로젝트 제안](docs/product/PROJECT_PROPOSAL.md) |
 | 설계 | [아키텍처](docs/design/ARCHITECTURE.md), [데이터 파이프라인](docs/design/DATA_PIPELINE.md), [API 계약](docs/design/API_CONTRACTS.md), [스포일러 정책](docs/design/SPOILER_POLICY.md), [DB 스키마](docs/design/DB_SCHEMA.md) |
-| 협업 | [개발 규칙](docs/team/CONVENTIONS.md), [역할과 일정](docs/team/ROLES_AND_SCHEDULE.md), [온보딩](docs/team/ONBOARDING.md) |
+| 협업 | [개발 규칙](docs/team/CONVENTIONS.md), [역할과 일정](docs/team/ROLES_AND_SCHEDULE.md) |
 | 전체 | [문서 안내](docs/README.md) |
 
 ## 팀
