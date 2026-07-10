@@ -929,10 +929,6 @@ function SignupPage() {
                                 </strong>
                             </div>
 
-                            <div>
-                                <span>기본 보기 모드</span>
-                                <strong>스포일러 보호</strong>
-                            </div>
                         </div>
 
                         <div className="signup-notification-list">

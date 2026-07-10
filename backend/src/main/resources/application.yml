@@ -76,7 +76,8 @@ app:
       # 기존 코드가 /api/members 범위를 쓰고 있다면 이 값을 유지한다.
       path: ${REFRESH_TOKEN_COOKIE_PATH:/api/members}
 
-      # @@@@
+      # 프론트와 백엔드를 서로 다른 HTTPS 도메인으로 배포할 경우 설정합니다.
+      # SameSite=None을 사용할 때는 Secure=true가 반드시 함께 적용되어야 합니다.
       # REFRESH_TOKEN_COOKIE_SECURE=true
       # REFRESH_TOKEN_COOKIE_SAME_SITE=None
 

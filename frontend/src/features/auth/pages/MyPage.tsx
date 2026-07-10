@@ -68,13 +68,6 @@ function MyPage() {
             defaultNotificationSettings,
         );
 
-    /*
-     * 현재는 PROTECTED만 사용하지만,
-     * 백엔드 DTO와 맞추기 위해 상태로 유지합니다.
-     */
-    const [spoilerMode, setSpoilerMode] =
-        useState('PROTECTED');
-
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -136,9 +129,6 @@ function MyPage() {
                     preferenceResponse.notificationSettings,
                 );
 
-                setSpoilerMode(
-                    preferenceResponse.spoilerMode ?? 'PROTECTED',
-                );
             } catch (error) {
                 console.error('마이페이지 조회 오류:', error);
 
@@ -252,7 +242,6 @@ function MyPage() {
             const response = await updateMyPreferences({
                 selectedTeamIds,
                 notificationSettings,
-                spoilerMode,
             });
 
             setSelectedTeamIds(
@@ -260,7 +249,6 @@ function MyPage() {
             );
 
             setNotificationSettings(response.notificationSettings);
-            setSpoilerMode(response.spoilerMode);
 
             setSuccessMessage('설정이 저장되었습니다.');
         } catch (error) {
