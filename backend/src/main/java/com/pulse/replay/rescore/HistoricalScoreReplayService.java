@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @Profile("rescore")
@@ -24,38 +23,28 @@ class HistoricalScoreReplayService {
     private final RescoreJdbcRepository repository;
     private final ScoreCalculator calculator;
     private final ScoringProperties scoringProperties;
-    private final TransactionTemplate transactionTemplate;
 
     void replayAll() {
         List<Long> gameIds = repository.gameIdsWithPlays();
-        RescoreSegmentBuilder segmentBuilder =
-                new RescoreSegmentBuilder(scoringProperties.thresholds().replaySegmentScore());
 
         int totalWatchScores = 0;
-        int totalReplaySegments = 0;
         for (Long gameId : gameIds) {
-            GameReplayResult result = replayGame(gameId, segmentBuilder);
+            GameReplayResult result = replayGame(gameId);
             totalWatchScores += result.insertedWatchScores();
-            totalReplaySegments += result.insertedReplaySegments();
-            log.info("scorer 재생 완료: gameId={}, cycles={}, watchScoresInserted={}, replaySegmentsInserted={}, "
-                            + "replaySegmentsSkipped={}",
+            log.info("scorer 재생 완료: gameId={}, cycles={}, watchScoresInserted={}",
                     gameId,
                     result.scoreCycles(),
-                    result.insertedWatchScores(),
-                    result.insertedReplaySegments(),
-                    result.replaySegmentsSkipped());
+                    result.insertedWatchScores());
         }
 
-        log.info("scorer 재생 전체 완료: games={}, watchScoresInserted={}, replaySegmentsInserted={}",
+        log.info("scorer 재생 전체 완료: games={}, watchScoresInserted={}",
                 gameIds.size(),
-                totalWatchScores,
-                totalReplaySegments);
+                totalWatchScores);
     }
 
-    private GameReplayResult replayGame(Long gameId, RescoreSegmentBuilder segmentBuilder) {
+    private GameReplayResult replayGame(Long gameId) {
         List<RescorePlayRow> rows = repository.playsForGame(gameId);
         List<RescorePlayRow> observedPlays = new ArrayList<>();
-        List<RescoreScorePoint> segmentPoints = new ArrayList<>();
 
         int insertedWatchScores = 0;
         int scoreCycles = 0;
@@ -95,42 +84,12 @@ class HistoricalScoreReplayService {
                     latest.sourceValue()));
             scoreCycles++;
 
-            segmentPoints.add(new RescoreScorePoint(
-                    gameId,
-                    observedAt,
-                    latest.playOrder(),
-                    latest.inning(),
-                    latest.inningType(),
-                    baseScore,
-                    tags,
-                    latest.sourceValue()));
-
             index = nextIndex;
         }
 
-        ReplaySegmentInsertResult segmentResult =
-                insertReplaySegmentsIfAbsent(gameId, segmentBuilder.build(gameId, segmentPoints));
-
         return new GameReplayResult(
                 scoreCycles,
-                insertedWatchScores,
-                segmentResult.insertedCount(),
-                segmentResult.skipped());
-    }
-
-    private ReplaySegmentInsertResult insertReplaySegmentsIfAbsent(Long gameId, List<ReplaySegmentDraft> segments) {
-        if (segments.isEmpty()) {
-            return new ReplaySegmentInsertResult(0, false);
-        }
-
-        ReplaySegmentInsertResult result = transactionTemplate.execute(ignored -> {
-            repository.lockGameForReplaySegments(gameId);
-            if (repository.replaySegmentsExist(gameId)) {
-                return new ReplaySegmentInsertResult(0, true);
-            }
-            return new ReplaySegmentInsertResult(repository.insertReplaySegments(segments), false);
-        });
-        return result == null ? new ReplaySegmentInsertResult(0, false) : result;
+                insertedWatchScores);
     }
 
     private List<Play> recentPlays(List<RescorePlayRow> observedPlays) {
@@ -176,12 +135,7 @@ class HistoricalScoreReplayService {
 
     private record GameReplayResult(
             int scoreCycles,
-            int insertedWatchScores,
-            int insertedReplaySegments,
-            boolean replaySegmentsSkipped
+            int insertedWatchScores
     ) {
-    }
-
-    private record ReplaySegmentInsertResult(int insertedCount, boolean skipped) {
     }
 }

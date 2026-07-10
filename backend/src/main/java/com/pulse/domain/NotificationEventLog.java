@@ -15,7 +15,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 알림 발화 이력. scorer가 SURGE·GAME_START를 발행하면서 함께 영속한다.
+ * 알림 발화 이력. scorer는 SURGE, poller는 GAME_START를 발행하기 전에 영속한다.
  * 사용자별 배달(user_notifications)은 알림 소비자(윤호) 영역이다.
  */
 @Entity

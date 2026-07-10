@@ -14,12 +14,15 @@ import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
 import com.pulse.common.client.BdlDtos.ListResponse;
 import com.pulse.common.message.NotificationEventPublisher;
+import com.pulse.common.message.NotificationEvent;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
+import com.pulse.domain.NotificationEventLogRepository;
+import com.pulse.domain.NotificationEventLog;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -36,6 +39,7 @@ class OperationalPollerTest {
     private final PollerGameWriter gameWriter = mock(PollerGameWriter.class);
     private final ScoreTaskPublisher scoreTaskPublisher = mock(ScoreTaskPublisher.class);
     private final NotificationEventPublisher notificationEventPublisher = mock(NotificationEventPublisher.class);
+    private final NotificationEventLogRepository notificationEventLogRepository = mock(NotificationEventLogRepository.class);
     private final PaRawArchiveUploader paRawArchiveUploader = mock(PaRawArchiveUploader.class);
     private final Instant now = Instant.parse("2026-07-08T00:00:00Z");
     private final OperationalPoller poller = new OperationalPoller(
@@ -46,6 +50,7 @@ class OperationalPollerTest {
             new ScoreTaskFactory(),
             scoreTaskPublisher,
             notificationEventPublisher,
+            notificationEventLogRepository,
             properties(),
             new PollerRateLimiter(1000, Clock.fixed(now, ZoneOffset.UTC)),
             paRawArchiveUploader,
@@ -79,9 +84,15 @@ class OperationalPollerTest {
         poller.poll();
 
         ArgumentCaptor<ScoreTask> taskCaptor = ArgumentCaptor.forClass(ScoreTask.class);
-        verify(notificationEventPublisher).publish(any());
+        ArgumentCaptor<NotificationEventLog> eventLogCaptor = ArgumentCaptor.forClass(NotificationEventLog.class);
+        ArgumentCaptor<NotificationEvent> notificationCaptor = ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(notificationEventLogRepository).save(eventLogCaptor.capture());
+        verify(notificationEventPublisher).publish(notificationCaptor.capture());
         verify(gameWriter).updateRunnerStates(eq(100L), any());
         verify(scoreTaskPublisher).publish(taskCaptor.capture());
+        assertThat(eventLogCaptor.getValue().getEventId()).isEqualTo(notificationCaptor.getValue().eventId());
+        assertThat(eventLogCaptor.getValue().getType()).isEqualTo("GAME_START");
+        assertThat(taskCaptor.getValue().plateAppearances()).hasSize(1);
         assertThat(taskCaptor.getValue().situation().basesLoaded()).isFalse();
         assertThat(taskCaptor.getValue().situation().scoringPosition()).isTrue();
     }
@@ -149,7 +160,7 @@ class OperationalPollerTest {
     }
 
     private static BdlGame gameDto(String status) {
-        return new BdlGame(100L, "2026-07-08T00:00:00Z", status, 1, null, null, null, null);
+        return new BdlGame(100L, "2026-07-08T00:00:00Z", status, 1, null, null, null, null, null);
     }
 
     private static BdlPlay play(Long order, Long batterId) {

@@ -56,6 +56,8 @@ public class Game {
     private Integer homeRuns;
     private Integer awayRuns;
 
+    private String venue;
+
     @JdbcTypeCode(SqlTypes.JSON)
     private List<Integer> homeInningScores;
 

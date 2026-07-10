@@ -22,7 +22,7 @@ class SurgeDetectorTest {
     private final SurgeDetector detector = new SurgeDetector(
             watchScoreRepository,
             redisTemplate,
-            TestScoringProperties.version3()
+            TestScoringProperties.version4()
     );
 
     private final Instant now = Instant.parse("2026-07-08T05:00:00Z");

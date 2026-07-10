@@ -46,6 +46,9 @@ public class PollerGameWriter {
         if (startTime != null) {
             game.setStartTime(startTime);
         }
+        if (dto.venue() != null) {
+            game.setVenue(dto.venue());
+        }
         if (dto.homeTeam() != null) {
             game.setHomeTeamId(dto.homeTeam().id());
             game.setHomeTeamName(dto.homeTeam().displayName());

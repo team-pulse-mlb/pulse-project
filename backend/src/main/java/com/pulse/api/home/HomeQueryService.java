@@ -1,8 +1,13 @@
 package com.pulse.api.home;
 
 import com.pulse.domain.Game;
+import com.pulse.domain.GameEvent;
+import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
-import com.pulse.domain.ReplaySegmentRepository;
+import com.pulse.domain.Lineup;
+import com.pulse.domain.LineupRepository;
+import com.pulse.domain.Player;
+import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
@@ -10,9 +15,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -27,16 +37,19 @@ public class HomeQueryService {
 
     private final GameRepository gameRepository;
     private final WatchScoreRepository watchScoreRepository;
-    private final ReplaySegmentRepository replaySegmentRepository;
+    private final GameEventRepository gameEventRepository;
+    private final LineupRepository lineupRepository;
+    private final PlayerRepository playerRepository;
     private final RankingService rankingService;
+    private final StringRedisTemplate redisTemplate;
 
     public HomeRankingResponse getRanking(int count) {
         Instant now = Instant.now();
         int safeCount = rankingLimit(count);
-        List<HomeGameCard> live = rankingService.topLive(safeCount).keySet().stream()
+        List<RankingLiveGameCard> live = rankingService.topLive(safeCount).keySet().stream()
                 .map(gameRepository::findById)
                 .flatMap(java.util.Optional::stream)
-                .map(this::toCard)
+                .map(this::toRankingLiveCard)
                 .toList();
 
         int remaining = safeCount - live.size();
@@ -56,15 +69,18 @@ public class HomeQueryService {
 
         int scheduledReserve = scheduledCandidates.isEmpty() ? 0 : 1;
         int finishedLimit = Math.max(0, remaining - scheduledReserve);
-        List<HomeGameCard> finished = finishedCandidates.stream()
+        List<RankingFinishedGameCard> finished = finishedCandidates.stream()
                 .limit(finishedLimit)
-                .map(this::toCard)
+                .map(this::toRankingFinishedCard)
                 .toList();
 
         remaining -= finished.size();
-        List<HomeGameCard> scheduled = scheduledCandidates.stream()
+        List<Game> selectedScheduled = scheduledCandidates.stream()
                 .limit(remaining)
-                .map(this::toCard)
+                .toList();
+        Map<Long, ProbablePitchersResponse> probablePitchers = probablePitchersByGame(selectedScheduled);
+        List<RankingScheduledGameCard> scheduled = selectedScheduled.stream()
+                .map(game -> toRankingScheduledCard(game, probablePitchers.get(game.getId())))
                 .toList();
 
         return new HomeRankingResponse(now, live, scheduled, finished);
@@ -80,47 +96,156 @@ public class HomeQueryService {
                 ? rankingService.topLive(MAX_RANKING_LOOKUP)
                 : Map.of();
 
-        List<HomeGameCard> games = gameRepository.findAll().stream()
+        List<Game> selectedGames = gameRepository.findAll().stream()
                 .filter(game -> inSlate(game, startInclusive, endExclusive))
                 .filter(game -> matchesStatus(game, normalizedStatus))
-                .map(this::toCard)
-                .sorted(comparator(normalizedSort, liveScores))
+                .sorted(gameComparator(normalizedSort, liveScores))
+                .toList();
+        Map<Long, ProbablePitchersResponse> probablePitchers = probablePitchersByGame(selectedGames);
+        List<SlateGameCard> games = selectedGames.stream()
+                .map(game -> toSlateCard(game, probablePitchers.get(game.getId())))
                 .toList();
 
         return new HomeSlateResponse(slateDate, games);
     }
 
-    private HomeGameCard toCard(Game game) {
-        WatchScore latestScore = watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(game.getId()).orElse(null);
-        List<String> tags = latestScore == null || latestScore.getTags() == null
-                ? List.of()
-                : latestScore.getTags();
-        return new HomeGameCard(
+    private RankingLiveGameCard toRankingLiveCard(Game game) {
+        return new RankingLiveGameCard(
                 game.getId(),
-                stateOf(game),
-                new MatchupResponse(teamLabel(game.getHomeTeamName(), game.getHomeTeamAbbr()),
-                        teamLabel(game.getAwayTeamName(), game.getAwayTeamAbbr())),
-                game.getStartTime(),
-                game.isLive() ? game.getPeriod() : null,
-                tags,
-                headline(game),
-                game.isFinal() ? replaySegmentRepository.countByGameId(game.getId()) : null
+                matchup(game),
+                game.getPeriod(),
+                latestTag(game)
         );
     }
 
-    private static Comparator<HomeGameCard> comparator(String sort, Map<Long, Double> liveScores) {
+    private RankingScheduledGameCard toRankingScheduledCard(
+            Game game,
+            ProbablePitchersResponse probablePitchers
+    ) {
+        return new RankingScheduledGameCard(
+                game.getId(),
+                matchup(game),
+                game.getStartTime(),
+                game.getVenue(),
+                probablePitchers
+        );
+    }
+
+    private RankingFinishedGameCard toRankingFinishedCard(Game game) {
+        return new RankingFinishedGameCard(
+                game.getId(),
+                matchup(game),
+                headline(game),
+                keyMoment(game)
+        );
+    }
+
+    private SlateGameCard toSlateCard(Game game, ProbablePitchersResponse probablePitchers) {
+        String state = stateOf(game);
+        if (game.isLive()) {
+            return new SlateLiveGameCard(
+                    game.getId(),
+                    state,
+                    matchup(game),
+                    game.getStartTime(),
+                    game.getPeriod(),
+                    latestTag(game)
+            );
+        }
+        if (game.isFinal()) {
+            return new SlateFinishedGameCard(
+                    game.getId(),
+                    state,
+                    matchup(game),
+                    game.getStartTime(),
+                    headline(game),
+                    keyMoment(game)
+            );
+        }
+        return new SlateScheduledGameCard(
+                game.getId(),
+                state,
+                matchup(game),
+                game.getStartTime(),
+                game.getVenue(),
+                probablePitchers
+        );
+    }
+
+    private Map<Long, ProbablePitchersResponse> probablePitchersByGame(List<Game> games) {
+        Map<Long, Game> scheduledGames = games.stream()
+                .filter(game -> Game.STATUS_SCHEDULED.equals(game.getStatus()))
+                .collect(Collectors.toMap(Game::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        if (scheduledGames.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Lineup> probablePitchers = lineupRepository.findByGameIdInAndIsProbablePitcherTrue(
+                List.copyOf(scheduledGames.keySet()));
+        Map<Long, Player> playersById = playerRepository.findAllById(
+                        probablePitchers.stream().map(Lineup::getPlayerId).distinct().toList())
+                .stream()
+                .collect(Collectors.toMap(Player::getId, Function.identity()));
+        Map<Long, String> homePitchers = new HashMap<>();
+        Map<Long, String> awayPitchers = new HashMap<>();
+
+        for (Lineup lineup : probablePitchers) {
+            Game game = scheduledGames.get(lineup.getGameId());
+            Player player = playersById.get(lineup.getPlayerId());
+            String name = playerName(player);
+            if (game == null || name == null) {
+                continue;
+            }
+            if (java.util.Objects.equals(lineup.getTeamId(), game.getHomeTeamId())) {
+                homePitchers.putIfAbsent(game.getId(), name);
+            } else if (java.util.Objects.equals(lineup.getTeamId(), game.getAwayTeamId())) {
+                awayPitchers.putIfAbsent(game.getId(), name);
+            }
+        }
+
+        Map<Long, ProbablePitchersResponse> result = new LinkedHashMap<>();
+        scheduledGames.keySet().forEach(gameId -> result.put(
+                gameId,
+                new ProbablePitchersResponse(homePitchers.get(gameId), awayPitchers.get(gameId))
+        ));
+        return result;
+    }
+
+    private static String playerName(Player player) {
+        if (player == null) {
+            return null;
+        }
+        if (player.getFullName() != null && !player.getFullName().isBlank()) {
+            return player.getFullName();
+        }
+        String fallback = java.util.stream.Stream.of(player.getFirstName(), player.getLastName())
+                .filter(value -> value != null && !value.isBlank())
+                .collect(Collectors.joining(" "));
+        return fallback.isBlank() ? null : fallback;
+    }
+
+    private Comparator<Game> gameComparator(String sort, Map<Long, Double> liveScores) {
         if ("recommended".equals(sort)) {
             return Comparator
-                    .comparing((HomeGameCard card) -> liveScores.getOrDefault(card.gameId(), -1.0)).reversed()
+                    .comparing((Game game) -> recommendedScore(game, liveScores)).reversed()
                     .thenComparing(HomeQueryService::startTimeOrMax);
         }
         return Comparator
-                .comparing((HomeGameCard card) -> !"LIVE".equals(card.gameState()))
+                .comparing((Game game) -> !game.isLive())
                 .thenComparing(HomeQueryService::startTimeOrMax);
     }
 
-    private static Instant startTimeOrMax(HomeGameCard card) {
-        return card.startTime() == null ? Instant.MAX : card.startTime();
+    private static double recommendedScore(Game game, Map<Long, Double> liveScores) {
+        if (game.isLive()) {
+            return liveScores.getOrDefault(game.getId(), -1.0);
+        }
+        if (game.isFinal()) {
+            return scoreOrMin(game.getPeakBaseScore());
+        }
+        if (Game.STATUS_SCHEDULED.equals(game.getStatus())) {
+            return scoreOrMin(game.getPregameScore());
+        }
+        return Integer.MIN_VALUE;
     }
 
     private static Instant startTimeOrMax(Game game) {
@@ -221,11 +346,33 @@ public class HomeQueryService {
         return "UNKNOWN";
     }
 
+    private MatchupResponse matchup(Game game) {
+        return new MatchupResponse(
+                teamLabel(game.getHomeTeamName(), game.getHomeTeamAbbr()),
+                teamLabel(game.getAwayTeamName(), game.getAwayTeamAbbr())
+        );
+    }
+
     private static String teamLabel(String name, String abbr) {
         if (abbr != null && !abbr.isBlank()) {
             return abbr;
         }
         return name;
+    }
+
+    private String latestTag(Game game) {
+        if (!game.isLive()) {
+            return null;
+        }
+        String cached = valueOf(redisTemplate.opsForHash().get(liveCacheKey(game.getId()), "latestTag"));
+        if (cached != null && !cached.isBlank()) {
+            return cached;
+        }
+        return watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(game.getId())
+                .map(WatchScore::getTags)
+                .filter(tags -> tags != null && !tags.isEmpty())
+                .map(tags -> tags.get(tags.size() - 1))
+                .orElse(null);
     }
 
     private static String headline(Game game) {
@@ -235,32 +382,118 @@ public class HomeQueryService {
         return null;
     }
 
+    private String keyMoment(Game game) {
+        if (!game.isFinal()) {
+            return null;
+        }
+        return gameEventRepository
+                .findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
+                        game.getId(), GameEvent.SPOILER_PROTECTED_SAFE)
+                .map(GameEvent::getEventType)
+                .map(HomeQueryService::eventLabel)
+                .orElse(null);
+    }
+
+    private static String eventLabel(String eventType) {
+        return switch (eventType) {
+            case "pressure_bases_loaded" -> "만루 승부";
+            case "pressure_scoring_position" -> "득점권 승부";
+            case "long_at_bat" -> "긴 접전 승부";
+            case "full_count_two_out" -> "승부처 카운트";
+            case "pitcher_instability" -> "투수 흔들림";
+            case "hard_contact" -> "강한 타구";
+            default -> null;
+        };
+    }
+
+    private static String valueOf(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    private static String liveCacheKey(long gameId) {
+        return "game:" + gameId + ":live";
+    }
+
     public record HomeRankingResponse(
             Instant generatedAt,
-            List<HomeGameCard> live,
-            List<HomeGameCard> scheduled,
-            List<HomeGameCard> finished
+            List<RankingLiveGameCard> live,
+            List<RankingScheduledGameCard> scheduled,
+            List<RankingFinishedGameCard> finished
     ) {
     }
 
     public record HomeSlateResponse(
             LocalDate slateDate,
-            List<HomeGameCard> games
+            List<SlateGameCard> games
     ) {
     }
 
-    public record HomeGameCard(
+    public interface SlateGameCard {
+        long gameId();
+
+        String gameState();
+
+        Instant startTime();
+    }
+
+    public record RankingLiveGameCard(
+            long gameId,
+            MatchupResponse matchup,
+            Integer inning,
+            String latestTag
+    ) {
+    }
+
+    public record RankingScheduledGameCard(
+            long gameId,
+            MatchupResponse matchup,
+            Instant startTime,
+            String venue,
+            ProbablePitchersResponse probablePitchers
+    ) {
+    }
+
+    public record RankingFinishedGameCard(
+            long gameId,
+            MatchupResponse matchup,
+            String headline,
+            String keyMoment
+    ) {
+    }
+
+    public record SlateLiveGameCard(
             long gameId,
             String gameState,
             MatchupResponse matchup,
             Instant startTime,
             Integer inning,
-            List<String> tags,
+            String latestTag
+    ) implements SlateGameCard {
+    }
+
+    public record SlateScheduledGameCard(
+            long gameId,
+            String gameState,
+            MatchupResponse matchup,
+            Instant startTime,
+            String venue,
+            ProbablePitchersResponse probablePitchers
+    ) implements SlateGameCard {
+    }
+
+    public record SlateFinishedGameCard(
+            long gameId,
+            String gameState,
+            MatchupResponse matchup,
+            Instant startTime,
             String headline,
-            Long replaySegmentCount
-    ) {
+            String keyMoment
+    ) implements SlateGameCard {
     }
 
     public record MatchupResponse(String home, String away) {
+    }
+
+    public record ProbablePitchersResponse(String home, String away) {
     }
 }

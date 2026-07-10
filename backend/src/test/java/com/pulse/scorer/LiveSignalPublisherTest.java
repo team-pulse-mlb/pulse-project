@@ -7,8 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pulse.ranking.RankingService;
+import com.pulse.common.transaction.AfterCommitExecutor;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +25,7 @@ class LiveSignalPublisherTest {
     private final LiveSignalPublisher publisher = new LiveSignalPublisher(
             rankingService,
             redisTemplate,
-            new ObjectMapper()
+            new AfterCommitExecutor()
     );
 
     @Test
@@ -64,7 +64,9 @@ class LiveSignalPublisherTest {
             assertThat(hash)
                     .containsEntry("watchScore", "87")
                     .containsEntry("baseScore", "73")
-                    .containsEntry("tags", "[\"득점권 압박\"]")
+                    .containsEntry("latestTag", "득점권 압박")
+                    .containsEntry("latestTagActivatedAt", updatedAt.toString())
+                    .containsEntry("activeTagSignature", "득점권 압박")
                     .containsEntry("lifecycleState", "LIVE")
                     .containsEntry("updatedAt", updatedAt.toString())
                     .containsEntry("inning", "8")
