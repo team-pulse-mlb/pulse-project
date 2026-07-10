@@ -3,7 +3,7 @@ package com.pulse.scorer;
 import java.time.Instant;
 
 /**
- * 종료 경기 AI 문구 비동기 생성 트리거 포트.
+ * 종료 경기 헤드라인과 이벤트 문구의 비동기 생성 트리거 포트.
  * 실구현은 창현(com.pulse.ai)이 제공하며, 없으면 no-op 스텁이 컴파일·동작을 유지한다.
  * 생성은 응답 경로 밖에서 이뤄지고 scorer는 시그니처만 의존한다.
  */

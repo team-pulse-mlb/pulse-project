@@ -52,6 +52,7 @@ flowchart LR
 
 - 채널이 RabbitMQ인 이유: 알림은 one-shot이라 유실되면 복구 경로가 없다. 재조회 신호와 달리 "다음 사이클에 자연 복구"가 성립하지 않는다.
 - 중복 전달을 전제로 `(event_id, user_id)` 유니크 제약으로 멱등 처리한다.
+- 발행 측은 같은 `event_id`의 `notification_events` 원본 행을 먼저 영속하고, DB 커밋이 끝난 뒤 `notify.events`를 발행한다. 소비자는 원본 커밋 전에 `user_notifications`를 저장하지 않는다.
 - 전역 15분 1회 레이트리밋은 발행 측(scorer)이 Redis 키로 관리한다.
 - 경기 전환 안내는 알림 파이프라인을 타지 않는다. 상세 API 응답의 `switchSuggestion: { gameId, matchup, latestTag }`와 서버 조립 `message`로 제공한다.
 
@@ -81,4 +82,5 @@ flowchart LR
 - 소비: api의 notification 모듈이 fan-out → `user_notifications` insert → SSE `notification_created` 푸시.
 - fan-out 대상: `SURGE`는 `user_settings.notify_surge_enabled`가 켜진 전체 사용자. `GAME_START`는 `user_settings.notify_game_start`가 켜져 있고 `user_favorite_teams`에 홈 또는 원정 팀이 포함된 사용자만.
 - 멱등: `(event_id, user_id)` 유니크 제약. 중복 전달을 전제로 한다.
+- `message`는 발행 측 poller/scorer가 고정 템플릿으로 완성한다. 소비자는 `latestTag`를 문구로 다시 조립하지 않는다.
 - 알림 payload·문구에 점수 숫자, 결과, 태그 배열을 싣지 않는다.

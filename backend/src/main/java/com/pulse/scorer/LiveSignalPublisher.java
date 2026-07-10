@@ -1,5 +1,6 @@
 package com.pulse.scorer;
 
+import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -24,6 +25,7 @@ public class LiveSignalPublisher {
 
     private final RankingService rankingService;
     private final StringRedisTemplate redisTemplate;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     /** 랭킹 ZSET·경기 HASH 캐시를 갱신하고 재조회 신호 2종을 발행한다. */
     public void publishLiveUpdate(
@@ -37,17 +39,33 @@ public class LiveSignalPublisher {
             String lifecycleState,
             Instant updatedAt
     ) {
-        rankingService.updateLive(gameId, watchScore);
-        cacheGameState(gameId, watchScore, baseScore, tags, inning, inningType, lastPlayOrder, lifecycleState, updatedAt);
-        publishGameSignal(gameId);
-        publishRankingSignal();
+        afterCommitExecutor.execute(() -> {
+            rankingService.updateLive(gameId, watchScore);
+            cacheGameState(gameId, watchScore, baseScore, tags, inning, inningType, lastPlayOrder, lifecycleState, updatedAt);
+            publishGameSignalNow(gameId);
+            publishRankingSignalNow();
+        });
     }
 
     public void publishGameSignal(long gameId) {
-        redisTemplate.convertAndSend(GAME_CHANNEL_PREFIX + gameId, String.valueOf(gameId));
+        afterCommitExecutor.execute(() -> publishGameSignalNow(gameId));
     }
 
     public void publishRankingSignal() {
+        afterCommitExecutor.execute(this::publishRankingSignalNow);
+    }
+
+    /** 현재 Redis 상태를 기준으로 이번 사이클의 가장 최근 활성 태그를 계산한다. */
+    public String resolveLatestTag(long gameId, List<String> tags, Instant updatedAt) {
+        String latestTag = latestTagState(gameId, tags, updatedAt).latestTag();
+        return latestTag.isBlank() ? null : latestTag;
+    }
+
+    private void publishGameSignalNow(long gameId) {
+        redisTemplate.convertAndSend(GAME_CHANNEL_PREFIX + gameId, String.valueOf(gameId));
+    }
+
+    private void publishRankingSignalNow() {
         redisTemplate.convertAndSend(RANKING_CHANNEL, "changed");
     }
 
@@ -84,7 +102,11 @@ public class LiveSignalPublisher {
     }
 
     public void evictGameCache(long gameId) {
-        redisTemplate.delete(cacheKey(gameId));
+        afterCommitExecutor.execute(() -> redisTemplate.delete(cacheKey(gameId)));
+    }
+
+    public void removeLiveGame(long gameId) {
+        afterCommitExecutor.execute(() -> rankingService.removeLive(gameId));
     }
 
     private LatestTagState latestTagState(long gameId, List<String> tags, Instant updatedAt) {

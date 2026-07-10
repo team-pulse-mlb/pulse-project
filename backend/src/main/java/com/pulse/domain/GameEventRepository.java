@@ -8,5 +8,8 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
     boolean existsByGameIdAndEventTypeAndSourceTypeAndSourceRef(
             Long gameId, String eventType, String sourceType, Long sourceRef);
 
-    Optional<GameEvent> findFirstByGameIdAndSpoilerLevelOrderByObservedAtDesc(Long gameId, String spoilerLevel);
+    long countByGameIdAndEventType(Long gameId, String eventType);
+
+    Optional<GameEvent> findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
+            Long gameId, String spoilerLevel);
 }

@@ -78,7 +78,7 @@ public class LiveScoringService {
 
         persistWatchScore(game, observedAt, latestPlay, result, importance, pregameBonus, watchScoreRounded, tags);
         updatePeakBaseScore(game, baseScore);
-        gameEventExtractor.extract(gameId, recentPlays, observedAt);
+        gameEventExtractor.extract(gameId, recentPlays, task.plateAppearances(), observedAt);
 
         liveSignalPublisher.publishLiveUpdate(
                 gameId,
@@ -93,7 +93,7 @@ public class LiveScoringService {
         );
 
         if (surgeDetector.evaluate(gameId, watchScoreRounded, observedAt)) {
-            publishSurge(gameId, tags, observedAt);
+            publishSurge(game, tags, observedAt);
         }
         log.debug("라이브 점수 계산 gameId={} watchScore={} observedAt={}", gameId, watchScoreRounded, observedAt);
     }
@@ -141,7 +141,12 @@ public class LiveScoringService {
         return Math.min(game.getPregameScore() / 10.0, props.pregameCarryoverMax());
     }
 
-    private void publishSurge(long gameId, List<String> tags, Instant occurredAt) {
+    private void publishSurge(Game game, List<String> tags, Instant occurredAt) {
+        long gameId = game.getId();
+        String latestTag = liveSignalPublisher.resolveLatestTag(gameId, tags, occurredAt);
+        if (latestTag == null) {
+            latestTag = "경기 흐름 변화";
+        }
         UUID eventId = UUID.randomUUID();
         NotificationEventLog logRecord = new NotificationEventLog();
         logRecord.setEventId(eventId);
@@ -155,9 +160,10 @@ public class LiveScoringService {
                 eventId,
                 NotificationType.SURGE,
                 gameId,
-                tags,
+                "지금 볼 만한 경기가 있어요 — " + latestTag,
+                latestTag,
                 occurredAt
         ));
-        log.info("SURGE 알림 발행 gameId={} tags={}", gameId, tags);
+        log.info("SURGE 알림 발행 gameId={} latestTag={}", gameId, latestTag);
     }
 }
