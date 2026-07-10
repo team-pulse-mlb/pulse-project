@@ -8,7 +8,7 @@
 | `frontend/` | React + Vite 기반 화면 코드 |
 | `ai-service/` | FastAPI 기반 문구 생성·스포일러 검수 서비스 |
 | `raw-archive/` | S3 임시 아카이브 도구. 데이터 이전 완료 후 폐기 예정 |
-| `infra/` | Docker Compose·CI/CD 설정 |
+| `infra/` | 로컬 개발용 PostgreSQL·Redis Docker Compose 설정 |
 | `docs/` | 프로젝트 문서 |
 
 ## 2. backend 패키지 구조
@@ -42,4 +42,4 @@
 |---|---|
 | `ai-service/` | FastAPI 기반 문구 생성·스포일러 검수 서비스다. scorer가 응답 경로 밖에서 비동기 문구 생성을 요청하고, 검수 통과 문구는 Redis 또는 PostgreSQL 저장 경로로 전달된다. |
 | `raw-archive/` | S3 임시 아카이브 도구다. 개발·데이터 파악·백테스트용 임시 수집에 한정하며, 운영 DB 이전 완료 후 폐기 예정이다. |
-| `infra/` | Docker Compose와 CI/CD 설정 영역이다. |
+| `infra/` | 로컬 개발용 PostgreSQL·Redis Docker Compose 설정이다. 운영용 Compose는 포함하지 않는다. |
