@@ -2,8 +2,6 @@ package com.pulse.api.user.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -59,7 +57,6 @@ public class UserSetting {
      * 프론트에서 notificationSettings를 보내지 않은 경우 사용할 수 있다.
      *
      * 기본 정책:
-     * - 스포일러 모드: PROTECTED
      * - 관심팀 경기 시작 알림: ON
      * - 중요한 순간 알림: ON
      * - 경기 전환 추천 알림: ON
