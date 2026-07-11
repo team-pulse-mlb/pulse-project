@@ -1,6 +1,7 @@
 package com.pulse.api.home;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -19,6 +20,8 @@ import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,6 +158,25 @@ class HomeQueryServiceTest {
         assertThat(response.games()).hasSize(2).allMatch(SlateScheduledGameCard.class::isInstance);
         assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameState)
                 .containsExactly("POSTPONED", "CANCELED");
+    }
+
+    @Test
+    void getSlate_shouldThrowInvalidSlateDateExceptionForInvalidDate() {
+        assertThatThrownBy(() -> service.getSlate("2026-02-30", "all", "startTime"))
+                .isInstanceOf(InvalidSlateDateException.class)
+                .hasMessage("날짜는 YYYY-MM-DD 형식이어야 합니다.");
+    }
+
+    @Test
+    void getSlate_shouldUseCurrentSlateDateWhenDateIsMissing() {
+        LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
+        when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
+                any(Instant.class), any(Instant.class))).thenReturn(List.of());
+
+        HomeSlateResponse response = service.getSlate(null, "all", "startTime");
+
+        assertThat(response.slateDate()).isEqualTo(today);
+        assertThat(response.games()).isEmpty();
     }
 
     private static int totalCards(HomeRankingResponse response) {

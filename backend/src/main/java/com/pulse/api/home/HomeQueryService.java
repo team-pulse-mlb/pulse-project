@@ -14,6 +14,7 @@ import com.pulse.ranking.RankingService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -317,7 +318,11 @@ public class HomeQueryService {
         if (date == null || date.isBlank()) {
             return LocalDate.now(SLATE_ZONE);
         }
-        return LocalDate.parse(date.trim());
+        try {
+            return LocalDate.parse(date.trim());
+        } catch (DateTimeParseException exception) {
+            throw new InvalidSlateDateException("날짜는 YYYY-MM-DD 형식이어야 합니다.", exception);
+        }
     }
 
     private static String normalizeStatus(String status) {
