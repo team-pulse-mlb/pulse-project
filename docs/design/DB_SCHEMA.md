@@ -36,12 +36,14 @@ erDiagram
     users ||--o| user_settings : "설정"
     users ||--o{ user_favorite_teams : "관심 팀"
     teams ||--o{ user_favorite_teams : "관심 팀"
+    users ||--o{ user_favorite_players : "관심 선수"
+    players ||--o{ user_favorite_players : "관심 선수"
     users ||--o{ refresh_tokens : "토큰"
     users ||--o{ user_notifications : "수신함"
     notification_events ||--o{ user_notifications : "fan-out"
 ```
 
-관심 팀은 `user_favorite_teams` 조인 테이블로 관리한다. 관심 선수 저장 구조는 후속 작업에서 확정한다.
+관심 팀은 `user_favorite_teams`, 관심 선수는 `user_favorite_players` 조인 테이블로 관리한다.
 
 ## 4. 테이블 개요
 
@@ -55,6 +57,7 @@ erDiagram
 | 사용자 | `refresh_tokens` | 토큰 상태 | P0 |
 | 사용자 | `user_settings` | 알림·전환 설정 | P0 |
 | 사용자 | `user_favorite_teams` | 관심 팀 조인 | P0 |
+| 사용자 | `user_favorite_players` | 관심 선수 조인 | P0 |
 | 알림 | `notification_events` | 전역 이벤트 원본 | P0 |
 | 알림 | `user_notifications` | 사용자별 수신함 | P0 |
 | 마스터 | `teams` | 정적 마스터 | P1 |
@@ -243,9 +246,17 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 
 **키·인덱스** — PK(`user_id`, `team_id`) · idx(`team_id`)
 
-관심 선수 저장(`user_favorite_players`)은 후속 작업으로 둔다.
+### B-5. `user_favorite_players` — 관심 선수
 
-### B-5. `notification_events` — 알림 이벤트 원본 (전역 1행)
+| 컬럼 | 타입 | 설명 | 제약·비고 |
+|---|---|---|---|
+| `user_id` | `BIGINT` | 사용자 id | FK → `users.user_id` |
+| `player_id` | `BIGINT` | 관심 선수 id | FK → `players.player_id` |
+| `created_at` | `TIMESTAMPTZ` | 등록 시각 | |
+
+**키·인덱스** — PK(`user_id`, `player_id`) · idx(`player_id`)
+
+### B-6. `notification_events` — 알림 이벤트 원본 (전역 1행)
 
 scorer(급상승)·poller(경기 시작)가 판정해 발행한 이벤트의 원본. 사용자별 수신함과 분리해 발화 이력을 남긴다.
 
@@ -259,7 +270,7 @@ scorer(급상승)·poller(경기 시작)가 판정해 발행한 이벤트의 원
 
 **키·인덱스** — PK `event_id` · idx(`game_id`, `occurred_at`)
 
-### B-6. `user_notifications` — 사용자별 수신함
+### B-7. `user_notifications` — 사용자별 수신함
 
 api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한다. 알림 센터의 최신순 목록·미읽음 배지·읽음 처리·7일 보관을 지원한다.
 
