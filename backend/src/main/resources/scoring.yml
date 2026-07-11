@@ -84,5 +84,7 @@ scoring:
     alert-rise-score: 15
     alert-rise-window-minutes: 5
     alert-cooldown-minutes: 15
+    alert-global-limit: 3
+    alert-global-window-minutes: 15
     switch-score: 70
     switch-gap: 20
