@@ -74,9 +74,13 @@ public class Game {
     /** 라이브 중 기록한 최고 base_score. 종료 경기 정렬 기준. */
     private Integer peakBaseScore;
 
-    /** 종료 문구. AI 생성 트리거가 채운다. */
+    /** 종료 보호 모드 헤드라인. 결과를 드러내지 않는 AI 문구다. */
     @Column(columnDefinition = "text")
-    private String finalHeadline;
+    private String finalHeadlineProtected;
+
+    /** 종료 공개 모드 헤드라인. 최종 점수와 승패를 반영한 AI 문구다. */
+    @Column(columnDefinition = "text")
+    private String finalHeadlineRevealed;
 
     /** /plays 증분 수집용 마지막 play order */
     private Long lastPlayOrder;

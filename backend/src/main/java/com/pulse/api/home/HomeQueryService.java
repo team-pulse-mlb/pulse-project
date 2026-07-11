@@ -376,8 +376,10 @@ public class HomeQueryService {
     }
 
     private static String headline(Game game) {
-        if (game.isFinal() && game.getFinalHeadline() != null && !game.getFinalHeadline().isBlank()) {
-            return game.getFinalHeadline();
+        if (game.isFinal()
+                && game.getFinalHeadlineProtected() != null
+                && !game.getFinalHeadlineProtected().isBlank()) {
+            return game.getFinalHeadlineProtected();
         }
         return null;
     }
