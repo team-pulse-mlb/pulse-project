@@ -88,11 +88,14 @@ public class BalldontlieClient {
         return response == null || response.data() == null ? List.of() : response.data();
     }
 
-    /** 특정 날짜 슬레이트의 배당 목록 */
-    public List<BdlOdds> getOdds(LocalDate date) {
+    /** 경기들의 배당 목록 */
+    public List<BdlOdds> getOdds(List<Long> gameIds) {
+        if (gameIds == null || gameIds.isEmpty()) {
+            return List.of();
+        }
         ListResponse<BdlOdds> response = restClient.get()
                 .uri(uri -> uri.path("/mlb/v1/odds")
-                        .queryParam("dates[]", date.toString())
+                        .queryParam("game_ids[]", gameIds.toArray())
                         .queryParam("per_page", PER_PAGE)
                         .build())
                 .retrieve()

@@ -180,7 +180,7 @@ public class PregamePoller {
         }
 
         rateLimiter.acquire();
-        List<BdlOdds> odds = balldontlieClient.getOdds(LocalDate.ofInstant(now, ZoneOffset.UTC));
+        List<BdlOdds> odds = balldontlieClient.getOdds(nearGames.stream().map(Game::getId).toList());
         Map<Long, Instant> startTimes = new HashMap<>();
         for (Game game : pregameGames) {
             if (game.getStartTime() != null) {
