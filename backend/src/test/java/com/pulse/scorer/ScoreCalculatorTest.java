@@ -73,6 +73,55 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    @DisplayName("같은 이닝의 초와 말 득점은 빅이닝으로 합산하지 않는다")
+    void bigInningSeparatesInningTypes() {
+        Game game = game(6, 3, 2);
+        Play topScore = scoringPlay(6, 1, 0, now.minusSeconds(120));
+        topScore.setInningType("TOP");
+        Play bottomScore = scoringPlay(6, 1, 1, now.minusSeconds(60));
+        bottomScore.setInningType("BOTTOM");
+
+        assertThat(signal(game, List.of(topScore, bottomScore), "big_inning")).isZero();
+    }
+
+    @Test
+    @DisplayName("같은 하프이닝에 득점이 집중되면 빅이닝이 발동한다")
+    void bigInningCountsSameHalfInning() {
+        Game game = game(6, 3, 2);
+        Play first = scoringPlay(6, 0, 1, now.minusSeconds(120));
+        first.setInningType("TOP");
+        Play second = scoringPlay(6, 0, 2, now.minusSeconds(60));
+        second.setInningType("TOP");
+
+        assertThat(signal(game, List.of(first, second), "big_inning")).isPositive();
+    }
+
+    @Test
+    @DisplayName("윈도 직전 리더를 시드로 사용해 경계의 역전을 감지한다")
+    void leadChangeUsesSeedLeaderAtWindowBoundary() {
+        Game game = game(8, 3, 4);
+        Play changedLeader = scoringPlay(8, 3, 4, now.minusSeconds(60));
+
+        ScoreCalculator.Result result = calculator.calculate(game, List.of(changedLeader), null, 1, now);
+
+        assertThat(result.signals().get("lead_change")).isPositive();
+    }
+
+    @Test
+    @DisplayName("시드 리더가 없으면 윈도 내부의 기존 역전 판정을 유지한다")
+    void leadChangeKeepsExistingBehaviorWithoutSeed() {
+        Game game = game(8, 4, 5);
+        List<Play> plays = List.of(
+                play(8, 4, 3, now.minusSeconds(120)),
+                scoringPlay(8, 4, 5, now.minusSeconds(60))
+        );
+
+        ScoreCalculator.Result result = calculator.calculate(game, plays, null, 0, now);
+
+        assertThat(result.signals().get("lead_change")).isPositive();
+    }
+
+    @Test
     @DisplayName("풀카운트 2아웃은 카운트 신호 상한을 넘지 않는다")
     void countPressureIsCapped() {
         Game game = game(9, 2, 2);

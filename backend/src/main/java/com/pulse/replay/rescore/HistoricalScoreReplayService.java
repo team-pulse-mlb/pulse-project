@@ -1,6 +1,7 @@
 package com.pulse.replay.rescore;
 
 import com.pulse.common.config.ScoringProperties;
+import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.Play;
 import com.pulse.scorer.ReasonTags;
@@ -102,11 +103,18 @@ class HistoricalScoreReplayService {
             RescorePlayRow current,
             List<RescorePlayRow> observedPlays
     ) {
-        List<Play> recentPlays = recentPlays(observedPlays);
-        ScoreCalculator.Result result = calculator.calculate(gameFrom(current), recentPlays, computedAt);
+        RecentPlayWindow window = recentPlays(observedPlays);
+        List<Play> recentPlays = window.plays();
+        ScoreCalculator.Result result = calculator.calculate(
+                gameFrom(current),
+                recentPlays,
+                situationFrom(recentPlays),
+                window.seedLeader(),
+                computedAt
+        );
         int baseScore = roundScore(result.baseScore());
         int watchScore = roundScore(calculator.clampWatchScore(result.baseScore()));
-        List<String> tags = ReasonTags.from(result.signals());
+        List<String> tags = ReasonTags.from(result.signals(), result.fullCountIncluded());
 
         return repository.insertWatchScore(new RescoreWatchScoreRow(
                 gameId,
@@ -122,11 +130,13 @@ class HistoricalScoreReplayService {
                 current.sourceValue()));
     }
 
-    private List<Play> recentPlays(List<RescorePlayRow> observedPlays) {
+    private RecentPlayWindow recentPlays(List<RescorePlayRow> observedPlays) {
         int fromIndex = Math.max(0, observedPlays.size() - scoringProperties.leadChange().windowPlays());
-        return observedPlays.subList(fromIndex, observedPlays.size()).stream()
+        int seedLeader = fromIndex == 0 ? 0 : leaderOf(observedPlays.get(fromIndex - 1));
+        List<Play> plays = observedPlays.subList(fromIndex, observedPlays.size()).stream()
                 .map(this::playFrom)
                 .toList();
+        return new RecentPlayWindow(plays, seedLeader);
     }
 
     private Game gameFrom(RescorePlayRow latest) {
@@ -161,6 +171,31 @@ class HistoricalScoreReplayService {
 
     private static int roundScore(double score) {
         return (int) Math.round(score);
+    }
+
+    private static int leaderOf(RescorePlayRow play) {
+        if (play.homeScore() == null || play.awayScore() == null) {
+            return 0;
+        }
+        return Integer.signum(play.homeScore() - play.awayScore());
+    }
+
+    private static ScoreTask.Situation situationFrom(List<Play> plays) {
+        if (plays.isEmpty()) {
+            return null;
+        }
+        Play latest = plays.get(plays.size() - 1);
+        return ScoreTask.Situation.of(
+                latest.getOuts(),
+                latest.getBalls(),
+                latest.getStrikes(),
+                latest.getRunnerOnFirst(),
+                latest.getRunnerOnSecond(),
+                latest.getRunnerOnThird()
+        );
+    }
+
+    private record RecentPlayWindow(List<Play> plays, int seedLeader) {
     }
 
     private record GameReplayResult(
