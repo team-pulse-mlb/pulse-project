@@ -23,14 +23,14 @@ public class ScoreCalculator {
         this.props = props;
     }
 
-    public record Result(Map<String, Double> signals, double baseScore) {
+    public record Result(Map<String, Double> signals, double baseScore, boolean fullCountIncluded) {
     }
 
     /**
      * 리플레이·백테스트 경로. situation을 최신 play의 주자/카운트 컬럼에서 복원해 계산한다.
      */
     public Result calculate(Game game, List<Play> recentPlays, Instant now) {
-        return calculate(game, recentPlays, situationFrom(recentPlays), now);
+        return calculate(game, recentPlays, situationFrom(recentPlays), 0, now);
     }
 
     /**
@@ -38,18 +38,28 @@ public class ScoreCalculator {
      * situation=null이면 압박 신호는 0점(null-safe)이다.
      */
     public Result calculate(Game game, List<Play> recentPlays, ScoreTask.Situation situation, Instant now) {
+        return calculate(game, recentPlays, situation, 0, now);
+    }
+
+    public Result calculate(
+            Game game,
+            List<Play> recentPlays,
+            ScoreTask.Situation situation,
+            int seedLeader,
+            Instant now
+    ) {
         Map<String, Double> signals = new LinkedHashMap<>();
         signals.put("late_or_extra", lateOrExtra(game));
         signals.put("score_gap", scoreGap(game));
         signals.put("recent_score", recentScore(recentPlays, now));
-        signals.put("lead_change", leadChange(recentPlays));
-        signals.put("big_inning", bigInning(game, recentPlays));
+        signals.put("lead_change", leadChange(recentPlays, seedLeader));
+        signals.put("big_inning", bigInning(recentPlays));
         signals.put("pressure", pressure(situation));
         signals.put("count_pressure", countPressure(situation));
         signals.put("early_slugfest", earlySlugfest(game));
 
         double baseScore = signals.values().stream().mapToDouble(Double::doubleValue).sum();
-        return new Result(signals, baseScore);
+        return new Result(signals, baseScore, isFullCount(situation));
     }
 
     private static ScoreTask.Situation situationFrom(List<Play> recentPlays) {
@@ -138,8 +148,8 @@ public class ScoreCalculator {
         return total;
     }
 
-    private double leadChange(List<Play> recentPlays) {
-        int lastLeader = 0;
+    private double leadChange(List<Play> recentPlays, int seedLeader) {
+        int lastLeader = seedLeader;
         for (Play play : recentPlays) {
             if (play.getHomeScore() == null || play.getAwayScore() == null) {
                 continue;
@@ -155,13 +165,14 @@ public class ScoreCalculator {
         return 0;
     }
 
-    private double bigInning(Game game, List<Play> recentPlays) {
-        Integer currentInning = game.getPeriod();
-        if (currentInning == null) {
+    private double bigInning(List<Play> recentPlays) {
+        if (recentPlays.isEmpty()) {
             return 0;
         }
+        Play latest = recentPlays.get(recentPlays.size() - 1);
         long scoringPlays = recentPlays.stream()
-                .filter(p -> currentInning.equals(p.getInning()))
+                .filter(p -> java.util.Objects.equals(latest.getInning(), p.getInning()))
+                .filter(p -> java.util.Objects.equals(latest.getInningType(), p.getInningType()))
                 .filter(p -> Boolean.TRUE.equals(p.getScoringPlay()))
                 .count();
         return scoringPlays >= props.bigInning().minScoringPlays() ? props.bigInning().bonus() : 0;
@@ -172,13 +183,19 @@ public class ScoreCalculator {
             return 0;
         }
         double score = 0;
-        if (Integer.valueOf(3).equals(situation.balls()) && Integer.valueOf(2).equals(situation.strikes())) {
+        if (isFullCount(situation)) {
             score += props.countPressure().fullCount();
         }
         if (Integer.valueOf(2).equals(situation.outs())) {
             score += props.countPressure().twoOuts();
         }
         return Math.min(score, props.countPressure().max());
+    }
+
+    private static boolean isFullCount(ScoreTask.Situation situation) {
+        return situation != null
+                && Integer.valueOf(3).equals(situation.balls())
+                && Integer.valueOf(2).equals(situation.strikes());
     }
 
     private double earlySlugfest(Game game) {

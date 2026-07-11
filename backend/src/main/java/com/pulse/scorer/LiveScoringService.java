@@ -63,22 +63,30 @@ public class LiveScoringService {
         }
 
         List<Play> recentPlays = playRepository.findByGameIdOrderByPlayOrderDesc(
-                gameId, PageRequest.of(0, props.leadChange().windowPlays()));
+                gameId, PageRequest.of(0, props.leadChange().windowPlays() + 1));
         Collections.reverse(recentPlays);
+        int seedLeader = 0;
+        if (recentPlays.size() > props.leadChange().windowPlays()) {
+            seedLeader = leaderOf(recentPlays.get(0));
+            recentPlays = recentPlays.subList(1, recentPlays.size());
+        }
 
-        ScoreCalculator.Result result = calculator.calculate(game, recentPlays, task.situation(), observedAt);
+        ScoreCalculator.Result result = calculator.calculate(game, recentPlays, task.situation(), seedLeader, observedAt);
         double baseScore = result.baseScore();
         double importance = importanceCalculator.multiplier(game);
         double pregameBonus = pregameBonus(game);
         double watchScore = calculator.clampWatchScore(baseScore * importance + pregameBonus);
         int watchScoreRounded = (int) Math.round(watchScore);
 
-        List<String> tags = ReasonTags.from(result.signals());
+        List<String> tags = ReasonTags.from(result.signals(), result.fullCountIncluded());
         Play latestPlay = recentPlays.isEmpty() ? null : recentPlays.get(recentPlays.size() - 1);
+        List<String> previousTags = watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(gameId)
+                .map(WatchScore::getTags)
+                .orElse(List.of());
 
         persistWatchScore(game, observedAt, latestPlay, result, importance, pregameBonus, watchScoreRounded, tags);
         updatePeakBaseScore(game, baseScore);
-        gameEventExtractor.extract(gameId, recentPlays, task.plateAppearances(), observedAt);
+        gameEventExtractor.extract(gameId, recentPlays, task.plateAppearances(), seedLeader, observedAt);
 
         liveSignalPublisher.publishLiveUpdate(
                 gameId,
@@ -89,11 +97,12 @@ public class LiveScoringService {
                 latestPlay == null ? null : latestPlay.getInningType(),
                 latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder(),
                 game.getLifecycleState(),
+                previousTags,
                 observedAt
         );
 
         if (surgeDetector.evaluate(gameId, watchScoreRounded, observedAt)) {
-            publishSurge(game, tags, observedAt);
+            publishSurge(game, tags, previousTags, observedAt);
         }
         log.debug("라이브 점수 계산 gameId={} watchScore={} observedAt={}", gameId, watchScoreRounded, observedAt);
     }
@@ -141,9 +150,9 @@ public class LiveScoringService {
         return Math.min(game.getPregameScore() / 10.0, props.pregameCarryoverMax());
     }
 
-    private void publishSurge(Game game, List<String> tags, Instant occurredAt) {
+    private void publishSurge(Game game, List<String> tags, List<String> previousTags, Instant occurredAt) {
         long gameId = game.getId();
-        String latestTag = liveSignalPublisher.resolveLatestTag(gameId, tags, occurredAt);
+        String latestTag = liveSignalPublisher.resolveLatestTag(gameId, tags, previousTags, occurredAt);
         if (latestTag == null) {
             latestTag = "경기 흐름 변화";
         }
@@ -165,5 +174,12 @@ public class LiveScoringService {
                 occurredAt
         ));
         log.info("SURGE 알림 발행 gameId={} latestTag={}", gameId, latestTag);
+    }
+
+    private static int leaderOf(Play play) {
+        if (play.getHomeScore() == null || play.getAwayScore() == null) {
+            return 0;
+        }
+        return Integer.signum(play.getHomeScore() - play.getAwayScore());
     }
 }

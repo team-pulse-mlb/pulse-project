@@ -9,6 +9,7 @@ import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Lineup;
 import com.pulse.domain.LineupRepository;
 import com.pulse.domain.Play;
+import com.pulse.domain.PlayRepository;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ public class GameEventExtractor {
 
     private final GameEventRepository gameEventRepository;
     private final LineupRepository lineupRepository;
+    private final PlayRepository playRepository;
     private final AiGenerationTrigger aiGenerationTrigger;
     private final AfterCommitExecutor afterCommitExecutor;
     private final ScoringProperties props;
@@ -53,9 +55,10 @@ public class GameEventExtractor {
             long gameId,
             List<Play> recentPlays,
             List<PlateAppearanceSnapshot> plateAppearances,
+            int seedLeader,
             Instant observedAt
     ) {
-        extractPlayEvents(gameId, recentPlays == null ? List.of() : recentPlays, observedAt);
+        extractPlayEvents(gameId, recentPlays == null ? List.of() : recentPlays, seedLeader, observedAt);
         extractPlateAppearanceEvents(
                 gameId,
                 plateAppearances == null ? List.of() : plateAppearances,
@@ -63,9 +66,9 @@ public class GameEventExtractor {
         );
     }
 
-    private void extractPlayEvents(long gameId, List<Play> recentPlays, Instant observedAt) {
-        int lastLeader = 0;
-        Map<HalfInning, List<Play>> scoringPlaysByHalf = new LinkedHashMap<>();
+    private void extractPlayEvents(long gameId, List<Play> recentPlays, int seedLeader, Instant observedAt) {
+        int lastLeader = seedLeader;
+        Set<HalfInning> scoringHalves = new HashSet<>();
 
         for (List<Play> atBat : consecutiveAtBats(recentPlays)) {
             Play first = atBat.get(0);
@@ -124,10 +127,7 @@ public class GameEventExtractor {
                         observedAt,
                         scorePayload(play)
                 );
-                scoringPlaysByHalf.computeIfAbsent(
-                        new HalfInning(play.getInning(), play.getInningType()),
-                        ignored -> new ArrayList<>()
-                ).add(play);
+                scoringHalves.add(new HalfInning(play.getInning(), play.getInningType()));
             }
             if (isHomeRun(play)) {
                 appendPlayIfAbsent(
@@ -156,17 +156,26 @@ public class GameEventExtractor {
             }
         }
 
-        scoringPlaysByHalf.values().stream()
-                .filter(plays -> plays.size() >= props.bigInning().minScoringPlays())
-                .forEach(plays -> {
-                    Play source = plays.get(props.bigInning().minScoringPlays() - 1);
+        scoringHalves.forEach(half -> {
+                    long scoringPlayCount = playRepository.countByGameIdAndInningAndInningTypeAndScoringPlayTrue(
+                            gameId, half.inning(), half.inningType());
+                    if (scoringPlayCount < props.bigInning().minScoringPlays()) {
+                        return;
+                    }
+                    Play source = playRepository
+                            .findFirstByGameIdAndInningAndInningTypeAndScoringPlayTrueOrderByPlayOrderAsc(
+                                    gameId, half.inning(), half.inningType())
+                            .orElse(null);
+                    if (source == null) {
+                        return;
+                    }
                     appendPlayIfAbsent(
                             gameId,
                             EVENT_BIG_INNING,
                             GameEvent.SPOILER_REVEALED_ONLY,
                             source,
                             observedAt,
-                            Map.of("scoringPlays", plays.size())
+                            Map.of("scoringPlays", scoringPlayCount)
                     );
                 });
     }
