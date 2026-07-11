@@ -352,6 +352,12 @@ public class HomeQueryService {
         if (Game.STATUS_SCHEDULED.equals(game.getStatus())) {
             return "SCHEDULED";
         }
+        if (Game.STATUS_POSTPONED.equals(game.getStatus())) {
+            return "POSTPONED";
+        }
+        if (Game.STATUS_CANCELED.equals(game.getStatus())) {
+            return "CANCELED";
+        }
         return "UNKNOWN";
     }
 

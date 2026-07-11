@@ -7,6 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
+import com.pulse.api.home.HomeQueryService.HomeSlateResponse;
+import com.pulse.api.home.HomeQueryService.SlateScheduledGameCard;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
@@ -141,6 +143,20 @@ class HomeQueryServiceTest {
         });
     }
 
+    @Test
+    void getSlate_shouldDistinguishPostponedAndCanceledStates() {
+        Game postponed = gameWithStatus(30L, Game.STATUS_POSTPONED);
+        Game canceled = gameWithStatus(31L, Game.STATUS_CANCELED);
+        when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
+                any(Instant.class), any(Instant.class))).thenReturn(List.of(postponed, canceled));
+
+        HomeSlateResponse response = service.getSlate("2026-07-11", "all", "startTime");
+
+        assertThat(response.games()).hasSize(2).allMatch(SlateScheduledGameCard.class::isInstance);
+        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameState)
+                .containsExactly("POSTPONED", "CANCELED");
+    }
+
     private static int totalCards(HomeRankingResponse response) {
         return response.live().size() + response.finished().size() + response.scheduled().size();
     }
@@ -174,6 +190,14 @@ class HomeQueryServiceTest {
         game.setStatus(Game.STATUS_SCHEDULED);
         game.setPregameScore(pregameScore);
         game.setStartTime(now.plusSeconds(2 * 60 * 60));
+        return game;
+    }
+
+    private static Game gameWithStatus(long id, String status) {
+        Game game = baseGame(id);
+        game.setStatus(status);
+        game.setStartTime(Instant.parse("2026-07-11T18:00:00Z"));
+        game.setVenue("Test Ballpark");
         return game;
     }
 
