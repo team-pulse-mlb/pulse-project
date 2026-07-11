@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +32,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 class OperationalPollerTest {
 
@@ -118,6 +122,56 @@ class OperationalPollerTest {
         assertThat(taskCaptor.getValue().situation()).isNull();
     }
 
+    @Test
+    void poll_shouldContinueWithNextGameWhenOneGameFails() {
+        Game firstGame = game(100L, GameLifecycle.LIVE.name(), 1L);
+        Game secondGame = game(200L, GameLifecycle.LIVE.name(), 1L);
+        BdlPlay firstPlay = play(1L, 10L);
+        BdlPlay secondPlay = play(1L, 20L);
+        Play latestPlay = persistedPlay(200L, 1L, 20L, true, false, false);
+        when(balldontlieClient.getGames(now.atZone(ZoneOffset.UTC).toLocalDate()))
+                .thenReturn(List.of(gameDto(100L, Game.STATUS_IN_PROGRESS), gameDto(200L, Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
+                .thenReturn(liveResult(firstGame), liveResult(secondGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenReturn(new ListResponse<>(List.of(firstPlay), new ListResponse.Meta(null, 100)));
+        when(gameWriter.appendPlay(firstGame, firstPlay, now)).thenThrow(new RuntimeException("저장 실패"));
+        when(balldontlieClient.getPlays(200L, 1L))
+                .thenReturn(new ListResponse<>(List.of(secondPlay), new ListResponse.Meta(null, 100)));
+        when(gameWriter.appendPlay(secondGame, secondPlay, now)).thenReturn(true);
+        when(balldontlieClient.getPlateAppearancesRaw(200L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
+        when(gameWriter.updateRunnerStates(200L, List.of()))
+                .thenReturn(new PollerRunnerStateMatcher.MatchResult(List.of(), 0, 0));
+        when(playRepository.findByGameIdOrderByPlayOrderDesc(200L, org.springframework.data.domain.PageRequest.of(0, 1)))
+                .thenReturn(List.of(latestPlay));
+
+        poller.poll();
+
+        verify(gameWriter).appendPlay(secondGame, secondPlay, now);
+        verify(scoreTaskPublisher).publish(any(ScoreTask.class));
+    }
+
+    @Test
+    void poll_shouldStopRemainingGamesAndRecordBackoffWhenRateLimited() {
+        Game firstGame = game(100L, GameLifecycle.LIVE.name(), 1L);
+        Game secondGame = game(200L, GameLifecycle.LIVE.name(), 1L);
+        when(balldontlieClient.getGames(now.atZone(ZoneOffset.UTC).toLocalDate()))
+                .thenReturn(List.of(gameDto(100L, Game.STATUS_IN_PROGRESS), gameDto(200L, Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
+                .thenReturn(liveResult(firstGame), liveResult(secondGame));
+        when(gameRepository.findByLifecycleState(GameLifecycle.LIVE.name()))
+                .thenReturn(List.of(firstGame, secondGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenThrow(new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS));
+
+        poller.poll();
+        poller.poll();
+
+        verify(balldontlieClient, times(1)).getPlays(100L, 1L);
+        verify(balldontlieClient, never()).getPlays(200L, 1L);
+    }
+
     private static PollerProperties properties() {
         return new PollerProperties(
                 true,
@@ -138,16 +192,31 @@ class OperationalPollerTest {
     }
 
     private static Game game(String lifecycle, Long lastPlayOrder) {
+        return game(100L, lifecycle, lastPlayOrder);
+    }
+
+    private static Game game(long gameId, String lifecycle, Long lastPlayOrder) {
         Game game = new Game();
-        game.setId(100L);
+        game.setId(gameId);
         game.setLifecycleState(lifecycle);
         game.setLastPlayOrder(lastPlayOrder);
         return game;
     }
 
     private static Play persistedPlay(Long order, Long batterId, boolean first, boolean second, boolean third) {
+        return persistedPlay(100L, order, batterId, first, second, third);
+    }
+
+    private static Play persistedPlay(
+            long gameId,
+            Long order,
+            Long batterId,
+            boolean first,
+            boolean second,
+            boolean third
+    ) {
         Play play = new Play();
-        play.setGameId(100L);
+        play.setGameId(gameId);
         play.setPlayOrder(order);
         play.setBatterId(batterId);
         play.setOuts(1);
@@ -160,7 +229,20 @@ class OperationalPollerTest {
     }
 
     private static BdlGame gameDto(String status) {
-        return new BdlGame(100L, "2026-07-08T00:00:00Z", status, 1, null, null, null, null, null);
+        return gameDto(100L, status);
+    }
+
+    private static BdlGame gameDto(long gameId, String status) {
+        return new BdlGame(gameId, "2026-07-08T00:00:00Z", status, 1, null, null, null, null, null);
+    }
+
+    private static PollerGameWriter.GameUpsertResult liveResult(Game game) {
+        return new PollerGameWriter.GameUpsertResult(
+                game,
+                GameLifecycle.LIVE.name(),
+                GameLifecycle.LIVE.name(),
+                false
+        );
     }
 
     private static BdlPlay play(Long order, Long batterId) {
