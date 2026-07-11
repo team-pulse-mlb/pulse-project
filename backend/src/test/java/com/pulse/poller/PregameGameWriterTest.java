@@ -28,7 +28,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 @DataJpaTest
-@Import(PregameGameWriter.class)
+@Import({PregameGameWriter.class, PlayerStubWriter.class})
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class PregameGameWriterTest {
 
