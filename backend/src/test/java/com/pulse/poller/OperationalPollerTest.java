@@ -28,6 +28,7 @@ import com.pulse.domain.NotificationEventLog;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -172,13 +173,67 @@ class OperationalPollerTest {
         verify(balldontlieClient, never()).getPlays(200L, 1L);
     }
 
+    @Test
+    void poll_shouldRequestTodayAndNextTwoDaysWhenLookaheadIsTwoDays() {
+        OperationalPoller twoDayLookaheadPoller = poller(now, 2);
+        when(balldontlieClient.getGames(any(LocalDate.class))).thenReturn(List.of());
+
+        twoDayLookaheadPoller.poll();
+
+        LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
+        verify(balldontlieClient).getGames(today);
+        verify(balldontlieClient).getGames(today.plusDays(1));
+        verify(balldontlieClient).getGames(today.plusDays(2));
+        verify(balldontlieClient, times(3)).getGames(any(LocalDate.class));
+    }
+
+    @Test
+    void poll_shouldIncludeGameDateAtThirtySixHourBoundaryWithTwoDayLookahead() {
+        Instant afternoonNow = Instant.parse("2026-07-08T13:00:00Z");
+        Instant gameStartAtBoundary = afternoonNow.plus(Duration.ofHours(36));
+        LocalDate gameDate = LocalDate.ofInstant(gameStartAtBoundary, ZoneOffset.UTC);
+        OperationalPoller twoDayLookaheadPoller = poller(afternoonNow, 2);
+        when(balldontlieClient.getGames(any(LocalDate.class))).thenReturn(List.of());
+
+        twoDayLookaheadPoller.poll();
+
+        verify(balldontlieClient).getGames(gameDate);
+    }
+
+    @Test
+    void properties_shouldUseTwoDayLookaheadWhenConfiguredValueIsNegative() {
+        assertThat(properties(-1).slateLookaheadDays()).isEqualTo(2);
+    }
+
+    private OperationalPoller poller(Instant fixedNow, int slateLookaheadDays) {
+        Clock clock = Clock.fixed(fixedNow, ZoneOffset.UTC);
+        return new OperationalPoller(
+                balldontlieClient,
+                gameRepository,
+                playRepository,
+                gameWriter,
+                new ScoreTaskFactory(),
+                scoreTaskPublisher,
+                notificationEventPublisher,
+                notificationEventLogRepository,
+                properties(slateLookaheadDays),
+                new PollerRateLimiter(1000, clock),
+                paRawArchiveUploader,
+                clock
+        );
+    }
+
     private static PollerProperties properties() {
+        return properties(0);
+    }
+
+    private static PollerProperties properties(int slateLookaheadDays) {
         return new PollerProperties(
                 true,
                 Duration.ofSeconds(20),
                 Duration.ofMinutes(10),
                 0,
-                0,
+                slateLookaheadDays,
                 5,
                 Duration.ofSeconds(30),
                 Duration.ofMinutes(5),
