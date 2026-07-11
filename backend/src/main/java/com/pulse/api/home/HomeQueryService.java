@@ -3,6 +3,7 @@ package com.pulse.api.home;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
+import com.pulse.domain.GameEventLabelPolicy;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Lineup;
 import com.pulse.domain.LineupRepository;
@@ -411,21 +412,8 @@ public class HomeQueryService {
         return gameEventRepository
                 .findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
                         game.getId(), GameEvent.SPOILER_PROTECTED_SAFE)
-                .map(GameEvent::getEventType)
-                .map(HomeQueryService::eventLabel)
+                .map(event -> GameEventLabelPolicy.protectedLabel(event.getSpoilerLevel(), event.getEventType()))
                 .orElse(null);
-    }
-
-    private static String eventLabel(String eventType) {
-        return switch (eventType) {
-            case "pressure_bases_loaded" -> "만루 승부";
-            case "pressure_scoring_position" -> "득점권 승부";
-            case "long_at_bat" -> "긴 접전 승부";
-            case "full_count_two_out" -> "승부처 카운트";
-            case "pitcher_instability" -> "투수 흔들림";
-            case "hard_contact" -> "강한 타구";
-            default -> null;
-        };
     }
 
     private static String valueOf(Object value) {
