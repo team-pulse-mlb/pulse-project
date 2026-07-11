@@ -6,7 +6,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 4
+  version: 5
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
@@ -76,6 +76,10 @@ scoring:
     velocity-drop-window-pitches: 10
     long-at-bat-pitches: 8
     max-events-per-type-per-game: 8
+
+  # 종료 경기 긴장 곡선(base_score 0~100을 1~5 단계로 양자화)
+  tension-curve:
+    level-boundaries: [20, 40, 60, 80]
 
   # 판단 기준
   thresholds:

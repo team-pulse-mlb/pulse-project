@@ -40,7 +40,7 @@ class GameEventExtractorTest {
             playRepository,
             aiGenerationTrigger,
             new AfterCommitExecutor(),
-            TestScoringProperties.version4()
+            TestScoringProperties.version5()
     );
     private final AtomicLong eventIds = new AtomicLong();
     private final Set<String> savedEventKeys = new HashSet<>();
