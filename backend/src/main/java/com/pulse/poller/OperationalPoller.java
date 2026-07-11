@@ -165,19 +165,23 @@ public class OperationalPoller {
             return;
         }
 
-        try {
-            for (Game game : liveGames) {
+        for (Game game : liveGames) {
+            try {
                 int inserted = pollPlays(game, now);
                 if (inserted > 0) {
                     List<BdlPlateAppearance> plateAppearances = syncPlateAppearances(game.getId(), now);
                     latestPlay(game.getId()).ifPresent(play ->
                             scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now, plateAppearances)));
                 }
+            } catch (RuntimeException e) {
+                if (PollerExceptionClassifier.shouldBackoff(e)) {
+                    handleFailure("plays", playsBackoff, now, e);
+                    return;
+                }
+                log.error("plays poll failed: gameId={}", game.getId(), e);
             }
-            playsBackoff.recordSuccess();
-        } catch (RuntimeException e) {
-            handleFailure("plays", playsBackoff, now, e);
         }
+        playsBackoff.recordSuccess();
     }
 
     private int pollPlays(Game game, Instant observedAt) {
