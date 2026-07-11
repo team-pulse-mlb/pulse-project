@@ -57,12 +57,19 @@ public class HomeQueryService {
             return new HomeRankingResponse(now, live, List.of(), List.of());
         }
 
-        List<Game> candidates = gameRepository.findAll();
-        List<Game> scheduledCandidates = candidates.stream()
+        List<Game> scheduledCandidates = gameRepository.findByStatusAndStartTimeBetween(
+                        Game.STATUS_SCHEDULED,
+                        now,
+                        now.plusSeconds(SCHEDULED_LOOKAHEAD_HOURS * 60L * 60L))
+                .stream()
                 .filter(game -> isScheduledForHome(game, now))
                 .sorted(scheduledRankingComparator())
                 .toList();
-        List<Game> finishedCandidates = candidates.stream()
+        List<Game> finishedCandidates = gameRepository
+                .findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                        Game.STATUS_FINAL,
+                        now.minusSeconds(FINISHED_LOOKBACK_HOURS * 60L * 60L))
+                .stream()
                 .filter(game -> isFinishedForHome(game, now))
                 .sorted(finishedRankingComparator())
                 .toList();
@@ -96,7 +103,9 @@ public class HomeQueryService {
                 ? rankingService.topLive(MAX_RANKING_LOOKUP)
                 : Map.of();
 
-        List<Game> selectedGames = gameRepository.findAll().stream()
+        List<Game> selectedGames = gameRepository
+                .findByStartTimeGreaterThanEqualAndStartTimeLessThan(startInclusive, endExclusive)
+                .stream()
                 .filter(game -> inSlate(game, startInclusive, endExclusive))
                 .filter(game -> matchesStatus(game, normalizedStatus))
                 .sorted(gameComparator(normalizedSort, liveScores))

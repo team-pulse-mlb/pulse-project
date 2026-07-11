@@ -1,6 +1,7 @@
 package com.pulse.api.home;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -92,7 +93,12 @@ class HomeQueryServiceTest {
 
         when(rankingService.topLive(5)).thenReturn(orderedScores(1L));
         when(gameRepository.findById(1L)).thenReturn(Optional.of(live));
-        when(gameRepository.findAll()).thenReturn(concat(live, finished, scheduled));
+        when(gameRepository.findByStatusAndStartTimeBetween(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(scheduled);
+        when(gameRepository.findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_FINAL), any(Instant.class)))
+                .thenReturn(finished);
 
         HomeRankingResponse response = service.getRanking(5);
 
@@ -116,7 +122,12 @@ class HomeQueryServiceTest {
         Player awayPlayer = player(202L, "Away Starter");
 
         when(rankingService.topLive(5)).thenReturn(Map.of());
-        when(gameRepository.findAll()).thenReturn(List.of(scheduled));
+        when(gameRepository.findByStatusAndStartTimeBetween(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(scheduled));
+        when(gameRepository.findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_FINAL), any(Instant.class)))
+                .thenReturn(List.of());
         when(lineupRepository.findByGameIdInAndIsProbablePitcherTrue(List.of(20L)))
                 .thenReturn(List.of(homePitcher, awayPitcher));
         when(playerRepository.findAllById(List.of(101L, 202L)))
@@ -140,14 +151,6 @@ class HomeQueryServiceTest {
             scores.put(gameIds[i], 100.0 - i);
         }
         return scores;
-    }
-
-    private List<Game> concat(Game live, List<Game> finished, List<Game> scheduled) {
-        java.util.ArrayList<Game> games = new java.util.ArrayList<>();
-        games.add(live);
-        games.addAll(finished);
-        games.addAll(scheduled);
-        return games;
     }
 
     private Game live(long id) {
