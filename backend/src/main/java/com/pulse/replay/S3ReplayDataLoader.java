@@ -8,8 +8,9 @@ import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
-import com.pulse.scorer.ScoreRecalculationService;
+import com.pulse.poller.PlayerStubWriter;
 import com.pulse.replay.S3RawArchiveClient.RawEnvelope;
+import com.pulse.scorer.ScoreRecalculationService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +33,7 @@ public class S3ReplayDataLoader implements ApplicationRunner {
     private final ObjectMapper objectMapper;
     private final GameRepository gameRepository;
     private final PlayRepository playRepository;
+    private final PlayerStubWriter playerStubWriter;
     private final ScoreRecalculationService scoreRecalculationService;
 
     @Override
@@ -80,7 +82,9 @@ public class S3ReplayDataLoader implements ApplicationRunner {
             if (dto.order() == null || playRepository.existsByGameIdAndPlayOrder(gameId, dto.order())) {
                 continue;
             }
-            playRepository.save(toPlay(gameId, dto, envelope.observedAt()));
+            playerStubWriter.ensurePlayerExists(dto.batterId(), envelope.observedAt());
+            playerStubWriter.ensurePlayerExists(dto.pitcherId(), envelope.observedAt());
+            playRepository.save(toPlay(gameId, dto, envelope));
             saved++;
         }
 
@@ -124,7 +128,7 @@ public class S3ReplayDataLoader implements ApplicationRunner {
         return gameRepository.save(game);
     }
 
-    private static Play toPlay(long gameId, BdlPlay dto, Instant observedAt) {
+    private static Play toPlay(long gameId, BdlPlay dto, RawEnvelope envelope) {
         Play play = new Play();
         play.setGameId(gameId);
         play.setPlayOrder(dto.order());
@@ -139,7 +143,11 @@ public class S3ReplayDataLoader implements ApplicationRunner {
         play.setOuts(dto.outs());
         play.setBalls(dto.balls());
         play.setStrikes(dto.strikes());
-        play.setFetchedAt(observedAt);
+        play.setBatterId(dto.batterId());
+        play.setPitcherId(dto.pitcherId());
+        play.setFetchedAt(envelope.observedAt());
+        play.setBackfilled(envelope.backfilled());
+        play.setSource(envelope.backfilled() ? "S3_BACKFILL" : "S3_LIVE_ARCHIVE");
         return play;
     }
 

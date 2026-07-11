@@ -37,11 +37,12 @@ public class S3RawArchiveClient {
             List<String> keys = new ArrayList<>();
             keys.addAll(listKeys(s3, bucket, gamesPrefix(), properties.maxObjectsPerPrefix()));
             keys.addAll(listKeys(s3, bucket, playsPrefix(), properties.maxObjectsPerPrefix()));
+            keys.addAll(listKeys(s3, bucket, backfillPlaysPrefix(), properties.maxObjectsPerPrefix()));
 
             List<RawEnvelope> envelopes = new ArrayList<>();
             for (String key : keys) {
                 RawEnvelope envelope = readEnvelope(s3, bucket, key);
-                if (envelope != null && !envelope.backfilled()) {
+                if (envelope != null && shouldReplay(envelope)) {
                     envelopes.add(envelope);
                 }
             }
@@ -121,6 +122,17 @@ public class S3RawArchiveClient {
             return "raw/plays/";
         }
         return "raw/plays/game_id=" + properties.gameId() + "/";
+    }
+
+    private String backfillPlaysPrefix() {
+        if (properties.gameId() == null) {
+            return "raw/backfill/plays/";
+        }
+        return "raw/backfill/plays/game_id=" + properties.gameId() + "/";
+    }
+
+    private static boolean shouldReplay(RawEnvelope envelope) {
+        return "/plays".equals(envelope.endpoint()) || !envelope.backfilled();
     }
 
     private static byte[] gunzip(byte[] bytes) throws IOException {
