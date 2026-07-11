@@ -1,11 +1,15 @@
 package com.pulse.api.home;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
+import com.pulse.api.home.HomeQueryService.HomeSlateResponse;
+import com.pulse.api.home.HomeQueryService.SlateScheduledGameCard;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
@@ -16,6 +20,8 @@ import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +98,12 @@ class HomeQueryServiceTest {
 
         when(rankingService.topLive(5)).thenReturn(orderedScores(1L));
         when(gameRepository.findById(1L)).thenReturn(Optional.of(live));
-        when(gameRepository.findAll()).thenReturn(concat(live, finished, scheduled));
+        when(gameRepository.findByStatusAndStartTimeBetween(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(scheduled);
+        when(gameRepository.findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_FINAL), any(Instant.class)))
+                .thenReturn(finished);
 
         HomeRankingResponse response = service.getRanking(5);
 
@@ -116,7 +127,12 @@ class HomeQueryServiceTest {
         Player awayPlayer = player(202L, "Away Starter");
 
         when(rankingService.topLive(5)).thenReturn(Map.of());
-        when(gameRepository.findAll()).thenReturn(List.of(scheduled));
+        when(gameRepository.findByStatusAndStartTimeBetween(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(scheduled));
+        when(gameRepository.findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_FINAL), any(Instant.class)))
+                .thenReturn(List.of());
         when(lineupRepository.findByGameIdInAndIsProbablePitcherTrue(List.of(20L)))
                 .thenReturn(List.of(homePitcher, awayPitcher));
         when(playerRepository.findAllById(List.of(101L, 202L)))
@@ -130,6 +146,39 @@ class HomeQueryServiceTest {
         });
     }
 
+    @Test
+    void getSlate_shouldDistinguishPostponedAndCanceledStates() {
+        Game postponed = gameWithStatus(30L, Game.STATUS_POSTPONED);
+        Game canceled = gameWithStatus(31L, Game.STATUS_CANCELED);
+        when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
+                any(Instant.class), any(Instant.class))).thenReturn(List.of(postponed, canceled));
+
+        HomeSlateResponse response = service.getSlate("2026-07-11", "all", "startTime");
+
+        assertThat(response.games()).hasSize(2).allMatch(SlateScheduledGameCard.class::isInstance);
+        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameState)
+                .containsExactly("POSTPONED", "CANCELED");
+    }
+
+    @Test
+    void getSlate_shouldThrowInvalidSlateDateExceptionForInvalidDate() {
+        assertThatThrownBy(() -> service.getSlate("2026-02-30", "all", "startTime"))
+                .isInstanceOf(InvalidSlateDateException.class)
+                .hasMessage("날짜는 YYYY-MM-DD 형식이어야 합니다.");
+    }
+
+    @Test
+    void getSlate_shouldUseCurrentSlateDateWhenDateIsMissing() {
+        LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
+        when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
+                any(Instant.class), any(Instant.class))).thenReturn(List.of());
+
+        HomeSlateResponse response = service.getSlate(null, "all", "startTime");
+
+        assertThat(response.slateDate()).isEqualTo(today);
+        assertThat(response.games()).isEmpty();
+    }
+
     private static int totalCards(HomeRankingResponse response) {
         return response.live().size() + response.finished().size() + response.scheduled().size();
     }
@@ -140,14 +189,6 @@ class HomeQueryServiceTest {
             scores.put(gameIds[i], 100.0 - i);
         }
         return scores;
-    }
-
-    private List<Game> concat(Game live, List<Game> finished, List<Game> scheduled) {
-        java.util.ArrayList<Game> games = new java.util.ArrayList<>();
-        games.add(live);
-        games.addAll(finished);
-        games.addAll(scheduled);
-        return games;
     }
 
     private Game live(long id) {
@@ -171,6 +212,14 @@ class HomeQueryServiceTest {
         game.setStatus(Game.STATUS_SCHEDULED);
         game.setPregameScore(pregameScore);
         game.setStartTime(now.plusSeconds(2 * 60 * 60));
+        return game;
+    }
+
+    private static Game gameWithStatus(long id, String status) {
+        Game game = baseGame(id);
+        game.setStatus(status);
+        game.setStartTime(Instant.parse("2026-07-11T18:00:00Z"));
+        game.setVenue("Test Ballpark");
         return game;
     }
 
