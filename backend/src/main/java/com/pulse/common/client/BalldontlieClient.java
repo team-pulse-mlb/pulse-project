@@ -5,6 +5,7 @@ import com.pulse.common.client.BdlDtos.BdlLineup;
 import com.pulse.common.client.BdlDtos.BdlOdds;
 import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
+import com.pulse.common.client.BdlDtos.BdlPlayer;
 import com.pulse.common.client.BdlDtos.BdlPlayerSeasonStat;
 import com.pulse.common.client.BdlDtos.BdlStanding;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -121,6 +122,22 @@ public class BalldontlieClient {
         ListResponse<BdlPlayerSeasonStat> response = restClient.get()
                 .uri(uri -> uri.path("/mlb/v1/season_stats")
                         .queryParam("season", season)
+                        .queryParam("player_ids[]", playerIds.toArray())
+                        .queryParam("per_page", PER_PAGE)
+                        .build())
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {
+                });
+        return response == null || response.data() == null ? List.of() : response.data();
+    }
+
+    /** 선수 마스터 일괄 조회. 이름 NULL 스텁 선수 보강에 쓴다. 호출자가 100개 이하로 청크한다. */
+    public List<BdlPlayer> getPlayers(List<Long> playerIds) {
+        if (playerIds == null || playerIds.isEmpty()) {
+            return List.of();
+        }
+        ListResponse<BdlPlayer> response = restClient.get()
+                .uri(uri -> uri.path("/mlb/v1/players")
                         .queryParam("player_ids[]", playerIds.toArray())
                         .queryParam("per_page", PER_PAGE)
                         .build())
