@@ -42,6 +42,7 @@ public class PregameGameWriter {
     private final StandingRepository standingRepository;
     private final PlayerSeasonStatRepository playerSeasonStatRepository;
     private final PlayerRepository playerRepository;
+    private final PlayerStubWriter playerStubWriter;
 
     /** 라인업 upsert. 선발 확정·변경, 타순·포지션 변경이 있는 경기 id를 돌려준다. */
     @Transactional
@@ -169,7 +170,7 @@ public class PregameGameWriter {
             if (playerId == null) {
                 continue;
             }
-            ensurePlayer(playerId, now);
+            playerStubWriter.ensurePlayerExists(playerId, now);
             PlayerSeasonStat stat = playerSeasonStatRepository
                     .findById(new PlayerSeasonStatId(season, playerId))
                     .orElseGet(() -> {
@@ -211,17 +212,6 @@ public class PregameGameWriter {
         }
         player.setTeamId(teamId);
         player.setUpdatedAt(observedAt);
-        playerRepository.save(player);
-    }
-
-    private void ensurePlayer(Long playerId, Instant now) {
-        if (playerRepository.existsById(playerId)) {
-            return;
-        }
-        Player player = new Player();
-        player.setId(playerId);
-        player.setCreatedAt(now);
-        player.setUpdatedAt(now);
         playerRepository.save(player);
     }
 
