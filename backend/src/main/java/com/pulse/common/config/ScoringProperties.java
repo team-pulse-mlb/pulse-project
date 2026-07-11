@@ -81,6 +81,8 @@ public record ScoringProperties(
             int alertRiseScore,
             int alertRiseWindowMinutes,
             int alertCooldownMinutes,
+            int alertGlobalLimit,
+            int alertGlobalWindowMinutes,
             int switchScore,
             int switchGap
     ) {}
