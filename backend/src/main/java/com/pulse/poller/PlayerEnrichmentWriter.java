@@ -3,6 +3,7 @@ package com.pulse.poller;
 import com.pulse.common.client.BdlDtos.BdlPlayer;
 import com.pulse.domain.Player;
 import com.pulse.domain.PlayerRepository;
+import com.pulse.domain.TeamRepository;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PlayerEnrichmentWriter {
 
     private final PlayerRepository playerRepository;
+    private final TeamRepository teamRepository;
 
     /** 응답 dto를 기존 players 행에 반영하고 갱신 건수를 돌려준다. */
     @Transactional
@@ -43,7 +45,7 @@ public class PlayerEnrichmentWriter {
             if (dto.position() != null) {
                 player.setPosition(dto.position());
             }
-            if (dto.team() != null && dto.team().id() != null) {
+            if (hasKnownTeam(dto)) {
                 player.setTeamId(dto.team().id());
             }
             player.setUpdatedAt(observedAt);
@@ -51,5 +53,12 @@ public class PlayerEnrichmentWriter {
             updated++;
         }
         return updated;
+    }
+
+    private boolean hasKnownTeam(BdlPlayer dto) {
+        return dto.team() != null
+                && dto.team().id() != null
+                && dto.team().id() > 0
+                && teamRepository.existsById(dto.team().id());
     }
 }
