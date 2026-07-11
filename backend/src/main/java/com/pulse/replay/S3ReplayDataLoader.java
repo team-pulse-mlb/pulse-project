@@ -38,20 +38,19 @@ public class S3ReplayDataLoader implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        List<RawEnvelope> envelopes = archiveClient.loadReplayObjects();
-        int gameSnapshots = 0;
-        int plays = 0;
+        int[] gameSnapshots = {0};
+        int[] plays = {0};
 
-        for (RawEnvelope envelope : envelopes) {
+        int objects = archiveClient.streamReplayObjects(envelope -> {
             if ("/games".equals(envelope.endpoint())) {
-                gameSnapshots += ingestGames(envelope);
+                gameSnapshots[0] += ingestGames(envelope);
             } else if ("/plays".equals(envelope.endpoint())) {
-                plays += ingestPlays(envelope);
+                plays[0] += ingestPlays(envelope);
             }
-        }
+        });
 
         log.info("S3 replay loaded: gameSnapshots={}, plays={}, objects={}",
-                gameSnapshots, plays, envelopes.size());
+                gameSnapshots[0], plays[0], objects);
     }
 
     private int ingestGames(RawEnvelope envelope) {

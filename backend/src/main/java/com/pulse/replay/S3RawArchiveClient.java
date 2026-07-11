@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.zip.GZIPInputStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +32,8 @@ public class S3RawArchiveClient {
     private final ReplayProperties properties;
     private final ObjectMapper objectMapper;
 
-    public List<RawEnvelope> loadReplayObjects() {
+    public int streamReplayObjects(Consumer<RawEnvelope> consumer) {
+        validateDate();
         String bucket = bucket();
         try (S3Client s3 = s3Client()) {
             List<String> keys = new ArrayList<>();
@@ -39,18 +41,32 @@ public class S3RawArchiveClient {
             keys.addAll(listKeys(s3, bucket, playsPrefix(), properties.maxObjectsPerPrefix()));
             keys.addAll(listKeys(s3, bucket, backfillPlaysPrefix(), properties.maxObjectsPerPrefix()));
 
-            List<RawEnvelope> envelopes = new ArrayList<>();
+            List<ReplayObjectMetadata> replayObjects = new ArrayList<>();
             for (String key : keys) {
                 RawEnvelope envelope = readEnvelope(s3, bucket, key);
                 if (envelope != null && shouldReplay(envelope)) {
-                    envelopes.add(envelope);
+                    replayObjects.add(new ReplayObjectMetadata(
+                            envelope.key(),
+                            envelope.observedAt(),
+                            envelope.endpoint(),
+                            envelope.backfilled()));
                 }
             }
 
-            envelopes.sort(Comparator
-                    .comparing(RawEnvelope::observedAt)
-                    .thenComparing(RawEnvelope::key));
-            return envelopes;
+            replayObjects.sort(Comparator
+                    .comparing(ReplayObjectMetadata::observedAt)
+                    .thenComparing(ReplayObjectMetadata::key));
+
+            for (ReplayObjectMetadata replayObject : replayObjects) {
+                consumer.accept(readEnvelope(s3, bucket, replayObject.key()));
+            }
+            return replayObjects.size();
+        }
+    }
+
+    void validateDate() {
+        if (properties.date() == null || properties.date().isBlank()) {
+            throw new IllegalStateException("pulse.replay.date is required for the replay profile");
         }
     }
 
@@ -111,9 +127,6 @@ public class S3RawArchiveClient {
     }
 
     private String gamesPrefix() {
-        if (properties.date() == null || properties.date().isBlank()) {
-            return "raw/games/";
-        }
         return "raw/games/dt=" + properties.date().trim() + "/";
     }
 
@@ -154,6 +167,14 @@ public class S3RawArchiveClient {
             String endpoint,
             JsonNode params,
             JsonNode response,
+            boolean backfilled
+    ) {
+    }
+
+    private record ReplayObjectMetadata(
+            String key,
+            Instant observedAt,
+            String endpoint,
             boolean backfilled
     ) {
     }
