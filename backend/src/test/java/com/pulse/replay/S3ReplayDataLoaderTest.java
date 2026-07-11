@@ -2,6 +2,7 @@ package com.pulse.replay;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,7 +15,7 @@ import com.pulse.poller.PlayerStubWriter;
 import com.pulse.replay.S3RawArchiveClient.RawEnvelope;
 import com.pulse.scorer.ScoreRecalculationService;
 import java.time.Instant;
-import java.util.List;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -35,7 +36,7 @@ class S3ReplayDataLoaderTest {
     @Test
     void 백필Play는선수Fk를보장한뒤출처와선수Id를저장한다() throws Exception {
         RawEnvelope envelope = playsEnvelope(true);
-        when(archiveClient.loadReplayObjects()).thenReturn(List.of(envelope));
+        stream(envelope);
         when(playRepository.existsByGameIdAndPlayOrder(GAME_ID, 123L)).thenReturn(false);
 
         loader().run(mock(ApplicationArguments.class));
@@ -54,7 +55,7 @@ class S3ReplayDataLoaderTest {
 
     @Test
     void 라이브아카이브Play는라이브출처로저장한다() throws Exception {
-        when(archiveClient.loadReplayObjects()).thenReturn(List.of(playsEnvelope(false)));
+        stream(playsEnvelope(false));
         when(playRepository.existsByGameIdAndPlayOrder(GAME_ID, 123L)).thenReturn(false);
 
         loader().run(mock(ApplicationArguments.class));
@@ -74,6 +75,15 @@ class S3ReplayDataLoaderTest {
                 playRepository,
                 playerStubWriter,
                 scoreRecalculationService);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stream(RawEnvelope envelope) {
+        doAnswer(invocation -> {
+            Consumer<RawEnvelope> consumer = invocation.getArgument(0);
+            consumer.accept(envelope);
+            return 1;
+        }).when(archiveClient).streamReplayObjects(org.mockito.ArgumentMatchers.any());
     }
 
     private RawEnvelope playsEnvelope(boolean backfilled) throws Exception {
