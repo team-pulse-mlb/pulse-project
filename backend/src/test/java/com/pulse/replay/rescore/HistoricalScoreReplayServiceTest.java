@@ -100,7 +100,7 @@ class HistoricalScoreReplayServiceTest {
 
     private static ScoringProperties scoringProperties() {
         return new ScoringProperties(
-                4,
+                5,
                 new ScoringProperties.LateInning(6, 12, 18),
                 new ScoringProperties.ScoreGap(15, 9, 3),
                 new ScoringProperties.RecentScore(6, 15, 180,
@@ -115,6 +115,7 @@ class HistoricalScoreReplayServiceTest {
                 15,
                 new ScoringProperties.Pregame(30, 0.15, 0.25, 20, 4.6, 2.0, 30, 15),
                 new ScoringProperties.Detail(100, 100, 2.0, 10, 8, 8),
+                new ScoringProperties.TensionCurve(List.of(20, 40, 60, 80)),
                 new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 3, 15, 70, 20));
     }
 }

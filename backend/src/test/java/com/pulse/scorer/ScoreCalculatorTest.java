@@ -193,8 +193,8 @@ class ScoreCalculatorTest {
         return play;
     }
 
-    /** scoring.yml version 3과 동일한 시작 상수 */
+    /** 현재 scoring.yml과 동일한 테스트 상수 */
     private static ScoringProperties testProps() {
-        return TestScoringProperties.version4();
+        return TestScoringProperties.version5();
     }
 }

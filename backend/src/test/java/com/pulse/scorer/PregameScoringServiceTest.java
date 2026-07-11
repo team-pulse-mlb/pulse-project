@@ -37,7 +37,7 @@ class PregameScoringServiceTest {
             oddsSnapshotRepository,
             standingRepository,
             playerSeasonStatRepository,
-            TestScoringProperties.version4()
+            TestScoringProperties.version5()
     );
 
     private final Instant observedAt = Instant.parse("2026-07-08T01:00:00Z");
