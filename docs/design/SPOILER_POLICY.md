@@ -112,20 +112,21 @@
 
 경기 상세 타임라인에 표시하고, 펄스 그래프가 있는 종료 경기에서는 그래프 노드에도 함께 표시하는 순간 단위 이벤트다. scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 `game_events`에 영속하며, 종료 경기에도 그대로 재사용한다. 태그(§7)가 진행 카드와 알림용 경기 단위 상태 표기라면 이벤트는 발생 시점이 고정된 점 단위 표기다.
 
-| 이벤트 | 발생 조건(초기값) | 원천 | 등급 | 보호 표기 |
-|---|---|---|---|---|
-| `pressure_bases_loaded` | 만루 타석 | plays `runner_on_*` | 보호 안전 | 만루 승부 |
-| `pressure_scoring_position` | 2·3루 주자 + 2아웃 | plays `runner_on_*` | 보호 안전 | 득점권 승부 |
-| `long_at_bat` | 한 타석 8구 이상 | PA `pitch_number` | 보호 안전 | 긴 접전 승부 |
-| `full_count_two_out` | 풀카운트 + 2아웃 | plays 카운트 | 보호 안전 | 승부처 카운트 |
-| `pitcher_instability` | 선발 100구 이상 또는 구속 2mph 이상 하락 | PA `pitcher_pitch_count`·`release_speed` | 보호 안전 | 투수 흔들림 |
-| `hard_contact` | `is_barrel` 또는 `exit_velocity >= 100` | PA | 보호 안전 | 강한 타구 |
-| `scoring_play` | 득점 play | plays | 공개 전용 | — |
-| `lead_change` | 앞선 팀 변경 | plays | 공개 전용 | — |
-| `home_run` | 홈런 | plays | 공개 전용 | — |
-| `big_inning` | 한 이닝 득점 play 2개 이상 | plays | 공개 전용 | — |
+| 이벤트 | 발생 조건(초기값) | 원천 | 등급 | 보호 표기 | 공개 표기 |
+|---|---|---|---|---|---|
+| `pressure_bases_loaded` | 만루 타석 | plays `runner_on_*` | 보호 안전 | 만루 승부 | 만루 승부 |
+| `pressure_scoring_position` | 2·3루 주자 + 2아웃 | plays `runner_on_*` | 보호 안전 | 득점권 승부 | 득점권 승부 |
+| `long_at_bat` | 한 타석 8구 이상 | PA `pitch_number` | 보호 안전 | 긴 접전 승부 | 긴 접전 승부 |
+| `full_count_two_out` | 풀카운트 + 2아웃 | plays 카운트 | 보호 안전 | 승부처 카운트 | 승부처 카운트 |
+| `pitcher_instability` | 선발 100구 이상 또는 구속 2mph 이상 하락 | PA `pitcher_pitch_count`·`release_speed` | 보호 안전 | 투수 흔들림 | 투수 흔들림 |
+| `hard_contact` | `is_barrel` 또는 `exit_velocity >= 100` | PA | 보호 안전 | 강한 타구 | 강한 타구 |
+| `scoring_play` | 득점 play | plays | 공개 전용 | — | 득점 |
+| `lead_change` | 앞선 팀 변경 | plays | 공개 전용 | — | 리드 교체 |
+| `home_run` | 홈런 | plays | 공개 전용 | — | 홈런 |
+| `big_inning` | 한 이닝 득점 play 2개 이상 | plays | 공개 전용 | — | 빅이닝 |
 
 - 보호 표기에는 결과·방향성 표현(§6)을 결합하지 않는다. 선수명은 보호 모드에서 표기하지 않는다.
+- 라벨 매핑은 모드별로 분리한다(`GameEventLabelPolicy`). 보호 라벨은 `PROTECTED_SAFE` 이벤트에만 존재하며, 판정은 라벨 존재 여부가 아니라 `spoiler_level`을 먼저 검사한다. 미지 `event_type`은 두 모드 모두 라벨 없음(기본 차단)이다.
 - 발생 임계와 경기당 상한(`hard_contact` 타석당 1회·경기당 8회 등)은 `scoring.yml`에서 관리한다. 상한은 타임라인 노이즈와 이벤트 밀집에 의한 간접 스포일러를 막기 위한 값이다.
 - 관심 선수 타석은 사용자별 데이터이므로 전역 이벤트로 두지 않고 조회 시점에 계산한다.
 
@@ -133,7 +134,7 @@
 
 - scorer는 `game_events` 영속 직후 `POST /ai/event-copy`를 비동기로 요청한다. 보호 안전 이벤트는 `mode=PROTECTED`와 `mode=REVEALED`를 각각 요청하고, `REVEALED_ONLY` 이벤트는 `mode=REVEALED`만 요청한다.
 - `spoilerSafe=true`, `fallbackUsed=false`, `contextHash` 일치 응답만 저장한다. 타임아웃, 검수 실패, `contextHash` 불일치 시 저장하지 않는다.
-- 저장 컬럼은 `game_events.copy_protected`, `copy_revealed`, `copy_context_hash`다. 모두 nullable이며 Flyway 신규 마이그레이션으로 추가한다.
+- 저장 컬럼은 `game_events.copy_protected`, `copy_revealed`와 모드별 해시 `copy_protected_context_hash`, `copy_revealed_context_hash`다. 모두 nullable이다. 모드별 컨텍스트가 달라 해시도 다르므로 단일 해시 컬럼을 공유하지 않는다.
 - 저장 성공 시 scorer는 `game_updated`를 재발행한다. 클라이언트는 기존 재조회 흐름으로 정적 라벨이 AI 문구로 교체되는 경험을 제공한다.
 - 이벤트 문구 소비는 `game_events` 직접 조회를 원천으로 한다. `AiCopyReader`는 `FINAL_HEADLINE` 전용이다.
 
