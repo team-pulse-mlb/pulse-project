@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.pulse.common.client.BdlDtos.BdlPlayer;
 import com.pulse.domain.Player;
 import com.pulse.domain.PlayerRepository;
+import com.pulse.domain.TeamRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +27,9 @@ class PlayerEnrichmentWriterTest {
     @Mock
     private PlayerRepository playerRepository;
 
+    @Mock
+    private TeamRepository teamRepository;
+
     @InjectMocks
     private PlayerEnrichmentWriter playerEnrichmentWriter;
 
@@ -33,6 +37,7 @@ class PlayerEnrichmentWriterTest {
     void applyPlayerDetails_shouldFillStubDetailsAndReturnUpdatedCount() {
         Player stub = stubPlayer(7L);
         when(playerRepository.findById(7L)).thenReturn(Optional.of(stub));
+        when(teamRepository.existsById(12L)).thenReturn(true);
         BdlPlayer dto = new BdlPlayer(7L, "Logan Gilbert", "Logan", "Gilbert", "SP", new BdlPlayer.TeamRef(12L));
 
         int updated = playerEnrichmentWriter.applyPlayerDetails(List.of(dto), observedAt);
@@ -62,6 +67,35 @@ class PlayerEnrichmentWriterTest {
         assertThat(player.getFirstName()).isEqualTo("Logan");
         assertThat(player.getPosition()).isEqualTo("SP");
         assertThat(player.getTeamId()).isEqualTo(12L);
+    }
+
+    @Test
+    void applyPlayerDetails_shouldIgnoreNegativeTeamId() {
+        Player player = stubPlayer(7L);
+        when(playerRepository.findById(7L)).thenReturn(Optional.of(player));
+        BdlPlayer dto = new BdlPlayer(7L, "Free Agent", null, null, null, new BdlPlayer.TeamRef(-1L));
+
+        int updated = playerEnrichmentWriter.applyPlayerDetails(List.of(dto), observedAt);
+
+        assertThat(updated).isEqualTo(1);
+        assertThat(player.getFullName()).isEqualTo("Free Agent");
+        assertThat(player.getTeamId()).isNull();
+        verify(teamRepository, never()).existsById(any(Long.class));
+        verify(playerRepository).save(player);
+    }
+
+    @Test
+    void applyPlayerDetails_shouldKeepExistingTeamWhenTeamDoesNotExist() {
+        Player player = stubPlayer(7L);
+        player.setTeamId(12L);
+        when(playerRepository.findById(7L)).thenReturn(Optional.of(player));
+        when(teamRepository.existsById(99L)).thenReturn(false);
+        BdlPlayer dto = new BdlPlayer(7L, "Logan Gilbert", null, null, null, new BdlPlayer.TeamRef(99L));
+
+        playerEnrichmentWriter.applyPlayerDetails(List.of(dto), observedAt);
+
+        assertThat(player.getTeamId()).isEqualTo(12L);
+        verify(playerRepository).save(player);
     }
 
     @Test
