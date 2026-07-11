@@ -23,9 +23,15 @@ class HistoricalScoreReplayService {
     private final RescoreJdbcRepository repository;
     private final ScoreCalculator calculator;
     private final ScoringProperties scoringProperties;
+    private final RescoreProperties rescoreProperties;
 
     void replayAll() {
         List<Long> gameIds = repository.gameIdsWithPlays();
+        if (!rescoreProperties.gameIds().isEmpty()) {
+            gameIds = gameIds.stream()
+                    .filter(rescoreProperties.gameIds()::contains)
+                    .toList();
+        }
 
         int totalWatchScores = 0;
         for (Long gameId : gameIds) {
@@ -57,32 +63,30 @@ class HistoricalScoreReplayService {
             }
 
             int nextIndex = index;
+            List<RescorePlayRow> observedGroup = new ArrayList<>();
             while (nextIndex < rows.size() && observedAt.equals(rows.get(nextIndex).observedAt())) {
-                observedPlays.add(rows.get(nextIndex));
+                observedGroup.add(rows.get(nextIndex));
                 nextIndex++;
             }
-            observedPlays.sort(Comparator.comparing(RescorePlayRow::playOrder));
+            observedGroup.sort(Comparator.comparing(RescorePlayRow::playOrder));
 
-            RescorePlayRow latest = observedPlays.get(observedPlays.size() - 1);
-            List<Play> recentPlays = recentPlays(observedPlays);
-            ScoreCalculator.Result result = calculator.calculate(gameFrom(latest), recentPlays, observedAt);
-            int baseScore = roundScore(result.baseScore());
-            int watchScore = roundScore(calculator.clampWatchScore(result.baseScore()));
-            List<String> tags = ReasonTags.from(result.signals());
-
-            insertedWatchScores += repository.insertWatchScore(new RescoreWatchScoreRow(
-                    gameId,
-                    observedAt,
-                    latest.playOrder(),
-                    latest.inning(),
-                    latest.inningType(),
-                    baseScore,
-                    watchScore,
-                    result.signals(),
-                    tags,
-                    latest.backfilledValue(),
-                    latest.sourceValue()));
-            scoreCycles++;
+            if (observedGroup.stream().allMatch(RescorePlayRow::backfilledValue)) {
+                for (int groupIndex = 0; groupIndex < observedGroup.size(); groupIndex++) {
+                    RescorePlayRow play = observedGroup.get(groupIndex);
+                    observedPlays.add(play);
+                    observedPlays.sort(Comparator.comparing(RescorePlayRow::playOrder));
+                    // 백필 봉투에는 실제 play 시각이 없어 충돌 방지용 합성 시각을 사용한다.
+                    Instant computedAt = observedAt.plusSeconds(groupIndex);
+                    insertedWatchScores += insertWatchScore(gameId, computedAt, play, observedPlays);
+                    scoreCycles++;
+                }
+            } else {
+                observedPlays.addAll(observedGroup);
+                observedPlays.sort(Comparator.comparing(RescorePlayRow::playOrder));
+                RescorePlayRow latest = observedPlays.get(observedPlays.size() - 1);
+                insertedWatchScores += insertWatchScore(gameId, observedAt, latest, observedPlays);
+                scoreCycles++;
+            }
 
             index = nextIndex;
         }
@@ -90,6 +94,32 @@ class HistoricalScoreReplayService {
         return new GameReplayResult(
                 scoreCycles,
                 insertedWatchScores);
+    }
+
+    private int insertWatchScore(
+            Long gameId,
+            Instant computedAt,
+            RescorePlayRow current,
+            List<RescorePlayRow> observedPlays
+    ) {
+        List<Play> recentPlays = recentPlays(observedPlays);
+        ScoreCalculator.Result result = calculator.calculate(gameFrom(current), recentPlays, computedAt);
+        int baseScore = roundScore(result.baseScore());
+        int watchScore = roundScore(calculator.clampWatchScore(result.baseScore()));
+        List<String> tags = ReasonTags.from(result.signals());
+
+        return repository.insertWatchScore(new RescoreWatchScoreRow(
+                gameId,
+                computedAt,
+                current.playOrder(),
+                current.inning(),
+                current.inningType(),
+                baseScore,
+                watchScore,
+                result.signals(),
+                tags,
+                current.backfilledValue(),
+                current.sourceValue()));
     }
 
     private List<Play> recentPlays(List<RescorePlayRow> observedPlays) {
