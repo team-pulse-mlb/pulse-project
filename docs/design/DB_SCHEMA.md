@@ -271,7 +271,27 @@ scorer(급상승)·poller(경기 시작)가 판정해 발행한 이벤트의 원
 
 **키·인덱스** — PK `event_id` · idx(`game_id`, `occurred_at`)
 
-### B-7. `user_notifications` — 사용자별 수신함
+### B-7. `notification_outbox` — 알림 발행 대기열
+
+`notification_events`와 같은 트랜잭션에서 생성한다. RabbitMQ 발행 실패 시 재시도 상태를 보존하며, 발행 성공 후에도 운영 추적을 위해 행을 유지한다.
+
+| 컬럼 | 타입 | 설명 | 제약·비고 |
+|---|---|---|---|
+| `outbox_id` | `UUID` | outbox id | **PK** |
+| `event_id` | `UUID` | 원본 이벤트 | **UNIQUE** · FK → `notification_events` |
+| `event_type` | `VARCHAR(30)` | 이벤트 타입 | `SURGE`/`GAME_START` |
+| `game_id` | `BIGINT` | 경기 id | 메시지 재구성 값 |
+| `message` · `latest_tag` | `TEXT` | 알림 문구·최신 태그 | `latest_tag` nullable |
+| `occurred_at` | `TIMESTAMPTZ` | 이벤트 발생 시각 | 메시지 재구성 값 |
+| `status` | `VARCHAR(20)` | `PENDING`/`PUBLISHED` | |
+| `attempt_count` | `INTEGER` | 실패 횟수 | 기본값 0 |
+| `next_attempt_at` | `TIMESTAMPTZ` | 다음 발행 시각 | PENDING 조회 기준 |
+| `created_at` · `published_at` | `TIMESTAMPTZ` | 생성·발행 완료 시각 | `published_at` nullable |
+| `last_error` | `TEXT` | 최근 실패 내용 | nullable |
+
+**키·인덱스** — PK `outbox_id` · UNIQUE(`event_id`) · partial idx(`next_attempt_at`, `created_at`) WHERE `status='PENDING'`
+
+### B-8. `user_notifications` — 사용자별 수신함
 
 api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한다. 알림 센터의 최신순 목록·미읽음 배지·읽음 처리·7일 보관을 지원한다.
 

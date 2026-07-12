@@ -88,6 +88,11 @@ pulse:
     pa-archive:
       bucket: ${PULSE_POLLER_PA_ARCHIVE_BUCKET:${PULSE_REPLAY_S3_BUCKET:}}
       region: ${AWS_REGION:ap-northeast-2}
+  notification-outbox:
+    dispatch-delay: ${PULSE_NOTIFICATION_OUTBOX_DISPATCH_DELAY:5s}
+    retry-initial-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
+    retry-max-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_MAX_INTERVAL:5m}
+    batch-size: ${PULSE_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
 
 server:
   port: 8080

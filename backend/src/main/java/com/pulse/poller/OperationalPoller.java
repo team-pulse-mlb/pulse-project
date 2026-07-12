@@ -12,8 +12,6 @@ import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
-import com.pulse.domain.NotificationEventLog;
-import com.pulse.domain.NotificationEventLogRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
 import com.pulse.poller.PollerGameWriter.GameUpsertResult;
@@ -45,7 +43,6 @@ public class OperationalPoller {
     private final ScoreTaskFactory scoreTaskFactory;
     private final ScoreTaskPublisher scoreTaskPublisher;
     private final NotificationEventPublisher notificationEventPublisher;
-    private final NotificationEventLogRepository notificationEventLogRepository;
     private final PollerProperties properties;
     private final PollerRateLimiter rateLimiter;
     private final PaRawArchiveUploader paRawArchiveUploader;
@@ -64,7 +61,6 @@ public class OperationalPoller {
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
-            NotificationEventLogRepository notificationEventLogRepository,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PaRawArchiveUploader paRawArchiveUploader
@@ -77,7 +73,6 @@ public class OperationalPoller {
                 scoreTaskFactory,
                 scoreTaskPublisher,
                 notificationEventPublisher,
-                notificationEventLogRepository,
                 properties,
                 rateLimiter,
                 paRawArchiveUploader,
@@ -93,7 +88,6 @@ public class OperationalPoller {
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
-            NotificationEventLogRepository notificationEventLogRepository,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PaRawArchiveUploader paRawArchiveUploader,
@@ -106,7 +100,6 @@ public class OperationalPoller {
         this.scoreTaskFactory = scoreTaskFactory;
         this.scoreTaskPublisher = scoreTaskPublisher;
         this.notificationEventPublisher = notificationEventPublisher;
-        this.notificationEventLogRepository = notificationEventLogRepository;
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.paRawArchiveUploader = paRawArchiveUploader;
@@ -231,14 +224,6 @@ public class OperationalPoller {
     private void publishTransitionEvents(GameUpsertResult result, Instant now) {
         if (result.enteredLive()) {
             UUID eventId = UUID.randomUUID();
-            NotificationEventLog eventLog = new NotificationEventLog();
-            eventLog.setEventId(eventId);
-            eventLog.setType(NotificationType.GAME_START.name());
-            eventLog.setGameId(result.game().getId());
-            eventLog.setTags(List.of());
-            eventLog.setOccurredAt(now);
-            notificationEventLogRepository.save(eventLog);
-
             notificationEventPublisher.publish(new NotificationEvent(
                     eventId,
                     NotificationType.GAME_START,
