@@ -7,6 +7,7 @@ import com.pulse.domain.NotificationOutbox;
 import com.pulse.domain.NotificationOutboxRepository;
 import java.time.Clock;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ public class NotificationEventPublisher {
     private final AfterCommitExecutor afterCommitExecutor;
     private final Clock clock;
 
+    @Autowired
     public NotificationEventPublisher(
             NotificationEventLogRepository eventLogRepository,
             NotificationOutboxRepository outboxRepository,
