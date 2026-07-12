@@ -240,7 +240,8 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 | 이벤트 문구 조회 | 예은 → 민석 | `game_events.copy_protected`·`copy_revealed` 직접 조회. 이벤트 API가 단일 원천이다. |
 | `UserPreferenceReader` | 윤호 → 예은(홈 가산)·api(알림 fan-out, 전환 쿨다운) | 관심 팀/선수·알림 설정 조회 |
 | `SseEventPublisher` | api 공통 | 이벤트 3종 발행 단일 창구 |
-| AI 생성 트리거 | 창현 → 예은(scorer) | `FINAL_HEADLINE`, `EVENT_COPY` 비동기 생성 요청 인터페이스. ai-service 호출, `contextHash` 검증, 검수 통과 문구 저장 담당 |
+| AI 생성 트리거 | 창현 → 예은(scorer) | `FINAL_HEADLINE`, `EVENT_COPY` 비동기 생성 요청 인터페이스. ai-service 호출, `contextHash` 검증(모드별 해시 컬럼), 검수 통과 문구 저장 담당 |
+| `AiCopyContextReader` | 예은 → 창현 | `finalHeadlineContext(gameId, mode)`·`eventCopyContext(gameId, eventId, mode)` — safeContext 필드와 `contextHash`(SHA-256, 예은 측 정규화 계산)를 반환. 빈 값은 "생성 대상 아님". 외부 REST GET 컨텍스트 API는 폐기. 상세는 `AI_COPY.md` §4.0 |
 | `notify.events` | scorer·poller → 윤호 | 알림 이벤트. 서버가 고정 템플릿으로 완성한 `message` 전달 |
 
 ## 5. 메시징·캐시 명세
