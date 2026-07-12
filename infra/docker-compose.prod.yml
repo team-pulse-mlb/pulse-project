@@ -120,6 +120,10 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: pulse-rabbitmq
+    # RabbitMQ는 큐 데이터를 노드명(rabbit@호스트명) 디렉터리에 저장한다.
+    # 호스트명을 고정하지 않으면 컨테이너 재생성 때마다 새 노드로 초기화되어
+    # named volume이 있어도 미소비 메시지가 유실된다.
+    hostname: rabbitmq
     restart: unless-stopped
     logging: *app-logging
     environment:
