@@ -16,6 +16,7 @@ import com.pulse.common.client.BdlDtos.PlateAppearancesRaw;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -24,7 +25,8 @@ import org.springframework.web.client.RestClient;
  * balldontlie MLB API 클라이언트. 외부 API 호출은 반드시 이 클래스를 거친다.
  */
 @Component
-public class BalldontlieClient {
+@ConditionalOnProperty(prefix = "pulse.simulation", name = "enabled", havingValue = "false", matchIfMissing = true)
+public class BalldontlieClient implements BaseballDataSource {
 
     private static final int PER_PAGE = 100;
 

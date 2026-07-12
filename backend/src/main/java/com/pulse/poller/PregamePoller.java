@@ -1,6 +1,6 @@
 package com.pulse.poller;
 
-import com.pulse.common.client.BalldontlieClient;
+import com.pulse.common.client.BaseballDataSource;
 import com.pulse.common.client.BdlDtos.BdlLineup;
 import com.pulse.common.client.BdlDtos.BdlOdds;
 import com.pulse.common.client.BdlDtos.BdlPlayerSeasonStat;
@@ -39,7 +39,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class PregamePoller {
 
-    private final BalldontlieClient balldontlieClient;
+    private final BaseballDataSource balldontlieClient;
     private final GameRepository gameRepository;
     private final LineupRepository lineupRepository;
     private final PregameGameWriter pregameWriter;
@@ -57,7 +57,7 @@ public class PregamePoller {
 
     @Autowired
     public PregamePoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
             LineupRepository lineupRepository,
             PregameGameWriter pregameWriter,
@@ -80,7 +80,7 @@ public class PregamePoller {
     }
 
     PregamePoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
             LineupRepository lineupRepository,
             PregameGameWriter pregameWriter,

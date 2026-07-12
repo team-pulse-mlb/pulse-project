@@ -1,6 +1,6 @@
 package com.pulse.poller;
 
-import com.pulse.common.client.BalldontlieClient;
+import com.pulse.common.client.BaseballDataSource;
 import com.pulse.common.client.BdlDtos.BdlPlayer;
 import com.pulse.domain.Player;
 import com.pulse.domain.PlayerRepository;
@@ -31,7 +31,7 @@ public class PlayerEnrichmentPoller {
     /** 런당 보강 대상 상한. 초과분은 다음 런에서 처리한다. */
     private static final int MAX_PLAYERS_PER_RUN = 300;
 
-    private final BalldontlieClient balldontlieClient;
+    private final BaseballDataSource balldontlieClient;
     private final PlayerRepository playerRepository;
     private final PlayerEnrichmentWriter playerEnrichmentWriter;
     private final PollerRateLimiter rateLimiter;
@@ -40,7 +40,7 @@ public class PlayerEnrichmentPoller {
 
     @Autowired
     public PlayerEnrichmentPoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             PlayerRepository playerRepository,
             PlayerEnrichmentWriter playerEnrichmentWriter,
             PollerProperties properties,
@@ -50,7 +50,7 @@ public class PlayerEnrichmentPoller {
     }
 
     PlayerEnrichmentPoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             PlayerRepository playerRepository,
             PlayerEnrichmentWriter playerEnrichmentWriter,
             PollerProperties properties,

@@ -1,6 +1,6 @@
 package com.pulse.poller;
 
-import com.pulse.common.client.BalldontlieClient;
+import com.pulse.common.client.BaseballDataSource;
 import com.pulse.common.client.BdlDtos.BdlGame;
 import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class OperationalPoller {
 
-    private final BalldontlieClient balldontlieClient;
+    private final BaseballDataSource balldontlieClient;
     private final GameRepository gameRepository;
     private final PlayRepository playRepository;
     private final PollerGameWriter gameWriter;
@@ -54,7 +54,7 @@ public class OperationalPoller {
 
     @Autowired
     public OperationalPoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
             PlayRepository playRepository,
             PollerGameWriter gameWriter,
@@ -81,7 +81,7 @@ public class OperationalPoller {
     }
 
     OperationalPoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
             PlayRepository playRepository,
             PollerGameWriter gameWriter,
