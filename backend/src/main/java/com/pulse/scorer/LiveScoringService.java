@@ -7,8 +7,6 @@ import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
-import com.pulse.domain.NotificationEventLog;
-import com.pulse.domain.NotificationEventLogRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
 import com.pulse.domain.WatchScore;
@@ -43,7 +41,6 @@ public class LiveScoringService {
     private final LiveSignalPublisher liveSignalPublisher;
     private final SurgeDetector surgeDetector;
     private final NotificationEventPublisher notificationEventPublisher;
-    private final NotificationEventLogRepository notificationEventLogRepository;
     private final ScoringProperties props;
 
     @Transactional
@@ -157,14 +154,6 @@ public class LiveScoringService {
             latestTag = "경기 흐름 변화";
         }
         UUID eventId = UUID.randomUUID();
-        NotificationEventLog logRecord = new NotificationEventLog();
-        logRecord.setEventId(eventId);
-        logRecord.setType(NotificationType.SURGE.name());
-        logRecord.setGameId(gameId);
-        logRecord.setTags(tags);
-        logRecord.setOccurredAt(occurredAt);
-        notificationEventLogRepository.save(logRecord);
-
         notificationEventPublisher.publish(new NotificationEvent(
                 eventId,
                 NotificationType.SURGE,
@@ -172,7 +161,7 @@ public class LiveScoringService {
                 "지금 볼 만한 경기가 있어요 — " + latestTag,
                 latestTag,
                 occurredAt
-        ));
+        ), tags);
         log.info("SURGE 알림 발행 gameId={} latestTag={}", gameId, latestTag);
     }
 
