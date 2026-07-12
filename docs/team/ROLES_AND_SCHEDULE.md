@@ -19,7 +19,7 @@
 - api.home: `GET /api/rankings/live`(슬롯·개인화 가산·보호 DTO), `GET /api/games`(슬레이트·상태·정렬)
 - SSE: `GET /api/sse`·1회용 토큰, `signal:*` 구독 → 이벤트 3종 중계
 - 전환 후보 조회 지점(랭킹 기반) 제공 — 민석 상세가 소비
-- 프론트: Vite+React 기반·`shared`·홈 보드·SSE 연결·Vercel 배포
+- 프론트: Vite+React 기반·`shared`·홈 보드·SSE 연결·S3+CloudFront 배포
 
 ### 창현 — AI 문구
 
