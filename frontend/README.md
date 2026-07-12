@@ -10,12 +10,12 @@ React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, react-router v8 기
 - npm
 - 확인 환경: Node.js 24.17.0, npm 11.13.0
 
-VS Code 터미널에서 실행한다.
+VS Code의 Git Bash 터미널에서 실행한다.
 
-```powershell
+```bash
 cd frontend
-npm.cmd install
-npm.cmd run dev
+npm install
+npm run dev
 ```
 
 - 접속 주소: `http://localhost:5173`
@@ -23,12 +23,12 @@ npm.cmd run dev
 - 개발 환경은 `/api` 요청을 `http://localhost:8080`으로 프록시한다.
 - 배포 환경에서만 `VITE_API_BASE_URL`을 설정한다.
 
-검사도 `frontend/`의 VS Code 터미널에서 실행한다.
+검사도 `frontend/`의 Git Bash 터미널에서 실행한다.
 
-```powershell
-npm.cmd run lint
-npm.cmd run build
-npm.cmd run preview
+```bash
+npm run lint
+npm run build
+npm run preview
 ```
 
 ## 폴더 구조

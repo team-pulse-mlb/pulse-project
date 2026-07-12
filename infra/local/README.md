@@ -13,20 +13,20 @@
 
 1. VS Code Explorer에서 `.env.example`을 복사해 `.env`를 만든다.
 2. `.env`의 `POSTGRES_PASSWORD`를 설정한다.
-3. 저장소 루트의 VS Code 터미널에서 실행한다.
+3. 저장소 루트의 VS Code Git Bash 터미널에서 실행한다.
 
 - Spring Boot와 DB 클라이언트에도 같은 접속값을 사용한다.
 - `.env`는 커밋하지 않는다.
 
-```powershell
+```bash
 docker compose -f infra/local/docker-compose.yml --env-file .env up -d
 ```
 
 ## 확인
 
-터미널에서 두 컨테이너가 `healthy`인지 확인한다.
+Git Bash 터미널에서 두 컨테이너가 `healthy`인지 확인한다.
 
-```powershell
+```bash
 docker compose -f infra/local/docker-compose.yml --env-file .env ps
 docker exec pulse-postgres pg_isready
 docker exec pulse-redis redis-cli ping
@@ -49,15 +49,15 @@ docker exec pulse-redis redis-cli ping
 
 ## 중지와 초기화
 
-일반 중지는 저장소 루트의 터미널에서 실행한다. 데이터 볼륨은 유지된다.
+일반 중지는 저장소 루트의 Git Bash 터미널에서 실행한다. 데이터 볼륨은 유지된다.
 
-```powershell
+```bash
 docker compose -f infra/local/docker-compose.yml --env-file .env down
 ```
 
 데이터까지 삭제한다.
 
-```powershell
+```bash
 docker compose -f infra/local/docker-compose.yml --env-file .env down -v
 ```
 

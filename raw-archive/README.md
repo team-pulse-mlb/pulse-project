@@ -35,13 +35,13 @@ s3://pulse-raw-<account-id>/
 
 AWS CLI가 필요한 자동 확인에서는 다음 명령을 사용한다.
 
-```powershell
+```bash
 # 최근 수집 객체 확인
-aws s3 ls s3://pulse-raw-<account-id>/raw/ --recursive | Select-Object -Last 20
+aws s3 ls s3://pulse-raw-<account-id>/raw/ --recursive | tail -n 20
 
 # 특정 endpoint만 확인
-aws s3 ls s3://pulse-raw-<account-id>/raw/games/ --recursive | Select-Object -Last 20
-aws s3 ls s3://pulse-raw-<account-id>/raw/plays/ --recursive | Select-Object -Last 20
+aws s3 ls s3://pulse-raw-<account-id>/raw/games/ --recursive | tail -n 20
+aws s3 ls s3://pulse-raw-<account-id>/raw/plays/ --recursive | tail -n 20
 
 # collector 상태 확인
 aws s3 cp s3://pulse-raw-<account-id>/state/collector_state.json -
@@ -119,11 +119,11 @@ raw/historical/season=YYYY/games/game_id=<id>.json.gz  # 경기당 1번들: play
                                                        #  + plate_appearances + stats
 ```
 
-저장소 루트의 PowerShell에서 환경 변수와 실행 인수를 지정한다. 실제 버킷과 시즌 범위를 확인한 뒤 실행한다.
+저장소 루트의 Git Bash에서 환경 변수와 실행 인수를 지정한다. 실제 버킷과 시즌 범위를 확인한 뒤 실행한다.
 
-```powershell
-$env:BDL_API_KEY = "<key>"
-python raw-archive\backfill\backfill.py --bucket pulse-raw-<account-id> --seasons 2023 2024 2025
+```bash
+export BDL_API_KEY="<key>"
+python raw-archive/backfill/backfill.py --bucket pulse-raw-<account-id> --seasons 2023 2024 2025
 ```
 
 - **전부 `backfilled: true`** — plays/PA에 벽시계 시간이 없어 `observed_at`은 수집 시점일
@@ -140,8 +140,8 @@ python raw-archive\backfill\backfill.py --bucket pulse-raw-<account-id> --season
 
 배포 스크립트는 Lambda·S3·EventBridge 구성을 함께 맞추는 자동화 도구이므로 터미널 실행을 유지한다. AWS 콘솔은 배포 후 상태 확인과 수동 중지·재개에 사용한다. 사전 조건은 AWS CLI 설치와 승인된 AWS 자격 증명이다.
 
-```powershell
-.\raw-archive\deploy\deploy-collector.ps1 -ApiKey "<balldontlie API key>"
+```bash
+powershell.exe -File ./raw-archive/deploy/deploy-collector.ps1 -ApiKey "<balldontlie API key>"
 ```
 
 리전 기본값 ap-northeast-2. 스크립트는 멱등 — 코드 수정 후 다시 실행하면 업데이트된다.
@@ -160,9 +160,9 @@ Lambda 1분 주기(월 4.3만 회, 라이브 중 ~50초 실행)는 프리 티어
 
 자동 확인이나 장애 대응에서만 다음 명령을 사용한다.
 
-```powershell
+```bash
 # 수집 확인
-aws s3 ls s3://pulse-raw-<account-id>/raw/ --recursive | Select-Object -Last 20
+aws s3 ls s3://pulse-raw-<account-id>/raw/ --recursive | tail -n 20
 # 로그
 aws logs tail /aws/lambda/pulse-collector --since 10m
 # 일시 중지 / 재개

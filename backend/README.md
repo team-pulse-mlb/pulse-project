@@ -54,8 +54,8 @@ curl "http://localhost:8080/actuator/health"
 | 기본 로컬 설정 | 비활성화 | `ddl-auto=update` |
 | `prod` 프로필 | 활성화 | `ddl-auto=none` |
 
-```powershell
-.\gradlew.bat bootRun --args="--spring.profiles.active=prod"
+```bash
+./gradlew bootRun --args="--spring.profiles.active=prod"
 ```
 
 - `prod`는 운영 DB 연결 정보와 전체 환경 변수가 준비된 환경에서만 사용한다.
@@ -115,9 +115,9 @@ com.pulse/
 
 ## 테스트
 
-```powershell
+```bash
 cd backend
-.\gradlew.bat test
+./gradlew test
 ```
 
 - `GameEventExtractorTest`: play 기반 이벤트 추출
