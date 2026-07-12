@@ -24,14 +24,21 @@
 
 ## 4. 가중치 영향 추적 파이프라인
 
-`scoring.yml` 상수 변경의 영향을 운영 DB 이력 재계산으로 자동 산출한다. DB 이전 완료 전까지는 고정 경기 세트를 수동 재생해 대체하며, 이전 후 이 파이프라인으로 일원화한다. 구현은 별도 작업으로 관리한다.
+`scoring.yml` 상수 변경의 영향을 운영 DB 이력 재계산으로 자동 산출한다. `backtest` 배치 프로파일과 `backtestImpact` Gradle 태스크로 구현되어 있다(`backend/src/main/java/com/pulse/replay/backtest/`).
 
 | 구분 | 내용 |
 |---|---|
-| 입력 | 기준 상수(baseline `version` 또는 `baseline.json`), 후보 `scoring.yml`, 대상 경기 범위(기간 또는 `game_id` 집합), `source` 필터 |
-| 처리 | (1) 운영 DB에서 대상 경기의 `plays`·`games`·`standings`·`odds_snapshots`를 **읽기 전용**으로 로드 → (2) 기준·후보 두 상수 세트로 각각 scorer를 재계산한다(운영 테이블에 쓰지 않고 임시 영역·메모리에서 수행) → (3) 두 결과의 검증 지표와 아래 리포트 항목을 비교 |
-| 출력 | JSON + Markdown 영향 리포트를 파일로 생성해 `tune:` PR에 첨부 |
-| 실행 | 배치 프로파일·Gradle 태스크로 실행한다(읽기 전용 DB 접속). 예: `./gradlew backtestImpact -Pbaseline=<version> -Pcandidate=scoring.yml -Pfrom=<date> -Pto=<date>` |
+| 입력 | 기준 상수(`-Pbaseline`: version 정수 → classpath `scoring-baselines/scoring-v<N>.yml` 스냅샷, 그 외 → yml 파일 경로), 후보 상수(`-Pcandidate`: yml 파일 경로, 생략 시 현재 `scoring.yml`), 대상 기간(`-Pfrom`·`-Pto`, `start_time` UTC 날짜, 양끝 포함), 선택 필터 `-PgameIds`·`-Psources`(쉼표 구분) |
+| 처리 | (1) 운영 DB에서 대상 경기의 `plays`·`games`·`standings`·`odds_snapshots`를 **읽기 전용**으로 로드 → (2) 기준·후보 두 상수 세트로 각각 scorer를 재계산한다(운영 테이블에 쓰지 않고 메모리에서 수행) → (3) 두 결과의 검증 지표와 아래 리포트 항목을 비교 |
+| 출력 | `-PoutputDir`(기본 `backend/build/backtest`)에 `impact_v<기준>_vs_v<후보>_<from>_<to>.json`·`.md` 생성, `tune:` PR에 첨부 |
+| 실행 | JDK 21 기준. 예: `backend\gradlew.bat backtestImpact -Pbaseline=6 -Pcandidate=scoring-candidate.yml -Pfrom=2026-06-01 -Pto=2026-06-30` |
+
+**재계산 방식**
+
+- watch_score = clamp(base_score × importance + pregame 보정). importance와 pregame의 contention은 경기 날짜 기준 `standings` 스냅샷으로 판정한다.
+- pregame의 closeness는 `odds_snapshots`(PREGAME_FINAL 우선, 없으면 FIRST_SEEN)의 중앙값 implied probability로 재계산하고, starterMatchup은 라인업·시즌 스탯을 재로드하지 않으므로 `games.pregame_inputs`에 저장된 계산 결과를 재사용한다.
+- `S3_BACKFILL`은 벽시계 시각이 없어 1번 절의 order 윈도 근사를 적용한다(최근 득점 15 plays 선형 감쇠, 리드 변경 25 plays 윈도. `pulse.backtest.*` 설정으로 조정 가능).
+- 알림 빈도는 SurgeDetector 로직(임계·재무장·쿨다운·상승 트리거)을 메모리로 재현한다. 단 `S3_BACKFILL`은 시간 기반 쿨다운·상승 트리거를 생략하고, 전역 발화 한도는 모든 source에서 시뮬레이션하지 않는다.
 
 **리포트 항목**
 
