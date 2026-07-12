@@ -102,6 +102,9 @@ public class SecurityConfig {
                                 "/api/members/email/**"
                         ).permitAll()
 
+                        // 비로그인 SSE 구독은 공개 (EventSource는 Authorization 헤더를 못 싣는다)
+                        .requestMatchers("/api/sse").permitAll()
+
                         // 현재 로그인 사용자 확인 API는 Access Token 필요
                         .requestMatchers("/api/members/me").authenticated()
 
