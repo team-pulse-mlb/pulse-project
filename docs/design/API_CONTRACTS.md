@@ -144,7 +144,7 @@
 
 종료 경기 상세 응답의 `headline`은 nullable이다. 보호 모드 `headline`은 `games.final_headline_protected`, 공개 모드 `headline`은 `games.final_headline_revealed`를 원천으로 하며 두 컬럼 모두 nullable이다(AI_COPY.md `FINAL_HEADLINE` 참고). 저장된 문구가 없으면 `headline=null`을 반환하고 프론트는 헤드라인 영역을 렌더링하지 않는다.
 
-종료 경기에는 `tensionCurve`를 포함할 수 있다. 보호 모드는 이닝 단위 `{ inning, level }`, 공개 모드는 하프이닝 단위까지 허용하며 `level`은 1~5 양자화 값이다. `tensionCurve`에는 원 `base_score`, 축 눈금 숫자, 경기 간 비교용 절대 순위를 포함하지 않는다.
+종료 경기에는 `tensionCurve`를 포함할 수 있다. 보호 모드는 이닝 단위 `{ inning, level }`, 공개 모드는 하프이닝 단위까지 허용하며 `level`은 1~5 양자화 값이다. `tensionCurve`에는 원 `base_score`, 축 눈금 숫자, 경기 간 비교용 절대 순위를 포함하지 않는다. 포인트에 `eventLabel`·`eventId`·마커·피크 표시 필드도 포함하지 않는다 — 이벤트 표시는 `GET /api/games/{id}/events` 타임라인이 전담하며, 그래프와 타임라인은 서로 연결하지 않는다.
 
 ```jsonc
 // GET /api/games/{id}?mode=protected (종료)
