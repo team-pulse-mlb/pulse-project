@@ -101,6 +101,7 @@ $env:PULSE_SIMULATION_PRESET='SURGE'
 com.pulse/
 ├── api/
 │   ├── home/             # 홈 목록·실시간 랭킹 API
+│   ├── sse/              # Redis 신호를 브라우저 SSE로 중계
 │   └── user/             # 회원·인증·이메일 API
 ├── poller/               # 경기·플레이·선발·순위 수집
 ├── scorer/               # 관전 점수·이벤트·종료 처리
@@ -113,6 +114,20 @@ com.pulse/
 ```
 
 현재 경기 상세 컨트롤러·조회 서비스는 `api` 바로 아래에 있다. 기능 확장 시 `api.gamedetail` 경계를 따른다.
+
+## 기능별 개발 진입점
+
+| 기능 | 먼저 볼 파일 | 이어서 볼 파일 |
+|---|---|---|
+| 홈 경기 목록 | `api/home/HomeGameController.java` | `api/home/HomeQueryService.java` |
+| 실시간 추천 랭킹 | `api/home/HomeRankingController.java` | `ranking/RankingService.java`, `api/home/HomeQueryService.java` |
+| 경기 상세·펄스 그래프 데이터 | `api/GameController.java` | `api/GameQueryService.java`, `domain/WatchScore.java` |
+| SSE | `api/sse/SseController.java` | `api/sse/RedisSignalRelay.java`, `common/message/RedisSignalChannels.java` |
+| 점수 계산 | `scorer/ScoreTaskListener.java` | `scorer/LiveScoringService.java`, `scorer/ScoreCalculator.java` |
+| 알림 발행 | `scorer/SurgeDetector.java` | `common/message/NotificationOutboxDispatcher.java` |
+| [구현 예정] 알림 소비·사용자 SSE | 없음 | 윤호 담당 `api.notification` 구현 후 연결 |
+
+민석의 경기 상세 화면은 `GET /api/games/{gameId}` 응답의 종료 경기 긴장 곡선을 소비한다. 윤호의 클라이언트는 `GET /api/sse`의 `ranking_changed`, `game_updated` 신호를 소비할 수 있다. SSE 이벤트는 변경 데이터 전체가 아니라 재조회 신호다.
 
 ## 데이터 흐름
 
@@ -129,22 +144,47 @@ com.pulse/
 
 - 상세 구조: [아키텍처](../docs/design/ARCHITECTURE.md)
 - 수집·계산 순서: [데이터 파이프라인](../docs/design/DATA_PIPELINE.md)
-- 현재 브랜치에는 프론트엔드 SSE 소비 훅과 설계 계약만 있고 백엔드 SSE 엔드포인트는 없다.
+- scorer는 Redis 채널에 변경 신호를 발행하고, api 역할의 `RedisSignalRelay`가 이를 SSE로 중계한다.
+
+## 역할별 기동 게이트
+
+운영 컨테이너는 같은 이미지를 사용하고 환경 변수로 역할을 나눈다.
+
+| 역할 | 주요 설정 | 필요한 로컬 의존 서비스 |
+|---|---|---|
+| API | `PULSE_POLLER_ENABLED=false`, `PULSE_SCORER_ENABLED=false`, `PULSE_SSE_ENABLED=true` | PostgreSQL, Redis, RabbitMQ |
+| poller | `PULSE_POLLER_ENABLED=true`, `PULSE_SCORER_ENABLED=false`, `PULSE_SSE_ENABLED=false` | PostgreSQL, Redis, RabbitMQ, 외부 API |
+| scorer | `PULSE_POLLER_ENABLED=false`, `PULSE_SCORER_ENABLED=true`, `PULSE_SSE_ENABLED=false` | PostgreSQL, Redis, RabbitMQ |
+
+기본 로컬 설정은 scorer와 SSE가 활성화되고 poller만 비활성화된다. 실제 운영 조합은 `infra/docker-compose.prod.yml`을 기준으로 확인한다.
+
+## replay·migration·rescore
+
+세 작업은 일반 웹 서버 기동과 구분되는 일회성 프로필이다.
+
+```powershell
+cd backend
+
+# S3 원본 읽기 기능을 포함한 replay 프로필
+$env:PULSE_REPLAY_S3_BUCKET='pulse-raw-<account-id>'
+.\gradlew.bat bootRun --args='--spring.profiles.active=replay'
+
+# S3 원본을 DB에 이관하고 종료
+.\gradlew.bat bootRun --args='--spring.profiles.active=migration'
+
+# 전체 경기 또는 지정 경기의 watch_scores를 다시 계산하고 종료
+.\gradlew.bat bootRun --args='--spring.profiles.active=rescore --pulse.rescore.game-ids=123,456'
+```
+
+- `migration`은 `PULSE_REPLAY_S3_BUCKET`과 대상 DB 연결 정보를 반드시 확인한 뒤 실행한다.
+- `rescore`에서 `pulse.rescore.game-ids`를 생략하면 DB의 대상 경기를 전체 조회한다.
+- 운영 DB·S3를 대상으로 실행하는 작업은 사용자 승인 후 진행한다.
 
 ## DB 마이그레이션
 
-| 버전 | 내용 |
-|---|---|
-| V1 | 운영 DB 기준선 |
-| V2 | 경기 이벤트·경기 전 입력 스냅샷 |
-| V3 | 홈·원정 팀 이름·약칭 |
-| V4 | 최근 10경기 전적 타입 교정 |
-| V5 | 보호·공개 이벤트 문구·팀 라벨 백필 |
-| V6 | 공개 이벤트 타입 소문자 통일 |
-| V7 | 사용자 설정·관심 팀·MLB 30팀 시드 |
-
 - 위치: `src/main/resources/db/migration/`
-- V7은 팀 마스터 시드만 포함하며 전체 데모 경기 시드는 없다.
+- 운영에서는 `prod` 프로필로 Flyway를 활성화하고 Hibernate 스키마 변경을 끈다.
+- 적용 순서와 현재 버전은 파일 목록을 직접 확인한다. 기존 migration 파일은 수정하지 않고 새 버전을 추가한다.
 - 스키마 기준: [DB 스키마](../docs/design/DB_SCHEMA.md)
 
 ## 테스트
@@ -152,6 +192,7 @@ com.pulse/
 ```bash
 cd backend
 ./gradlew test
+./gradlew clean build
 ```
 
 - `GameEventExtractorTest`: play 기반 이벤트 추출

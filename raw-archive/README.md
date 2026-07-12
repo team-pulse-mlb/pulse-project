@@ -9,6 +9,17 @@
 | `deploy/` | 수집기 AWS 리소스 생성·갱신 자동화 | 승인된 운영 작업 환경 |
 | `analysis/` | 수집 데이터 분석 스크립트 | 로컬 터미널 |
 
+## 도구별 시작점
+
+| 작업 | 시작 파일 | 필수 준비 |
+|---|---|---|
+| Lambda 라이브 수집 | `live-collector/collect_live_raw.py` | `BDL_API_KEY`, `BUCKET`, Lambda 실행 권한 |
+| 과거 시즌 백필 | `backfill/backfill.py` | Python, `boto3`, AWS 자격 증명, `BDL_API_KEY` |
+| 수집기 배포·갱신 | `deploy/deploy-collector.ps1` | AWS CLI, 배포 권한, API 키 |
+| 라인업 공개 시점 분석 | `analysis/analyze-lineup-reveal.py` | `PULSE_REPLAY_S3_BUCKET`, `AWS_REGION`, `BDL_API_KEY` |
+
+로컬 스크립트는 저장소 루트에서 실행한다. AWS 리소스 생성·변경, 운영 버킷 백필, 수집기 중지는 사용자 승인 후 수행한다.
+
 운영 애플리케이션은 원본과 계산 결과를 RDS에 저장한다. 이 S3 아카이브는 DB 이전 전의 개발·백테스트 입력과, DB에 영속하지 않는 `/plate_appearances` 원본 보존에 사용한다.
 
 ## 현재 저장 방식과 확인 위치
