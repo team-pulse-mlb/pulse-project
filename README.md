@@ -40,20 +40,20 @@ pulse-project/
 ├── backend/       # 수집·점수화·랭킹·REST API
 ├── ai-service/    # AI 문구 생성·스포일러 검수
 ├── raw-archive/   # 원본 데이터 수집·백필·분석
-├── infra/         # 로컬 PostgreSQL·Redis
+├── infra/         # 인프라 구성(local: 로컬 개발용, prod: AWS 운영)
 └── docs/          # 제품·설계·팀 문서
 ```
 
 - [프론트엔드 가이드](frontend/README.md)
 - [백엔드 가이드](backend/README.md)
-- [로컬 인프라 가이드](infra/README.md)
+- [로컬 인프라 가이드](infra/local/README.md)
+- [운영 인프라 가이드](infra/prod/README.md)
 - [원본 데이터 아카이브 가이드](raw-archive/README.md)
-- [AWS 운영 인프라 가이드](docs/team/INFRA.md)
 
-## 빠른 시작
+## 빠른 시작 (로컬 개발)
 
 1. VS Code에서 저장소를 열고 `.env.example`을 `.env`로 복사해 로컬 값을 입력한다.
-2. VS Code의 Container Tools 확장으로 `infra/docker-compose.yml`의 PostgreSQL·Redis를 실행하고 Docker Desktop에서 상태를 확인한다.
+2. VS Code의 Container Tools 확장으로 `infra/local/docker-compose.yml`의 PostgreSQL·Redis를 실행하고 Docker Desktop에서 상태를 확인한다.
 3. IntelliJ에서 `backend/`를 Gradle 프로젝트로 열고 `PulseApplication`을 실행한다.
 4. VS Code의 NPM Scripts 보기에서 `frontend`의 `dev` 스크립트를 실행한다.
 
@@ -61,6 +61,10 @@ pulse-project/
 - 백엔드: `http://localhost:8080`
 - 백엔드 실행 전 `.env.example`을 참고해 `JWT_SECRET` 등 필요한 환경 변수를 IntelliJ 실행 구성에 설정한다.
 - 터미널 실행과 세부 설정은 각 폴더의 README에서 보조 방법으로 제공한다.
+
+## 운영 배포
+
+AWS EC2·RDS·S3 기반으로 배포한다. 리소스 구성, 시크릿·환경 변수, 네트워크, IAM 원칙은 [운영 인프라 가이드](infra/prod/README.md)를 따른다. 운영 배포와 시크릿 값은 저장소에 두지 않고 소유자가 관리한다.
 
 ## 문서 인덱스
 
