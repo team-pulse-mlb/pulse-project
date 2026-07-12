@@ -20,7 +20,7 @@ public record ScoringProperties(
         EarlySlugfest earlySlugfest,
         Importance importance,
         int pregameCarryoverMax,
-        int personalizationMax,
+        Personalization personalization,
         Pregame pregame,
         Detail detail,
         TensionCurve tensionCurve,
@@ -56,6 +56,8 @@ public record ScoringProperties(
             double contentionMinPercent,
             double contentionMaxPercent
     ) {}
+
+    public record Personalization(int teamBonus, int playerBonus, int max) {}
 
     public record Pregame(
             double closenessMax,
