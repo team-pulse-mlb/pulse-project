@@ -33,6 +33,7 @@
 | [API_CONTRACTS.md](design/API_CONTRACTS.md) | REST/SSE 명세, 모듈 인터페이스, 메시징·캐시 스키마 |
 | [TECH_STACK.md](design/TECH_STACK.md) | 기술 스택 선정 이유, 배포 토폴로지, 기각 목록 |
 | [PROJECT_STRUCTURE.md](design/PROJECT_STRUCTURE.md) | 레포 폴더·패키지 구조와 의존 방향 |
+| [OBSERVABILITY.md](design/OBSERVABILITY.md) | Prometheus 도메인 지표 이름, 라벨, 대시보드 전달 기준 |
 
 ## reference — 데이터 레퍼런스
 
