@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +21,9 @@ import com.pulse.domain.Player;
 import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
+import com.pulse.ranking.PersonalizationCalculator;
+import com.pulse.common.user.UserPreferenceReader;
+import com.pulse.common.user.UserPreferenceReader.UserPreferences;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -26,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.HashOperations;
@@ -39,6 +45,7 @@ class HomeQueryServiceTest {
     private final LineupRepository lineupRepository = mock(LineupRepository.class);
     private final PlayerRepository playerRepository = mock(PlayerRepository.class);
     private final RankingService rankingService = mock(RankingService.class);
+    private final PersonalizationCalculator personalizationCalculator = mock(PersonalizationCalculator.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     @SuppressWarnings("unchecked")
     private final HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
@@ -49,6 +56,8 @@ class HomeQueryServiceTest {
             lineupRepository,
             playerRepository,
             rankingService,
+            personalizationCalculator,
+            Optional.empty(),
             redisTemplate
     );
 
@@ -71,7 +80,7 @@ class HomeQueryServiceTest {
                 live(4L),
                 live(5L)
         );
-        when(rankingService.topLive(5)).thenReturn(orderedScores(1L, 2L, 3L, 4L, 5L));
+        when(rankingService.topLive(1000)).thenReturn(orderedScores(1L, 2L, 3L, 4L, 5L));
         liveGames.forEach(game -> when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game)));
 
         HomeRankingResponse response = service.getRanking(20);
@@ -96,7 +105,7 @@ class HomeQueryServiceTest {
                 scheduled(21L, 80)
         );
 
-        when(rankingService.topLive(5)).thenReturn(orderedScores(1L));
+        when(rankingService.topLive(1000)).thenReturn(orderedScores(1L));
         when(gameRepository.findById(1L)).thenReturn(Optional.of(live));
         when(gameRepository.findByStatusAndStartTimeBetween(
                 org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
@@ -126,7 +135,7 @@ class HomeQueryServiceTest {
         Player homePlayer = player(101L, "Home Starter");
         Player awayPlayer = player(202L, "Away Starter");
 
-        when(rankingService.topLive(5)).thenReturn(Map.of());
+        when(rankingService.topLive(1000)).thenReturn(Map.of());
         when(gameRepository.findByStatusAndStartTimeBetween(
                 org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
                 .thenReturn(List.of(scheduled));
@@ -144,6 +153,40 @@ class HomeQueryServiceTest {
             assertThat(card.probablePitchers().home()).isEqualTo("Home Starter");
             assertThat(card.probablePitchers().away()).isEqualTo("Away Starter");
         });
+    }
+
+    @Test
+    void getRanking_shouldApplyPersonalizationBeforeSelectingLiveCards() {
+        Game first = live(1L);
+        Game favorite = live(2L);
+        UserPreferenceReader preferenceReader = mock(UserPreferenceReader.class);
+        HomeQueryService personalizedService = new HomeQueryService(
+                gameRepository,
+                watchScoreRepository,
+                gameEventRepository,
+                lineupRepository,
+                playerRepository,
+                rankingService,
+                personalizationCalculator,
+                Optional.of(preferenceReader),
+                redisTemplate);
+
+        Map<Long, Double> liveScores = new LinkedHashMap<>();
+        liveScores.put(1L, 90.0);
+        liveScores.put(2L, 85.0);
+        when(rankingService.topLive(1000)).thenReturn(liveScores);
+        when(gameRepository.findById(1L)).thenReturn(Optional.of(first));
+        when(gameRepository.findById(2L)).thenReturn(Optional.of(favorite));
+        when(lineupRepository.findByGameIdIn(List.of(1L, 2L))).thenReturn(List.of());
+        UserPreferences preferences = new UserPreferences(Set.of(20L), Set.of());
+        when(preferenceReader.findByEmail("user@example.com")).thenReturn(preferences);
+        when(personalizationCalculator.bonus(eq(first), anySet(), eq(preferences))).thenReturn(0);
+        when(personalizationCalculator.bonus(eq(favorite), anySet(), eq(preferences))).thenReturn(10);
+
+        HomeRankingResponse response = personalizedService.getRanking(2, "user@example.com");
+
+        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
+                .containsExactly(2L, 1L);
     }
 
     @Test

@@ -12,6 +12,9 @@ import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
+import com.pulse.ranking.PersonalizationCalculator;
+import com.pulse.common.user.UserPreferenceReader;
+import com.pulse.common.user.UserPreferenceReader.UserPreferences;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -21,6 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -43,14 +48,30 @@ public class HomeQueryService {
     private final LineupRepository lineupRepository;
     private final PlayerRepository playerRepository;
     private final RankingService rankingService;
+    private final PersonalizationCalculator personalizationCalculator;
+    private final Optional<UserPreferenceReader> userPreferenceReader;
     private final StringRedisTemplate redisTemplate;
 
     public HomeRankingResponse getRanking(int count) {
+        return getRanking(count, null);
+    }
+
+    public HomeRankingResponse getRanking(int count, String username) {
         Instant now = Instant.now();
         int safeCount = rankingLimit(count);
-        List<RankingLiveGameCard> live = rankingService.topLive(safeCount).keySet().stream()
+        UserPreferences preferences = preferencesFor(username);
+        Map<Long, Double> liveScores = rankingService.topLive(MAX_RANKING_LOOKUP);
+        List<Game> liveCandidates = liveScores.keySet().stream()
                 .map(gameRepository::findById)
                 .flatMap(java.util.Optional::stream)
+                .toList();
+        Map<Long, Set<Long>> liveLineups = lineupPlayerIdsByGame(liveCandidates, preferences);
+        List<RankingLiveGameCard> live = liveCandidates.stream()
+                .sorted(personalizedComparator(
+                        game -> liveScores.getOrDefault(game.getId(), -1.0),
+                        liveLineups,
+                        preferences))
+                .limit(safeCount)
                 .map(this::toRankingLiveCard)
                 .toList();
 
@@ -65,7 +86,6 @@ public class HomeQueryService {
                         now.plusSeconds(SCHEDULED_LOOKAHEAD_HOURS * 60L * 60L))
                 .stream()
                 .filter(game -> isScheduledForHome(game, now))
-                .sorted(scheduledRankingComparator())
                 .toList();
         List<Game> finishedCandidates = gameRepository
                 .findByStatusStartingWithAndStartTimeGreaterThanEqual(
@@ -73,7 +93,18 @@ public class HomeQueryService {
                         now.minusSeconds(FINISHED_LOOKBACK_HOURS * 60L * 60L))
                 .stream()
                 .filter(game -> isFinishedForHome(game, now))
-                .sorted(finishedRankingComparator())
+                .toList();
+        List<Game> nonLiveCandidates = java.util.stream.Stream
+                .concat(scheduledCandidates.stream(), finishedCandidates.stream())
+                .toList();
+        Map<Long, Set<Long>> nonLiveLineups = lineupPlayerIdsByGame(nonLiveCandidates, preferences);
+        scheduledCandidates = scheduledCandidates.stream()
+                .sorted(personalizedComparator(
+                        game -> scoreOrMin(game.getPregameScore()), nonLiveLineups, preferences))
+                .toList();
+        finishedCandidates = finishedCandidates.stream()
+                .sorted(personalizedComparator(
+                        game -> scoreOrMin(game.getPeakBaseScore()), nonLiveLineups, preferences))
                 .toList();
 
         int scheduledReserve = scheduledCandidates.isEmpty() ? 0 : 1;
@@ -96,6 +127,10 @@ public class HomeQueryService {
     }
 
     public HomeSlateResponse getSlate(String date, String status, String sort) {
+        return getSlate(date, status, sort, null);
+    }
+
+    public HomeSlateResponse getSlate(String date, String status, String sort, String username) {
         LocalDate slateDate = parseSlateDate(date);
         Instant startInclusive = slateDate.atStartOfDay(SLATE_ZONE).toInstant();
         Instant endExclusive = slateDate.plusDays(1).atStartOfDay(SLATE_ZONE).toInstant();
@@ -105,12 +140,16 @@ public class HomeQueryService {
                 ? rankingService.topLive(MAX_RANKING_LOOKUP)
                 : Map.of();
 
-        List<Game> selectedGames = gameRepository
+        List<Game> candidates = gameRepository
                 .findByStartTimeGreaterThanEqualAndStartTimeLessThan(startInclusive, endExclusive)
                 .stream()
                 .filter(game -> inSlate(game, startInclusive, endExclusive))
                 .filter(game -> matchesStatus(game, normalizedStatus))
-                .sorted(gameComparator(normalizedSort, liveScores))
+                .toList();
+        UserPreferences preferences = preferencesFor(username);
+        Map<Long, Set<Long>> lineupPlayerIds = lineupPlayerIdsByGame(candidates, preferences);
+        List<Game> selectedGames = candidates.stream()
+                .sorted(gameComparator(normalizedSort, liveScores, lineupPlayerIds, preferences))
                 .toList();
         Map<Long, ProbablePitchersResponse> probablePitchers = probablePitchersByGame(selectedGames);
         List<SlateGameCard> games = selectedGames.stream()
@@ -235,11 +274,15 @@ public class HomeQueryService {
         return fallback.isBlank() ? null : fallback;
     }
 
-    private Comparator<Game> gameComparator(String sort, Map<Long, Double> liveScores) {
+    private Comparator<Game> gameComparator(
+            String sort,
+            Map<Long, Double> liveScores,
+            Map<Long, Set<Long>> lineupPlayerIds,
+            UserPreferences preferences
+    ) {
         if ("recommended".equals(sort)) {
-            return Comparator
-                    .comparing((Game game) -> recommendedScore(game, liveScores)).reversed()
-                    .thenComparing(HomeQueryService::startTimeOrMax);
+            return personalizedComparator(
+                    game -> recommendedScore(game, liveScores), lineupPlayerIds, preferences);
         }
         return Comparator
                 .comparing((Game game) -> !game.isLive())
@@ -285,20 +328,45 @@ public class HomeQueryService {
                 && !startTime.isBefore(now.minusSeconds(FINISHED_LOOKBACK_HOURS * 60L * 60L));
     }
 
-    private static Comparator<Game> scheduledRankingComparator() {
-        return Comparator
-                .comparingInt((Game game) -> scoreOrMin(game.getPregameScore())).reversed()
-                .thenComparing(HomeQueryService::startTimeOrMax);
-    }
-
-    private static Comparator<Game> finishedRankingComparator() {
-        return Comparator
-                .comparingInt((Game game) -> scoreOrMin(game.getPeakBaseScore())).reversed()
-                .thenComparing(HomeQueryService::startTimeOrMax);
-    }
-
     private static int scoreOrMin(Integer score) {
         return score == null ? Integer.MIN_VALUE : score;
+    }
+
+    private Comparator<Game> personalizedComparator(
+            java.util.function.ToDoubleFunction<Game> baseScore,
+            Map<Long, Set<Long>> lineupPlayerIds,
+            UserPreferences preferences
+    ) {
+        return Comparator
+                .comparingDouble((Game game) -> baseScore.applyAsDouble(game)
+                        + personalizationCalculator.bonus(
+                                game,
+                                lineupPlayerIds.getOrDefault(game.getId(), Set.of()),
+                                preferences))
+                .reversed()
+                .thenComparing(HomeQueryService::startTimeOrMax);
+    }
+
+    private Map<Long, Set<Long>> lineupPlayerIdsByGame(
+            List<Game> games,
+            UserPreferences preferences
+    ) {
+        if (games.isEmpty() || preferences.favoritePlayerIds().isEmpty()) {
+            return Map.of();
+        }
+        return lineupRepository.findByGameIdIn(games.stream().map(Game::getId).toList()).stream()
+                .collect(Collectors.groupingBy(
+                        Lineup::getGameId,
+                        Collectors.mapping(Lineup::getPlayerId, Collectors.toSet())));
+    }
+
+    private UserPreferences preferencesFor(String username) {
+        if (username == null || username.isBlank()) {
+            return UserPreferences.empty();
+        }
+        return userPreferenceReader
+                .map(reader -> reader.findByEmail(username))
+                .orElseGet(UserPreferences::empty);
     }
 
     private static boolean inSlate(Game game, Instant startInclusive, Instant endExclusive) {

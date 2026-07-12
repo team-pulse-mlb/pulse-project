@@ -23,7 +23,7 @@ final class TestScoringProperties {
                 new ScoringProperties.EarlySlugfest(5, 3, 7),
                 new ScoringProperties.Importance(0.9, 1.15, 1.15, 1.10, 1.05, 0.90, 10, 90),
                 10,
-                15,
+                new ScoringProperties.Personalization(10, 5, 15),
                 new ScoringProperties.Pregame(30, 0.15, 0.25, 20, 4.6, 2.0, 30, 15),
                 new ScoringProperties.Detail(100, 100, 2.0, 10, 8, 8),
                 new ScoringProperties.TensionCurve(List.of(20, 40, 60, 80)),

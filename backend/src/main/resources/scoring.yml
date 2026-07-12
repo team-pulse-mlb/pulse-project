@@ -6,7 +6,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 5
+  version: 6
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
@@ -55,7 +55,10 @@ scoring:
     contention-min-percent: 10
     contention-max-percent: 90
   pregame-carryover-max: 10
-  personalization-max: 15
+  personalization:
+    team-bonus: 10
+    player-bonus: 5
+    max: 15
 
   # 예정 경기 점수 (pregame_score)
   pregame:

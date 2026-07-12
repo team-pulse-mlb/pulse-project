@@ -2,6 +2,7 @@ package com.pulse.api.home;
 
 import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,7 +16,14 @@ public class HomeRankingController {
     private final HomeQueryService homeQueryService;
 
     @GetMapping("/live")
-    public HomeRankingResponse live(@RequestParam(defaultValue = "5") int count) {
-        return homeQueryService.getRanking(count);
+    public HomeRankingResponse live(
+            @RequestParam(defaultValue = "5") int count,
+            Authentication authentication
+    ) {
+        return homeQueryService.getRanking(count, username(authentication));
+    }
+
+    private static String username(Authentication authentication) {
+        return authentication == null ? null : authentication.getName();
     }
 }
