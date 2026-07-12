@@ -61,6 +61,19 @@ jwt:
   refresh-token-expiration: 7d    # 7일
 
 pulse:
+  simulation:
+    enabled: ${PULSE_SIMULATION_ENABLED:false}
+    source-game-id: ${PULSE_SIMULATION_SOURCE_GAME_ID:}
+    target-game-id: ${PULSE_SIMULATION_TARGET_GAME_ID:}
+    speed: ${PULSE_SIMULATION_SPEED:1}
+    start-offset: ${PULSE_SIMULATION_START_OFFSET:0s}
+    play-interval: ${PULSE_SIMULATION_PLAY_INTERVAL:20s}
+    preset: ${PULSE_SIMULATION_PRESET:START}
+    archive-date: ${PULSE_SIMULATION_ARCHIVE_DATE:}
+    s3:
+      bucket: ${PULSE_SIMULATION_S3_BUCKET:}
+      region: ${AWS_REGION:ap-northeast-2}
+    max-archive-objects: ${PULSE_SIMULATION_MAX_ARCHIVE_OBJECTS:1000}
   bdl:
     base-url: https://api.balldontlie.io
     api-key: ${BDL_API_KEY:}
