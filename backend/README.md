@@ -13,7 +13,7 @@ Java 21·Spring Boot 단일 프로젝트다. 외부 MLB API 수집, 관전 점�
 - JDK 21
 - Docker·Docker Compose
 
-1. [로컬 인프라 가이드](../infra/README.md)에 따라 VS Code 또는 Docker Desktop에서 PostgreSQL과 Redis를 실행한다.
+1. [로컬 인프라 가이드](../infra/local/README.md)에 따라 VS Code 또는 Docker Desktop에서 PostgreSQL과 Redis를 실행한다.
 
 2. IntelliJ에서 `backend/`를 Gradle 프로젝트로 열고 Gradle JVM을 JDK 21로 지정한다.
 
