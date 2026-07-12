@@ -46,5 +46,3 @@
 |---|---|
 | [CONVENTIONS.md](team/CONVENTIONS.md) | 브랜치·커밋·PR 규칙, 코드 컨벤션 |
 | [ROLES_AND_SCHEDULE.md](team/ROLES_AND_SCHEDULE.md) | 담당 영역, 계약 지점, 완료 기준, 일정 |
-
-AWS 운영 리소스 구성, 시크릿·환경변수, 네트워크는 [`infra/prod/README.md`](../infra/prod/README.md)로 이동했다.

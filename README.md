@@ -53,14 +53,21 @@ pulse-project/
 ## 빠른 시작 (로컬 개발)
 
 1. VS Code Explorer에서 `.env.example`을 복사해 `.env`를 만들고 로컬 값을 입력한다.
-2. 저장소 루트의 VS Code Git Bash 터미널에서 PostgreSQL·Redis를 실행하고 상태를 확인한다.
+2. 저장소 루트의 VS Code Git Bash 터미널에서 PostgreSQL·Redis·RabbitMQ를 실행하고 상태를 확인한다.
 
    ```bash
    docker compose -f infra/local/docker-compose.yml --env-file .env up -d
    docker compose -f infra/local/docker-compose.yml --env-file .env ps
    ```
 
-3. IntelliJ에서 `backend/`를 Gradle 프로젝트로 열고 Gradle JVM을 JDK 21로 지정한다. `PulseApplication` 실행 구성에 `JWT_SECRET` 등 필요한 환경 변수를 설정한 뒤 실행한다.
+3. 새 Git Bash 터미널에서 백엔드를 실행한다(JDK 21 기준). IntelliJ 실행과 세부 설정은 [백엔드 가이드](backend/README.md)를 따른다.
+
+   ```bash
+   cd backend
+   set -a; source ../.env; set +a
+   ./gradlew bootRun
+   ```
+
 4. 새 VS Code Git Bash 터미널에서 프론트엔드를 실행한다.
 
    ```bash
