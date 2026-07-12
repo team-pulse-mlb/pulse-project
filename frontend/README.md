@@ -10,13 +10,7 @@ React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, react-router v8 기
 - npm
 - 확인 환경: Node.js 24.17.0, npm 11.13.0
 
-1. VS Code에서 `frontend/`를 연다.
-2. 처음 한 번은 VS Code 통합 터미널에서 `npm.cmd install`을 실행한다. 의존성 설치는 NPM Scripts 보기에 등록된 스크립트가 아니므로 이 단계만 터미널을 사용한다.
-3. Explorer의 **NPM Scripts** 보기에서 `dev` 스크립트의 실행 버튼을 누른다.
-
-NPM Scripts 보기가 없으면 Command Palette에서 **NPM: Focus on NPM Scripts View**를 선택한다.
-
-터미널 대체 실행:
+VS Code 터미널에서 실행한다.
 
 ```powershell
 cd frontend
@@ -29,7 +23,7 @@ npm.cmd run dev
 - 개발 환경은 `/api` 요청을 `http://localhost:8080`으로 프록시한다.
 - 배포 환경에서만 `VITE_API_BASE_URL`을 설정한다.
 
-검사는 VS Code NPM Scripts 보기에서 `lint`, `build`, `preview`를 실행한다. 터미널에서는 다음 명령을 사용한다.
+검사도 `frontend/`의 VS Code 터미널에서 실행한다.
 
 ```powershell
 npm.cmd run lint

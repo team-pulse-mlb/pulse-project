@@ -5,9 +5,9 @@
 | 경로 | 역할 | 주 실행 위치 |
 |---|---|---|
 | `live-collector/` | 라이브 원본을 수집하는 Lambda 코드 | AWS Lambda |
-| `backfill/` | 과거 시즌 원본을 일회성 적재 | VS Code 로컬 실행 |
+| `backfill/` | 과거 시즌 원본을 일회성 적재 | 로컬 터미널 |
 | `deploy/` | 수집기 AWS 리소스 생성·갱신 자동화 | 승인된 운영 작업 환경 |
-| `analysis/` | 수집 데이터 분석 스크립트 | VS Code 로컬 실행 |
+| `analysis/` | 수집 데이터 분석 스크립트 | 로컬 터미널 |
 
 운영 애플리케이션은 원본과 계산 결과를 RDS에 저장한다. 이 S3 아카이브는 DB 이전 전의 개발·백테스트 입력과, DB에 영속하지 않는 `/plate_appearances` 원본 보존에 사용한다.
 
@@ -119,9 +119,7 @@ raw/historical/season=YYYY/games/game_id=<id>.json.gz  # 경기당 1번들: play
                                                        #  + plate_appearances + stats
 ```
 
-VS Code에서 `raw-archive/backfill/backfill.py`를 열고 **Run and Debug** 구성을 만든다. 환경 변수에는 `BDL_API_KEY`, 인수에는 `--bucket pulse-raw-<account-id> --seasons 2023 2024 2025`를 지정한다. 실제 버킷과 시즌 범위를 확인한 뒤 실행한다.
-
-터미널 대체 명령은 다음과 같다.
+저장소 루트의 PowerShell에서 환경 변수와 실행 인수를 지정한다. 실제 버킷과 시즌 범위를 확인한 뒤 실행한다.
 
 ```powershell
 $env:BDL_API_KEY = "<key>"
