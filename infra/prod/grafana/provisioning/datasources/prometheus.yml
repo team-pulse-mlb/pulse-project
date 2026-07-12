@@ -1,0 +1,12 @@
+# Grafana 데이터소스 프로비저닝: compose 내부 Prometheus 연결.
+# 대시보드 제작은 운영·관측 담당(윤호) 영역이며, 소유자는 데이터소스 연결까지만 준비한다.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
