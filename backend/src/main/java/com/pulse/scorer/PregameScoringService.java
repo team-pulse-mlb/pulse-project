@@ -24,10 +24,12 @@ import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class PregameScoringService {

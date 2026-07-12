@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -30,6 +31,7 @@ import org.springframework.stereotype.Component;
  * (game_id, event_type, source_type, source_ref) UNIQUE로 재관측 시 중복을 막는다.
  */
 @Component
+@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class GameEventExtractor {
 

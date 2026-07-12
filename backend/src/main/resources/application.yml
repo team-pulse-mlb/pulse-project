@@ -88,6 +88,8 @@ pulse:
     pa-archive:
       bucket: ${PULSE_POLLER_PA_ARCHIVE_BUCKET:${PULSE_REPLAY_S3_BUCKET:}}
       region: ${AWS_REGION:ap-northeast-2}
+  scorer:
+    enabled: ${PULSE_SCORER_ENABLED:true}
   notification-outbox:
     dispatch-delay: ${PULSE_NOTIFICATION_OUTBOX_DISPATCH_DELAY:5s}
     retry-initial-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_INITIAL_INTERVAL:5s}

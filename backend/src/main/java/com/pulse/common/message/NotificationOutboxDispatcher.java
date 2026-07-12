@@ -11,7 +11,6 @@ import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,7 +51,6 @@ public class NotificationOutboxDispatcher {
         repository.findPendingByEventIdForUpdate(eventId).ifPresent(this::publish);
     }
 
-    @Scheduled(fixedDelayString = "${pulse.notification-outbox.dispatch-delay:5s}")
     @Transactional
     public void publishReady() {
         Instant now = clock.instant();

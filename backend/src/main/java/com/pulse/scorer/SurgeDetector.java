@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
  * 경기별 쿨다운과 전역 윈도 내 최대 발화 횟수를 Redis 상태로 관리한다.
  */
 @Component
+@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class SurgeDetector {
 

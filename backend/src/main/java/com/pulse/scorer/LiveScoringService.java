@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Redis 랭킹·캐시·신호 발행, SURGE 판정을 수행한다. (gameId, computedAt) UNIQUE로 멱등하다.
  */
 @Service
+@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class LiveScoringService {

@@ -6,6 +6,7 @@ import com.pulse.domain.Standing;
 import com.pulse.domain.StandingRepository;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
  * 데이터가 없으면 1.0(영향 없음)으로 둔다.
  */
 @Component
+@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class ImportanceCalculator {
 
