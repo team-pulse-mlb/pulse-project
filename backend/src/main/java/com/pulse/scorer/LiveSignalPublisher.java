@@ -1,5 +1,6 @@
 package com.pulse.scorer;
 
+import com.pulse.common.message.RedisSignalChannels;
 import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
@@ -18,8 +19,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LiveSignalPublisher {
 
-    public static final String RANKING_CHANNEL = "signal:ranking";
-    private static final String GAME_CHANNEL_PREFIX = "signal:game:";
     private static final String GAME_CACHE_PREFIX = "game:";
     private static final String GAME_CACHE_SUFFIX = ":live";
 
@@ -79,11 +78,11 @@ public class LiveSignalPublisher {
     }
 
     private void publishGameSignalNow(long gameId) {
-        redisTemplate.convertAndSend(GAME_CHANNEL_PREFIX + gameId, String.valueOf(gameId));
+        redisTemplate.convertAndSend(RedisSignalChannels.gameChannel(gameId), String.valueOf(gameId));
     }
 
     private void publishRankingSignalNow() {
-        redisTemplate.convertAndSend(RANKING_CHANNEL, "changed");
+        redisTemplate.convertAndSend(RedisSignalChannels.RANKING, "changed");
     }
 
     private void cacheGameState(
