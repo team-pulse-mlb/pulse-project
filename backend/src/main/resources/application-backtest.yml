@@ -1,0 +1,16 @@
+# 운영 DB 이력으로 점수 상수 영향을 읽기 전용 재계산한다.
+spring:
+  main:
+    web-application-type: none
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: false
+  datasource:
+    hikari:
+      read-only: true
+
+pulse:
+  scorer:
+    enabled: false

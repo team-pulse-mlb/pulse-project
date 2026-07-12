@@ -1,0 +1,98 @@
+# v6 기준 스냅샷 — 수정 금지
+# PULSE 추천 점수 상수
+#
+# 규칙
+# - 상수는 이 파일에만 둔다. 코드에 하드코딩하지 않는다.
+# - 변경은 PR로만 하고, 커밋 메시지에 조정 근거(lift, 운영 지표)를 기록한다.
+# - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
+
+scoring:
+  version: 6
+
+  # 기본 신호 (랭킹에 사용)
+  late-inning:
+    inning-7-8: 6
+    inning-9: 12
+    extra: 18
+  score-gap:
+    gap-0-1: 15
+    gap-2: 9
+    gap-3: 3
+  recent-score:
+    per-run: 6
+    max: 15
+    tau-seconds: 180
+    closeness-multiplier:
+      gap-0: 2.0
+      gap-1: 1.5
+      gap-2: 1.2
+      default: 1.0
+  lead-change:
+    bonus: 9
+    window-plays: 12
+  big-inning:
+    bonus: 9
+    min-scoring-plays: 2
+  count-pressure:
+    full-count: 3
+    two-outs: 3
+    max: 5
+  pressure:
+    bases-loaded: 6
+    scoring-position: 4
+  early-slugfest:
+    bonus: 5
+    max-inning: 3
+    min-total-runs: 7
+
+  # 보정
+  importance:
+    min: 0.9
+    max: 1.15
+    postseason: 1.15
+    both-contending: 1.10
+    one-contending: 1.05
+    both-out: 0.90
+    contention-min-percent: 10
+    contention-max-percent: 90
+  pregame-carryover-max: 10
+  personalization:
+    team-bonus: 10
+    player-bonus: 5
+    max: 15
+
+  # 예정 경기 점수 (pregame_score)
+  pregame:
+    closeness-max: 30
+    closeness-win-percent-span: 0.15
+    closeness-implied-probability-span: 0.25
+    matchup-per-starter-max: 20
+    matchup-era-baseline: 4.6
+    matchup-era-span: 2.0
+    contention-both: 30
+    contention-one: 15
+
+  # 상세 이벤트 신호 (전 라이브 경기에서 추출, 이벤트 타임라인 전용 — 랭킹 미반영)
+  detail:
+    hard-contact-exit-velocity: 100
+    starter-pitch-count: 100
+    velocity-drop-mph: 2.0
+    velocity-drop-window-pitches: 10
+    long-at-bat-pitches: 8
+    max-events-per-type-per-game: 8
+
+  # 종료 경기 긴장 곡선(base_score 0~100을 1~5 단계로 양자화)
+  tension-curve:
+    level-boundaries: [20, 40, 60, 80]
+
+  # 판단 기준
+  thresholds:
+    alert-score: 85
+    alert-rearm-score: 70
+    alert-rise-score: 15
+    alert-rise-window-minutes: 5
+    alert-cooldown-minutes: 15
+    alert-global-limit: 3
+    alert-global-window-minutes: 15
+    switch-score: 70
+    switch-gap: 20
