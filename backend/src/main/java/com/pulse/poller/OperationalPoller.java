@@ -1,6 +1,6 @@
 package com.pulse.poller;
 
-import com.pulse.common.client.BalldontlieClient;
+import com.pulse.common.client.BaseballDataSource;
 import com.pulse.common.client.BdlDtos.BdlGame;
 import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
@@ -12,8 +12,6 @@ import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
-import com.pulse.domain.NotificationEventLog;
-import com.pulse.domain.NotificationEventLogRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
 import com.pulse.poller.PollerGameWriter.GameUpsertResult;
@@ -38,14 +36,13 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class OperationalPoller {
 
-    private final BalldontlieClient balldontlieClient;
+    private final BaseballDataSource balldontlieClient;
     private final GameRepository gameRepository;
     private final PlayRepository playRepository;
     private final PollerGameWriter gameWriter;
     private final ScoreTaskFactory scoreTaskFactory;
     private final ScoreTaskPublisher scoreTaskPublisher;
     private final NotificationEventPublisher notificationEventPublisher;
-    private final NotificationEventLogRepository notificationEventLogRepository;
     private final PollerProperties properties;
     private final PollerRateLimiter rateLimiter;
     private final PaRawArchiveUploader paRawArchiveUploader;
@@ -57,14 +54,13 @@ public class OperationalPoller {
 
     @Autowired
     public OperationalPoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
             PlayRepository playRepository,
             PollerGameWriter gameWriter,
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
-            NotificationEventLogRepository notificationEventLogRepository,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PaRawArchiveUploader paRawArchiveUploader
@@ -77,7 +73,6 @@ public class OperationalPoller {
                 scoreTaskFactory,
                 scoreTaskPublisher,
                 notificationEventPublisher,
-                notificationEventLogRepository,
                 properties,
                 rateLimiter,
                 paRawArchiveUploader,
@@ -86,14 +81,13 @@ public class OperationalPoller {
     }
 
     OperationalPoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
             PlayRepository playRepository,
             PollerGameWriter gameWriter,
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
-            NotificationEventLogRepository notificationEventLogRepository,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PaRawArchiveUploader paRawArchiveUploader,
@@ -106,7 +100,6 @@ public class OperationalPoller {
         this.scoreTaskFactory = scoreTaskFactory;
         this.scoreTaskPublisher = scoreTaskPublisher;
         this.notificationEventPublisher = notificationEventPublisher;
-        this.notificationEventLogRepository = notificationEventLogRepository;
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.paRawArchiveUploader = paRawArchiveUploader;
@@ -165,19 +158,23 @@ public class OperationalPoller {
             return;
         }
 
-        try {
-            for (Game game : liveGames) {
+        for (Game game : liveGames) {
+            try {
                 int inserted = pollPlays(game, now);
                 if (inserted > 0) {
                     List<BdlPlateAppearance> plateAppearances = syncPlateAppearances(game.getId(), now);
                     latestPlay(game.getId()).ifPresent(play ->
                             scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now, plateAppearances)));
                 }
+            } catch (RuntimeException e) {
+                if (PollerExceptionClassifier.shouldBackoff(e)) {
+                    handleFailure("plays", playsBackoff, now, e);
+                    return;
+                }
+                log.error("plays poll failed: gameId={}", game.getId(), e);
             }
-            playsBackoff.recordSuccess();
-        } catch (RuntimeException e) {
-            handleFailure("plays", playsBackoff, now, e);
         }
+        playsBackoff.recordSuccess();
     }
 
     private int pollPlays(Game game, Instant observedAt) {
@@ -227,14 +224,6 @@ public class OperationalPoller {
     private void publishTransitionEvents(GameUpsertResult result, Instant now) {
         if (result.enteredLive()) {
             UUID eventId = UUID.randomUUID();
-            NotificationEventLog eventLog = new NotificationEventLog();
-            eventLog.setEventId(eventId);
-            eventLog.setType(NotificationType.GAME_START.name());
-            eventLog.setGameId(result.game().getId());
-            eventLog.setTags(List.of());
-            eventLog.setOccurredAt(now);
-            notificationEventLogRepository.save(eventLog);
-
             notificationEventPublisher.publish(new NotificationEvent(
                     eventId,
                     NotificationType.GAME_START,

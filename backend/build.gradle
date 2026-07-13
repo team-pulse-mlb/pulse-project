@@ -52,3 +52,17 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+tasks.register('backtestImpact', org.springframework.boot.gradle.tasks.run.BootRun) {
+    group = 'application'
+    description = '운영 DB 이력으로 점수 상수 변경 영향을 계산한다.'
+    mainClass = 'com.pulse.PulseApplication'
+    classpath = sourceSets.main.runtimeClasspath
+    args '--spring.profiles.active=backtest'
+
+    ['baseline', 'candidate', 'from', 'to', 'gameIds', 'sources', 'outputDir'].each { propertyName ->
+        if (project.hasProperty(propertyName)) {
+            args "--pulse.backtest.${propertyName}=${project.property(propertyName)}"
+        }
+    }
+}

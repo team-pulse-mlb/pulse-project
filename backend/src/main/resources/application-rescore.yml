@@ -7,3 +7,8 @@ spring:
       ddl-auto: none
   flyway:
     enabled: false
+
+pulse:
+  scorer:
+    # 재산정 배치가 운영 score.tasks 큐를 소비하지 않도록 scorer 역할을 비활성화한다.
+    enabled: false

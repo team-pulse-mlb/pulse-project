@@ -77,6 +77,16 @@ export function toSlateCard(card: SlateGameCard): GameCardData {
     };
   }
 
+  if (card.gameState === 'POSTPONED' || card.gameState === 'CANCELED') {
+    return {
+      gameId: card.gameId,
+      status: card.gameState === 'POSTPONED' ? 'postponed' : 'canceled',
+      awayLabel: card.matchup.away,
+      homeLabel: card.matchup.home,
+      metaText: card.venue ?? undefined,
+    };
+  }
+
   const parts = [card.venue, probablePitchersText(card.probablePitchers)].filter(Boolean);
 
   return {

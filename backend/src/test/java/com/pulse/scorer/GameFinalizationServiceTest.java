@@ -73,14 +73,48 @@ class GameFinalizationServiceTest {
         verify(aiGenerationTrigger, never()).onGameFinalized(100L, observedAt);
     }
 
+    @Test
+    void handle_shouldNotRequestAiForCanceledDoneGame() {
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(game(Game.STATUS_CANCELED)));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent("score:finalized:100", observedAt.toString())).thenReturn(true);
+
+        service.handle(task(GameLifecycle.DONE.name()));
+
+        verify(liveSignalPublisher).removeLiveGame(100L);
+        verify(liveSignalPublisher).evictGameCache(100L);
+        verify(liveSignalPublisher).publishGameSignal(100L);
+        verify(liveSignalPublisher).publishRankingSignal();
+        verify(aiGenerationTrigger, never()).onGameFinalized(100L, observedAt);
+    }
+
+    @Test
+    void handle_shouldNotRequestAiWhenFinalLifecycleGameWasPostponed() {
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(game(Game.STATUS_POSTPONED)));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent("score:finalized:100", observedAt.toString())).thenReturn(true);
+
+        service.handle(task(GameLifecycle.FINAL.name()));
+
+        verify(liveSignalPublisher).removeLiveGame(100L);
+        verify(liveSignalPublisher).evictGameCache(100L);
+        verify(liveSignalPublisher).publishGameSignal(100L);
+        verify(liveSignalPublisher).publishRankingSignal();
+        verify(aiGenerationTrigger, never()).onGameFinalized(100L, observedAt);
+    }
+
     private ScoreTask task(String lifecycleState) {
         return new ScoreTask(100L, observedAt, 12L, lifecycleState, null);
     }
 
     private static Game game() {
+        return game(Game.STATUS_FINAL);
+    }
+
+    private static Game game(String status) {
         Game game = new Game();
         game.setId(100L);
-        game.setStatus(Game.STATUS_FINAL);
+        game.setStatus(status);
         return game;
     }
 }

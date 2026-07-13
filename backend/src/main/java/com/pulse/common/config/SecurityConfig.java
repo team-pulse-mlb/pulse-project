@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import com.pulse.api.user.security.jwt.JwtProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -57,6 +58,7 @@ public class SecurityConfig {
      * Spring Security의 HTTP 요청 처리 설정
      */
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
@@ -108,6 +110,9 @@ public class SecurityConfig {
                                 "/api/members/email/**"
                         ).permitAll()
 
+                        // 비로그인 SSE 구독은 공개 (EventSource는 Authorization 헤더를 못 싣는다)
+                        .requestMatchers("/api/sse").permitAll()
+
                         // 현재 로그인 사용자 확인 API는 Access Token 필요
                         .requestMatchers(
                                 "/api/members/me",
@@ -131,6 +136,7 @@ public class SecurityConfig {
 
     // 5173 관련 임시 해결
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 

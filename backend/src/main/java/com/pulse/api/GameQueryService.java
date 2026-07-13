@@ -17,7 +17,6 @@ import java.util.Map;
 public class GameQueryService {
 
     private static final int DETAIL_RECENT_PLAY_COUNT = 20;
-    private static final int LLM_RECENT_PLAY_COUNT = 8;
 
     private final GameRepository gameRepository;
     private final PlayRepository playRepository;
@@ -72,29 +71,6 @@ public class GameQueryService {
         );
     }
 
-    public SpoilerFreeLlmContextResponse getSpoilerFreeLlmContext(long gameId, LlmPurpose purpose) {
-        Game game = findGame(gameId);
-        WatchScore latestScore = latestScore(gameId);
-        List<Play> recentPlays = recentPlays(gameId, LLM_RECENT_PLAY_COUNT);
-        Map<String, Double> signals = latestScore == null ? Map.of() : latestScore.getSignalContributions();
-
-        return new SpoilerFreeLlmContextResponse(
-                game.getId(),
-                purpose,
-                game.getStatus(),
-                game.getStartTime(),
-                periodLabel(game),
-                List.of(
-                        team(game.getHomeTeamId(), game.getHomeTeamName(), game.getHomeTeamAbbr()),
-                        team(game.getAwayTeamId(), game.getAwayTeamName(), game.getAwayTeamAbbr())
-                ),
-                latestScore == null || latestScore.getTags() == null ? List.of() : latestScore.getTags(),
-                positiveSignalKeys(signals),
-                recentPlays.stream()
-                        .map(GameQueryService::spoilerSafePlay)
-                        .toList()
-        );
-    }
 
     private Game findGame(long gameId) {
         return gameRepository.findById(gameId)
@@ -191,27 +167,6 @@ public class GameQueryService {
         );
     }
 
-    private static SpoilerSafePlayResponse spoilerSafePlay(Play play) {
-        return new SpoilerSafePlayResponse(
-                play.getType(),
-                play.getInning(),
-                play.getInningType(),
-                play.getText(),
-                play.getOuts(),
-                play.getBalls(),
-                play.getStrikes()
-        );
-    }
-
-    private static List<String> positiveSignalKeys(Map<String, Double> signals) {
-        if (signals == null) {
-            return List.of();
-        }
-        return signals.entrySet().stream()
-                .filter(e -> e.getValue() != null && e.getValue() > 0)
-                .map(Map.Entry::getKey)
-                .toList();
-    }
 
     private static DisplayMode parseDisplayMode(String mode) {
         // mode가 없거나 공백이면 기본값은 PROTECTED다.
@@ -266,11 +221,6 @@ public class GameQueryService {
         // 기존 코드 호환용이다.
         // 새 API 문서와 프론트에서는 REVEALED 사용을 권장한다.
         NORMAL
-    }
-
-    public enum LlmPurpose {
-        FINAL_HEADLINE,
-        REPLAY_SUMMARY
     }
 
 
@@ -368,19 +318,6 @@ public class GameQueryService {
     }
 
 
-    public record SpoilerFreeLlmContextResponse(
-            long gameId,
-            LlmPurpose purpose,
-            String status,
-            Instant startTime,
-            String periodLabel,
-            List<TeamResponse> teams,
-            List<String> reasonTags,
-            List<String> spoilerSafeSignals,
-            List<SpoilerSafePlayResponse> recentPlays
-    ) {
-    }
-
     public record TeamResponse(Long id, String name, String abbr) {
     }
 
@@ -398,14 +335,4 @@ public class GameQueryService {
     }
 
 
-    public record SpoilerSafePlayResponse(
-            String type,
-            Integer inning,
-            String inningType,
-            String text,
-            Integer outs,
-            Integer balls,
-            Integer strikes
-    ) {
-    }
 }

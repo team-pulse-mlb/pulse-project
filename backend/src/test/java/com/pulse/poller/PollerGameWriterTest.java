@@ -9,6 +9,8 @@ import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
+import com.pulse.domain.Player;
+import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.TeamRepository;
 import java.time.Instant;
 import java.util.List;
@@ -19,7 +21,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 @DataJpaTest
-@Import({PollerGameWriter.class, GameLifecycleStateMachine.class, PollerRunnerStateMatcher.class})
+@Import({PollerGameWriter.class, GameLifecycleStateMachine.class, PollerRunnerStateMatcher.class,
+        PlayerStubWriter.class})
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class PollerGameWriterTest {
 
@@ -34,6 +37,9 @@ class PollerGameWriterTest {
 
     @Autowired
     private TeamRepository teamRepository;
+
+    @Autowired
+    private PlayerRepository playerRepository;
 
     private final Instant observedAt = Instant.parse("2026-07-08T00:00:00Z");
 
@@ -63,6 +69,22 @@ class PollerGameWriterTest {
         assertThat(plays).hasSize(1);
         assertThat(plays.getFirst().getBatterId()).isEqualTo(7L);
         assertThat(savedGame.getLastPlayOrder()).isEqualTo(10L);
+    }
+
+    @Test
+    void appendPlay_shouldInsertMissingPlayerStubsBeforeSavingPlay() {
+        Game game = writer.upsertGame(game(Game.STATUS_IN_PROGRESS), observedAt).game();
+
+        boolean appended = writer.appendPlay(game, play(10L, 7L), observedAt);
+
+        Player batter = playerRepository.findById(7L).orElseThrow();
+        Player pitcher = playerRepository.findById(99L).orElseThrow();
+        assertThat(appended).isTrue();
+        assertThat(playRepository.findByGameIdOrderByPlayOrderAsc(100L)).hasSize(1);
+        assertThat(batter.getCreatedAt()).isEqualTo(observedAt);
+        assertThat(batter.getUpdatedAt()).isEqualTo(observedAt);
+        assertThat(pitcher.getCreatedAt()).isEqualTo(observedAt);
+        assertThat(pitcher.getUpdatedAt()).isEqualTo(observedAt);
     }
 
     @Test

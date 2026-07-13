@@ -129,6 +129,20 @@ public final class BdlDtos {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlPlayer(
+            Long id,
+            @JsonProperty("full_name") @JsonAlias({"display_name", "name"}) String fullName,
+            @JsonProperty("first_name") String firstName,
+            @JsonProperty("last_name") String lastName,
+            @JsonAlias("primary_position") String position,
+            TeamRef team
+    ) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public record TeamRef(Long id) {
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record BdlPlayerSeasonStat(
             @JsonProperty("player_id") Long playerId,
             Player player,

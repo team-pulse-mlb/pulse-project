@@ -1,5 +1,6 @@
 package com.pulse.common.config;
 
+import java.util.List;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -19,9 +20,10 @@ public record ScoringProperties(
         EarlySlugfest earlySlugfest,
         Importance importance,
         int pregameCarryoverMax,
-        int personalizationMax,
+        Personalization personalization,
         Pregame pregame,
         Detail detail,
+        TensionCurve tensionCurve,
         Thresholds thresholds
 ) {
     public record LateInning(int inning78, int inning9, int extra) {}
@@ -55,6 +57,8 @@ public record ScoringProperties(
             double contentionMaxPercent
     ) {}
 
+    public record Personalization(int teamBonus, int playerBonus, int max) {}
+
     public record Pregame(
             double closenessMax,
             double closenessWinPercentSpan,
@@ -75,12 +79,30 @@ public record ScoringProperties(
             int maxEventsPerTypePerGame
     ) {}
 
+    public record TensionCurve(List<Integer> levelBoundaries) {
+        public TensionCurve {
+            levelBoundaries = List.copyOf(levelBoundaries);
+            if (levelBoundaries.size() != 4) {
+                throw new IllegalArgumentException("긴장 곡선 경계값은 4개여야 합니다.");
+            }
+            for (int index = 0; index < levelBoundaries.size(); index++) {
+                int boundary = levelBoundaries.get(index);
+                if (boundary < 0 || boundary > 100
+                        || (index > 0 && boundary <= levelBoundaries.get(index - 1))) {
+                    throw new IllegalArgumentException("긴장 곡선 경계값은 0~100 사이에서 오름차순이어야 합니다.");
+                }
+            }
+        }
+    }
+
     public record Thresholds(
             int alertScore,
             int alertRearmScore,
             int alertRiseScore,
             int alertRiseWindowMinutes,
             int alertCooldownMinutes,
+            int alertGlobalLimit,
+            int alertGlobalWindowMinutes,
             int switchScore,
             int switchGap
     ) {}

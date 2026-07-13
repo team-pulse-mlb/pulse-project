@@ -40,7 +40,13 @@ export interface HomeRankingResponse {
   finished: RankingFinishedGameCard[];
 }
 
-export type GameState = 'LIVE' | 'FINAL' | 'SCHEDULED' | 'UNKNOWN';
+export type GameState =
+  | 'LIVE'
+  | 'FINAL'
+  | 'SCHEDULED'
+  | 'POSTPONED'
+  | 'CANCELED'
+  | 'UNKNOWN';
 
 export interface SlateGameCard {
   gameId: number;

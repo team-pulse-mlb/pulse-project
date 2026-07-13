@@ -30,6 +30,7 @@ public class PollerGameWriter {
     private final TeamRepository teamRepository;
     private final GameLifecycleStateMachine stateMachine;
     private final PollerRunnerStateMatcher runnerStateMatcher;
+    private final PlayerStubWriter playerStubWriter;
 
     @Transactional
     public GameUpsertResult upsertGame(BdlGame dto, Instant observedAt) {
@@ -89,6 +90,8 @@ public class PollerGameWriter {
         if (dto.order() == null || playRepository.existsByGameIdAndPlayOrder(game.getId(), dto.order())) {
             return false;
         }
+        playerStubWriter.ensurePlayerExists(dto.batterId(), observedAt);
+        playerStubWriter.ensurePlayerExists(dto.pitcherId(), observedAt);
         Play play = new Play();
         play.setGameId(game.getId());
         play.setPlayOrder(dto.order());
