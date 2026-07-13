@@ -21,6 +21,13 @@ if [[ -z "${BDL_API_KEY:-}" ]]; then
   exit 1
 fi
 
+# 회사망 프록시(Somansa 등)가 HTTPS를 가로채면 교체된 CA가 JDK truststore에 없어
+# 외부 API(balldontlie.io) 호출이 PKIX 오류로 실패한다. PULSE_JAVA_TRUSTSTORE에 해당 CA를
+# 포함한 truststore 경로를 지정하면 bootRun JVM에 주입한다. 집망에서는 비워 두면 된다.
+if [[ -n "${PULSE_JAVA_TRUSTSTORE:-}" ]]; then
+  export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Djavax.net.ssl.trustStore=$PULSE_JAVA_TRUSTSTORE -Djavax.net.ssl.trustStorePassword=${PULSE_JAVA_TRUSTSTORE_PASSWORD:-changeit}"
+fi
+
 docker compose \
   -f "$PROJECT_DIR/infra/local/docker-compose.yml" \
   --env-file "$ENV_FILE" \

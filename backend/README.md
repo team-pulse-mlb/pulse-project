@@ -71,6 +71,36 @@ bash backend/scripts/collect-live-game.sh
 
 S3 적재에는 `.env`의 `PULSE_REPLAY_S3_BUCKET`과 AWS 자격 증명, 라이브 수집에는 `BDL_API_KEY`가 필요하다. S3의 특정 경기는 `bash backend/scripts/load-s3-game.sh <경기_ID> <YYYY-MM-DD>`로 지정한다. 적재 후 시뮬레이션 스크립트를 다시 실행한다.
 
+### 회사망 프록시(HTTPS 가로채기) 대응
+
+회사망에서 프록시(Somansa 등)가 HTTPS를 가로채면, 교체된 CA가 JDK truststore에 없어 외부 API(`api.balldontlie.io`) 호출이 `PKIX path building failed` 오류로 실패한다. 집망에서는 해당하지 않는다.
+
+프록시 CA를 포함한 Java truststore를 만들어 `.env`에 지정하면 수집·적재 스크립트가 실행 시 JVM에 주입한다. Git Bash에서 JDK 21 기준으로 만든다(경로·CA 이름은 환경에 맞춘다).
+
+```bash
+JH="/c/Program Files/Java/jdk-21.0.11"   # 설치된 JDK 21 경로
+mkdir -p backend/.local
+# 프록시 CA 인증서(예: somansa-root-ca.cer)를 backend/.local/에 저장한 뒤 실행
+cp "$JH/lib/security/cacerts" backend/.local/pulse-truststore.jks
+"$JH/bin/keytool" -importcert -noprompt -trustcacerts \
+  -alias proxy-root-ca -file backend/.local/somansa-root-ca.cer \
+  -keystore backend/.local/pulse-truststore.jks -storepass changeit
+```
+
+`.env`에 만든 truststore 경로를 지정한다(`backend/.local/`은 gitignore되어 커밋되지 않는다).
+
+```dotenv
+PULSE_JAVA_TRUSTSTORE=C:/Projects/pulse-project/backend/.local/pulse-truststore.jks
+PULSE_JAVA_TRUSTSTORE_PASSWORD=changeit
+```
+
+프록시 CA 인증서는 Windows PowerShell에서 신뢰 저장소를 통해 추출할 수 있다.
+
+```powershell
+Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -match "Somansa" } |
+  ForEach-Object { [IO.File]::WriteAllBytes("backend\.local\somansa-root-ca.cer", $_.Export("Cert")) }
+```
+
 `simulation ready` 로그와 Redis 순위를 확인한다.
 
 ```bash

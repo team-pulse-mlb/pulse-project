@@ -42,3 +42,6 @@ Thumbs.db
 
 # 로컬 문서
 local-docs/
+
+# 로컬 전용 truststore/인증서 (회사망 프록시 CA 등, PC마다 다름)
+backend/.local/
