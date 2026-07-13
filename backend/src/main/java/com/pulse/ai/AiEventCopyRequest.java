@@ -7,9 +7,7 @@ public record AiEventCopyRequest(
         long eventId,
         String mode,
         String contextHash,
-        SafeContext safeContext,
-        String language,
-        int maxLength
+        SafeContext safeContext
 ) {
 
     public record SafeContext(
@@ -17,6 +15,8 @@ public record AiEventCopyRequest(
             String label,
             Integer inning,
             String inningType,
+            String batter,
+            String pitcher,
             Map<String, Object> evidence
     ) {
     }

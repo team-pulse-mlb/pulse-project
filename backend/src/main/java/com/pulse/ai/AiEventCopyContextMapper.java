@@ -16,6 +16,8 @@ public class AiEventCopyContextMapper {
             String label,
             Integer inning,
             String inningType,
+            String batter,
+            String pitcher,
             Map<String, Object> payload
     ) {
         if (isRevealed(mode)) {
@@ -24,6 +26,8 @@ public class AiEventCopyContextMapper {
                     normalizeText(label),
                     inning,
                     normalizeText(inningType),
+                    normalizeText(batter),
+                    normalizeText(pitcher),
                     copyEvidence(payload)
             );
         }
@@ -32,6 +36,8 @@ public class AiEventCopyContextMapper {
                 normalizeText(eventType),
                 normalizeText(label),
                 inning,
+                null,
+                null,
                 null,
                 null
         );
