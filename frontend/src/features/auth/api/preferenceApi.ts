@@ -3,7 +3,7 @@ import apiClient from '../../../shared/api/httpClient';
 /*
  * 마이페이지에서 사용하는 관심팀 응답 타입입니다.
  *
- * 백엔드 GET /api/members/me/preferences 응답의 favoriteTeams 배열과 맞춥니다.
+ * 백엔드 GET /api/me/preferences 응답의 favoriteTeams 배열과 맞춥니다.
  */
 export interface FavoriteTeamResponse {
     /*
@@ -102,7 +102,7 @@ export const getMyPreferences =
     async (): Promise<UserPreferenceResponse> => {
         const response =
             await apiClient.get<UserPreferenceResponse>(
-                '/api/members/me/preferences',
+                '/api/me/preferences',
             );
 
         return response.data;
@@ -116,7 +116,7 @@ export const updateMyPreferences = async (
 ): Promise<UserPreferenceResponse> => {
     const response =
         await apiClient.put<UserPreferenceResponse>(
-            '/api/members/me/preferences',
+            '/api/me/preferences',
             request,
         );
 

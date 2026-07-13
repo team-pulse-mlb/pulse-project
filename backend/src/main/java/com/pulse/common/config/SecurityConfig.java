@@ -113,10 +113,24 @@ public class SecurityConfig {
                         // 비로그인 SSE 구독은 공개 (EventSource는 Authorization 헤더를 못 싣는다)
                         .requestMatchers("/api/sse").permitAll()
 
-                        // 현재 로그인 사용자 확인 API는 Access Token 필요
+                        /*
+                         * 로그인한 사용자 전용 API는 Access Token이 필요합니다.
+                         *
+                         * /api/members/me
+                         * - 현재 로그인한 회원 기본 정보 조회
+                         *
+                         * /api/me/**
+                         * - 관심팀 및 알림 수신 설정
+                         * - 알림함 목록 및 읽음 처리
+                         *
+                         * 현재 확정된 경로:
+                         * - GET·PUT /api/me/preferences
+                         * - /api/me/notifications
+                         */
                         .requestMatchers(
                                 "/api/members/me",
-                                "/api/members/me/**"
+                                "/api/members/me/**",
+                                "/api/me/**"
                         ).authenticated()
 
                         // 아직 다른 팀 API 차단 방지를 위해 나머지는 임시 허용
