@@ -48,5 +48,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # 호스트 bootRun이 http://localhost:8000으로 호출하는 AI 문구 서버.
+  # OPENAI_API_KEY가 비어 있으면 문구 생성은 실패하지만 앱 기동은 된다.
+  ai-service:
+    build: ../../ai-service
+    container_name: pulse-ai-service
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.2}
+    ports:
+      - "${AI_SERVICE_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pulse-pgdata:
