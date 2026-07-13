@@ -24,10 +24,20 @@ public class SseRelayConfig {
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(redisConnectionFactory);
-        container.addMessageListener(redisSignalRelay, List.of(
-                new ChannelTopic(RedisSignalChannels.RANKING),
-                new PatternTopic(RedisSignalChannels.GAME_PATTERN)
-        ));
+        container.addMessageListener(
+                redisSignalRelay,
+                List.of(
+                        new ChannelTopic(
+                                RedisSignalChannels.RANKING
+                        ),
+                        new PatternTopic(
+                                RedisSignalChannels.GAME_PATTERN
+                        ),
+                        new PatternTopic(
+                                RedisSignalChannels.NOTIFICATION_PATTERN
+                        )
+                )
+        );
         return container;
     }
 }

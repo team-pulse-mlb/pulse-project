@@ -81,4 +81,73 @@ class RedisSignalRelayTest {
                 body.getBytes(StandardCharsets.UTF_8)
         );
     }
+
+    @Test
+    @DisplayName(
+            "signal:notification:{userId} 수신 시 해당 사용자에게 notification_created로 중계한다"
+    )
+    void onMessage_shouldRelayNotificationCreated()
+            throws Exception {
+
+        // when
+        relay.onMessage(
+                message(
+                        "signal:notification:7",
+                        "501"
+                ),
+                null
+        );
+
+        // then
+        ArgumentCaptor<String> payloadCaptor =
+                ArgumentCaptor.forClass(String.class);
+
+        verify(emitterRegistry)
+                .sendToUser(
+                        eq(7L),
+                        eq("notification_created"),
+                        payloadCaptor.capture()
+                );
+
+        JsonNode payload =
+                objectMapper.readTree(
+                        payloadCaptor.getValue()
+                );
+
+        assertThat(
+                payload.get("notificationId").asLong()
+        ).isEqualTo(501L);
+    }
+
+    @Test
+    @DisplayName(
+            "사용자 ID를 파싱할 수 없는 notification 채널은 무시한다"
+    )
+    void onMessage_shouldIgnoreMalformedNotificationUserId() {
+        relay.onMessage(
+                message(
+                        "signal:notification:not-a-number",
+                        "501"
+                ),
+                null
+        );
+
+        verifyNoInteractions(emitterRegistry);
+    }
+
+    @Test
+    @DisplayName(
+            "notificationId를 파싱할 수 없는 알림 신호는 무시한다"
+    )
+    void onMessage_shouldIgnoreMalformedNotificationId() {
+        relay.onMessage(
+                message(
+                        "signal:notification:7",
+                        "not-a-number"
+                ),
+                null
+        );
+
+        verifyNoInteractions(emitterRegistry);
+    }
 }
