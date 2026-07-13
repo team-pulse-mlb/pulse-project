@@ -521,3 +521,11 @@
     width: 100%;
   }
 }
+
+/* 관심팀 선택 카드 안의 MLB 팀 로고 */
+.signup-team-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    display: block;
+}

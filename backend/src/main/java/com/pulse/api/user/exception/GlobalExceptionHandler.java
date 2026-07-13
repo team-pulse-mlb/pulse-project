@@ -113,4 +113,36 @@ public class GlobalExceptionHandler {
     }
 
 
+    // 관심팀 ID가 잘못되었거나 존재하지 않는 팀이 포함된 경우
+    @ExceptionHandler(InvalidFavoriteTeamException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidFavoriteTeam(
+            InvalidFavoriteTeamException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "INVALID_FAVORITE_TEAM",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
+
+
+    // 관심팀 선택 개수가 정책상 허용 범위를 넘은 경우
+    @ExceptionHandler(FavoriteTeamLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleFavoriteTeamLimitExceeded(
+            FavoriteTeamLimitExceededException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "TOO_MANY_FAVORITE_TEAMS",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
+
+
 }

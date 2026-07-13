@@ -1,0 +1,650 @@
+.mypage-shell {
+    min-height: 100vh;
+    padding: 40px 20px;
+    background:
+        radial-gradient(circle at top left, #eef4ff 0, transparent 280px),
+        #f4f6fb;
+}
+
+.mypage-layout {
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 24px;
+    max-width: 1120px;
+    margin: 0 auto;
+}
+
+.mypage-sidebar {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 22px 16px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    height: fit-content;
+    position: sticky;
+    top: 24px;
+}
+
+.mypage-sidebar-logo {
+    color: #2563eb;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    margin-bottom: 24px;
+    padding-left: 8px;
+}
+
+.mypage-menu {
+    display: grid;
+    gap: 10px;
+}
+
+.mypage-menu button {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 11px 14px;
+    background: transparent;
+    color: #374151;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+}
+
+.mypage-menu button:hover {
+    background: #f3f6ff;
+}
+
+.mypage-menu button.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.mypage-content {
+    min-width: 0;
+}
+
+.mypage-content-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    padding: 8px 4px;
+}
+
+.mypage-eyebrow {
+    margin: 0 0 6px;
+    color: #2563eb;
+    font-weight: 900;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+}
+
+.mypage-content-header h1 {
+    margin: 0 0 8px;
+    color: #111827;
+    font-size: 30px;
+}
+
+.mypage-content-header p {
+    margin: 0;
+    color: #6b7280;
+}
+
+.mypage-primary-button {
+    border: 0;
+    border-radius: 14px;
+    padding: 12px 18px;
+    background: #2563eb;
+    color: #ffffff;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.mypage-primary-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.mypage-card {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 26px;
+    margin-bottom: 20px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.mypage-card h2 {
+    margin: 0 0 18px;
+    color: #111827;
+    font-size: 22px;
+}
+
+.mypage-card-title-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.mypage-card-title-row h2 {
+    margin-bottom: 6px;
+}
+
+.mypage-card-title-row p {
+    margin: 0;
+    color: #6b7280;
+}
+
+.mypage-card-title-row > strong {
+    color: #2563eb;
+}
+
+.mypage-account-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.mypage-account-grid div {
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 18px;
+    background: #f9fafb;
+}
+
+.mypage-account-grid span {
+    display: block;
+    margin-bottom: 8px;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.mypage-account-grid strong {
+    color: #111827;
+    font-size: 15px;
+    word-break: break-all;
+}
+
+.mypage-account-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.mypage-account-actions button {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 10px 14px;
+    background: #f9fafb;
+    color: #9ca3af;
+    font-weight: 700;
+}
+
+.mypage-selected-strip {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+}
+
+.mypage-selected-team {
+    min-width: 260px;
+    border: 1px solid #dbeafe;
+    border-radius: 20px;
+    padding: 18px;
+    background: linear-gradient(135deg, #eff6ff, #ffffff);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.mypage-selected-logo {
+    width: 62px;
+    height: 62px;
+    border-radius: 999px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px #e5e7eb;
+}
+
+.mypage-selected-logo img {
+    width: 46px;
+    height: 46px;
+    object-fit: contain;
+}
+
+.mypage-selected-logo span {
+    color: #1d4ed8;
+    font-weight: 900;
+}
+
+.mypage-selected-team strong {
+    display: block;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.mypage-selected-team span {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.mypage-team-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.mypage-team-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 14px;
+    background: #ffffff;
+    cursor: pointer;
+    text-align: left;
+}
+
+.mypage-team-card:hover {
+    border-color: #93c5fd;
+    background: #f8fbff;
+}
+
+.mypage-team-card.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.mypage-team-logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.mypage-team-logo img {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+}
+
+.mypage-team-logo span {
+    color: #374151;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.mypage-team-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.mypage-team-text strong {
+    display: block;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.mypage-team-text span {
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.mypage-team-card em {
+    color: #2563eb;
+    font-style: normal;
+    font-weight: 900;
+}
+
+.mypage-notification-list {
+    display: grid;
+    gap: 12px;
+}
+
+.mypage-notification-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    width: 100%;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 18px;
+    background: #ffffff;
+    cursor: pointer;
+    text-align: left;
+}
+
+.mypage-notification-card.main {
+    background: #f9fafb;
+}
+
+.mypage-notification-card.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.mypage-notification-card strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #111827;
+}
+
+.mypage-notification-card span {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.mypage-notification-card em {
+    color: #2563eb;
+    font-style: normal;
+    font-weight: 900;
+}
+
+.mypage-empty-box {
+    border: 1px dashed #cbd5e1;
+    border-radius: 18px;
+    padding: 24px;
+    background: #f8fafc;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+.mypage-sse-note {
+    margin-top: 18px;
+    border-radius: 18px;
+    padding: 18px;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+
+.mypage-sse-note strong {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.mypage-sse-note p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.mypage-message {
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-weight: 700;
+}
+
+.mypage-message.error {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.mypage-message.success {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.mypage-loading-card {
+    max-width: 760px;
+    margin: 80px auto;
+    border-radius: 24px;
+    padding: 32px;
+    background: #ffffff;
+    color: #6b7280;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 860px) {
+    .mypage-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .mypage-sidebar {
+        position: static;
+    }
+
+    .mypage-menu {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mypage-content-header {
+        flex-direction: column;
+    }
+
+    .mypage-primary-button {
+        width: 100%;
+    }
+
+    .mypage-account-grid,
+    .mypage-team-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.mypage-account-simple {
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 18px;
+    background: #f9fafb;
+}
+
+.mypage-account-simple span {
+    display: block;
+    margin-bottom: 8px;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.mypage-account-simple strong {
+    color: #111827;
+    font-size: 16px;
+    word-break: break-all;
+}
+
+.mypage-text-button {
+    border: 0;
+    background: transparent;
+    color: #2563eb;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.mypage-text-button:hover {
+    text-decoration: underline;
+}
+
+/*
+ * 계정 정보 탭에서 보여주는 관심팀 미리보기 영역입니다.
+ *
+ * 직접 수정하는 영역이 아니라 현재 선택 상태를 보여주는 읽기 전용 카드입니다.
+ * 관심팀이 여러 개면 가로 스크롤로 넘겨볼 수 있습니다.
+ */
+.mypage-preview-strip {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding: 4px 2px 10px;
+    scroll-snap-type: x mandatory;
+}
+
+.mypage-preview-team-card {
+    min-width: 260px;
+    border: 1px solid #dbeafe;
+    border-radius: 20px;
+    padding: 18px;
+    background: linear-gradient(135deg, #eff6ff, #ffffff);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    scroll-snap-align: start;
+}
+
+.mypage-preview-team-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 999px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px #e5e7eb;
+}
+
+.mypage-preview-team-logo img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+}
+
+.mypage-preview-team-logo span {
+    color: #1d4ed8;
+    font-weight: 900;
+}
+
+.mypage-preview-team-card strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #111827;
+}
+
+.mypage-preview-team-card span {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/*
+ * 계정 정보 탭에서 보여주는 현재 알림 설정 미리보기입니다.
+ *
+ * 버튼처럼 보이지 않게 div로 만들었기 때문에 직접 수정은 불가능합니다.
+ */
+.mypage-readonly-notification-list {
+    display: grid;
+    gap: 12px;
+}
+
+.mypage-readonly-notification-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 18px;
+    background: #f9fafb;
+}
+
+.mypage-readonly-notification-card.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.mypage-readonly-notification-card strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #111827;
+}
+
+.mypage-readonly-notification-card span {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.mypage-readonly-notification-card em {
+    min-width: 48px;
+    border-radius: 999px;
+    padding: 6px 10px;
+    background: #e5e7eb;
+    color: #6b7280;
+    font-style: normal;
+    font-weight: 900;
+    text-align: center;
+}
+
+.mypage-readonly-notification-card.active em {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.mypage-account-simple {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 18px;
+    background: #f9fafb;
+}
+
+.mypage-account-email-block span {
+    display: block;
+    margin-bottom: 8px;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.mypage-account-email-block strong {
+    color: #111827;
+    font-size: 16px;
+    word-break: break-all;
+}
+
+.mypage-account-inline-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.mypage-account-inline-actions button {
+    border: 1px solid #dbeafe;
+    border-radius: 12px;
+    padding: 10px 14px;
+    background: #ffffff;
+    color: #2563eb;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.mypage-account-inline-actions button:hover {
+    background: #eff6ff;
+}
+
+.mypage-account-inline-actions button.danger {
+    border-color: #fee2e2;
+    color: #dc2626;
+}
+
+.mypage-account-inline-actions button.danger:hover {
+    background: #fef2f2;
+}
+
+@media (max-width: 768px) {
+    .mypage-account-simple {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .mypage-account-inline-actions {
+        width: 100%;
+    }
+
+    .mypage-account-inline-actions button {
+        flex: 1;
+    }
+}
