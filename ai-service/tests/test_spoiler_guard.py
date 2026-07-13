@@ -1,51 +1,59 @@
 import unittest
 
-from app.services.spoiler_guard import (
-    DEFAULT_FALLBACK_TEXT,
-    check_spoiler_text,
-)
+from app.schemas.ai_schema import AiCopyMode, FinalScore, SafeContext
+from app.services.spoiler_guard import check_spoiler_text
 
 
 class SpoilerGuardTestCase(unittest.TestCase):
-    def test_safe_text_passes(self):
-        result = check_spoiler_text("지금 확인해볼 만한 흐름이 감지됐습니다.")
+    def test_protected_safe_text_passes(self):
+        result = check_spoiler_text(
+            "지금 확인해볼 만한 흐름이 감지됐습니다.",
+            mode=AiCopyMode.PROTECTED,
+        )
 
         self.assertTrue(result["spoiler_safe"])
         self.assertEqual(result["violations"], [])
-        self.assertIsNone(result["fallback_text"])
+        self.assertNotIn("fallback_text", result)
 
-    def test_forbidden_word_is_blocked(self):
-        result = check_spoiler_text("홈런이 나온 경기입니다.")
+    def test_protected_forbidden_word_is_blocked(self):
+        result = check_spoiler_text(
+            "홈런이 나온 경기입니다.",
+            mode=AiCopyMode.PROTECTED,
+        )
 
         self.assertFalse(result["spoiler_safe"])
         self.assertIn("FORBIDDEN_WORD:홈런", result["violations"])
-        self.assertEqual(result["fallback_text"], DEFAULT_FALLBACK_TEXT)
+        self.assertNotIn("fallback_text", result)
 
-    def test_score_pattern_is_blocked(self):
-        result = check_spoiler_text("경기는 3-2 흐름입니다.")
+    def test_protected_score_pattern_is_blocked(self):
+        result = check_spoiler_text(
+            "경기는 3-2 흐름입니다.",
+            mode=AiCopyMode.PROTECTED,
+        )
 
         self.assertFalse(result["spoiler_safe"])
         self.assertIn("SCORE_PATTERN", result["violations"])
-        self.assertEqual(result["fallback_text"], DEFAULT_FALLBACK_TEXT)
+        self.assertNotIn("fallback_text", result)
 
-    def test_multiple_violations_are_detected(self):
-        result = check_spoiler_text("역전 홈런으로 5:4가 됐습니다.")
+    def test_protected_multiple_violations_are_detected(self):
+        result = check_spoiler_text(
+            "역전 홈런으로 5:4가 됐습니다.",
+            mode=AiCopyMode.PROTECTED,
+        )
 
         self.assertFalse(result["spoiler_safe"])
         self.assertIn("FORBIDDEN_WORD:역전", result["violations"])
         self.assertIn("FORBIDDEN_WORD:홈런", result["violations"])
         self.assertIn("SCORE_PATTERN", result["violations"])
-        self.assertEqual(result["fallback_text"], DEFAULT_FALLBACK_TEXT)
+        self.assertNotIn("fallback_text", result)
 
-    def test_policy_forbidden_words_are_blocked(self):
+    def test_protected_policy_forbidden_words_are_blocked(self):
         forbidden_words = [
             "홈런",
             "역전",
             "끝내기",
-            "실점 위기",
             "홈팀 리드",
             "원정팀 리드",
-            "점수 차",
             "결말",
             "결과",
             "스코어",
@@ -54,31 +62,134 @@ class SpoilerGuardTestCase(unittest.TestCase):
 
         for word in forbidden_words:
             with self.subTest(word=word):
-                result = check_spoiler_text(f"{word}가 포함된 문구입니다.")
+                result = check_spoiler_text(
+                    f"{word}가 포함된 문구입니다.",
+                    mode=AiCopyMode.PROTECTED,
+                )
 
                 self.assertFalse(result["spoiler_safe"])
-                self.assertIn(f"FORBIDDEN_WORD:{word}", result["violations"])
-                self.assertEqual(result["fallback_text"], DEFAULT_FALLBACK_TEXT)
+                self.assertIn(
+                    f"FORBIDDEN_WORD:{word}",
+                    result["violations"],
+                )
+                self.assertNotIn("fallback_text", result)
 
-    def test_policy_score_patterns_are_blocked(self):
+    def test_protected_score_patterns_are_blocked(self):
         unsafe_texts = [
             "3대2 흐름입니다.",
             "3:2 흐름입니다.",
             "3-2 흐름입니다.",
             "3점 차입니다.",
-            "몇 점 차인지 궁금한 경기입니다.",
         ]
 
         for text in unsafe_texts:
             with self.subTest(text=text):
-                result = check_spoiler_text(text)
+                result = check_spoiler_text(
+                    text,
+                    mode=AiCopyMode.PROTECTED,
+                )
 
                 self.assertFalse(result["spoiler_safe"])
                 self.assertIn("SCORE_PATTERN", result["violations"])
-                self.assertEqual(result["fallback_text"], DEFAULT_FALLBACK_TEXT)
+                self.assertNotIn("fallback_text", result)
+
+    def test_protected_allows_scoring_position_word(self):
+        result = check_spoiler_text(
+            "7회 득점권 승부가 이어졌습니다.",
+            mode=AiCopyMode.PROTECTED,
+        )
+
+        self.assertTrue(result["spoiler_safe"])
+        self.assertEqual(result["violations"], [])
+
+    def test_revealed_score_matching_context_passes(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+        )
+
+        result = check_spoiler_text(
+            "홈팀이 5-3으로 승리했습니다.",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertTrue(result["spoiler_safe"])
+        self.assertEqual(result["violations"], [])
+
+    def test_revealed_score_mismatch_is_blocked(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+        )
+
+        result = check_spoiler_text(
+            "홈팀이 4-3으로 승리했습니다.",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertIn("SCORE_MISMATCH", result["violations"])
+
+    def test_revealed_score_without_context_is_blocked(self):
+        result = check_spoiler_text(
+            "홈팀이 5-3으로 승리했습니다.",
+            mode=AiCopyMode.REVEALED,
+            safe_context=None,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertIn("SCORE_CONTEXT_MISSING", result["violations"])
+
+    def test_revealed_winner_mismatch_is_blocked(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="away",
+        )
+
+        result = check_spoiler_text(
+            "홈팀이 승리했습니다.",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertIn("WINNER_MISMATCH", result["violations"])
+
+    def test_revealed_unsupported_play_result_is_blocked(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+        )
+
+        result = check_spoiler_text(
+            "홈런으로 분위기가 바뀐 경기였습니다.",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertIn("FORBIDDEN_WORD:홈런", result["violations"])
+
+    def test_invalid_text_is_blocked(self):
+        result = check_spoiler_text(
+            "",
+            mode=AiCopyMode.PROTECTED,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertEqual(result["violations"], ["INVALID_TEXT"])
+
+    def test_invalid_mode_is_blocked(self):
+        result = check_spoiler_text(
+            "안전한 문구입니다.",
+            mode="UNKNOWN",
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertEqual(result["violations"], ["UNSUPPORTED_MODE"])
 
 
 if __name__ == "__main__":
     unittest.main()
-
-    
