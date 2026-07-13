@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +30,7 @@ public class SimulationBaseballDataSource implements BaseballDataSource {
     private final Clock clock;
     private volatile Timeline timeline;
 
+    @Autowired
     public SimulationBaseballDataSource(SimulationProperties properties, GameRepository gameRepository,
                                         PlayRepository playRepository, SimulationArchiveLoader archiveLoader) {
         this(properties, gameRepository, playRepository, archiveLoader, Clock.systemUTC());
