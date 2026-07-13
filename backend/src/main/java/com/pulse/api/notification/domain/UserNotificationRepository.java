@@ -9,7 +9,6 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * user_notifications 테이블에 접근하는 Repository입니다.
@@ -21,46 +20,8 @@ import java.util.UUID;
  * 4. 현재 사용자의 모든 미읽음 알림 처리
  */
 public interface UserNotificationRepository
-        extends JpaRepository<UserNotification, Long> {
-
-    /**
-     * 사용자별 알림을 중복 없이 저장합니다.
-     *
-     * RabbitMQ는 같은 메시지를 다시 전달할 수 있으므로
-     * event_id + user_id 조합이 이미 존재하면
-     * PostgreSQL ON CONFLICT DO NOTHING으로 저장을 건너뜁니다.
-     *
-     * 반환값:
-     * - 1: 새로운 알림 저장
-     * - 0: 기존 알림과 중복되어 저장하지 않음
-     */
-    @Modifying
-    @Query(
-            value = """
-                    INSERT INTO user_notifications (
-                        event_id,
-                        user_id,
-                        message,
-                        read_at,
-                        created_at
-                    )
-                    VALUES (
-                        :eventId,
-                        :userId,
-                        :message,
-                        NULL,
-                        :createdAt
-                    )
-                    ON CONFLICT (event_id, user_id) DO NOTHING
-                    """,
-            nativeQuery = true
-    )
-    int insertIfAbsent(
-            @Param("eventId") UUID eventId,
-            @Param("userId") Long userId,
-            @Param("message") String message,
-            @Param("createdAt") Instant createdAt
-    );
+        extends JpaRepository<UserNotification, Long>,
+        UserNotificationInsertRepository {
 
     /**
      * 특정 사용자의 최근 알림을 최신순으로 조회합니다.

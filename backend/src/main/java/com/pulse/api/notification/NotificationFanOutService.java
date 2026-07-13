@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalLong;
 
 /**
  * 하나의 알림 원본 이벤트를 사용자별 알림으로 펼쳐 저장하는 서비스입니다.
@@ -86,6 +87,12 @@ public class NotificationFanOutService {
     private final UserNotificationRepository userNotificationRepository;
 
     /**
+     * 새 사용자 알림이 DB에 저장된 뒤
+     * Redis 알림 생성 신호를 발행합니다.
+     */
+    private final NotificationSignalPublisher notificationSignalPublisher;
+
+    /**
      * RabbitMQ에서 받은 알림 이벤트를 사용자별 알림으로 저장합니다.
      *
      * 처리 순서:
@@ -148,18 +155,46 @@ public class NotificationFanOutService {
 
         for (Member target : targets) {
             /*
-             * 반환값:
-             * 1 → 새 알림 저장
-             * 0 → 이미 같은 eventId + userId 알림이 존재함
+             * 새 알림이 저장되면 생성된 notificationId가 반환됩니다.
+             *
+             * 같은 eventId + userId가 이미 존재한다면
+             * OptionalLong.empty()가 반환됩니다.
              */
-            int inserted = userNotificationRepository.insertIfAbsent(
-                    event.eventId(),
-                    target.getUserId(),
-                    event.message(),
-                    createdAt
-            );
+            OptionalLong insertedNotificationId =
+                    userNotificationRepository
+                            .insertIfAbsentReturningId(
+                                    event.eventId(),
+                                    target.getUserId(),
+                                    event.message(),
+                                    createdAt
+                            );
 
-            insertedCount += inserted;
+            if (insertedNotificationId.isPresent()) {
+                insertedCount++;
+
+                long notificationId =
+                        insertedNotificationId.getAsLong();
+
+                long targetUserId =
+                        target.getUserId();
+
+                /*
+                 * 실제 Redis 발행은 지금 즉시 실행되지 않습니다.
+                 *
+                 * NotificationSignalPublisher 내부의 AfterCommitExecutor가
+                 * 현재 트랜잭션의 COMMIT 완료 후 발행합니다.
+                 */
+                notificationSignalPublisher.publishCreated(
+                        targetUserId,
+                        notificationId
+                );
+
+                log.debug(
+                        "사용자 알림 저장 및 신호 예약: userId={}, notificationId={}",
+                        targetUserId,
+                        notificationId
+                );
+            }
         }
 
         log.info(

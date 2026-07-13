@@ -19,10 +19,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -52,6 +54,9 @@ class NotificationFanOutServiceTest {
 
     @Mock
     private UserNotificationRepository userNotificationRepository;
+
+    @Mock
+    private NotificationSignalPublisher notificationSignalPublisher;
 
     @InjectMocks
     private NotificationFanOutService notificationFanOutService;
@@ -123,13 +128,16 @@ class NotificationFanOutServiceTest {
         when(secondMember.getUserId()).thenReturn(2L);
 
         when(
-                userNotificationRepository.insertIfAbsent(
+                userNotificationRepository.insertIfAbsentReturningId(
                         eq(eventId),
                         any(Long.class),
                         eq(event.message()),
                         any(Instant.class)
                 )
-        ).thenReturn(1);
+        ).thenReturn(
+                OptionalLong.of(501L),
+                OptionalLong.of(502L)
+        );
 
         // when
         notificationFanOutService.fanOut(event);
@@ -163,7 +171,7 @@ class NotificationFanOutServiceTest {
                 );
 
         verify(userNotificationRepository)
-                .insertIfAbsent(
+                .insertIfAbsentReturningId(
                         eq(eventId),
                         eq(1L),
                         eq(event.message()),
@@ -171,11 +179,27 @@ class NotificationFanOutServiceTest {
                 );
 
         verify(userNotificationRepository)
-                .insertIfAbsent(
+                .insertIfAbsentReturningId(
                         eq(eventId),
                         eq(2L),
                         eq(event.message()),
                         any(Instant.class)
+                );
+
+        /*
+         * 새로 저장된 각 사용자 알림의 ID를 이용해
+         * Redis 알림 생성 신호가 예약됐는지 확인합니다.
+         */
+        verify(notificationSignalPublisher)
+                .publishCreated(
+                        1L,
+                        501L
+                );
+
+        verify(notificationSignalPublisher)
+                .publishCreated(
+                        2L,
+                        502L
                 );
     }
 
@@ -220,13 +244,15 @@ class NotificationFanOutServiceTest {
         when(targetMember.getUserId()).thenReturn(3L);
 
         when(
-                userNotificationRepository.insertIfAbsent(
+                userNotificationRepository.insertIfAbsentReturningId(
                         eq(eventId),
                         eq(3L),
                         eq(event.message()),
                         any(Instant.class)
                 )
-        ).thenReturn(1);
+        ).thenReturn(
+                OptionalLong.of(503L)
+        );
 
         // when
         notificationFanOutService.fanOut(event);
@@ -250,21 +276,27 @@ class NotificationFanOutServiceTest {
                 );
 
         verify(userNotificationRepository)
-                .insertIfAbsent(
+                .insertIfAbsentReturningId(
                         eq(eventId),
                         eq(3L),
                         eq(event.message()),
                         any(Instant.class)
                 );
+
+        verify(notificationSignalPublisher)
+                .publishCreated(
+                        3L,
+                        503L
+                );
     }
 
     /**
      * 같은 eventId + userId 알림이 이미 존재해
-     * insertIfAbsent()가 0을 반환하더라도,
+     * insertIfAbsentReturningId()가 OptionalLong.empty()를 반환하더라도,
      * 서비스가 오류 없이 처리를 마치는지 검증합니다.
      *
-     * 실제 중복 차단은 PostgreSQL의
-     * ON CONFLICT (event_id, user_id) DO NOTHING이 담당합니다.
+     * 빈 OptionalLong은 같은 event_id + user_id가 이미 존재해서
+     * 새로운 알림 ID가 생성되지 않았다는 뜻입니다.
      */
     @Test
     void fanOut_shouldCompleteWhenNotificationAlreadyExists() {
@@ -303,17 +335,19 @@ class NotificationFanOutServiceTest {
         when(targetMember.getUserId()).thenReturn(4L);
 
         /*
-         * 0은 같은 event_id + user_id가 이미 존재해서
-         * INSERT가 실행되지 않았다는 뜻입니다.
+         * OptionalLong.empty()는 같은 event_id + user_id가 이미 존재해서
+         * 새로운 알림 ID가 생성되지 않았다는 뜻입니다.
          */
         when(
-                userNotificationRepository.insertIfAbsent(
+                userNotificationRepository.insertIfAbsentReturningId(
                         eq(eventId),
                         eq(4L),
                         eq(event.message()),
                         any(Instant.class)
                 )
-        ).thenReturn(0);
+        ).thenReturn(
+                OptionalLong.empty()
+        );
 
         // when & then
         assertDoesNotThrow(
@@ -321,11 +355,17 @@ class NotificationFanOutServiceTest {
         );
 
         verify(userNotificationRepository)
-                .insertIfAbsent(
+                .insertIfAbsentReturningId(
                         eq(eventId),
                         eq(4L),
                         eq(event.message()),
                         any(Instant.class)
+                );
+
+        verify(notificationSignalPublisher, never())
+                .publishCreated(
+                        anyLong(),
+                        anyLong()
                 );
     }
 }
