@@ -16,7 +16,7 @@ function HeroGameCard({ game }: { game: GameCardData }) {
     <Link
       to={`/games/${game.gameId}`}
       state={{ fromCard: true }}
-      className="relative flex h-full flex-col justify-between overflow-hidden rounded-hero bg-gradient-to-br from-[#0B2559] to-[#04122E] p-7 shadow-hero transition-transform hover:-translate-y-0.5"
+      className="relative flex h-full min-h-44 flex-col overflow-hidden rounded-hero bg-gradient-to-br from-[#0B2559] to-[#04122E] p-7 shadow-hero transition-transform hover:-translate-y-0.5 md:min-h-[280px]"
     >
       <div
         aria-hidden="true"
@@ -27,19 +27,17 @@ function HeroGameCard({ game }: { game: GameCardData }) {
         <StatusBadge status={game.status} label={badgeLabel} />
       </div>
 
-      <div className="relative mt-8">
-        <p className="font-display text-[44px] font-bold leading-tight text-white">
-          {game.awayLabel}
-          <span className="mx-3 text-[28px] text-white/40">@</span>
-          {game.homeLabel}
-        </p>
+      <p className="absolute inset-x-7 top-1/2 -translate-y-1/2 font-display text-[44px] font-bold leading-tight text-white">
+        {game.awayLabel}
+        <span className="mx-3 text-[28px] text-white/40">@</span>
+        {game.homeLabel}
+      </p>
 
-        {game.metaText && (
-          <span className="mt-4 inline-block rounded-full bg-white/10 px-3.5 py-1.5 text-sm font-semibold text-white">
-            {game.metaText}
-          </span>
-        )}
-      </div>
+      {game.metaText && (
+        <span className="absolute bottom-7 left-7 rounded-full bg-white/10 px-3.5 py-1.5 text-sm font-semibold text-white">
+          {game.metaText}
+        </span>
+      )}
     </Link>
   );
 }
