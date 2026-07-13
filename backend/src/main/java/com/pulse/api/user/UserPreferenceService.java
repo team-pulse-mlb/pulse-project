@@ -110,12 +110,27 @@ public class UserPreferenceService {
                 );
 
         /*
-         * 기존 관심팀을 모두 삭제한 뒤,
-         * 요청으로 들어온 관심팀 목록을 새로 저장한다.
+         * 기존 관심팀을 삭제합니다.
          */
         userFavoriteTeamRepository.deleteByMemberUserId(
                 member.getUserId()
         );
+
+        /*
+         * 같은 트랜잭션 안에서 기존 관심팀과 일부 겹치는 팀을
+         * 다시 INSERT할 수 있습니다.
+         *
+         * 예:
+         * 기존 관심팀: [147, 119]
+         * 새 관심팀:   [119, 110]
+         *
+         * DELETE SQL이 실제 DB에 반영되기 전에 INSERT가 실행되면
+         * 아직 남아 있는 (user_id, 119)와 충돌할 수 있습니다.
+         *
+         * flush()를 호출해 기존 관심팀 DELETE를 먼저 DB에 반영한 후
+         * 새로운 관심팀 INSERT를 진행하도록 순서를 보장합니다.
+         */
+        userFavoriteTeamRepository.flush();
 
         if (!selectedTeamIds.isEmpty()) {
             List<Team> teams = teamRepository.findAllById(

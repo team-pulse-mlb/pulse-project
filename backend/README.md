@@ -1,147 +1,118 @@
 # PULSE 백엔드
 
-Java 21·Spring Boot 단일 프로젝트다. 외부 MLB API 수집, 관전 점수 계산, PostgreSQL·Redis 저장, REST API 제공을 담당한다.
-
-- 폴러 기본값: 비활성화
-- 활성화 시 기본 주기: 20초
-- 기본 서버 포트: `8080`
-
-## 실행
-
-요구사항:
-
-- JDK 21
-- Docker·Docker Compose
-
-1. 저장소 루트에서 [PostgreSQL과 Redis](../infra/README.md)를 실행한다.
-
-   ```powershell
-   Copy-Item .env.example .env
-   docker compose -f infra/docker-compose.yml --env-file .env up -d
-   ```
-
-2. 필요한 환경 변수를 셸이나 IDE 실행 구성에 설정한다.
-
-   | 변수 | 기본값 | 용도 |
-   |---|---|---|
-   | `POSTGRES_HOST` | `localhost` | PostgreSQL 호스트 |
-   | `POSTGRES_PORT` | `5432` | PostgreSQL 포트 |
-   | `POSTGRES_DB` | `pulse` | DB 이름 |
-   | `POSTGRES_USER` | `pulse` | DB 사용자 |
-   | `POSTGRES_PASSWORD` | `pulse` | DB 비밀번호 |
-   | `REDIS_HOST` | `localhost` | Redis 호스트 |
-   | `REDIS_PORT` | `6379` | Redis 포트 |
-   | `RABBITMQ_HOST` | `localhost` | RabbitMQ 호스트 |
-   | `RABBITMQ_PORT` | `5672` | RabbitMQ 포트 |
-   | `RABBITMQ_USER` | `pulse` | RabbitMQ 사용자 |
-   | `RABBITMQ_PASSWORD` | `pulse` | RabbitMQ 비밀번호 |
-   | `JWT_SECRET` | 없음 | JWT 서명 키, 필수 |
-   | `BDL_API_KEY` | 빈 값 | 외부 MLB API 키 |
-   | `PULSE_POLLER_ENABLED` | `false` | 라이브 폴러 활성화 |
-
-   루트 `.env`는 Docker Compose용이므로 Gradle이 자동으로 읽지 않는다. 전체 변수는 [`.env.example`](../.env.example)과 [`application.yml`](src/main/resources/application.yml)을 확인한다.
-
-3. 애플리케이션을 실행한다.
-
-   ```powershell
-   cd backend
-   $env:JWT_SECRET = "로컬에서만-사용할-충분히-긴-임의값"
-   .\gradlew.bat bootRun
-   ```
-
-   macOS·Linux는 `./gradlew bootRun`을 사용한다.
-
-4. 응답을 확인한다.
-
-   ```bash
-   curl "http://localhost:8080/api/games"
-   curl "http://localhost:8080/actuator/health"
-   ```
-
-## 프로필과 Flyway
-
-| 구분 | Flyway | Hibernate |
-|---|---|---|
-| 기본 로컬 설정 | 비활성화 | `ddl-auto=update` |
-| `prod` 프로필 | 활성화 | `ddl-auto=none` |
-
-```powershell
-.\gradlew.bat bootRun --args="--spring.profiles.active=prod"
-```
-
-- `prod`는 운영 DB 연결 정보와 전체 환경 변수가 준비된 환경에서만 사용한다.
-- 시작 시 V1~V7 중 미적용 마이그레이션을 순서대로 실행한다.
+Java 21·Spring Boot 기반 백엔드다. MLB 경기 수집, 관전 점수 계산, 실시간 추천 순위, REST API·SSE를 담당한다.
 
 ## 패키지 구조
 
 ```text
 com.pulse/
-├── api/
-│   ├── home/             # 홈 목록·실시간 랭킹 API
-│   └── user/             # 회원·인증·이메일 API
-├── poller/               # 경기·플레이·선발·순위 수집
-├── scorer/               # 관전 점수·이벤트·종료 처리
-├── ranking/              # Redis 추천 순위
-├── replay/
-│   ├── migration/        # S3 원본 데이터 이관
-│   └── rescore/          # 과거 데이터 재점수화
-├── common/               # 외부 API·설정·메시지·트랜잭션
-└── domain/               # 엔티티·저장소
+├── api/                 REST API·SSE
+│   ├── home/            홈 경기 목록·실시간 랭킹
+│   ├── sse/             Redis 신호의 SSE 중계
+│   └── user/            회원·인증
+├── poller/              MLB 경기·플레이 수집
+├── scorer/              관전 점수·이벤트 계산
+├── ranking/             Redis 실시간 추천 순위
+├── replay/              이관·재점수화·백테스트
+├── common/              외부 API·설정·메시지
+└── domain/              엔티티·Repository
 ```
-
-현재 경기 상세 컨트롤러·조회 서비스는 `api` 바로 아래에 있다. 기능 확장 시 `api.gamedetail` 경계를 따른다.
-
-## 데이터 흐름
 
 ```text
-외부 MLB API
-  → poller
-  → PostgreSQL games·plays
-  → RabbitMQ score.tasks
-  → scorer의 watch_score·game_events
-  → ranking의 Redis 추천 순위
-  → REST API
-  → frontend
+MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API·SSE
 ```
 
-- 상세 구조: [아키텍처](../docs/design/ARCHITECTURE.md)
-- 수집·계산 순서: [데이터 파이프라인](../docs/design/DATA_PIPELINE.md)
-- 현재 브랜치에는 프론트엔드 SSE 소비 훅과 설계 계약만 있고 백엔드 SSE 엔드포인트는 없다.
+## 기능별 주요 파일
 
-## DB 마이그레이션
+| 기능 | 진입점 | 로직 구현 |
+|---|---|---|
+| 홈 경기 목록 | `api/home/HomeGameController.java` | `api/home/HomeQueryService.java` |
+| 실시간 추천 순위 | `api/home/HomeRankingController.java` | `ranking/RankingService.java` |
+| 경기 상세·펄스 그래프 | `api/GameController.java` | `api/GameQueryService.java`, `scorer/TensionCurveQueryService.java` |
+| SSE | `api/sse/SseController.java` | `api/sse/RedisSignalRelay.java` |
+| 점수 계산 | `scorer/ScoreTaskListener.java` | `scorer/LiveScoringService.java`, `scorer/ScoreCalculator.java` |
+| 경기 수집 | `poller/` | `common/client/` |
+| 알림 발행 | `scorer/SurgeDetector.java` | `common/message/NotificationOutboxDispatcher.java` |
 
-| 버전 | 내용 |
-|---|---|
-| V1 | 운영 DB 기준선 |
-| V2 | 경기 이벤트·경기 전 입력 스냅샷 |
-| V3 | 홈·원정 팀 이름·약칭 |
-| V4 | 최근 10경기 전적 타입 교정 |
-| V5 | 보호·공개 이벤트 문구·팀 라벨 백필 |
-| V6 | 공개 이벤트 타입 소문자 통일 |
-| V7 | 사용자 설정·관심 팀·MLB 30팀 시드 |
+## 시뮬레이션
 
-- 위치: `src/main/resources/db/migration/`
-- V7은 팀 마스터 시드만 포함하며 전체 데모 경기 시드는 없다.
-- 스키마 기준: [DB 스키마](../docs/design/DB_SCHEMA.md)
+시뮬레이션은 로컬 DB의 과거 경기를 복제해 `poller → RabbitMQ → scorer → Redis/SSE` 흐름을 재현한다.
 
-## 테스트
+시뮬레이션 스크립트가 별도의 백엔드를 8080 포트로 실행하므로, IntelliJ에서 실행 중인 `PulseApplication`을 먼저 중지한다. Docker 컨테이너는 중지하지 않는다.
+
+IntelliJ에서 `pulse-project/`를 연 상태의 저장소 루트 터미널에서 실행한다.
+
+```bash
+bash backend/scripts/run-simulation.sh
+```
+
+스크립트가 다음 작업을 처리한다.
+
+- 로컬 PostgreSQL·Redis·RabbitMQ 실행
+- 플레이가 100개 이상이고 후반 득점이 많은 경기 선택
+- 중복되지 않는 시뮬레이션 경기 ID 생성
+- 20배속 `SURGE` 모드로 백엔드 실행
+
+특정 경기 ID를 사용하려면 인자로 전달한다.
+
+```bash
+bash backend/scripts/run-simulation.sh 123456
+```
+
+경기 데이터가 없으면 다음 방법 중 하나로 로컬 DB에 저장한다.
+
+```bash
+# S3의 최근 경기 적재
+bash backend/scripts/load-s3-game.sh
+
+# 현재 라이브 경기 수집. 종료할 때 Ctrl+C
+bash backend/scripts/collect-live-game.sh
+```
+
+S3 적재에는 `.env`의 `PULSE_REPLAY_S3_BUCKET`과 AWS 자격 증명, 라이브 수집에는 `BDL_API_KEY`가 필요하다. S3의 특정 경기는 `bash backend/scripts/load-s3-game.sh <경기_ID> <YYYY-MM-DD>`로 지정한다. 적재 후 시뮬레이션 스크립트를 다시 실행한다.
+
+### 회사망 프록시(HTTPS 가로채기) 대응
+
+회사망에서 프록시(Somansa 등)가 HTTPS를 가로채면, 교체된 CA가 JDK truststore에 없어 외부 API(`api.balldontlie.io`) 호출이 `PKIX path building failed` 오류로 실패한다. 집망에서는 해당하지 않는다.
+
+프록시 CA를 포함한 Java truststore를 만들어 `.env`에 지정하면 수집·적재 스크립트가 실행 시 JVM에 주입한다. Git Bash에서 JDK 21 기준으로 만든다(경로·CA 이름은 환경에 맞춘다).
+
+```bash
+JH="/c/Program Files/Java/jdk-21.0.11"   # 설치된 JDK 21 경로
+mkdir -p backend/.local
+# 프록시 CA 인증서(예: somansa-root-ca.cer)를 backend/.local/에 저장한 뒤 실행
+cp "$JH/lib/security/cacerts" backend/.local/pulse-truststore.jks
+"$JH/bin/keytool" -importcert -noprompt -trustcacerts \
+  -alias proxy-root-ca -file backend/.local/somansa-root-ca.cer \
+  -keystore backend/.local/pulse-truststore.jks -storepass changeit
+```
+
+`.env`에 만든 truststore 경로를 지정한다(`backend/.local/`은 gitignore되어 커밋되지 않는다).
+
+```dotenv
+PULSE_JAVA_TRUSTSTORE=C:/Projects/pulse-project/backend/.local/pulse-truststore.jks
+PULSE_JAVA_TRUSTSTORE_PASSWORD=changeit
+```
+
+프록시 CA 인증서는 Windows PowerShell에서 신뢰 저장소를 통해 추출할 수 있다.
 
 ```powershell
-cd backend
-.\gradlew.bat test
+Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -match "Somansa" } |
+  ForEach-Object { [IO.File]::WriteAllBytes("backend\.local\somansa-root-ca.cer", $_.Export("Cert")) }
 ```
 
-- `GameEventExtractorTest`: play 기반 이벤트 추출
-- `HomeQueryServiceTest`: 홈 조회·상태·정렬·노출 제한
-- `ScoreCalculatorTest`: 신호별 점수·경계값
+`simulation ready` 로그와 Redis 순위를 확인한다.
 
-## 담당 경계
+```bash
+docker exec pulse-redis redis-cli ZRANGE score:rank:live 0 -1 WITHSCORES REV
+```
 
-| 패키지 | 담당 |
-|---|---|
-| `poller`, `scorer`, `ranking`, `replay`, `api.home`, `common`, `domain` | 예은 |
-| `api.gamedetail` | 민석 |
-| `api.user`, `api.notification` | 윤호 |
-| `com.pulse.ai` | 창현 |
+## 테스트와 빌드
 
-`common`과 `domain`의 쓰기 소유자는 예은이다. API·스키마 변경 전 [API 계약](../docs/design/API_CONTRACTS.md)의 영향 범위를 확인한다.
+JDK 21에서 실행한다.
+
+```bash
+cd backend
+./gradlew test
+./gradlew clean build
+```

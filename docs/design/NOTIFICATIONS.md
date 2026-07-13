@@ -52,7 +52,8 @@ flowchart LR
 
 - 채널이 RabbitMQ인 이유: 알림은 one-shot이라 유실되면 복구 경로가 없다. 재조회 신호와 달리 "다음 사이클에 자연 복구"가 성립하지 않는다.
 - 중복 전달을 전제로 `(event_id, user_id)` 유니크 제약으로 멱등 처리한다.
-- 발행 측은 같은 `event_id`의 `notification_events` 원본 행을 먼저 영속하고, DB 커밋이 끝난 뒤 `notify.events`를 발행한다. 소비자는 원본 커밋 전에 `user_notifications`를 저장하지 않는다.
+- 발행 측은 같은 `event_id`의 `notification_events` 원본과 `notification_outbox` PENDING 행을 한 트랜잭션으로 영속한다. 커밋 직후 `notify.events` 발행을 시도하고, 실패하면 지수 백오프로 재발행한다. 애플리케이션 재시작 뒤에도 PENDING 행을 다시 조회한다.
+- 발행 성공 직후 outbox 상태 갱신 전에 장애가 나면 같은 `event_id`가 중복 전달될 수 있다. 소비자는 `(event_id, user_id)` 유니크 제약으로 중복을 무시한다.
 - 전역 15분 1회 레이트리밋은 발행 측(scorer)이 Redis 키로 관리한다.
 - 경기 전환 안내는 알림 파이프라인을 타지 않는다. 상세 API 응답의 `switchSuggestion: { gameId, matchup, latestTag }`와 서버 조립 `message`로 제공한다.
 

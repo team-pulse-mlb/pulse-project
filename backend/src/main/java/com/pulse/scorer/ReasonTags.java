@@ -22,10 +22,18 @@ public final class ReasonTags {
     }
 
     public static List<String> from(Map<String, Double> signals) {
-        return signals.entrySet().stream()
+        return from(signals, false);
+    }
+
+    public static List<String> from(Map<String, Double> signals, boolean fullCountIncluded) {
+        List<String> tags = new java.util.ArrayList<>(signals.entrySet().stream()
                 .filter(e -> e.getValue() != null && e.getValue() > 0)
                 .map(e -> TAG_BY_SIGNAL.get(e.getKey()))
                 .filter(tag -> tag != null)
-                .toList();
+                .toList());
+        if (fullCountIncluded) {
+            tags.add("풀카운트 승부");
+        }
+        return List.copyOf(tags);
     }
 }

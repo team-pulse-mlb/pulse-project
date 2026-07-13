@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import com.pulse.api.user.security.jwt.JwtProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -57,6 +58,7 @@ public class SecurityConfig {
      * Spring Security의 HTTP 요청 처리 설정
      */
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
@@ -108,10 +110,27 @@ public class SecurityConfig {
                                 "/api/members/email/**"
                         ).permitAll()
 
-                        // 현재 로그인 사용자 확인 API는 Access Token 필요
+                        // 비로그인 SSE 구독은 공개 (EventSource는 Authorization 헤더를 못 싣는다)
+                        .requestMatchers("/api/sse").permitAll()
+
+                        /*
+                         * 로그인한 사용자 전용 API는 Access Token이 필요합니다.
+                         *
+                         * /api/members/me
+                         * - 현재 로그인한 회원 기본 정보 조회
+                         *
+                         * /api/me/**
+                         * - 관심팀 및 알림 수신 설정
+                         * - 알림함 목록 및 읽음 처리
+                         *
+                         * 현재 확정된 경로:
+                         * - GET·PUT /api/me/preferences
+                         * - /api/me/notifications
+                         */
                         .requestMatchers(
                                 "/api/members/me",
-                                "/api/members/me/**"
+                                "/api/members/me/**",
+                                "/api/me/**"
                         ).authenticated()
 
                         // 아직 다른 팀 API 차단 방지를 위해 나머지는 임시 허용
@@ -131,6 +150,7 @@ public class SecurityConfig {
 
     // 5173 관련 임시 해결
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 

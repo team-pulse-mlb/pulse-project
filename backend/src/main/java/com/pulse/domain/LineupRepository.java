@@ -8,6 +8,8 @@ public interface LineupRepository extends JpaRepository<Lineup, Long> {
 
     List<Lineup> findByGameId(Long gameId);
 
+    List<Lineup> findByGameIdIn(List<Long> gameIds);
+
     Optional<Lineup> findByGameIdAndPlayerId(Long gameId, Long playerId);
 
     List<Lineup> findByGameIdAndIsProbablePitcherTrue(Long gameId);

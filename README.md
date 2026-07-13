@@ -40,41 +40,71 @@ pulse-project/
 ├── backend/       # 수집·점수화·랭킹·REST API
 ├── ai-service/    # AI 문구 생성·스포일러 검수
 ├── raw-archive/   # 원본 데이터 수집·백필·분석
-├── infra/         # 로컬 PostgreSQL·Redis
+├── infra/         # 인프라 구성(local: 로컬 개발용, prod: AWS 운영)
 └── docs/          # 제품·설계·팀 문서
 ```
 
 - [프론트엔드 가이드](frontend/README.md)
 - [백엔드 가이드](backend/README.md)
-- [로컬 인프라 가이드](infra/README.md)
+- [로컬 인프라 가이드](infra/local/README.md)
+- [운영 인프라 가이드](infra/prod/README.md)
+- [원본 데이터 아카이브 가이드](raw-archive/README.md)
 
-## 빠른 시작
+## 빠른 로컬 실행
 
-1. 로컬 인프라를 실행한다.
+필수 프로그램은 Docker Desktop, JDK 21, IntelliJ IDEA, Node.js LTS, VS Code다.
 
-   ```powershell
-   Copy-Item .env.example .env
-   docker compose -f infra/docker-compose.yml --env-file .env up -d
-   ```
+### 1. 환경 변수 준비
 
-2. 백엔드를 실행한다.
+VS Code 탐색기에서 `.env.example`을 복사해 `.env`를 만든다. `POSTGRES_PASSWORD`와 `RABBITMQ_PASSWORD`는 로컬에서 사용할 비밀번호로 설정한다.
 
-   ```powershell
-   cd backend
-   .\gradlew.bat bootRun
-   ```
+`JWT_SECRET`에는 로그인 토큰이 아니라 JWT 서명에 사용할 서버 비밀키를 넣는다.
+저장소 루트의 Git Bash에서 다음과 같이 생성할 수 있다.
 
-3. 새 터미널에서 프론트엔드를 실행한다.
+```bash
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+```
 
-   ```powershell
-   cd frontend
-   npm.cmd install
-   npm.cmd run dev
-   ```
+출력된 값을 `.env`의 `JWT_SECRET=` 뒤에 붙인다. 이 값은 로컬 전용이며 저장소에 커밋하지 않는다.
+
+### 2. Docker 실행
+
+Docker Desktop을 켠 뒤 저장소 루트의 VS Code Git Bash 터미널에서 PostgreSQL·Redis·RabbitMQ를 실행한다.
+
+```bash
+docker compose -f infra/local/docker-compose.yml --env-file .env up -d
+docker compose -f infra/local/docker-compose.yml --env-file .env ps
+```
+
+세 컨테이너가 `healthy`인지 확인한다.
+
+### 3. IntelliJ에서 백엔드 실행
+
+1. IntelliJ에서 저장소 루트인 `pulse-project/`를 연다.
+2. **Settings → Plugins**에서 `EnvFile` 플러그인을 설치하고 IntelliJ를 재시작한다.
+3. **Run → Edit Configurations → PulseApplication**에서 **Enable EnvFile**을 선택한다.
+4. EnvFile 목록에 저장소 루트의 `.env`를 추가한다.
+5. `PulseApplication`을 실행한다.
+
+백엔드 상태는 `http://localhost:8080/actuator/health`에서 확인한다.
+
+### 4. VS Code에서 프론트엔드 실행
+
+VS Code로 저장소를 열고 Git Bash 터미널에서 실행한다.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 - 프론트엔드: `http://localhost:5173`
 - 백엔드: `http://localhost:8080`
-- 백엔드 실행 전 `.env.example`을 참고해 `JWT_SECRET` 등 필요한 환경 변수를 셸이나 IDE 실행 구성에 설정한다.
+- Docker 상태 확인과 시뮬레이션 등 세부 사용법은 각 폴더의 README를 따른다.
+
+## 운영 배포
+
+AWS EC2·RDS·S3 기반으로 배포한다. 리소스 구성, 시크릿·환경 변수, 네트워크, IAM 원칙은 [운영 인프라 가이드](infra/prod/README.md)를 따른다. 운영 배포와 시크릿 값은 저장소에 두지 않고 소유자가 관리한다.
 
 ## 문서 인덱스
 
@@ -82,7 +112,7 @@ pulse-project/
 |---|---|
 | 제품 | [기능 명세](docs/product/FEATURE_SPEC.md), [사용자 흐름](docs/product/USER_FLOW.md), [프로젝트 제안](docs/product/PROJECT_PROPOSAL.md) |
 | 설계 | [아키텍처](docs/design/ARCHITECTURE.md), [데이터 파이프라인](docs/design/DATA_PIPELINE.md), [API 계약](docs/design/API_CONTRACTS.md), [스포일러 정책](docs/design/SPOILER_POLICY.md), [DB 스키마](docs/design/DB_SCHEMA.md) |
-| 협업 | [개발 규칙](docs/team/CONVENTIONS.md), [역할과 일정](docs/team/ROLES_AND_SCHEDULE.md), [온보딩](docs/team/ONBOARDING.md) |
+| 협업 | [개발 규칙](docs/team/CONVENTIONS.md), [역할과 일정](docs/team/ROLES_AND_SCHEDULE.md) |
 | 전체 | [문서 안내](docs/README.md) |
 
 ## 팀

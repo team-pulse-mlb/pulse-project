@@ -3,7 +3,7 @@ import apiClient from '../../../shared/api/httpClient';
 /*
  * 마이페이지에서 사용하는 관심팀 응답 타입입니다.
  *
- * 백엔드 GET /api/members/me/preferences 응답의 favoriteTeams 배열과 맞춥니다.
+ * 백엔드 GET /api/me/preferences 응답의 favoriteTeams 배열과 맞춥니다.
  */
 export interface FavoriteTeamResponse {
     /*
@@ -77,7 +77,6 @@ export interface NotificationSettings {
 export interface UserPreferenceResponse {
     favoriteTeams: FavoriteTeamResponse[];
     notificationSettings: NotificationSettings;
-    spoilerMode: string;
 }
 
 /*
@@ -90,11 +89,10 @@ export interface UserPreferenceResponse {
 export interface UserPreferenceUpdateRequest {
     selectedTeamIds: number[];
     notificationSettings: NotificationSettings;
-    spoilerMode: string;
 }
 
 /*
- * 로그인한 사용자의 관심팀 / 알림 설정 / 스포일러 모드 조회 API입니다.
+ * 로그인한 사용자의 관심팀 / 알림 설정 조회 API입니다.
  *
  * apiClient를 쓰는 이유:
  * - accessToken을 Authorization 헤더에 자동으로 붙여줍니다.
@@ -104,21 +102,21 @@ export const getMyPreferences =
     async (): Promise<UserPreferenceResponse> => {
         const response =
             await apiClient.get<UserPreferenceResponse>(
-                '/api/members/me/preferences',
+                '/api/me/preferences',
             );
 
         return response.data;
     };
 
 /*
- * 로그인한 사용자의 관심팀 / 알림 설정 / 스포일러 모드 수정 API입니다.
+ * 로그인한 사용자의 관심팀 / 알림 설정 수정 API입니다.
  */
 export const updateMyPreferences = async (
     request: UserPreferenceUpdateRequest,
 ): Promise<UserPreferenceResponse> => {
     const response =
         await apiClient.put<UserPreferenceResponse>(
-            '/api/members/me/preferences',
+            '/api/me/preferences',
             request,
         );
 

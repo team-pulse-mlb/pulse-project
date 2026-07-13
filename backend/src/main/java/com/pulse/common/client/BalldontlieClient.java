@@ -5,6 +5,7 @@ import com.pulse.common.client.BdlDtos.BdlLineup;
 import com.pulse.common.client.BdlDtos.BdlOdds;
 import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
+import com.pulse.common.client.BdlDtos.BdlPlayer;
 import com.pulse.common.client.BdlDtos.BdlPlayerSeasonStat;
 import com.pulse.common.client.BdlDtos.BdlStanding;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -15,6 +16,7 @@ import com.pulse.common.client.BdlDtos.PlateAppearancesRaw;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -23,7 +25,8 @@ import org.springframework.web.client.RestClient;
  * balldontlie MLB API 클라이언트. 외부 API 호출은 반드시 이 클래스를 거친다.
  */
 @Component
-public class BalldontlieClient {
+@ConditionalOnProperty(prefix = "pulse.simulation", name = "enabled", havingValue = "false", matchIfMissing = true)
+public class BalldontlieClient implements BaseballDataSource {
 
     private static final int PER_PAGE = 100;
 
@@ -87,11 +90,14 @@ public class BalldontlieClient {
         return response == null || response.data() == null ? List.of() : response.data();
     }
 
-    /** 특정 날짜 슬레이트의 배당 목록 */
-    public List<BdlOdds> getOdds(LocalDate date) {
+    /** 경기들의 배당 목록 */
+    public List<BdlOdds> getOdds(List<Long> gameIds) {
+        if (gameIds == null || gameIds.isEmpty()) {
+            return List.of();
+        }
         ListResponse<BdlOdds> response = restClient.get()
                 .uri(uri -> uri.path("/mlb/v1/odds")
-                        .queryParam("dates[]", date.toString())
+                        .queryParam("game_ids[]", gameIds.toArray())
                         .queryParam("per_page", PER_PAGE)
                         .build())
                 .retrieve()
@@ -121,6 +127,22 @@ public class BalldontlieClient {
         ListResponse<BdlPlayerSeasonStat> response = restClient.get()
                 .uri(uri -> uri.path("/mlb/v1/season_stats")
                         .queryParam("season", season)
+                        .queryParam("player_ids[]", playerIds.toArray())
+                        .queryParam("per_page", PER_PAGE)
+                        .build())
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {
+                });
+        return response == null || response.data() == null ? List.of() : response.data();
+    }
+
+    /** 선수 마스터 일괄 조회. 이름 NULL 스텁 선수 보강에 쓴다. 호출자가 100개 이하로 청크한다. */
+    public List<BdlPlayer> getPlayers(List<Long> playerIds) {
+        if (playerIds == null || playerIds.isEmpty()) {
+            return List.of();
+        }
+        ListResponse<BdlPlayer> response = restClient.get()
+                .uri(uri -> uri.path("/mlb/v1/players")
                         .queryParam("player_ids[]", playerIds.toArray())
                         .queryParam("per_page", PER_PAGE)
                         .build())

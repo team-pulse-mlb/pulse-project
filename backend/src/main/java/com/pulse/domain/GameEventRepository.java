@@ -1,5 +1,6 @@
 package com.pulse.domain;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -12,4 +13,6 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     Optional<GameEvent> findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
             Long gameId, String spoilerLevel);
+
+    List<GameEvent> findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(Long gameId, String spoilerLevel);
 }

@@ -88,6 +88,16 @@ class PregamePollerTest {
     }
 
     @Test
+    void poll_shouldPollOddsByPregameNearGameIds() {
+        Game nearGame = game(101L, GameLifecycle.PREGAME_NEAR.name());
+        when(gameRepository.findByLifecycleStateIn(anyList())).thenReturn(List.of(nearGame));
+
+        poller.poll();
+
+        verify(balldontlieClient).getOdds(List.of(101L));
+    }
+
+    @Test
     void poll_shouldRunStandingsBatchOncePerDayAndTriggerPregameTasks() {
         clock.set(Instant.parse("2026-07-08T10:30:00Z"));
         Game farGame = game(100L, GameLifecycle.PREGAME_FAR.name());

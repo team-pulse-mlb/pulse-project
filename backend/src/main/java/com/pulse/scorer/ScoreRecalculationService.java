@@ -1,6 +1,7 @@
 package com.pulse.scorer;
 
 import com.pulse.common.config.ScoringProperties;
+import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
@@ -51,12 +52,18 @@ public class ScoreRecalculationService {
         }
 
         List<Play> recentPlays = playRepository.findByGameIdOrderByPlayOrderDesc(
-                gameId, PageRequest.of(0, props.leadChange().windowPlays()));
+                gameId, PageRequest.of(0, props.leadChange().windowPlays() + 1));
         Collections.reverse(recentPlays);
+        int seedLeader = 0;
+        if (recentPlays.size() > props.leadChange().windowPlays()) {
+            seedLeader = leaderOf(recentPlays.get(0));
+            recentPlays = recentPlays.subList(1, recentPlays.size());
+        }
 
-        ScoreCalculator.Result result = calculator.calculate(game, recentPlays, observedAt);
+        ScoreCalculator.Result result = calculator.calculate(
+                game, recentPlays, situationFrom(recentPlays), seedLeader, observedAt);
         double watchScore = calculator.clampWatchScore(result.baseScore());
-        List<String> reasonTags = ReasonTags.from(result.signals());
+        List<String> reasonTags = ReasonTags.from(result.signals(), result.fullCountIncluded());
         Play latestPlay = recentPlays.isEmpty() ? null : recentPlays.get(recentPlays.size() - 1);
 
         WatchScore record = new WatchScore();
@@ -79,5 +86,27 @@ public class ScoreRecalculationService {
 
     private static int roundScore(double score) {
         return (int) Math.round(score);
+    }
+
+    private static int leaderOf(Play play) {
+        if (play.getHomeScore() == null || play.getAwayScore() == null) {
+            return 0;
+        }
+        return Integer.signum(play.getHomeScore() - play.getAwayScore());
+    }
+
+    private static ScoreTask.Situation situationFrom(List<Play> plays) {
+        if (plays.isEmpty()) {
+            return null;
+        }
+        Play latest = plays.get(plays.size() - 1);
+        return ScoreTask.Situation.of(
+                latest.getOuts(),
+                latest.getBalls(),
+                latest.getStrikes(),
+                latest.getRunnerOnFirst(),
+                latest.getRunnerOnSecond(),
+                latest.getRunnerOnThird()
+        );
     }
 }
