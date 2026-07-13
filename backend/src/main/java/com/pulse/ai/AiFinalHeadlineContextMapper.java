@@ -42,8 +42,8 @@ public class AiFinalHeadlineContextMapper {
      * <ul>
      *     <li>status → gameStatus</li>
      *     <li>periodLabel → inningPhase</li>
-     *     <li>spoilerSafeSignals → safeTags</li>
-     *     <li>reasonTags → reasonCodes</li>
+     *     <li>reasonTags → safeTags</li>
+     *     <li>spoilerSafeSignals → reasonCodes</li>
      *     <li>keyMoments → keyMoments</li>
      *     <li>finalScore → finalScore</li>
      *     <li>winner → winner</li>
@@ -55,8 +55,10 @@ public class AiFinalHeadlineContextMapper {
         return new AiFinalHeadlineRequest.SafeContext(
                 context.status(),
                 context.periodLabel(),
-                copyList(context.spoilerSafeSignals()),
+                // AI_COPY 계약 기준: reasonTags는 사용자에게 노출 가능한 보호형 태그입니다.
                 copyList(context.reasonTags()),
+                // AI_COPY 계약 기준: spoilerSafeSignals는 reasonCodes로 전달합니다.
+                copyList(context.spoilerSafeSignals()),
                 toKeyMoments(context.keyMoments()),
                 toFinalScore(context.finalScore()),
                 context.winner()
@@ -109,3 +111,4 @@ public class AiFinalHeadlineContextMapper {
         return List.copyOf(values);
     }
 }
+
