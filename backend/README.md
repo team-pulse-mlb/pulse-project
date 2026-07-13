@@ -36,44 +36,27 @@ MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API
 
 ## 정적 개발 슬레이트
 
-커밋된 정적 픽스처만으로 홈·상세·알림 화면용 데이터를 구성할 수 있다. S3 아카이브나 실시간 리플레이는 필요하지 않다.
-
-저장소 루트에서 로컬 인프라를 실행한다.
+1. 저장소 루트에서 로컬 인프라를 실행한다.
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --env-file .env up -d --wait
 ```
 
-백엔드를 한 번 실행해 스키마를 만든다. 로컬 기본 프로파일은 Flyway 대신 JPA `ddl-auto=update`로 엔티티 기준 스키마를 생성한다. 이미 스키마가 있는 DB라면 이 단계는 생략할 수 있다.
+2. IntelliJ의 `PulseApplication` 실행 구성에 저장소 루트의 `.env`를 EnvFile로 적용한 뒤 실행한다.
 
-```bash
-cd backend
-./gradlew bootRun
-```
-
-`user_notifications`, `user_favorite_players`는 확정 마이그레이션(V1·V10)에는 있으나 아직 JPA 엔티티가 없어 로컬 DB에는 테이블이 없을 수 있다. 시드는 해당 테이블이 있을 때만 채우므로, 엔티티가 생기면 별도 수정 없이 자동으로 시드된다.
-
-다른 터미널의 저장소 루트에서 시드 스크립트를 한 번 실행한다.
+3. 다른 터미널의 저장소 루트에서 시드를 적용한다.
 
 ```bash
 bash backend/scripts/seed-dev-slate.sh
 ```
 
-스크립트가 다음 데이터를 멱등하게 다시 구성한다.
-
-- 예정 3경기, 진행 2경기, 종료 3경기
-- 실제 경기 기반 전체 플레이·관전 점수 타임라인 2개
-- 예상 선발, 보호·공개 이벤트 문구, 정렬 점수와 종료 헤드라인
-- 데모 사용자 설정·관심 팀·관심 선수와 읽음·안읽음 알림
-- Redis `score:rank:live` 순위와 `game:{id}:live` 최신 상태
-
-예정 경기 수와 진행 경기 수를 바꾸려면 순서대로 인자를 전달한다. 각 값은 1 이상이고 합계는 7 이하여야 한다. 기본값은 전체 타임라인 경기 중 하나를 진행, 하나를 종료로 유지한다.
+예정·진행 경기 수를 지정하려면 인자를 추가한다.
 
 ```bash
 bash backend/scripts/seed-dev-slate.sh 3 2
 ```
 
-실제 완주 경기로 CSV를 갱신하려면 다음 명령을 사용한다. 경기 ID를 생략하면 시뮬레이션 범위 밖의 완주 경기 중 플레이가 가장 많은 경기를 선택한다. 로더 계약을 유지하기 위해 경기 관련 파일명은 `5059222`로 고정되며 내용만 선택한 경기로 교체된다.
+픽스처를 갱신하려면 다음 중 하나를 실행한다.
 
 ```bash
 bash backend/scripts/dump-fixture-game.sh

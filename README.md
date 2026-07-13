@@ -82,9 +82,8 @@ docker compose -f infra/local/docker-compose.yml --env-file .env ps
 
 1. IntelliJ에서 저장소 루트인 `pulse-project/`를 연다.
 2. **Settings → Plugins**에서 `EnvFile` 플러그인을 설치하고 IntelliJ를 재시작한다.
-3. **Run → Edit Configurations → PulseApplication**에서 **Enable EnvFile**을 선택한다.
-4. EnvFile 목록에 저장소 루트의 `.env`를 추가한다.
-5. `PulseApplication`을 실행한다.
+3. **Run → Edit Configurations → PulseApplication**에서 **Enable EnvFile**을 선택하고 저장소 루트의 `.env`를 추가한다.
+4. `PulseApplication`을 실행한다.
 
 백엔드 상태는 `http://localhost:8080/actuator/health`에서 확인한다.
 
