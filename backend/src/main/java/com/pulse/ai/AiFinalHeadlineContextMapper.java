@@ -111,4 +111,3 @@ public class AiFinalHeadlineContextMapper {
         return List.copyOf(values);
     }
 }
-
