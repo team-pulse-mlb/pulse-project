@@ -44,6 +44,10 @@ src/
 
 로컬에서는 Vite의 `/api` 프록시를 사용한다. 배포할 때만 `VITE_API_BASE_URL`을 설정한다.
 
+## 배포
+
+S3 + CloudFront로 배포한다. `main`의 `frontend/**` 변경은 `.github/workflows/frontend-deploy.yml`이 자동 배포한다. 리소스·수동 절차·캐시 정책은 [`infra/prod/FRONTEND.md`](../infra/prod/FRONTEND.md) 참고.
+
 ## 검증
 
 ```bash

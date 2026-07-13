@@ -80,6 +80,10 @@ docker compose -f docker-compose.prod.yml run --rm \
   pulse-rescore
 ```
 
+## 프론트엔드·API HTTPS
+
+프론트엔드는 S3 + CloudFront(OAC)로 서빙한다. 리소스·배포 절차는 [`FRONTEND.md`](FRONTEND.md), API를 `api.pulsemlb.com`으로 HTTPS화하는 절차는 [`API_HTTPS.md`](API_HTTPS.md) 참고.
+
 ## 시크릿
 
 실제 값은 저장소에 기록하지 않는다.
