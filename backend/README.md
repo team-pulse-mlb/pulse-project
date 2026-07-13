@@ -22,61 +22,9 @@ com.pulse/
 MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API·SSE
 ```
 
-## 목차
+## 기능별 주요 파일
 
-| 목차 | 설명 |
-|---|---|
-| [개발 환경 준비](#개발-환경-준비) | JDK와 환경 변수 설정 |
-| [기본 실행](#기본-실행) | 로컬 DB로 API·화면 개발 |
-| [기능별 진입점](#기능별-진입점) | 수정할 기능의 주요 클래스 |
-| [시뮬레이션](#시뮬레이션) | 과거 경기의 실시간 흐름 재현 |
-| [테스트와 빌드](#테스트와-빌드) | 변경 사항 검증 |
-
-명령은 저장소 루트의 Git Bash를 기준으로 한다.
-
-## 개발 환경 준비
-
-필수 프로그램:
-
-- JDK 21
-- Docker Desktop
-- Git Bash
-
-```bash
-java -version
-```
-
-VS Code 탐색기에서 `.env.example`을 복사해 `.env`를 만든다. `.env`의 `JWT_SECRET`과 로컬 미들웨어 비밀번호를 설정하고 저장소에는 커밋하지 않는다.
-
-PostgreSQL·Redis·RabbitMQ를 실행한다.
-
-```bash
-docker compose -f infra/local/docker-compose.yml --env-file .env up -d
-docker compose -f infra/local/docker-compose.yml --env-file .env ps
-```
-
-세 컨테이너가 `healthy`인지 확인한다.
-
-## 기본 실행
-
-외부 MLB API를 호출하지 않고 로컬 DB의 데이터로 실행한다.
-
-```bash
-cd backend
-set -a; source ../.env; set +a
-./gradlew bootRun
-```
-
-```bash
-curl http://localhost:8080/actuator/health
-curl http://localhost:8080/api/games
-```
-
-IntelliJ에서는 `backend/`를 Gradle 프로젝트로 열고 Gradle JVM을 JDK 21로 지정한다. 위 환경 변수는 `PulseApplication` 실행 구성에 동일하게 등록한다.
-
-## 기능별 진입점
-
-| 기능 | 진입점 | 주요 로직 |
+| 기능 | 진입점 | 로직 구현 |
 |---|---|---|
 | 홈 경기 목록 | `api/home/HomeGameController.java` | `api/home/HomeQueryService.java` |
 | 실시간 추천 순위 | `api/home/HomeRankingController.java` | `ranking/RankingService.java` |
@@ -90,7 +38,9 @@ IntelliJ에서는 `backend/`를 Gradle 프로젝트로 열고 Gradle JVM을 JDK 
 
 시뮬레이션은 로컬 DB의 과거 경기를 복제해 `poller → RabbitMQ → scorer → Redis/SSE` 흐름을 재현한다.
 
-저장소 루트에서 실행한다.
+시뮬레이션 스크립트가 별도의 백엔드를 8080 포트로 실행하므로, IntelliJ에서 실행 중인 `PulseApplication`을 먼저 중지한다. Docker 컨테이너는 중지하지 않는다.
+
+IntelliJ에서 `pulse-project/`를 연 상태의 저장소 루트 터미널에서 실행한다.
 
 ```bash
 bash backend/scripts/run-simulation.sh
