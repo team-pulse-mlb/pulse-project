@@ -11,19 +11,6 @@
 | RabbitMQ | `5672` | 로컬 메시지 큐 |
 | RabbitMQ 관리 화면 | `15672` | 브라우저 접속 |
 
-## 실행
-
-Docker Desktop을 실행한다. VS Code 탐색기에서 `.env.example`을 복사해 `.env`를 만든 뒤 `POSTGRES_PASSWORD`, `RABBITMQ_PASSWORD`, `JWT_SECRET`을 설정한다. `.env`는 커밋하지 않는다.
-
-저장소 루트의 Git Bash에서 실행한다.
-
-```bash
-docker compose -f infra/local/docker-compose.yml --env-file .env up -d
-docker compose -f infra/local/docker-compose.yml --env-file .env ps
-```
-
-세 서비스가 `healthy`이면 준비가 끝난다.
-
 ## 상태 확인
 
 ```bash

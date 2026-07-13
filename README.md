@@ -50,35 +50,57 @@ pulse-project/
 - [운영 인프라 가이드](infra/prod/README.md)
 - [원본 데이터 아카이브 가이드](raw-archive/README.md)
 
-## 빠른 시작 (로컬 개발)
+## 빠른 로컬 실행
 
-1. VS Code Explorer에서 `.env.example`을 복사해 `.env`를 만들고 로컬 값을 입력한다.
-2. 저장소 루트의 VS Code Git Bash 터미널에서 PostgreSQL·Redis·RabbitMQ를 실행하고 상태를 확인한다.
+필수 프로그램은 Docker Desktop, JDK 21, IntelliJ IDEA, Node.js LTS, VS Code다.
 
-   ```bash
-   docker compose -f infra/local/docker-compose.yml --env-file .env up -d
-   docker compose -f infra/local/docker-compose.yml --env-file .env ps
-   ```
+### 1. 환경 변수 준비
 
-3. 새 Git Bash 터미널에서 백엔드를 실행한다(JDK 21 기준). IntelliJ 실행과 세부 설정은 [백엔드 가이드](backend/README.md)를 따른다.
+VS Code 탐색기에서 `.env.example`을 복사해 `.env`를 만든다. `POSTGRES_PASSWORD`와 `RABBITMQ_PASSWORD`는 로컬에서 사용할 비밀번호로 설정한다.
 
-   ```bash
-   cd backend
-   set -a; source ../.env; set +a
-   ./gradlew bootRun
-   ```
+`JWT_SECRET`에는 로그인 토큰이 아니라 JWT 서명에 사용할 서버 비밀키를 넣는다.
+저장소 루트의 Git Bash에서 다음과 같이 생성할 수 있다.
 
-4. 새 VS Code Git Bash 터미널에서 프론트엔드를 실행한다.
+```bash
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+```
 
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+출력된 값을 `.env`의 `JWT_SECRET=` 뒤에 붙인다. 이 값은 로컬 전용이며 저장소에 커밋하지 않는다.
+
+### 2. Docker 실행
+
+Docker Desktop을 켠 뒤 저장소 루트의 VS Code Git Bash 터미널에서 PostgreSQL·Redis·RabbitMQ를 실행한다.
+
+```bash
+docker compose -f infra/local/docker-compose.yml --env-file .env up -d
+docker compose -f infra/local/docker-compose.yml --env-file .env ps
+```
+
+세 컨테이너가 `healthy`인지 확인한다.
+
+### 3. IntelliJ에서 백엔드 실행
+
+1. IntelliJ에서 저장소 루트인 `pulse-project/`를 연다.
+2. **Settings → Plugins**에서 `EnvFile` 플러그인을 설치하고 IntelliJ를 재시작한다.
+3. **Run → Edit Configurations → PulseApplication**에서 **Enable EnvFile**을 선택한다.
+4. EnvFile 목록에 저장소 루트의 `.env`를 추가한다.
+5. `PulseApplication`을 실행한다.
+
+백엔드 상태는 `http://localhost:8080/actuator/health`에서 확인한다.
+
+### 4. VS Code에서 프론트엔드 실행
+
+VS Code로 저장소를 열고 Git Bash 터미널에서 실행한다.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 - 프론트엔드: `http://localhost:5173`
 - 백엔드: `http://localhost:8080`
-- 세부 설정과 확인 방법은 각 폴더의 README를 따른다.
+- Docker 상태 확인과 시뮬레이션 등 세부 사용법은 각 폴더의 README를 따른다.
 
 ## 운영 배포
 
