@@ -54,82 +54,9 @@ BEGIN
     END IF;
 END $$;
 
--- user_notifications는 로컬 dev DB에 아직 테이블이 없을 수 있어 존재할 때만 정리한다(확정 마이그레이션 V1).
-DO $$
-BEGIN
-    IF to_regclass('public.user_notifications') IS NOT NULL THEN
-        DELETE FROM user_notifications
-        WHERE event_id IN (
-            '00000000-0000-4000-8000-000000000001'::uuid,
-            '00000000-0000-4000-8000-000000000002'::uuid,
-            '00000000-0000-4000-8000-000000000003'::uuid,
-            '00000000-0000-4000-8000-000000000004'::uuid
-        );
-    END IF;
-END $$;
-DELETE FROM notification_outbox
-WHERE event_id IN (
-    '00000000-0000-4000-8000-000000000001'::uuid,
-    '00000000-0000-4000-8000-000000000002'::uuid,
-    '00000000-0000-4000-8000-000000000003'::uuid,
-    '00000000-0000-4000-8000-000000000004'::uuid
-);
-DELETE FROM notification_events
-WHERE event_id IN (
-    '00000000-0000-4000-8000-000000000001'::uuid,
-    '00000000-0000-4000-8000-000000000002'::uuid,
-    '00000000-0000-4000-8000-000000000003'::uuid,
-    '00000000-0000-4000-8000-000000000004'::uuid
-);
-
-INSERT INTO notification_events (event_id, type, game_id, tags, occurred_at)
-VALUES
-    ('00000000-0000-4000-8000-000000000001', 'GAME_START', 8800000004,
-     ARRAY['경기 시작'], now() - interval '50 minutes'),
-    ('00000000-0000-4000-8000-000000000002', 'SURGE', 8800000004,
-     ARRAY['후반 긴장 구간', '접전 흐름'], now() - interval '30 minutes'),
-    ('00000000-0000-4000-8000-000000000003', 'SURGE', 8800000005,
-     ARRAY['득점권 승부'], now() - interval '10 minutes'),
-    ('00000000-0000-4000-8000-000000000004', 'GAME_START', 8800000006,
-     ARRAY['경기 시작'], now() - interval '1 day');
-
-INSERT INTO notification_outbox (
-    outbox_id, event_id, event_type, game_id, message, latest_tag, occurred_at,
-    status, attempt_count, next_attempt_at, created_at, published_at, last_error
-)
-VALUES
-    ('10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001',
-     'GAME_START', 8800000004, '관심 팀 경기가 시작했습니다.', '경기 시작',
-     now() - interval '50 minutes', 'PUBLISHED', 0, now() - interval '50 minutes',
-     now() - interval '50 minutes', now() - interval '49 minutes', NULL),
-    ('10000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000002',
-     'SURGE', 8800000004, '지금 볼 만한 경기가 있습니다.', '후반 긴장 구간',
-     now() - interval '30 minutes', 'PUBLISHED', 1, now() - interval '30 minutes',
-     now() - interval '30 minutes', now() - interval '28 minutes', NULL),
-    ('10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000003',
-     'SURGE', 8800000005, '득점권 승부가 이어지고 있습니다.', '득점권 승부',
-     now() - interval '10 minutes', 'PENDING', 0, now() + interval '1 day',
-     now() - interval '10 minutes', NULL, NULL),
-    ('10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000004',
-     'GAME_START', 8800000006, '관심 팀 경기 알림 기록입니다.', '경기 시작',
-     now() - interval '1 day', 'PENDING', 2, now() + interval '1 day',
-     now() - interval '1 day', NULL, '개발용 재시도 상태');
-
--- user_notifications는 로컬 dev DB에 아직 테이블이 없을 수 있어 존재할 때만 채운다(확정 마이그레이션 V1).
-DO $$
-BEGIN
-    IF to_regclass('public.user_notifications') IS NOT NULL THEN
-        INSERT INTO user_notifications (event_id, user_id, message, read_at, created_at)
-        VALUES
-            ('00000000-0000-4000-8000-000000000001', 8800000001,
-             '관심 팀 경기가 시작했습니다.', now() - interval '45 minutes', now() - interval '50 minutes'),
-            ('00000000-0000-4000-8000-000000000002', 8800000001,
-             '후반 긴장 구간이 시작됐습니다.', now() - interval '20 minutes', now() - interval '30 minutes'),
-            ('00000000-0000-4000-8000-000000000003', 8800000001,
-             '득점권 승부가 이어지고 있습니다.', NULL, now() - interval '10 minutes'),
-            ('00000000-0000-4000-8000-000000000004', 8800000001,
-             '어제 경기 시작 알림입니다.', NULL, now() - interval '1 day');
-    END IF;
-END $$;
+-- 고정 알림 기록(notification_events·outbox·user_notifications)은 더 이상 주입하지 않는다.
+-- 알림은 시뮬레이션 진행 중 notify.events → 알림 fan-out 경로가 라이브로 생성한다.
+-- 이 데모 계정은 로그인해 라이브 알림을 받기 위한 것이며, 관심 팀은 위 즐겨찾기 기준으로
+-- 매칭된다(연출할 경기의 팀과 겹치도록 필요 시 조정한다).
 
 COMMIT;

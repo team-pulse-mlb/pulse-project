@@ -104,6 +104,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      ai-service:
+        condition: service_healthy
     healthcheck: *app-healthcheck
 
   redis:
@@ -184,14 +186,22 @@ services:
       timeout: 5s
       retries: 5
 
-  # ai-service: 창현 담당 Dockerfile·기동 방식 확정 시 편입한다(WORK_PLAN 2-2 선행 조건).
-  # ai-service:
-  #   build: ../ai-service
-  #   container_name: pulse-ai-service
-  #   restart: unless-stopped
-  #   logging: *app-logging
-  #   environment:
-  #     OPENAI_API_KEY: ${OPENAI_API_KEY:?}
+  # scorer가 pulse.ai.base-url=http://ai-service:8000으로 호출하는 AI 문구 서버.
+  ai-service:
+    build: ../ai-service
+    container_name: pulse-ai-service
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY required}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.2}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # ---- 일회성 배치 (docker compose --profile batch run --rm ...) ----
   # 상시 기동하지 않으며 run으로만 실행한다. 파라미터는 JAVA_OPTS의 -D 시스템 프로퍼티로 넘긴다.

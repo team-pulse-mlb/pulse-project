@@ -8,6 +8,9 @@ app:
 pulse:
   simulation:
     enabled: false
+  ai:
+    # 운영에서는 compose 내부 네트워크의 ai-service 컨테이너로 호출한다.
+    base-url: ${PULSE_AI_BASE_URL:http://ai-service:8000}
 
 spring:
   jpa:
