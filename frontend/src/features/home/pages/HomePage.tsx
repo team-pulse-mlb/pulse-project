@@ -49,10 +49,7 @@ function HomePage() {
       {/* 상단 추천: 추천이 하나도 없으면 영역 자체를 숨긴다 */}
       {showRecommended && (
         <section className="mb-10">
-          <SectionHeader
-            title="지금 볼 만한 경기"
-            subtitle="결과 스포일러 없이, 지금 재미있는 순서로 추천합니다"
-          />
+          <SectionHeader title="지금 볼 만한 경기" />
           <RecommendedGrid
             cards={recommendedCards}
             isLoading={rankingsQuery.isLoading}
@@ -93,9 +90,9 @@ function HomePage() {
         </div>
 
         {gamesQuery.isLoading ? (
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-16" />
+              <Skeleton key={i} className="h-28" />
             ))}
           </div>
         ) : gamesQuery.isError ? (
@@ -103,10 +100,10 @@ function HomePage() {
         ) : games.length === 0 ? (
           <EmptyState message="이 날짜에는 예정된 경기가 없어요." />
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {games.map((game) => (
-              <li key={game.gameId}>
-                <GameCard game={toSlateCard(game)} variant="row" />
+              <li key={game.gameId} className="grid">
+                <GameCard game={toSlateCard(game)} variant="tile" />
               </li>
             ))}
           </ul>
