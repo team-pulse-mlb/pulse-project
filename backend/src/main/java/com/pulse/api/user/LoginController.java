@@ -1,6 +1,7 @@
 package com.pulse.api.user;
 
 import com.pulse.api.user.dto.*;
+import com.pulse.api.user.security.cookie.RefreshTokenCookieProperties;
 import com.pulse.api.user.security.jwt.JwtProperties;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.List;
 
 @RestController
@@ -23,6 +25,13 @@ public class LoginController {
     private final TokenRefreshService tokenRefreshService;
     private final LogoutService logoutService;
 
+    /*
+     * refreshToken 쿠키 옵션 설정입니다.
+     *
+     * 로컬/배포 환경에 따라 secure, sameSite, path 값을 다르게 적용하기 위해 사용합니다.
+     */
+    private final RefreshTokenCookieProperties refreshTokenCookieProperties;
+
     /**
      * 이메일과 비밀번호 로그인
      */
@@ -33,32 +42,10 @@ public class LoginController {
         LoginResult result = loginService.login(request);
 
         ResponseCookie refreshTokenCookie =
-                ResponseCookie.from(
-                        "refreshToken",
-                        result.refreshToken()
-                )
-                        // JavaScript에서 쿠키를 읽지 못하도록 설정
-                        .httpOnly(true)
-
-                        // 현재 Localhost가 HTTP이므로 false
-                        // 실제 HTTPS 배포 환경에서는 true로 변경
-                        // 로컬이 8080이므로 일단 false. / ★★★★★★★ 배포 환경에서 HTTPS를 적용하면 true로 변경 ★★★★★★★
-                        .secure(false)
-
-                        // 로컬 개발 환경용
-                        // 쿠키가 다른 사이트의 요청에 무분별하게 포함되는 것을 제한
-                        .sameSite("Lax")
-
-                        // 회원 인증 API에만 쿠키 전송
-                        // Refresh Token 쿠키를 모든 API에 보내지 않고 다음 범위에만 보내게 함
-                        .path("/api/members")
-
-                        // Refresh Token과 쿠키 만료시간을 동일하게 설정
-                        .maxAge(
-                                jwtProperties.refreshTokenExpiration()
-                        )
-
-                        .build();
+                createRefreshTokenCookie(
+                        result.refreshToken(),
+                        jwtProperties.refreshTokenExpiration()
+                );
 
         return ResponseEntity
                 .ok()
@@ -90,29 +77,10 @@ public class LoginController {
         // 이 부분이 Refresh Token Rotation의 Controller 핵심이다.
         // 기존 Cookie에 들어 있던 Refresh Token을 새 Refresh Token으로 교체한다.
         ResponseCookie refreshTokenCookie =
-                ResponseCookie.from(
-                                "refreshToken",
-                                result.refreshToken()
-                        )
-                        // JavaScript에서 쿠키를 읽지 못하도록 설정
-                        .httpOnly(true)
-
-                        // 현재 Localhost가 HTTP이므로 false
-                        // ***** 실제 HTTPS 배포 환경에서는 true로 변경 *****
-                        .secure(false)
-
-                        // 로컬 개발 환경용
-                        .sameSite("Lax")
-
-                        // refreshToken 쿠키는 회원 인증 API 범위에서만 사용
-                        .path("/api/members")
-
-                        // Refresh Token과 쿠키 만료시간을 동일하게 설정
-                        .maxAge(
-                                jwtProperties.refreshTokenExpiration()
-                        )
-
-                        .build();
+                createRefreshTokenCookie(
+                        result.refreshToken(),
+                        jwtProperties.refreshTokenExpiration()
+                );
 
         return ResponseEntity
                 .ok()
@@ -135,13 +103,7 @@ public class LoginController {
         logoutService.logout(refreshToken);
 
         ResponseCookie deleteCookie =
-                ResponseCookie.from("refreshToken", "")
-                        .httpOnly(true)
-                        .secure(false)
-                        .sameSite("Lax")
-                        .path("/api/members")
-                        .maxAge(0)
-                        .build();
+                createDeleteRefreshTokenCookie();
 
         LogoutResponse response = new LogoutResponse(
                 "SUCCESS",
@@ -177,6 +139,56 @@ public class LoginController {
         );
 
         return ResponseEntity.ok(response);
+    }
+
+
+    /*
+     * refreshToken을 담은 HttpOnly 쿠키를 생성합니다.
+     *
+     * 로그인 성공, 토큰 재발급 성공 시 공통으로 사용합니다.
+     *
+     * 중요한 점:
+     * - httpOnly=true
+     *   → JavaScript에서 refreshToken을 읽을 수 없게 막습니다.
+     *
+     * - secure
+     *   → 로컬에서는 false, HTTPS 배포에서는 true로 설정합니다.
+     *   → application.yml / 환경변수로 제어합니다.
+     *
+     * - sameSite
+     *   → 현재 기본값은 Lax입니다.
+     *   → 배포 구조에 따라 None이 필요할 수 있습니다.
+     *
+     * - path
+     *   → refreshToken 쿠키가 전송될 API 범위를 제한합니다.
+     */
+    private ResponseCookie createRefreshTokenCookie(
+            String refreshToken,
+            Duration maxAge
+    ) {
+        return ResponseCookie.from("refreshToken", refreshToken)
+                .httpOnly(true)
+                .secure(refreshTokenCookieProperties.secure())
+                .sameSite(refreshTokenCookieProperties.sameSite())
+                .path(refreshTokenCookieProperties.path())
+                .maxAge(maxAge)
+                .build();
+    }
+
+    /*
+     * refreshToken 삭제용 쿠키를 생성합니다.
+     *
+     * 쿠키를 삭제할 때도 생성할 때와 같은 옵션을 맞춰야 합니다.
+     * 특히 path, secure, sameSite가 달라지면 브라우저가 기존 쿠키를 삭제하지 못할 수 있습니다.
+     */
+    private ResponseCookie createDeleteRefreshTokenCookie() {
+        return ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(refreshTokenCookieProperties.secure())
+                .sameSite(refreshTokenCookieProperties.sameSite())
+                .path(refreshTokenCookieProperties.path())
+                .maxAge(0)
+                .build();
     }
 
 

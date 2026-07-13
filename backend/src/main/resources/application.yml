@@ -60,7 +60,42 @@ jwt:
   access-token-expiration: 15m    # 15분
   refresh-token-expiration: 7d    # 7일
 
+app:
+  cookie:
+    refresh-token:
+      # 로컬 개발 환경은 http://localhost 이므로 false
+      # 배포 HTTPS 환경에서는 REFRESH_TOKEN_COOKIE_SECURE=true 로 설정한다.
+      secure: ${REFRESH_TOKEN_COOKIE_SECURE:false}
+
+      # 현재 로컬 프론트/백엔드 구조에서는 Lax가 안전하다.
+      # 만약 배포에서 프론트와 백엔드가 완전히 다른 사이트로 분리되고
+      # 크로스사이트 쿠키가 필요하면 None으로 바꿔야 할 수 있다.
+      same-site: ${REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
+
+      # refreshToken 쿠키가 전송될 경로
+      # 기존 코드가 /api/members 범위를 쓰고 있다면 이 값을 유지한다.
+      path: ${REFRESH_TOKEN_COOKIE_PATH:/api/members}
+
+      # 프론트와 백엔드를 서로 다른 HTTPS 도메인으로 배포할 경우 설정합니다.
+      # SameSite=None을 사용할 때는 Secure=true가 반드시 함께 적용되어야 합니다.
+      # REFRESH_TOKEN_COOKIE_SECURE=true
+      # REFRESH_TOKEN_COOKIE_SAME_SITE=None
+
+
 pulse:
+  simulation:
+    enabled: ${PULSE_SIMULATION_ENABLED:false}
+    source-game-id: ${PULSE_SIMULATION_SOURCE_GAME_ID:}
+    target-game-id: ${PULSE_SIMULATION_TARGET_GAME_ID:}
+    speed: ${PULSE_SIMULATION_SPEED:1}
+    start-offset: ${PULSE_SIMULATION_START_OFFSET:0s}
+    play-interval: ${PULSE_SIMULATION_PLAY_INTERVAL:20s}
+    preset: ${PULSE_SIMULATION_PRESET:START}
+    archive-date: ${PULSE_SIMULATION_ARCHIVE_DATE:}
+    s3:
+      bucket: ${PULSE_SIMULATION_S3_BUCKET:}
+      region: ${AWS_REGION:ap-northeast-2}
+    max-archive-objects: ${PULSE_SIMULATION_MAX_ARCHIVE_OBJECTS:1000}
   bdl:
     base-url: https://api.balldontlie.io
     api-key: ${BDL_API_KEY:}
@@ -75,7 +110,7 @@ pulse:
     tick-interval: ${PULSE_POLLER_TICK_INTERVAL:20s}
     idle-games-interval: ${PULSE_POLLER_IDLE_GAMES_INTERVAL:10m}
     slate-lookback-days: ${PULSE_POLLER_SLATE_LOOKBACK_DAYS:1}
-    slate-lookahead-days: ${PULSE_POLLER_SLATE_LOOKAHEAD_DAYS:1}
+    slate-lookahead-days: ${PULSE_POLLER_SLATE_LOOKAHEAD_DAYS:2}
     max-play-pages-per-game: ${PULSE_POLLER_MAX_PLAY_PAGES_PER_GAME:5}
     initial-backoff: ${PULSE_POLLER_INITIAL_BACKOFF:30s}
     max-backoff: ${PULSE_POLLER_MAX_BACKOFF:5m}
@@ -88,6 +123,18 @@ pulse:
     pa-archive:
       bucket: ${PULSE_POLLER_PA_ARCHIVE_BUCKET:${PULSE_REPLAY_S3_BUCKET:}}
       region: ${AWS_REGION:ap-northeast-2}
+  scorer:
+    enabled: ${PULSE_SCORER_ENABLED:true}
+  notification-outbox:
+    dispatch-delay: ${PULSE_NOTIFICATION_OUTBOX_DISPATCH_DELAY:5s}
+    retry-initial-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
+    retry-max-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_MAX_INTERVAL:5m}
+    batch-size: ${PULSE_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
+  sse:
+    enabled: ${PULSE_SSE_ENABLED:true}
+    heartbeat-interval: ${PULSE_SSE_HEARTBEAT_INTERVAL:25s}
+    connection-ttl: ${PULSE_SSE_CONNECTION_TTL:60m}
+    max-connections: ${PULSE_SSE_MAX_CONNECTIONS:1000}
 
 server:
   port: 8080

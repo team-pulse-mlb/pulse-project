@@ -2,6 +2,7 @@ package com.pulse.common.config;
 
 import com.pulse.api.user.security.CustomUserDetailsService;
 import com.pulse.api.user.security.JwtAuthenticationEntryPoint;
+import com.pulse.api.user.security.cookie.RefreshTokenCookieProperties;
 import com.pulse.api.user.security.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import com.pulse.api.user.security.jwt.JwtProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -25,7 +27,10 @@ import java.util.List;
 
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class) // JwtProperties를 Spring이 관리하는 객체로 등록해주는 역할
+@EnableConfigurationProperties({    // JwtProperties를 Spring이 관리하는 객체로 등록해주는 역할
+        JwtProperties.class,
+        RefreshTokenCookieProperties.class
+})
 public class SecurityConfig {
 
     /**
@@ -53,6 +58,7 @@ public class SecurityConfig {
      * Spring Security의 HTTP 요청 처리 설정
      */
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
@@ -91,6 +97,10 @@ public class SecurityConfig {
                 // JWT 필터를 만들기 전까지 임시로 전체 요청 허용
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // 5173 관련 오류 임시 해결
+
+                        // 회원가입 Step 2 관심팀 선택 화면에서 사용하는 팀 목록 조회 API
+                        // 로그인 전에도 호출해야 하므로 GET 요청은 공개 허용
+                        .requestMatchers(HttpMethod.GET, "/api/teams").permitAll()
                         // 회원가입, 로그인, 이메일 인증, 토큰 재발급, 로그아웃은 공개
                         .requestMatchers(
                                 "/api/members/signup",
@@ -100,8 +110,28 @@ public class SecurityConfig {
                                 "/api/members/email/**"
                         ).permitAll()
 
-                        // 현재 로그인 사용자 확인 API는 Access Token 필요
-                        .requestMatchers("/api/members/me").authenticated()
+                        // 비로그인 SSE 구독은 공개 (EventSource는 Authorization 헤더를 못 싣는다)
+                        .requestMatchers("/api/sse").permitAll()
+
+                        /*
+                         * 로그인한 사용자 전용 API는 Access Token이 필요합니다.
+                         *
+                         * /api/members/me
+                         * - 현재 로그인한 회원 기본 정보 조회
+                         *
+                         * /api/me/**
+                         * - 관심팀 및 알림 수신 설정
+                         * - 알림함 목록 및 읽음 처리
+                         *
+                         * 현재 확정된 경로:
+                         * - GET·PUT /api/me/preferences
+                         * - /api/me/notifications
+                         */
+                        .requestMatchers(
+                                "/api/members/me",
+                                "/api/members/me/**",
+                                "/api/me/**"
+                        ).authenticated()
 
                         // 아직 다른 팀 API 차단 방지를 위해 나머지는 임시 허용
                         .anyRequest().permitAll()
@@ -120,6 +150,7 @@ public class SecurityConfig {
 
     // 5173 관련 임시 해결
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 

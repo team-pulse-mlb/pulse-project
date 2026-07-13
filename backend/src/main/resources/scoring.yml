@@ -6,7 +6,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 3
+  version: 6
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
@@ -55,7 +55,10 @@ scoring:
     contention-min-percent: 10
     contention-max-percent: 90
   pregame-carryover-max: 10
-  personalization-max: 15
+  personalization:
+    team-bonus: 10
+    player-bonus: 5
+    max: 15
 
   # 예정 경기 점수 (pregame_score)
   pregame:
@@ -68,13 +71,18 @@ scoring:
     contention-both: 30
     contention-one: 15
 
-  # 상세 신호 (상위 경기 전용, 태그·알림에만 사용 — 랭킹 미반영)
+  # 상세 이벤트 신호 (전 라이브 경기에서 추출, 이벤트 타임라인 전용 — 랭킹 미반영)
   detail:
     hard-contact-exit-velocity: 100
     starter-pitch-count: 100
     velocity-drop-mph: 2.0
     velocity-drop-window-pitches: 10
     long-at-bat-pitches: 8
+    max-events-per-type-per-game: 8
+
+  # 종료 경기 긴장 곡선(base_score 0~100을 1~5 단계로 양자화)
+  tension-curve:
+    level-boundaries: [20, 40, 60, 80]
 
   # 판단 기준
   thresholds:
@@ -83,5 +91,7 @@ scoring:
     alert-rise-score: 15
     alert-rise-window-minutes: 5
     alert-cooldown-minutes: 15
+    alert-global-limit: 3
+    alert-global-window-minutes: 15
     switch-score: 70
     switch-gap: 20

@@ -1,21 +1,37 @@
 package com.pulse.api.home;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
+import com.pulse.api.home.HomeQueryService.HomeSlateResponse;
+import com.pulse.api.home.HomeQueryService.SlateScheduledGameCard;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
+import com.pulse.domain.LineupRepository;
+import com.pulse.domain.Lineup;
+import com.pulse.domain.Player;
+import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
+import com.pulse.ranking.PersonalizationCalculator;
+import com.pulse.common.user.UserPreferenceReader;
+import com.pulse.common.user.UserPreferenceReader.UserPreferences;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.HashOperations;
@@ -26,7 +42,10 @@ class HomeQueryServiceTest {
     private final GameRepository gameRepository = mock(GameRepository.class);
     private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
     private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
+    private final LineupRepository lineupRepository = mock(LineupRepository.class);
+    private final PlayerRepository playerRepository = mock(PlayerRepository.class);
     private final RankingService rankingService = mock(RankingService.class);
+    private final PersonalizationCalculator personalizationCalculator = mock(PersonalizationCalculator.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     @SuppressWarnings("unchecked")
     private final HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
@@ -34,7 +53,11 @@ class HomeQueryServiceTest {
             gameRepository,
             watchScoreRepository,
             gameEventRepository,
+            lineupRepository,
+            playerRepository,
             rankingService,
+            personalizationCalculator,
+            Optional.empty(),
             redisTemplate
     );
 
@@ -44,7 +67,7 @@ class HomeQueryServiceTest {
     void setUp() {
         when(watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(anyLong())).thenReturn(Optional.empty());
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
-        when(gameEventRepository.findFirstByGameIdAndSpoilerLevelOrderByObservedAtDesc(
+        when(gameEventRepository.findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
                 anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
     }
 
@@ -57,7 +80,7 @@ class HomeQueryServiceTest {
                 live(4L),
                 live(5L)
         );
-        when(rankingService.topLive(5)).thenReturn(orderedScores(1L, 2L, 3L, 4L, 5L));
+        when(rankingService.topLive(1000)).thenReturn(orderedScores(1L, 2L, 3L, 4L, 5L));
         liveGames.forEach(game -> when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game)));
 
         HomeRankingResponse response = service.getRanking(20);
@@ -82,9 +105,14 @@ class HomeQueryServiceTest {
                 scheduled(21L, 80)
         );
 
-        when(rankingService.topLive(5)).thenReturn(orderedScores(1L));
+        when(rankingService.topLive(1000)).thenReturn(orderedScores(1L));
         when(gameRepository.findById(1L)).thenReturn(Optional.of(live));
-        when(gameRepository.findAll()).thenReturn(concat(live, finished, scheduled));
+        when(gameRepository.findByStatusAndStartTimeBetween(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(scheduled);
+        when(gameRepository.findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_FINAL), any(Instant.class)))
+                .thenReturn(finished);
 
         HomeRankingResponse response = service.getRanking(5);
 
@@ -97,6 +125,103 @@ class HomeQueryServiceTest {
         assertThat(totalCards(response)).isEqualTo(5);
     }
 
+    @Test
+    void getRanking_shouldResolveProbablePitcherNamesFromLineups() {
+        Game scheduled = scheduled(20L, 90);
+        scheduled.setHomeTeamId(1L);
+        scheduled.setAwayTeamId(2L);
+        Lineup homePitcher = probablePitcher(20L, 101L, 1L);
+        Lineup awayPitcher = probablePitcher(20L, 202L, 2L);
+        Player homePlayer = player(101L, "Home Starter");
+        Player awayPlayer = player(202L, "Away Starter");
+
+        when(rankingService.topLive(1000)).thenReturn(Map.of());
+        when(gameRepository.findByStatusAndStartTimeBetween(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(scheduled));
+        when(gameRepository.findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                org.mockito.ArgumentMatchers.eq(Game.STATUS_FINAL), any(Instant.class)))
+                .thenReturn(List.of());
+        when(lineupRepository.findByGameIdInAndIsProbablePitcherTrue(List.of(20L)))
+                .thenReturn(List.of(homePitcher, awayPitcher));
+        when(playerRepository.findAllById(List.of(101L, 202L)))
+                .thenReturn(List.of(homePlayer, awayPlayer));
+
+        HomeRankingResponse response = service.getRanking(5);
+
+        assertThat(response.scheduled()).singleElement().satisfies(card -> {
+            assertThat(card.probablePitchers().home()).isEqualTo("Home Starter");
+            assertThat(card.probablePitchers().away()).isEqualTo("Away Starter");
+        });
+    }
+
+    @Test
+    void getRanking_shouldApplyPersonalizationBeforeSelectingLiveCards() {
+        Game first = live(1L);
+        Game favorite = live(2L);
+        UserPreferenceReader preferenceReader = mock(UserPreferenceReader.class);
+        HomeQueryService personalizedService = new HomeQueryService(
+                gameRepository,
+                watchScoreRepository,
+                gameEventRepository,
+                lineupRepository,
+                playerRepository,
+                rankingService,
+                personalizationCalculator,
+                Optional.of(preferenceReader),
+                redisTemplate);
+
+        Map<Long, Double> liveScores = new LinkedHashMap<>();
+        liveScores.put(1L, 90.0);
+        liveScores.put(2L, 85.0);
+        when(rankingService.topLive(1000)).thenReturn(liveScores);
+        when(gameRepository.findById(1L)).thenReturn(Optional.of(first));
+        when(gameRepository.findById(2L)).thenReturn(Optional.of(favorite));
+        when(lineupRepository.findByGameIdIn(List.of(1L, 2L))).thenReturn(List.of());
+        UserPreferences preferences = new UserPreferences(Set.of(20L), Set.of());
+        when(preferenceReader.findByEmail("user@example.com")).thenReturn(preferences);
+        when(personalizationCalculator.bonus(eq(first), anySet(), eq(preferences))).thenReturn(0);
+        when(personalizationCalculator.bonus(eq(favorite), anySet(), eq(preferences))).thenReturn(10);
+
+        HomeRankingResponse response = personalizedService.getRanking(2, "user@example.com");
+
+        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
+                .containsExactly(2L, 1L);
+    }
+
+    @Test
+    void getSlate_shouldDistinguishPostponedAndCanceledStates() {
+        Game postponed = gameWithStatus(30L, Game.STATUS_POSTPONED);
+        Game canceled = gameWithStatus(31L, Game.STATUS_CANCELED);
+        when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
+                any(Instant.class), any(Instant.class))).thenReturn(List.of(postponed, canceled));
+
+        HomeSlateResponse response = service.getSlate("2026-07-11", "all", "startTime");
+
+        assertThat(response.games()).hasSize(2).allMatch(SlateScheduledGameCard.class::isInstance);
+        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameState)
+                .containsExactly("POSTPONED", "CANCELED");
+    }
+
+    @Test
+    void getSlate_shouldThrowInvalidSlateDateExceptionForInvalidDate() {
+        assertThatThrownBy(() -> service.getSlate("2026-02-30", "all", "startTime"))
+                .isInstanceOf(InvalidSlateDateException.class)
+                .hasMessage("날짜는 YYYY-MM-DD 형식이어야 합니다.");
+    }
+
+    @Test
+    void getSlate_shouldUseCurrentSlateDateWhenDateIsMissing() {
+        LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
+        when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
+                any(Instant.class), any(Instant.class))).thenReturn(List.of());
+
+        HomeSlateResponse response = service.getSlate(null, "all", "startTime");
+
+        assertThat(response.slateDate()).isEqualTo(today);
+        assertThat(response.games()).isEmpty();
+    }
+
     private static int totalCards(HomeRankingResponse response) {
         return response.live().size() + response.finished().size() + response.scheduled().size();
     }
@@ -107,14 +232,6 @@ class HomeQueryServiceTest {
             scores.put(gameIds[i], 100.0 - i);
         }
         return scores;
-    }
-
-    private List<Game> concat(Game live, List<Game> finished, List<Game> scheduled) {
-        java.util.ArrayList<Game> games = new java.util.ArrayList<>();
-        games.add(live);
-        games.addAll(finished);
-        games.addAll(scheduled);
-        return games;
     }
 
     private Game live(long id) {
@@ -141,11 +258,35 @@ class HomeQueryServiceTest {
         return game;
     }
 
+    private static Game gameWithStatus(long id, String status) {
+        Game game = baseGame(id);
+        game.setStatus(status);
+        game.setStartTime(Instant.parse("2026-07-11T18:00:00Z"));
+        game.setVenue("Test Ballpark");
+        return game;
+    }
+
     private static Game baseGame(long id) {
         Game game = new Game();
         game.setId(id);
         game.setHomeTeamAbbr("H" + id);
         game.setAwayTeamAbbr("A" + id);
         return game;
+    }
+
+    private static Lineup probablePitcher(long gameId, long playerId, long teamId) {
+        Lineup lineup = new Lineup();
+        lineup.setGameId(gameId);
+        lineup.setPlayerId(playerId);
+        lineup.setTeamId(teamId);
+        lineup.setIsProbablePitcher(true);
+        return lineup;
+    }
+
+    private static Player player(long id, String fullName) {
+        Player player = new Player();
+        player.setId(id);
+        player.setFullName(fullName);
+        return player;
     }
 }

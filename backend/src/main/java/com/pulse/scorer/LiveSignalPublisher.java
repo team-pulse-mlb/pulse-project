@@ -1,11 +1,14 @@
 package com.pulse.scorer;
 
+import com.pulse.common.message.RedisSignalChannels;
+import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -14,16 +17,16 @@ import org.springframework.stereotype.Component;
  * 재조회 신호 pub/sub를 한곳에서 처리한다. payload에는 점수·결과를 싣지 않는다.
  */
 @Component
+@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class LiveSignalPublisher {
 
-    public static final String RANKING_CHANNEL = "signal:ranking";
-    private static final String GAME_CHANNEL_PREFIX = "signal:game:";
     private static final String GAME_CACHE_PREFIX = "game:";
     private static final String GAME_CACHE_SUFFIX = ":live";
 
     private final RankingService rankingService;
     private final StringRedisTemplate redisTemplate;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     /** 랭킹 ZSET·경기 HASH 캐시를 갱신하고 재조회 신호 2종을 발행한다. */
     public void publishLiveUpdate(
@@ -35,20 +38,53 @@ public class LiveSignalPublisher {
             String inningType,
             Long lastPlayOrder,
             String lifecycleState,
+            List<String> fallbackPreviousTags,
             Instant updatedAt
     ) {
-        rankingService.updateLive(gameId, watchScore);
-        cacheGameState(gameId, watchScore, baseScore, tags, inning, inningType, lastPlayOrder, lifecycleState, updatedAt);
-        publishGameSignal(gameId);
-        publishRankingSignal();
+        afterCommitExecutor.execute(() -> {
+            rankingService.updateLive(gameId, watchScore);
+            cacheGameState(
+                    gameId,
+                    watchScore,
+                    baseScore,
+                    tags,
+                    inning,
+                    inningType,
+                    lastPlayOrder,
+                    lifecycleState,
+                    fallbackPreviousTags,
+                    updatedAt
+            );
+            publishGameSignalNow(gameId);
+            publishRankingSignalNow();
+        });
     }
 
     public void publishGameSignal(long gameId) {
-        redisTemplate.convertAndSend(GAME_CHANNEL_PREFIX + gameId, String.valueOf(gameId));
+        afterCommitExecutor.execute(() -> publishGameSignalNow(gameId));
     }
 
     public void publishRankingSignal() {
-        redisTemplate.convertAndSend(RANKING_CHANNEL, "changed");
+        afterCommitExecutor.execute(this::publishRankingSignalNow);
+    }
+
+    /** 현재 Redis 상태를 기준으로 이번 사이클의 가장 최근 활성 태그를 계산한다. */
+    public String resolveLatestTag(
+            long gameId,
+            List<String> tags,
+            List<String> fallbackPreviousTags,
+            Instant updatedAt
+    ) {
+        String latestTag = latestTagState(gameId, tags, fallbackPreviousTags, updatedAt).latestTag();
+        return latestTag.isBlank() ? null : latestTag;
+    }
+
+    private void publishGameSignalNow(long gameId) {
+        redisTemplate.convertAndSend(RedisSignalChannels.gameChannel(gameId), String.valueOf(gameId));
+    }
+
+    private void publishRankingSignalNow() {
+        redisTemplate.convertAndSend(RedisSignalChannels.RANKING, "changed");
     }
 
     private void cacheGameState(
@@ -60,9 +96,10 @@ public class LiveSignalPublisher {
             String inningType,
             Long lastPlayOrder,
             String lifecycleState,
+            List<String> fallbackPreviousTags,
             Instant updatedAt
     ) {
-        LatestTagState latestTagState = latestTagState(gameId, tags, updatedAt);
+        LatestTagState latestTagState = latestTagState(gameId, tags, fallbackPreviousTags, updatedAt);
         Map<String, String> hash = new LinkedHashMap<>();
         hash.put("watchScore", String.valueOf((int) Math.round(watchScore)));
         hash.put("baseScore", String.valueOf(baseScore));
@@ -84,10 +121,19 @@ public class LiveSignalPublisher {
     }
 
     public void evictGameCache(long gameId) {
-        redisTemplate.delete(cacheKey(gameId));
+        afterCommitExecutor.execute(() -> redisTemplate.delete(cacheKey(gameId)));
     }
 
-    private LatestTagState latestTagState(long gameId, List<String> tags, Instant updatedAt) {
+    public void removeLiveGame(long gameId) {
+        afterCommitExecutor.execute(() -> rankingService.removeLive(gameId));
+    }
+
+    private LatestTagState latestTagState(
+            long gameId,
+            List<String> tags,
+            List<String> fallbackPreviousTags,
+            Instant updatedAt
+    ) {
         List<String> current = tags == null ? List.of() : tags;
         String key = cacheKey(gameId);
         String previousSignature = valueOf(redisTemplate.opsForHash().get(key, "activeTagSignature"));
@@ -98,9 +144,14 @@ public class LiveSignalPublisher {
             return new LatestTagState("", "");
         }
 
-        List<String> previousTags = previousSignature == null || previousSignature.isBlank()
-                ? List.of()
-                : List.of(previousSignature.split("\\|", -1));
+        List<String> previousTags;
+        if (previousSignature == null) {
+            previousTags = fallbackPreviousTags == null ? List.of() : fallbackPreviousTags;
+        } else if (previousSignature.isBlank()) {
+            previousTags = List.of();
+        } else {
+            previousTags = List.of(previousSignature.split("\\|", -1));
+        }
         String newlyActivated = current.stream()
                 .filter(tag -> !previousTags.contains(tag))
                 .reduce((first, second) -> second)

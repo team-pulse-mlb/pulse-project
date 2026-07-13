@@ -1,7 +1,8 @@
 package com.pulse.poller;
 
-import com.pulse.common.client.BalldontlieClient;
+import com.pulse.common.client.BaseballDataSource;
 import com.pulse.common.client.BdlDtos.BdlGame;
+import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.client.BdlDtos.BdlPlay;
 import com.pulse.common.client.BdlDtos.ListResponse;
 import com.pulse.common.client.BdlDtos.PlateAppearancesRaw;
@@ -35,7 +36,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class OperationalPoller {
 
-    private final BalldontlieClient balldontlieClient;
+    private final BaseballDataSource balldontlieClient;
     private final GameRepository gameRepository;
     private final PlayRepository playRepository;
     private final PollerGameWriter gameWriter;
@@ -53,7 +54,7 @@ public class OperationalPoller {
 
     @Autowired
     public OperationalPoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
             PlayRepository playRepository,
             PollerGameWriter gameWriter,
@@ -80,7 +81,7 @@ public class OperationalPoller {
     }
 
     OperationalPoller(
-            BalldontlieClient balldontlieClient,
+            BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
             PlayRepository playRepository,
             PollerGameWriter gameWriter,
@@ -157,19 +158,23 @@ public class OperationalPoller {
             return;
         }
 
-        try {
-            for (Game game : liveGames) {
+        for (Game game : liveGames) {
+            try {
                 int inserted = pollPlays(game, now);
                 if (inserted > 0) {
-                    syncPlateAppearances(game.getId(), now);
+                    List<BdlPlateAppearance> plateAppearances = syncPlateAppearances(game.getId(), now);
                     latestPlay(game.getId()).ifPresent(play ->
-                            scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now)));
+                            scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now, plateAppearances)));
                 }
+            } catch (RuntimeException e) {
+                if (PollerExceptionClassifier.shouldBackoff(e)) {
+                    handleFailure("plays", playsBackoff, now, e);
+                    return;
+                }
+                log.error("plays poll failed: gameId={}", game.getId(), e);
             }
-            playsBackoff.recordSuccess();
-        } catch (RuntimeException e) {
-            handleFailure("plays", playsBackoff, now, e);
         }
+        playsBackoff.recordSuccess();
     }
 
     private int pollPlays(Game game, Instant observedAt) {
@@ -201,7 +206,7 @@ public class OperationalPoller {
         return inserted;
     }
 
-    private void syncPlateAppearances(long gameId, Instant observedAt) {
+    private List<BdlPlateAppearance> syncPlateAppearances(long gameId, Instant observedAt) {
         rateLimiter.acquire();
         PlateAppearancesRaw fetch = balldontlieClient.getPlateAppearancesRaw(gameId);
         paRawArchiveUploader.upload(gameId, fetch.response(), observedAt);
@@ -213,21 +218,41 @@ public class OperationalPoller {
                 result.unmatchedPlateAppearances(),
                 result.unmatchedGroups()
         );
+        return fetch.data();
     }
 
     private void publishTransitionEvents(GameUpsertResult result, Instant now) {
         if (result.enteredLive()) {
+            UUID eventId = UUID.randomUUID();
             notificationEventPublisher.publish(new NotificationEvent(
-                    UUID.randomUUID(),
+                    eventId,
                     NotificationType.GAME_START,
                     result.game().getId(),
-                    List.of(),
+                    gameStartMessage(result.game()),
+                    null,
                     now
             ));
         }
         if (result.enteredTerminalState()) {
             scoreTaskPublisher.publish(scoreTaskFactory.terminalTask(result.game(), now));
         }
+    }
+
+    private static String gameStartMessage(Game game) {
+        return "관심 팀 경기가 시작됐어요 — "
+                + teamLabel(game.getAwayTeamAbbr(), game.getAwayTeamName())
+                + " @ "
+                + teamLabel(game.getHomeTeamAbbr(), game.getHomeTeamName());
+    }
+
+    private static String teamLabel(String abbreviation, String name) {
+        if (abbreviation != null && !abbreviation.isBlank()) {
+            return abbreviation;
+        }
+        if (name != null && !name.isBlank()) {
+            return name;
+        }
+        return "미정";
     }
 
     private List<LocalDate> slateDates(Instant now) {

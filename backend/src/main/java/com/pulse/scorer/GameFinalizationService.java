@@ -1,18 +1,20 @@
 package com.pulse.scorer;
 
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.poller.GameLifecycle;
-import com.pulse.ranking.RankingService;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class GameFinalizationService {
@@ -20,9 +22,9 @@ public class GameFinalizationService {
     private static final String FINALIZED_KEY_PREFIX = "score:finalized:";
 
     private final GameRepository gameRepository;
-    private final RankingService rankingService;
     private final LiveSignalPublisher liveSignalPublisher;
     private final AiGenerationTrigger aiGenerationTrigger;
+    private final AfterCommitExecutor afterCommitExecutor;
     private final StringRedisTemplate redisTemplate;
 
     @Transactional
@@ -41,20 +43,19 @@ public class GameFinalizationService {
             return;
         }
 
-        rankingService.removeLive(task.gameId());
+        liveSignalPublisher.removeLiveGame(task.gameId());
         liveSignalPublisher.evictGameCache(task.gameId());
         liveSignalPublisher.publishGameSignal(task.gameId());
         liveSignalPublisher.publishRankingSignal();
 
-        if (isFinal(task.lifecycleState())) {
-            aiGenerationTrigger.onGameFinalized(task.gameId(), observedAt);
+        if (isFinal(task.lifecycleState(), game)) {
+            afterCommitExecutor.execute(() -> aiGenerationTrigger.onGameFinalized(task.gameId(), observedAt));
         }
         log.debug("경기 종료 정리 gameId={} lifecycleState={}", game.getId(), task.lifecycleState());
     }
 
-    private static boolean isFinal(String lifecycleState) {
-        return GameLifecycle.FINAL.name().equals(lifecycleState)
-                || GameLifecycle.DONE.name().equals(lifecycleState);
+    private static boolean isFinal(String lifecycleState, Game game) {
+        return GameLifecycle.FINAL.name().equals(lifecycleState) && game.isFinal();
     }
 
     private static String finalizedKey(long gameId) {

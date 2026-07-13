@@ -129,6 +129,20 @@ public final class BdlDtos {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlPlayer(
+            Long id,
+            @JsonProperty("full_name") @JsonAlias({"display_name", "name"}) String fullName,
+            @JsonProperty("first_name") String firstName,
+            @JsonProperty("last_name") String lastName,
+            @JsonAlias("primary_position") String position,
+            TeamRef team
+    ) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public record TeamRef(Long id) {
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record BdlPlayerSeasonStat(
             @JsonProperty("player_id") Long playerId,
             Player player,
@@ -165,9 +179,51 @@ public final class BdlDtos {
             @JsonProperty("half_inning") String halfInning,
             @JsonProperty("batter_id") Long batterId,
             @JsonProperty("pitcher_id") Long pitcherId,
+            Integer outs,
             @JsonProperty("runner_on_first") Boolean runnerOnFirst,
             @JsonProperty("runner_on_second") Boolean runnerOnSecond,
-            @JsonProperty("runner_on_third") Boolean runnerOnThird
+            @JsonProperty("runner_on_third") Boolean runnerOnThird,
+            List<BdlPitch> pitches
+    ) {
+
+        public BdlPlateAppearance(
+                Long paNumber,
+                Long gameId,
+                Integer inning,
+                String halfInning,
+                Long batterId,
+                Long pitcherId,
+                Boolean runnerOnFirst,
+                Boolean runnerOnSecond,
+                Boolean runnerOnThird
+        ) {
+            this(
+                    paNumber,
+                    gameId,
+                    inning,
+                    halfInning,
+                    batterId,
+                    pitcherId,
+                    null,
+                    runnerOnFirst,
+                    runnerOnSecond,
+                    runnerOnThird,
+                    List.of()
+            );
+        }
+
+        public BdlPlateAppearance {
+            pitches = pitches == null ? List.of() : List.copyOf(pitches);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BdlPitch(
+            @JsonProperty("pitch_number") Integer pitchNumber,
+            @JsonProperty("pitcher_pitch_count") Integer pitcherPitchCount,
+            @JsonProperty("release_speed") Double releaseSpeed,
+            @JsonProperty("exit_velocity") Double exitVelocity,
+            @JsonProperty("is_barrel") Boolean isBarrel
     ) {
     }
 }

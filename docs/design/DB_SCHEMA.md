@@ -36,12 +36,14 @@ erDiagram
     users ||--o| user_settings : "설정"
     users ||--o{ user_favorite_teams : "관심 팀"
     teams ||--o{ user_favorite_teams : "관심 팀"
+    users ||--o{ user_favorite_players : "관심 선수"
+    players ||--o{ user_favorite_players : "관심 선수"
     users ||--o{ refresh_tokens : "토큰"
     users ||--o{ user_notifications : "수신함"
     notification_events ||--o{ user_notifications : "fan-out"
 ```
 
-관심 팀은 `user_favorite_teams` 조인 테이블로 관리한다. 관심 선수 저장 구조는 후속 작업에서 확정한다.
+관심 팀은 `user_favorite_teams`, 관심 선수는 `user_favorite_players` 조인 테이블로 관리한다.
 
 ## 4. 테이블 개요
 
@@ -55,6 +57,7 @@ erDiagram
 | 사용자 | `refresh_tokens` | 토큰 상태 | P0 |
 | 사용자 | `user_settings` | 알림·전환 설정 | P0 |
 | 사용자 | `user_favorite_teams` | 관심 팀 조인 | P0 |
+| 사용자 | `user_favorite_players` | 관심 선수 조인 | P0 |
 | 알림 | `notification_events` | 전역 이벤트 원본 | P0 |
 | 알림 | `user_notifications` | 사용자별 수신함 | P0 |
 | 마스터 | `teams` | 정적 마스터 | P1 |
@@ -174,9 +177,10 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 | `inning_type` | `TEXT` | 초/말 | [내부] 보호 DTO에서 제거 |
 | `batter_id` · `pitcher_id` | `BIGINT` | 관련 선수 | FK → `players`, nullable. 공개 모드·관심 선수 매칭용 |
 | `payload` | `JSONB` | 근거 수치(투구 수·구속 추이·exit_velocity 등) | [내부] 공개 모드 표시용 |
-| `copy_protected` | `TEXT` | 이벤트 AI 문구 · 보호 모드용(검수 통과본) | nullable. `contextHash` 일치 시에만 갱신 |
-| `copy_revealed` | `TEXT` | 이벤트 AI 문구 · 공개 모드용(검수 통과본) | nullable. `contextHash` 일치 시에만 갱신 |
-| `copy_context_hash` | `TEXT` | 이벤트 문구 생성 컨텍스트 해시 | nullable. 모드별 문구 저장 시 최신 context 검증 |
+| `copy_protected` | `TEXT` | 이벤트 AI 문구 · 보호 모드용(검수 통과본) | nullable. `copy_protected_context_hash` 일치 시에만 갱신 |
+| `copy_revealed` | `TEXT` | 이벤트 AI 문구 · 공개 모드용(검수 통과본) | nullable. `copy_revealed_context_hash` 일치 시에만 갱신 |
+| `copy_protected_context_hash` | `TEXT` | 보호 모드 문구 생성 컨텍스트 해시 | nullable. 모드별 컨텍스트가 달라 해시를 분리 저장 |
+| `copy_revealed_context_hash` | `TEXT` | 공개 모드 문구 생성 컨텍스트 해시 | nullable. 늦게 도착한 응답의 교차 덮어쓰기 방지 |
 | `ruleset_version` | `TEXT` | 추출 룰 버전(`scoring.yml` version) | |
 | `observed_at` | `TIMESTAMPTZ` | 최초 관측 시각 | 타임라인 공통 정렬 키 |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
@@ -243,9 +247,17 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 
 **키·인덱스** — PK(`user_id`, `team_id`) · idx(`team_id`)
 
-관심 선수 저장(`user_favorite_players`)은 후속 작업으로 둔다.
+### B-5. `user_favorite_players` — 관심 선수
 
-### B-5. `notification_events` — 알림 이벤트 원본 (전역 1행)
+| 컬럼 | 타입 | 설명 | 제약·비고 |
+|---|---|---|---|
+| `user_id` | `BIGINT` | 사용자 id | FK → `users.user_id` |
+| `player_id` | `BIGINT` | 관심 선수 id | FK → `players.player_id` |
+| `created_at` | `TIMESTAMPTZ` | 등록 시각 | |
+
+**키·인덱스** — PK(`user_id`, `player_id`) · idx(`player_id`)
+
+### B-6. `notification_events` — 알림 이벤트 원본 (전역 1행)
 
 scorer(급상승)·poller(경기 시작)가 판정해 발행한 이벤트의 원본. 사용자별 수신함과 분리해 발화 이력을 남긴다.
 
@@ -259,7 +271,27 @@ scorer(급상승)·poller(경기 시작)가 판정해 발행한 이벤트의 원
 
 **키·인덱스** — PK `event_id` · idx(`game_id`, `occurred_at`)
 
-### B-6. `user_notifications` — 사용자별 수신함
+### B-7. `notification_outbox` — 알림 발행 대기열
+
+`notification_events`와 같은 트랜잭션에서 생성한다. RabbitMQ 발행 실패 시 재시도 상태를 보존하며, 발행 성공 후에도 운영 추적을 위해 행을 유지한다.
+
+| 컬럼 | 타입 | 설명 | 제약·비고 |
+|---|---|---|---|
+| `outbox_id` | `UUID` | outbox id | **PK** |
+| `event_id` | `UUID` | 원본 이벤트 | **UNIQUE** · FK → `notification_events` |
+| `event_type` | `VARCHAR(30)` | 이벤트 타입 | `SURGE`/`GAME_START` |
+| `game_id` | `BIGINT` | 경기 id | 메시지 재구성 값 |
+| `message` · `latest_tag` | `TEXT` | 알림 문구·최신 태그 | `latest_tag` nullable |
+| `occurred_at` | `TIMESTAMPTZ` | 이벤트 발생 시각 | 메시지 재구성 값 |
+| `status` | `VARCHAR(20)` | `PENDING`/`PUBLISHED` | |
+| `attempt_count` | `INTEGER` | 실패 횟수 | 기본값 0 |
+| `next_attempt_at` | `TIMESTAMPTZ` | 다음 발행 시각 | PENDING 조회 기준 |
+| `created_at` · `published_at` | `TIMESTAMPTZ` | 생성·발행 완료 시각 | `published_at` nullable |
+| `last_error` | `TEXT` | 최근 실패 내용 | nullable |
+
+**키·인덱스** — PK `outbox_id` · UNIQUE(`event_id`) · partial idx(`next_attempt_at`, `created_at`) WHERE `status='PENDING'`
+
+### B-8. `user_notifications` — 사용자별 수신함
 
 api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한다. 알림 센터의 최신순 목록·미읽음 배지·읽음 처리·7일 보관을 지원한다.
 

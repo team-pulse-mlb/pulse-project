@@ -1,184 +1,96 @@
-/* 모든 요소의 크기 계산을 편하게 설정 */
-* {
-  box-sizing: border-box;
-}
+@import 'tailwindcss';
 
-/* 브라우저 기본 여백 제거 */
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+/*
+ * PULSE 디자인 토큰 (프로토타입 "MLB 공식 색상 디자인" 기준)
+ * 색·폰트·radius·그림자는 여기서만 정의하고, 컴포넌트는 토큰 유틸리티만 사용한다.
+ */
+@theme {
+  /* 브랜드 */
+  --color-mlb-red: #e4002b;
+  --color-mlb-navy: #002d72;
+  --color-gold: #ffc72c;
 
-  font-family:
-    Arial,
-    "Noto Sans KR",
+  /* 배경·표면 */
+  --color-page: #eef1f6;
+  --color-ink: #0a0e17; /* 헤더·다크 화면 배경 */
+  --color-ink-card: #12161f; /* 다크 화면 카드 */
+  --color-card-border: #e4e8ef;
+  --color-divider: #f1f3f6;
+
+  /* 텍스트 */
+  --color-text-strong: #101828;
+  --color-text-body: #2b333f;
+  --color-text-muted: #5b6472;
+  --color-text-faint: #98a0ad;
+
+  /* 상태 배지 */
+  --color-badge-scheduled: #e7ecf6;
+  --color-badge-final: #eef0f3;
+
+  /* 볼카운트 도트 */
+  --color-dot-ball: #2e7d46;
+  --color-dot-strike: #e4a200;
+  --color-dot-out: #e4002b;
+
+  /* 레드 계열 옅은 배경 */
+  --color-red-tint: #fdecef;
+  --color-red-tint-soft: #fff8f9;
+
+  /* 폰트 */
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, 'Noto Sans KR',
     sans-serif;
+  --font-display: 'Space Grotesk', 'Pretendard Variable', sans-serif;
 
-  color: #1f2937;
-  background-color: #f5f7fb;
+  /* radius */
+  --radius-hero: 22px;
+  --radius-card: 20px;
+  --radius-panel: 16px;
+  --radius-input: 12px;
+
+  /* 그림자 */
+  --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.05);
+  --shadow-hero: 0 18px 40px -18px rgba(0, 20, 60, 0.55);
+  --shadow-hover: 0 10px 24px -12px rgba(0, 45, 114, 0.3);
+  --shadow-modal: 0 30px 60px -30px rgba(0, 0, 0, 0.7);
 }
 
-/* 링크 기본 밑줄 제거 */
-a {
-  color: inherit;
-  text-decoration: none;
-}
+@layer base {
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: var(--color-page);
+    color: var(--color-text-body);
+    font-family: var(--font-sans);
+    /* 페이지 상단에 은은한 네이비 글로우 (프로토타입 공통 배경 장식) */
+    background-image: radial-gradient(
+      1200px 480px at 70% -8%,
+      rgba(0, 45, 114, 0.06),
+      transparent
+    );
+    background-repeat: no-repeat;
+  }
 
-/* 버튼과 입력창 폰트 통일 */
-button,
-input {
-  font: inherit;
-}
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-/* React 애플리케이션 전체 영역 */
-#root {
-  min-height: 100vh;
-}
-
-/* App 전체 영역 */
-.app {
-  width: 100%;
-  min-height: 100vh;
+  #root {
+    min-height: 100vh;
+  }
 }
 
 /* =========================
-   Header
+   legacy — 회원가입 화면(features/auth)에서 사용 중인 클래스.
+   auth 영역이 새 토큰 체계로 이관되면 제거한다.
 ========================= */
 
-.header {
-  width: 100%;
-
-  border-bottom: 1px solid #e5e7eb;
-  background-color: #ffffff;
-
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
-}
-
-.header-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  width: 90%;
-  max-width: 1200px;
-  height: 72px;
-  margin: 0 auto;
-}
-
-/* PULSE 로고 */
-.logo {
-  margin: 0;
-
-  color: #175cd3;
-
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 2px;
-}
-
-/* 메뉴 버튼 묶음 */
-.navigation {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* 메뉴 버튼 */
-.navigation button {
-  padding: 10px 14px;
-
-  border: 0;
-  border-radius: 8px;
-
-  color: #475467;
-  background-color: transparent;
-
-  font-weight: 700;
-
-  cursor: pointer;
-
-  transition:
-    color 0.2s,
-    background-color 0.2s;
-}
-
-/* 메뉴 버튼에 마우스를 올렸을 때 */
-.navigation button:hover {
-  color: #175cd3;
-  background-color: #eff6ff;
-}
-
-/* =========================
-   Main
-========================= */
-
-.main-content {
-  width: 90%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 90px 0;
-}
-
-/* 메인 제목 */
-.title {
-  margin: 0 0 20px;
-
-  color: #101828;
-
-  font-size: 48px;
-  font-weight: 900;
-  letter-spacing: -2px;
-}
-
-/* 메인 설명 */
-.main-content p {
-  margin: 0;
-
-  color: #667085;
-
-  font-size: 18px;
-  line-height: 1.7;
-}
-
-/* =========================
-   작은 화면
-========================= */
-
-@media (max-width: 600px) {
-  .header-inner {
-    width: calc(100% - 24px);
-  }
-
-  .logo {
-    font-size: 21px;
-  }
-
-  .navigation {
-    gap: 2px;
-  }
-
-  .navigation button {
-    padding: 8px;
-    font-size: 13px;
-  }
-
-  .main-content {
-    width: calc(100% - 28px);
-    padding-top: 60px;
-  }
-
-  .title {
-    font-size: 38px;
-  }
-}
-
-/* 이메일 입력창 아래 중복확인 메시지 영역 */
 .signup-email-message-area {
   height: 18px;
   margin-top: 4px;
 }
 
-/* 이메일 성공·실패 메시지 공통 */
 .signup-email-message {
   margin: 0;
   padding: 0;
@@ -187,12 +99,10 @@ input {
   line-height: 18px;
 }
 
-/* 이메일 오류 메시지 */
 .signup-email-message.error {
   color: #ff3b30;
 }
 
-/* 이메일 성공 메시지 */
 .signup-email-message.success {
   color: #16883e;
 }

@@ -270,7 +270,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 
 **동작 특성**
 
-- `/players`: `search`(이름 부분 일치), `first_name`, `last_name` 파라미터. `/players/active`는 현역만.
+- `/players`: `search`(이름 부분 일치), `first_name`, `last_name` 파라미터. `player_ids[]`, `team_ids[]` 배열 필터도 지원한다(공식 문서 기준, 이름 NULL 선수 스텁 보강 폴러가 `player_ids[]` 일괄 조회를 사용). `/players/active`는 현역만.
 - 필드: `id`, `first_name`, `last_name`, `full_name`, `debut_year`, `jersey`, `college`, `position`, `active`, `birth_place`, `dob`, `age`, `height`, `weight`, `draft`, `bats_throws`, `team`(객체).
 - `/teams`: 30팀, `division`/`league` 필터. 필드: `id`, `slug`, `abbreviation`, `display_name`, `short_display_name`, `name`, `location`, `league`, `division`.
 
