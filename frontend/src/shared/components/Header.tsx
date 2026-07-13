@@ -1,8 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router';
 
 import { getMe, refreshAccessToken } from '../../features/auth/api/authApi';
 import LoginModal from '../../features/auth/components/LoginModal';
+import { fetchMyNotifications } from '../api/notificationApi';
+import { queryKeys } from '../lib/queryKeys';
 import Logo from './Logo';
 
 function BellIcon() {
@@ -76,8 +79,15 @@ function Header() {
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-  // 알림 미읽음 여부. 알림 API 연결(윤호 담당) 시 features/notification에서 채운다.
-  const [hasUnread] = useState(false);
+  const notificationsQuery = useQuery({
+    queryKey: queryKeys.me.notifications,
+    queryFn: fetchMyNotifications,
+    enabled: isLoggedIn,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  const hasUnread = notificationsQuery.data?.some((notification) => !notification.read) ?? false;
 
   useEffect(() => {
     const updateLoginState = () => {
