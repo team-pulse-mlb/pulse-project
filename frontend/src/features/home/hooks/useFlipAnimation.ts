@@ -6,7 +6,10 @@ const FLIP_CLEANUP_DELAY_MS = FLIP_TRANSITION_DURATION_MS + 50;
 
 type AnimationCleanup = () => void;
 
-function useFlipAnimation() {
+// orderKey는 추천 카드의 순서를 나타내는 문자열이다.
+// 이 값이 바뀔 때(=랭킹 재정렬)만 FLIP을 측정·실행해, 탭 전환 같은
+// 순서와 무관한 리렌더에서 카드가 흔들리는 문제를 막는다.
+function useFlipAnimation(orderKey: string) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previousRectsRef = useRef(new Map<string, DOMRect>());
   const animationCleanupsRef = useRef(new Map<string, AnimationCleanup>());
@@ -108,7 +111,7 @@ function useFlipAnimation() {
     });
 
     previousRectsRef.current = currentRects;
-  });
+  }, [orderKey]);
 
   useLayoutEffect(
     () => () => {

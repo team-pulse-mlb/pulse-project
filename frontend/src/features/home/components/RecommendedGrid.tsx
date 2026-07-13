@@ -13,7 +13,9 @@ interface RecommendedGridProps {
 // 상단 추천 bento 그리드: 1순위 히어로(2×2) + 소형 카드 최대 4장.
 // 추천이 없으면 영역 전체를 렌더링하지 않는다 (호출부에서 처리).
 function RecommendedGrid({ cards, isLoading }: RecommendedGridProps) {
-  const gridRef = useFlipAnimation();
+  // 카드 순서가 바뀔 때만 FLIP을 실행하도록 순서 키를 넘긴다.
+  const orderKey = cards?.map((card) => card.gameId).join(',') ?? '';
+  const gridRef = useFlipAnimation(orderKey);
 
   if (isLoading) {
     return (
