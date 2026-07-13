@@ -8,7 +8,9 @@ import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
+import com.pulse.poller.PlayerStubWriter;
 import com.pulse.replay.S3RawArchiveClient.RawEnvelope;
+import com.pulse.scorer.ScoreRecalculationService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,24 +33,24 @@ public class S3ReplayDataLoader implements ApplicationRunner {
     private final ObjectMapper objectMapper;
     private final GameRepository gameRepository;
     private final PlayRepository playRepository;
-    private final ReplayScoringService scoringService;
+    private final PlayerStubWriter playerStubWriter;
+    private final ScoreRecalculationService scoreRecalculationService;
 
     @Override
     public void run(ApplicationArguments args) {
-        List<RawEnvelope> envelopes = archiveClient.loadReplayObjects();
-        int gameSnapshots = 0;
-        int plays = 0;
+        int[] gameSnapshots = {0};
+        int[] plays = {0};
 
-        for (RawEnvelope envelope : envelopes) {
+        int objects = archiveClient.streamReplayObjects(envelope -> {
             if ("/games".equals(envelope.endpoint())) {
-                gameSnapshots += ingestGames(envelope);
+                gameSnapshots[0] += ingestGames(envelope);
             } else if ("/plays".equals(envelope.endpoint())) {
-                plays += ingestPlays(envelope);
+                plays[0] += ingestPlays(envelope);
             }
-        }
+        });
 
         log.info("S3 replay loaded: gameSnapshots={}, plays={}, objects={}",
-                gameSnapshots, plays, envelopes.size());
+                gameSnapshots[0], plays[0], objects);
     }
 
     private int ingestGames(RawEnvelope envelope) {
@@ -61,7 +63,7 @@ public class S3ReplayDataLoader implements ApplicationRunner {
             Game game = upsertGame(dto, envelope.observedAt());
             saved++;
             if (game.isLive() || game.isFinal()) {
-                scoringService.recalculate(game.getId(), envelope.observedAt());
+                scoreRecalculationService.recalculate(game.getId(), envelope.observedAt());
             }
         }
         return saved;
@@ -79,12 +81,14 @@ public class S3ReplayDataLoader implements ApplicationRunner {
             if (dto.order() == null || playRepository.existsByGameIdAndPlayOrder(gameId, dto.order())) {
                 continue;
             }
-            playRepository.save(toPlay(gameId, dto, envelope.observedAt()));
+            playerStubWriter.ensurePlayerExists(dto.batterId(), envelope.observedAt());
+            playerStubWriter.ensurePlayerExists(dto.pitcherId(), envelope.observedAt());
+            playRepository.save(toPlay(gameId, dto, envelope));
             saved++;
         }
 
         if (saved > 0) {
-            scoringService.recalculate(gameId, envelope.observedAt());
+            scoreRecalculationService.recalculate(gameId, envelope.observedAt());
         }
         return saved;
     }
@@ -123,7 +127,7 @@ public class S3ReplayDataLoader implements ApplicationRunner {
         return gameRepository.save(game);
     }
 
-    private static Play toPlay(long gameId, BdlPlay dto, Instant observedAt) {
+    private static Play toPlay(long gameId, BdlPlay dto, RawEnvelope envelope) {
         Play play = new Play();
         play.setGameId(gameId);
         play.setPlayOrder(dto.order());
@@ -138,7 +142,11 @@ public class S3ReplayDataLoader implements ApplicationRunner {
         play.setOuts(dto.outs());
         play.setBalls(dto.balls());
         play.setStrikes(dto.strikes());
-        play.setFetchedAt(observedAt);
+        play.setBatterId(dto.batterId());
+        play.setPitcherId(dto.pitcherId());
+        play.setFetchedAt(envelope.observedAt());
+        play.setBackfilled(envelope.backfilled());
+        play.setSource(envelope.backfilled() ? "S3_BACKFILL" : "S3_LIVE_ARCHIVE");
         return play;
     }
 

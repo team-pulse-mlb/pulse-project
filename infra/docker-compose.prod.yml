@@ -1,0 +1,232 @@
+# PULSE 운영 Docker Compose (EC2)
+#
+# 같은 backend 이미지를 역할 게이트 환경 변수만 바꿔 pulse-api / pulse-poller / pulse-scorer
+# 3개 서비스로 재사용한다. 배포 절차와 환경 변수 목록은 infra/prod/README.md를 따른다.
+#
+# 배치 기준: EC2에 이 파일과 prod/ 디렉터리, .env를 같은 위치에 두고 실행한다.
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# 역할 게이트 조합 (docs/design/ARCHITECTURE.md, WORK_PLAN 2-1):
+#   api    = poller off · scorer off · sse on  · Flyway 실행(prod 프로파일)
+#   poller = poller on  · scorer off · sse off · Flyway 끔
+#   scorer = poller off · scorer on  · sse off · Flyway 끔
+# Flyway는 pulse-api 1곳에서만 실행해 동시 기동 마이그레이션 경합을 막는다.
+# poller·scorer는 pulse-api 헬스 통과(=마이그레이션 완료) 후 기동한다.
+#
+# 관리 포트: 세 역할 모두 actuator를 8081(관리 포트)로 분리한다. 호스트에 publish하지
+# 않으며 헬스체크와 Prometheus scrape만 compose 내부 네트워크에서 접근한다.
+
+x-app-logging: &app-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# backend 이미지 공통 골격. 역할별 env·힙 상한은 각 서비스에서 지정한다.
+x-app-base: &app-base
+  image: ${PULSE_APP_IMAGE:?PULSE_APP_IMAGE required}
+  env_file: .env
+  restart: unless-stopped
+  logging: *app-logging
+
+x-app-healthcheck: &app-healthcheck
+  test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/actuator/health"]
+  interval: 30s
+  timeout: 5s
+  retries: 5
+  start_period: 120s
+
+services:
+  pulse-api:
+    <<: *app-base
+    container_name: pulse-api
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PULSE_POLLER_ENABLED: "false"
+      PULSE_SCORER_ENABLED: "false"
+      PULSE_SSE_ENABLED: "true"
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      MANAGEMENT_SERVER_PORT: "8081"
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+      # t3.medium(4GB) 기준 초기값. 측정 후 조정한다(WORK_PLAN 2-2).
+      JAVA_OPTS: "-Xmx512m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC -Xss512k"
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  pulse-poller:
+    <<: *app-base
+    container_name: pulse-poller
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PULSE_POLLER_ENABLED: "true"
+      PULSE_SCORER_ENABLED: "false"
+      PULSE_SSE_ENABLED: "false"
+      SPRING_FLYWAY_ENABLED: "false"
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      MANAGEMENT_SERVER_PORT: "8081"
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+      JAVA_OPTS: "-Xmx256m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
+    depends_on:
+      pulse-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  pulse-scorer:
+    <<: *app-base
+    container_name: pulse-scorer
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PULSE_POLLER_ENABLED: "false"
+      PULSE_SCORER_ENABLED: "true"
+      PULSE_SSE_ENABLED: "false"
+      SPRING_FLYWAY_ENABLED: "false"
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      MANAGEMENT_SERVER_PORT: "8081"
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+      JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
+    depends_on:
+      pulse-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulse-redis
+    restart: unless-stopped
+    logging: *app-logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: pulse-rabbitmq
+    # RabbitMQ는 큐 데이터를 노드명(rabbit@호스트명) 디렉터리에 저장한다.
+    # 호스트명을 고정하지 않으면 컨테이너 재생성 때마다 새 노드로 초기화되어
+    # named volume이 있어도 미소비 메시지가 유실된다.
+    hostname: rabbitmq
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD required}
+    ports:
+      # management UI는 외부 미개방. SSH/SSM 터널로만 접근한다.
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    container_name: pulse-prometheus
+    restart: unless-stopped
+    logging: *app-logging
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    ports:
+      # 외부 미개방. SSH/SSM 터널로만 접근한다.
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prod/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: pulse-grafana
+    restart: unless-stopped
+    logging: *app-logging
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD required}
+    ports:
+      # 외부 미개방. 대시보드 접근 방식(터널 또는 개방)은 운영·관측 담당과 확정한다.
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./prod/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ai-service: 창현 담당 Dockerfile·기동 방식 확정 시 편입한다(WORK_PLAN 2-2 선행 조건).
+  # ai-service:
+  #   build: ../ai-service
+  #   container_name: pulse-ai-service
+  #   restart: unless-stopped
+  #   logging: *app-logging
+  #   environment:
+  #     OPENAI_API_KEY: ${OPENAI_API_KEY:?}
+
+  # ---- 일회성 배치 (docker compose --profile batch run --rm ...) ----
+  # 상시 기동하지 않으며 run으로만 실행한다. 파라미터는 JAVA_OPTS의 -D 시스템 프로퍼티로 넘긴다.
+  # 실행 예시는 infra/prod/README.md의 "일회성 배치" 절을 따른다.
+
+  pulse-replay:
+    <<: *app-base
+    profiles: ["batch"]
+    restart: "no"
+    environment:
+      # prod 없이 기동하면 base 설정의 ddl-auto: update가 운영 스키마를 건드린다.
+      SPRING_PROFILES_ACTIVE: prod,replay
+      PULSE_POLLER_ENABLED: "false"
+      PULSE_SCORER_ENABLED: "false"
+      PULSE_SSE_ENABLED: "false"
+      SPRING_FLYWAY_ENABLED: "false"
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      # pulse.replay.date(필수)·pulse.replay.game-id는 실행 시 JAVA_OPTS -D로 덮어쓴다.
+      JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
+
+  pulse-rescore:
+    <<: *app-base
+    profiles: ["batch"]
+    restart: "no"
+    environment:
+      # rescore 프로파일이 ddl-auto none·flyway off·scorer off를 자체 지정한다.
+      SPRING_PROFILES_ACTIVE: rescore
+      PULSE_POLLER_ENABLED: "false"
+      PULSE_SSE_ENABLED: "false"
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
+
+volumes:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:

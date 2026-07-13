@@ -1,118 +1,66 @@
 # ai-service
 
-FastAPI 기반 AI 문구 서비스. Spring Boot에서 호출하며, 문구 생성과 스포일러 검수만 담당한다. 경기 추천 판단은 하지 않는다.
+FastAPI 기반 AI 문구 서비스다. 현재는 상태 확인과 스포일러 검수 API 골격까지 구현되어 있으며, Spring Boot 호출과 실제 문구 생성은 구현 예정이다. 경기 추천 판단은 담당하지 않는다.
 
-## 엔드포인트
+## 현재 엔드포인트
 
 | API | 역할 |
 |---|---|
-| `POST /ai/spoiler-free-summary` | 경기 카드용 스포일러 없는 제목/이유 생성 |
-| `POST /ai/notification-text` | 관심 경기 알림 문구 생성 |
-| `POST /ai/replay-summary` | 종료 경기 다시보기 구간 요약 생성 |
+| `GET /health` | 프로세스 상태 확인 |
+| `GET /ai/test` | 라우터 연결 확인 |
 | `POST /ai/spoiler-check` | 문구 스포일러 포함 여부 검수 |
+
+현재 `spoiler-check`는 요청·응답 스키마와 고정 안전 응답만 구현되어 있다. 실제 모델 호출과 판정 로직은 연결되지 않았다.
+
+## [구현 예정] backend 연동 API
+
+| API | 예정 역할 |
+|---|---|
+| `POST /ai/spoiler-free-summary` | 경기 카드용 스포일러 없는 제목·이유 생성 |
+| `POST /ai/notification-text` | 관심 경기 알림 문구 생성 |
+| `POST /ai/replay-summary` | 종료 경기 다시보기 요약 생성 |
+
+backend 호출 클라이언트와 장애 시 fallback도 현재 코드에서 확인되지 않는다. 요청·응답 계약과 호출 시점은 창현이 확정한 뒤 `docs/design/API_CONTRACTS.md`와 이 README를 함께 갱신한다.
 
 ## 폴더 구조
 
-```text
+```
 app/
 ├── main.py                    # FastAPI 앱 시작점, /health
-├── core/config.py             # 환경변수 · 설정
+├── core/config.py             # [구현 예정] 환경변수 · 설정
 ├── routers/ai_router.py       # API 경로 정의
 ├── schemas/ai_schema.py       # 요청/응답 형식 (Pydantic)
 └── services/
-    ├── openai_service.py      # OpenAI 호출 · 문구 생성
-    └── spoiler_guard.py       # 생성 문구 스포일러 검수
+    ├── openai_service.py      # [구현 예정] OpenAI 호출 · 문구 생성
+    └── spoiler_guard.py       # [구현 예정] 생성 문구 스포일러 검수
 ```
 
 ## 실행
 
-```bash
+```powershell
+cd ai-service
 python -m venv .venv
-.venv/Scripts/activate
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-## 환경변수
+기동 후 다음 주소를 확인한다.
 
-`.env`는 로컬에서만 사용하고 커밋하지 않는다.
+- 상태 확인: `http://localhost:8000/health`
+- OpenAPI UI: `http://localhost:8000/docs`
 
-```env
-APP_ENV=local
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_TEMPERATURE=0.2
-OPENAI_MAX_OUTPUT_TOKENS=200
-```
+`.env.example`을 참고해 로컬 `.env`에 `OPENAI_API_KEY`, `OPENAI_MODEL`을 둔다. 현재 설정 로더와 모델 호출 코드가 연결되지 않았으므로 값을 넣어도 실제 OpenAI 요청은 발생하지 않는다.
 
-## ai-service 규칙
+## backend 인터페이스 원칙
 
-- ai-service는 추천 점수, 승패, 우세 팀, replay segment를 계산하지 않는다.
-- Spring Boot가 넘긴 safe context만 사용해 문구를 생성한다.
-- 생성된 문구는 반드시 `spoiler_guard.py` 검수를 통과해야 한다.
-- 검수 실패 또는 OpenAI 호출 실패 시 fallback 문구를 반환한다.
+- ai-service는 추천 여부나 관전 점수를 결정하지 않는다.
+- backend가 스포일러 없는 최소 context를 전달하고, ai-service는 문구 생성·검수 결과만 반환한다.
+- 점수·승패·팀 우세·플레이 원문은 보호 모드 요청에 포함하지 않는다.
+- 구현 전 실제 계약은 [API 계약](../docs/design/API_CONTRACTS.md)을 확인한다.
 
-## safe context 매핑 기준
+## 규칙
 
-Spring Boot 응답에서 ai-service 요청으로 매핑하는 기준은 아래와 같다.
-
-| Spring field | ai-service field |
-|---|---|
-| `status` | `safeContext.gameStatus` |
-| `periodLabel` | `safeContext.inningPhase` |
-| `reasonTags` | `safeContext.safeTags` |
-| `spoilerSafeSignals` | `safeContext.reasonCodes` |
-
-`recentPlays`, `teams`, `startTime`, `purpose` 같은 원본 경기 필드는 문구 생성에 사용하지 않는다.
-
-## 요청 예시
-
-`test_payload_spring_safe_context.json`은 Spring safe context를 ai-service 요청 형태로 바꾼 테스트 payload다.
-
-```json
-{
-  "gameId": 5059082,
-  "mode": "PROTECTED",
-  "surface": "HOME_CARD",
-  "language": "ko",
-  "maxLength": 80,
-  "safeContext": {
-    "gameStatus": "STATUS_FINAL",
-    "inningPhase": "경기 종료",
-    "safeTags": ["후반 긴장 구간"],
-    "reasonCodes": ["late_or_extra"]
-  }
-}
-```
-
-## 응답 필드
-
-### `/ai/spoiler-free-summary`
-
-| Field | 설명 |
-|---|---|
-| `spoilerSafe` | 최종 문구가 스포일러 검수를 통과했는지 여부 |
-| `safeTitle` | 스포일러 없는 제목 |
-| `safeReason` | 스포일러 없는 추천 이유 |
-| `notificationText` | 알림에 사용할 수 있는 짧은 문구 |
-| `tags` | 화면에 노출 가능한 안전 태그 |
-| `violations` | 검수에서 감지된 위반 항목 |
-| `fallbackUsed` | fallback 문구 사용 여부 |
-
-## 테스트
-
-```bash
-python -m compileall app
-```
-
-PowerShell 예시:
-
-```powershell
-$body = Get-Content -Raw -Encoding UTF8 test_payload_spring_safe_context.json
-
-Invoke-RestMethod `
-  -Uri "http://127.0.0.1:8000/ai/spoiler-free-summary" `
-  -Method Post `
-  -ContentType "application/json; charset=utf-8" `
-  -Body $body
-```
+- Spring Boot로부터 스포일러 없는 context만 받는다. 점수·승패·팀 우세 정보는 입력에 포함되지 않는다.
+- [구현 예정] 생성된 문구는 `spoiler_guard` 검수를 거친 뒤 반환한다.
+- [구현 예정] 서비스 장애 시 Spring Boot가 안전한 기본 문구로 대체한다.

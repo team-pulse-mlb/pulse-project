@@ -1,0 +1,12 @@
+# RDS는 Flyway 마이그레이션만 사용하며, Hibernate는 스키마를 건드리지 않는다.
+pulse:
+  simulation:
+    enabled: false
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: true
+    baseline-on-migrate: false

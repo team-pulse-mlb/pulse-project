@@ -1,0 +1,119 @@
+@import 'tailwindcss';
+
+/*
+ * PULSE 디자인 토큰 (프로토타입 "MLB 공식 색상 디자인" 기준)
+ * 색·폰트·radius·그림자는 여기서만 정의하고, 컴포넌트는 토큰 유틸리티만 사용한다.
+ */
+@theme {
+  /* 브랜드 */
+  --color-mlb-red: #e4002b;
+  --color-mlb-navy: #002d72;
+  --color-gold: #ffc72c;
+
+  /* 배경·표면 */
+  --color-page: #eef1f6;
+  --color-ink: #0a0e17; /* 헤더·다크 화면 배경 */
+  --color-ink-card: #12161f; /* 다크 화면 카드 */
+  --color-card-border: #e4e8ef;
+  --color-divider: #f1f3f6;
+
+  /* 텍스트 */
+  --color-text-strong: #101828;
+  --color-text-body: #2b333f;
+  --color-text-muted: #5b6472;
+  --color-text-faint: #98a0ad;
+
+  /* 상태 배지 */
+  --color-badge-scheduled: #e7ecf6;
+  --color-badge-final: #eef0f3;
+
+  /* 볼카운트 도트 */
+  --color-dot-ball: #2e7d46;
+  --color-dot-strike: #e4a200;
+  --color-dot-out: #e4002b;
+
+  /* 레드 계열 옅은 배경 */
+  --color-red-tint: #fdecef;
+  --color-red-tint-soft: #fff8f9;
+
+  /* 폰트 */
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, 'Noto Sans KR',
+    sans-serif;
+  --font-display: 'Space Grotesk', 'Pretendard Variable', sans-serif;
+
+  /* radius */
+  --radius-hero: 22px;
+  --radius-card: 20px;
+  --radius-panel: 16px;
+  --radius-input: 12px;
+
+  /* 그림자 */
+  --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.05);
+  --shadow-hero: 0 18px 40px -18px rgba(0, 20, 60, 0.55);
+  --shadow-hover: 0 10px 24px -12px rgba(0, 45, 114, 0.3);
+  --shadow-modal: 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+}
+
+@layer base {
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: var(--color-page);
+    color: var(--color-text-body);
+    font-family: var(--font-sans);
+    /* 페이지 상단에 은은한 네이비 글로우 (프로토타입 공통 배경 장식) */
+    background-image: radial-gradient(
+      1200px 480px at 70% -8%,
+      rgba(0, 45, 114, 0.06),
+      transparent
+    );
+    background-repeat: no-repeat;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+/* =========================
+   legacy — 회원가입 화면(features/auth)에서 사용 중인 클래스.
+   auth 영역이 새 토큰 체계로 이관되면 제거한다.
+========================= */
+
+.signup-email-message-area {
+  height: 18px;
+  margin-top: 4px;
+}
+
+.signup-email-message {
+  margin: 0;
+  padding: 0;
+
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.signup-email-message.error {
+  color: #ff3b30;
+}
+
+.signup-email-message.success {
+  color: #16883e;
+}
+
+.signup-input-row input:read-only {
+  color: #667085;
+  background-color: #f2f4f7;
+  cursor: not-allowed;
+}
+
+.email-action-button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
