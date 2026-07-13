@@ -16,7 +16,7 @@ function HeroGameCard({ game }: { game: GameCardData }) {
     <Link
       to={`/games/${game.gameId}`}
       state={{ fromCard: true }}
-      className="relative flex h-full flex-col overflow-hidden rounded-hero bg-gradient-to-br from-[#0B2559] to-[#04122E] p-7 shadow-hero transition-transform hover:-translate-y-0.5"
+      className="relative flex h-full min-h-44 flex-col overflow-hidden rounded-hero bg-gradient-to-br from-[#0B2559] to-[#04122E] p-7 shadow-hero transition-transform hover:-translate-y-0.5 md:min-h-[280px]"
     >
       <div
         aria-hidden="true"
