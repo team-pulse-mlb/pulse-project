@@ -1,16 +1,11 @@
 from fastapi import APIRouter
 
 from app.schemas.ai_schema import (
-    NotificationTextRequest,
-    NotificationTextResponse,
-    ReplaySummaryRequest,
-    ReplaySummaryResponse,
-    SpoilerCheckRequest,
-    SpoilerCheckResponse,
-    SpoilerFreeSummaryRequest,
-    SpoilerFreeSummaryResponse,
+    EventCopyRequest,
+    EventCopyResponse,
+    FinalHeadlineRequest,
+    FinalHeadlineResponse,
 )
-
 from app.services.openai_service import (
     SpoilerFreeSummaryGenerationError,
     generate_spoiler_free_summary,
@@ -32,46 +27,33 @@ def ai_test():
     }
 
 
-@router.post("/spoiler-check", response_model=SpoilerCheckResponse)
-def spoiler_check(request: SpoilerCheckRequest):
-    result = check_spoiler_text(request.text)
-
-    return SpoilerCheckResponse(
-        spoiler_safe=result["spoiler_safe"],
-        violations=result["violations"],
-        fallback_text=result["fallback_text"],
-    )
-
-
 def _generation_failure_violations(
     error: SpoilerFreeSummaryGenerationError,
 ) -> list[str]:
     """
-    OpenAI 생성 실패 사유를 Spring Boot가 읽을 수 있는 violations 배열로 변환한다.
-
-    여기서 fallback 문구를 만들지는 않는다.
-    fallback 기본 문구의 최종 책임은 Spring Boot에 있다.
+    OpenAI 생성 실패 예외를 Spring Boot가 저장 여부를 판단할 수 있는 violations 코드로 변환한다.
     """
 
-    reason = str(error).strip()
-    if not reason:
-        reason = "OPENAI_GENERATION_FAILED"
+    error_code = str(error).strip()
 
-    return [reason]
+    if not error_code:
+        return ["OPENAI_GENERATION_FAILED"]
+
+    return [error_code]
 
 
-def _build_failed_summary_response(
-    context_hash: str | None,
+def _build_failed_response(
+    response_type: type[FinalHeadlineResponse] | type[EventCopyResponse],
+    context_hash: str,
     violations: list[str],
-) -> SpoilerFreeSummaryResponse:
+) -> FinalHeadlineResponse | EventCopyResponse:
     """
-    /ai/spoiler-free-summary 실패 응답을 만든다.
+    생성 실패 또는 spoiler guard 실패 응답을 만든다.
 
-    생성 문구 필드는 내려주지 않고,
-    Spring Boot 저장 판단에 필요한 공통 필드만 채운다.
+    ai-service는 fallback 문구를 만들지 않으므로 safeTitle은 내려주지 않는다.
     """
 
-    return SpoilerFreeSummaryResponse(
+    return response_type(
         spoiler_safe=False,
         context_hash=context_hash,
         violations=violations,
@@ -79,153 +61,120 @@ def _build_failed_summary_response(
     )
 
 
-def _build_failed_notification_response(
-    context_hash: str | None,
-    violations: list[str],
-) -> NotificationTextResponse:
+def _extract_safe_title(generated_summary: dict) -> str | None:
     """
-    /ai/notification-text 실패 응답을 만든다.
-    """
+    OpenAI 생성 결과에서 실제 화면에 저장할 문구만 추출한다.
 
-    return NotificationTextResponse(
-        spoiler_safe=False,
-        context_hash=context_hash,
-        violations=violations,
-        fallback_used=False,
-    )
-
-
-def _build_failed_replay_response(
-    context_hash: str | None,
-    violations: list[str],
-) -> ReplaySummaryResponse:
-    """
-    /ai/replay-summary 실패 응답을 만든다.
+    현재 openai_service는 기존 safe_title 필드를 반환하므로,
+    router에서는 이 값을 FINAL_HEADLINE / EVENT_COPY 공통 copy로 사용한다.
     """
 
-    return ReplaySummaryResponse(
-        spoiler_safe=False,
-        context_hash=context_hash,
-        violations=violations,
-        fallback_used=False,
-    )
+    safe_title = generated_summary.get("safe_title")
+
+    if not isinstance(safe_title, str):
+        return None
+
+    safe_title = safe_title.strip()
+
+    if not safe_title:
+        return None
+
+    return safe_title
 
 
-@router.post(
-    "/spoiler-free-summary",
-    response_model=SpoilerFreeSummaryResponse,
-    response_model_exclude_none=True,
-)
-def spoiler_free_summary(request: SpoilerFreeSummaryRequest):
+def _generate_checked_copy(
+    request: FinalHeadlineRequest | EventCopyRequest,
+    response_type: type[FinalHeadlineResponse] | type[EventCopyResponse],
+) -> FinalHeadlineResponse | EventCopyResponse:
+    """
+    AI 문구 생성과 spoiler guard 검수를 공통 처리한다.
+
+    처리 흐름:
+    1. OpenAI 문구 후보 생성
+    2. 생성 실패 시 spoilerSafe=false 상태 응답 반환
+    3. 생성 문구 필드 누락 시 spoilerSafe=false 상태 응답 반환
+    4. spoiler guard 검수
+    5. 검수 실패 시 spoilerSafe=false 상태 응답 반환
+    6. 검수 통과 시 safeTitle 반환
+    """
+
     try:
         generated_summary = generate_spoiler_free_summary(request)
     except SpoilerFreeSummaryGenerationError as error:
-        return _build_failed_summary_response(
+        return _build_failed_response(
+            response_type=response_type,
             context_hash=request.context_hash,
             violations=_generation_failure_violations(error),
         )
 
-    combined_text = (
-        f"{generated_summary['safe_title']} "
-        f"{generated_summary['safe_reason']} "
-        f"{generated_summary['notification_text']}"
+    safe_title = _extract_safe_title(generated_summary)
+
+    if safe_title is None:
+        return _build_failed_response(
+            response_type=response_type,
+            context_hash=request.context_hash,
+            violations=["OPENAI_RESPONSE_MISSING_FIELD:safe_title"],
+        )
+
+    # 요청 모드와 검증 기준이 되는 safeContext를 함께 전달해
+    # PROTECTED / REVEALED별 정책과 실제 결과 일치 검사를 적용합니다.
+    guard_result = check_spoiler_text(
+        text=safe_title,
+        mode=request.mode,
+        safe_context=request.safe_context,
     )
 
-    guard_result = check_spoiler_text(combined_text)
-
     if not guard_result["spoiler_safe"]:
-        return _build_failed_summary_response(
+        return _build_failed_response(
+            response_type=response_type,
             context_hash=request.context_hash,
             violations=guard_result["violations"],
         )
 
-    return SpoilerFreeSummaryResponse(
+    return response_type(
         spoiler_safe=True,
         context_hash=request.context_hash,
-        safe_title=generated_summary["safe_title"],
-        safe_reason=generated_summary["safe_reason"],
-        notification_text=generated_summary["notification_text"],
-        tags=generated_summary["tags"],
+        safe_title=safe_title,
         violations=[],
         fallback_used=False,
     )
 
 
 @router.post(
-    "/notification-text",
-    response_model=NotificationTextResponse,
+    "/final-headline",
+    response_model=FinalHeadlineResponse,
     response_model_exclude_none=True,
 )
-def notification_text(request: NotificationTextRequest):
+def final_headline(request: FinalHeadlineRequest):
     """
-    알림에 사용할 스포일러 없는 짧은 문구를 생성하는 API
+    종료 경기 헤드라인을 생성한다.
+
+    PROTECTED:
+    - 점수, 승패, 우세 팀을 언급하면 안 된다.
+
+    REVEALED:
+    - safeContext에 포함된 finalScore, winner와 일치하는 범위에서만 결과 언급이 가능하다.
     """
 
-    try:
-        generated_summary = generate_spoiler_free_summary(request)
-    except SpoilerFreeSummaryGenerationError as error:
-        return _build_failed_notification_response(
-            context_hash=request.context_hash,
-            violations=_generation_failure_violations(error),
-        )
-
-    notification_text_value = generated_summary["notification_text"]
-
-    guard_result = check_spoiler_text(notification_text_value)
-
-    if not guard_result["spoiler_safe"]:
-        return _build_failed_notification_response(
-            context_hash=request.context_hash,
-            violations=guard_result["violations"],
-        )
-
-    return NotificationTextResponse(
-        spoiler_safe=True,
-        context_hash=request.context_hash,
-        notification_text=notification_text_value,
-        tags=generated_summary["tags"],
-        violations=[],
-        fallback_used=False,
+    return _generate_checked_copy(
+        request=request,
+        response_type=FinalHeadlineResponse,
     )
 
 
 @router.post(
-    "/replay-summary",
-    response_model=ReplaySummaryResponse,
+    "/event-copy",
+    response_model=EventCopyResponse,
     response_model_exclude_none=True,
 )
-def replay_summary(request: ReplaySummaryRequest):
+def event_copy(request: EventCopyRequest):
     """
-    다시보기 구간에 사용할 스포일러 없는 제목/설명 문구를 생성하는 API
+    이벤트 타임라인 문구를 생성한다.
+
+    구간 요약 API가 아니라, 경기 이벤트 타임라인에 표시할 짧은 문구를 생성한다.
     """
 
-    try:
-        generated_summary = generate_spoiler_free_summary(request)
-    except SpoilerFreeSummaryGenerationError as error:
-        return _build_failed_replay_response(
-            context_hash=request.context_hash,
-            violations=_generation_failure_violations(error),
-        )
-
-    replay_title = request.segment_label
-    replay_summary_value = generated_summary["safe_reason"]
-    tags = request.segment_reason_tags or generated_summary["tags"]
-
-    combined_text = f"{replay_title} {replay_summary_value}"
-    guard_result = check_spoiler_text(combined_text)
-
-    if not guard_result["spoiler_safe"]:
-        return _build_failed_replay_response(
-            context_hash=request.context_hash,
-            violations=guard_result["violations"],
-        )
-
-    return ReplaySummaryResponse(
-        spoiler_safe=True,
-        context_hash=request.context_hash,
-        replay_title=replay_title,
-        replay_summary=replay_summary_value,
-        tags=tags,
-        violations=[],
-        fallback_used=False,
+    return _generate_checked_copy(
+        request=request,
+        response_type=EventCopyResponse,
     )
