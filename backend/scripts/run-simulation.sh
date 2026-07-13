@@ -26,11 +26,12 @@ SOURCE_GAME_ID="${1:-}"
 if [[ -z "$SOURCE_GAME_ID" ]]; then
   SOURCE_GAME_ID=$(docker exec pulse-postgres \
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "
-      SELECT game_id
-      FROM plays
-      GROUP BY game_id
+      SELECT p.game_id
+      FROM plays p
+      JOIN games g ON g.game_id = p.game_id
+      GROUP BY p.game_id
       HAVING count(*) >= 100
-      ORDER BY count(*) FILTER (WHERE scoring_play AND inning >= 7) DESC,
+      ORDER BY count(*) FILTER (WHERE p.scoring_play AND p.inning >= 7) DESC,
                count(*) DESC
       LIMIT 1;")
 fi
