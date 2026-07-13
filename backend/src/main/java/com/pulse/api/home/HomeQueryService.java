@@ -13,6 +13,7 @@ import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
 import com.pulse.ranking.PersonalizationCalculator;
+import com.pulse.common.time.SlateZone;
 import com.pulse.common.user.UserPreferenceReader;
 import com.pulse.common.user.UserPreferenceReader.UserPreferences;
 import java.time.Instant;
@@ -36,7 +37,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class HomeQueryService {
 
-    private static final ZoneId SLATE_ZONE = ZoneId.of("America/New_York");
+    private static final ZoneId SLATE_ZONE = SlateZone.ID;
     private static final int HOME_RANKING_LIMIT = 5;
     private static final int MAX_RANKING_LOOKUP = 1000;
     private static final int SCHEDULED_LOOKAHEAD_HOURS = 36;
