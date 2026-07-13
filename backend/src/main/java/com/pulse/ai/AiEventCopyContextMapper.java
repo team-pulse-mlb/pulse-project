@@ -1,73 +1,49 @@
 package com.pulse.ai;
 
+import com.pulse.common.ai.AiCopyMode;
+import com.pulse.common.ai.EventCopyContext;
+import com.pulse.common.ai.RevealedEventCopyContext;
 import org.springframework.stereotype.Component;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @Component
 public class AiEventCopyContextMapper {
 
-    private static final String REVEALED_MODE = "REVEALED";
-
-    public AiEventCopyRequest.SafeContext toSafeContext(
-            String mode,
-            String eventType,
-            String label,
-            Integer inning,
-            String inningType,
-            String batter,
-            String pitcher,
-            Map<String, Object> payload
+    public AiEventCopyRequest toRequest(
+            AiCopyMode mode,
+            EventCopyContext context
     ) {
-        if (isRevealed(mode)) {
+        return new AiEventCopyRequest(
+                context.gameId(),
+                context.eventId(),
+                mode.name(),
+                context.contextHash(),
+                toSafeContext(context)
+        );
+    }
+
+    private AiEventCopyRequest.SafeContext toSafeContext(
+            EventCopyContext context
+    ) {
+        if (context instanceof RevealedEventCopyContext revealedContext) {
             return new AiEventCopyRequest.SafeContext(
-                    normalizeText(eventType),
-                    normalizeText(label),
-                    inning,
-                    normalizeText(inningType),
-                    normalizeText(batter),
-                    normalizeText(pitcher),
-                    copyEvidence(payload)
+                    revealedContext.eventType(),
+                    revealedContext.label(),
+                    revealedContext.inning(),
+                    revealedContext.inningType(),
+                    revealedContext.batter(),
+                    revealedContext.pitcher(),
+                    revealedContext.evidence()
             );
         }
 
         return new AiEventCopyRequest.SafeContext(
-                normalizeText(eventType),
-                normalizeText(label),
-                inning,
+                context.eventType(),
+                context.label(),
+                context.inning(),
                 null,
                 null,
                 null,
                 null
         );
-    }
-
-    private boolean isRevealed(String mode) {
-        return REVEALED_MODE.equalsIgnoreCase(normalizeText(mode));
-    }
-
-    private String normalizeText(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-
-        return value.trim();
-    }
-
-    private Map<String, Object> copyEvidence(Map<String, Object> payload) {
-        if (payload == null || payload.isEmpty()) {
-            return Map.of();
-        }
-
-        Map<String, Object> evidence = new LinkedHashMap<>();
-
-        payload.forEach((key, value) -> {
-            if (key != null && !key.isBlank() && value != null) {
-                evidence.put(key.trim(), value);
-            }
-        });
-
-        return Map.copyOf(evidence);
     }
 }
