@@ -1,23 +1,24 @@
 package com.pulse.api.notification.domain;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * user_notifications 테이블에 접근하는 Repository입니다.
  *
- * JpaRepository<UserNotification, Long>
- *
- * - UserNotification:
- *   이 Repository가 관리하는 엔티티
- *
- * - Long:
- *   UserNotification의 PK인 id 필드 타입
+ * 담당 기능:
+ * 1. RabbitMQ 이벤트를 사용자별 알림으로 중복 없이 저장
+ * 2. 현재 사용자의 최근 알림 목록 조회
+ * 3. 선택한 알림 읽음 처리
+ * 4. 현재 사용자의 모든 미읽음 알림 처리
  */
 public interface UserNotificationRepository
         extends JpaRepository<UserNotification, Long> {
@@ -25,30 +26,13 @@ public interface UserNotificationRepository
     /**
      * 사용자별 알림을 중복 없이 저장합니다.
      *
-     * RabbitMQ는 메시지 처리 실패나 ACK 전달 실패 등의 이유로
-     * 동일한 메시지를 다시 전달할 수 있습니다.
-     *
-     * 이때 같은 event_id + user_id 조합이 이미 존재하면
-     * PostgreSQL의 ON CONFLICT DO NOTHING을 이용해
-     * 오류 없이 저장을 건너뜁니다.
-     *
-     * 왜 exists 조회 후 save하지 않는가?
-     *
-     * exists 조회와 INSERT 사이에 다른 요청이 먼저 저장하면
-     * 동시성 문제로 UNIQUE 제약 위반이 발생할 수 있습니다.
-     *
-     * 반면 ON CONFLICT는 중복 확인과 INSERT 처리를
-     * DB가 하나의 SQL 안에서 원자적으로 처리합니다.
+     * RabbitMQ는 같은 메시지를 다시 전달할 수 있으므로
+     * event_id + user_id 조합이 이미 존재하면
+     * PostgreSQL ON CONFLICT DO NOTHING으로 저장을 건너뜁니다.
      *
      * 반환값:
-     * - 1: 새로운 알림이 저장됨
-     * - 0: 같은 알림이 이미 있어서 저장하지 않음
-     *
-     * @param eventId  원본 notification_events의 event_id
-     * @param userId   알림을 받을 사용자의 user_id
-     * @param message  알림함에 표시할 문구
-     * @param createdAt 사용자별 알림 생성 시각
-     * @return 실제로 INSERT된 행 개수
+     * - 1: 새로운 알림 저장
+     * - 0: 기존 알림과 중복되어 저장하지 않음
      */
     @Modifying
     @Query(
@@ -76,5 +60,86 @@ public interface UserNotificationRepository
             @Param("userId") Long userId,
             @Param("message") String message,
             @Param("createdAt") Instant createdAt
+    );
+
+    /**
+     * 특정 사용자의 최근 알림을 최신순으로 조회합니다.
+     *
+     * 서비스에서 현재 시각 기준 7일 전을 cutoff로 전달하면
+     * 알림 센터에는 최근 7일 알림만 노출됩니다.
+     *
+     * Member의 userId를 조건으로 사용하므로
+     * 다른 사용자의 알림은 조회되지 않습니다.
+     *
+     * event 연관 관계도 함께 조회해서
+     * 알림 타입과 gameId를 추가 쿼리 없이 사용할 수 있습니다.
+     *
+     * @param userId 현재 로그인한 사용자의 ID
+     * @param cutoff 조회를 시작할 최소 생성 시각
+     * @return 최신순 사용자 알림 목록
+     */
+    @EntityGraph(attributePaths = "event")
+    List<UserNotification>
+    findByMemberUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+            Long userId,
+            Instant cutoff
+    );
+
+    /**
+     * 선택한 알림 ID들을 현재 사용자의 읽음 상태로 변경합니다.
+     *
+     * 반드시 userId 조건을 함께 사용합니다.
+     *
+     * notificationId만 조건으로 사용하면 다른 사용자의 알림도
+     * 변경할 수 있는 보안 문제가 발생할 수 있습니다.
+     *
+     * 이미 읽은 알림은 readAt을 다시 변경하지 않습니다.
+     *
+     * @param userId 현재 로그인한 사용자 ID
+     * @param notificationIds 읽음 처리할 알림 ID 목록
+     * @param readAt 읽은 시각
+     * @return 실제로 읽음 처리된 알림 개수
+     */
+    @Modifying(
+            flushAutomatically = true,
+            clearAutomatically = true
+    )
+    @Query("""
+            update UserNotification notification
+               set notification.readAt = :readAt
+             where notification.member.userId = :userId
+               and notification.id in :notificationIds
+               and notification.readAt is null
+            """)
+    int markSelectedAsRead(
+            @Param("userId") Long userId,
+            @Param("notificationIds")
+            Collection<Long> notificationIds,
+            @Param("readAt") Instant readAt
+    );
+
+    /**
+     * 현재 사용자의 모든 미읽음 알림을 읽음 처리합니다.
+     *
+     * 다른 사용자의 알림은 변경하지 않습니다.
+     * 이미 읽은 알림의 기존 readAt도 유지합니다.
+     *
+     * @param userId 현재 로그인한 사용자의 ID
+     * @param readAt 읽은 시각
+     * @return 실제로 읽음 처리된 알림 개수
+     */
+    @Modifying(
+            flushAutomatically = true,
+            clearAutomatically = true
+    )
+    @Query("""
+            update UserNotification notification
+               set notification.readAt = :readAt
+             where notification.member.userId = :userId
+               and notification.readAt is null
+            """)
+    int markAllAsRead(
+            @Param("userId") Long userId,
+            @Param("readAt") Instant readAt
     );
 }
