@@ -34,9 +34,38 @@ MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API
 | 경기 수집 | `poller/` | `common/client/` |
 | 알림 발행 | `scorer/SurgeDetector.java` | `common/message/NotificationOutboxDispatcher.java` |
 
+## 정적 개발 슬레이트
+
+1. 저장소 루트에서 로컬 인프라를 실행한다.
+
+```bash
+docker compose -f infra/local/docker-compose.yml --env-file .env up -d --wait
+```
+
+2. IntelliJ의 `PulseApplication` 실행 구성에 저장소 루트의 `.env`를 EnvFile로 적용한 뒤 실행한다.
+
+3. 다른 터미널의 저장소 루트에서 시드를 적용한다.
+
+```bash
+bash backend/scripts/seed-dev-slate.sh
+```
+
+예정·진행 경기 수를 지정하려면 인자를 추가한다.
+
+```bash
+bash backend/scripts/seed-dev-slate.sh 3 2
+```
+
+픽스처를 갱신하려면 다음 중 하나를 실행한다.
+
+```bash
+bash backend/scripts/dump-fixture-game.sh
+bash backend/scripts/dump-fixture-game.sh 5059222
+```
+
 ## 시뮬레이션
 
-시뮬레이션은 로컬 DB의 과거 경기를 복제해 `poller → RabbitMQ → scorer → Redis/SSE` 흐름을 재현한다.
+시뮬레이션은 선택 사항이다. 정적 슬레이트 대신 `poller → RabbitMQ → scorer → Redis/SSE` 실시간 흐름을 재현할 때 로컬 DB의 과거 경기를 복제해 사용한다.
 
 시뮬레이션 스크립트가 별도의 백엔드를 8080 포트로 실행하므로, IntelliJ에서 실행 중인 `PulseApplication`을 먼저 중지한다. Docker 컨테이너는 중지하지 않는다.
 

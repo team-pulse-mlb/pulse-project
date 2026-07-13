@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.PlayRepository;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -20,6 +21,7 @@ class SimulationBeanConstructionTest {
                     true,
                     1L,
                     9_000_000_001L,
+                    List.of(),
                     20.0,
                     Duration.ZERO,
                     Duration.ofSeconds(20),

@@ -61,6 +61,11 @@ jwt:
   refresh-token-expiration: 7d    # 7일
 
 app:
+  cors:
+    # CORS 허용 오리진. 로컬은 Vite 개발 서버만 허용한다.
+    # 배포 환경에서는 CORS_ALLOWED_ORIGINS로 프론트 커스텀 도메인을 주입한다(application-prod.yml 참고).
+    # 오리진은 스킴·호스트·포트까지 정확히 일치해야 하고 마지막 슬래시는 넣지 않는다.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   cookie:
     refresh-token:
       # 로컬 개발 환경은 http://localhost 이므로 false
@@ -87,6 +92,11 @@ pulse:
     enabled: ${PULSE_SIMULATION_ENABLED:false}
     source-game-id: ${PULSE_SIMULATION_SOURCE_GAME_ID:}
     target-game-id: ${PULSE_SIMULATION_TARGET_GAME_ID:}
+    # 다중 경기 데모: games 리스트를 채우면 단일 source/target 대신 사용된다.
+    games: []
+    # games:
+    #   - { source-game-id: 5059222, target-game-id: 14059222001, start-offset: 6m, preset: SURGE }   # 진행
+    #   - { source-game-id: 5059223, target-game-id: 14059223001, start-offset: -3h, preset: START }   # 예정
     speed: ${PULSE_SIMULATION_SPEED:1}
     start-offset: ${PULSE_SIMULATION_START_OFFSET:0s}
     play-interval: ${PULSE_SIMULATION_PLAY_INTERVAL:20s}
@@ -99,6 +109,8 @@ pulse:
   bdl:
     base-url: https://api.balldontlie.io
     api-key: ${BDL_API_KEY:}
+  ai:
+    base-url: ${PULSE_AI_BASE_URL:http://localhost:8000}
   replay:
     s3:
       bucket: ${PULSE_REPLAY_S3_BUCKET:}

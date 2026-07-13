@@ -19,6 +19,7 @@ import com.pulse.api.user.security.jwt.JwtProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -32,6 +33,15 @@ import java.util.List;
         RefreshTokenCookieProperties.class
 })
 public class SecurityConfig {
+
+    /**
+     * CORS 허용 오리진 목록.
+     * 로컬은 Vite 개발 서버(localhost:5173)만 허용하고,
+     * 배포 환경에서는 CORS_ALLOWED_ORIGINS로 프론트 커스텀 도메인을 주입한다.
+     * 오리진은 스킴·호스트·포트까지 정확히 일치해야 하며, 마지막 슬래시는 넣지 않는다.
+     */
+    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    private List<String> allowedOrigins;
 
     /**
      * 이메일과 비밀번호 인증을 처리하는 객체
@@ -173,15 +183,14 @@ public class SecurityConfig {
     }
 
 
-    // 5173 관련 임시 해결
     @Bean
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of(
-                "http://localhost:5173"
-        ));
+        // 허용 오리진은 설정값(app.cors.allowed-origins)에서 주입한다.
+        // SSE(EventSource)도 이 CORS 설정을 따르므로 프론트 도메인이 반드시 포함돼야 한다.
+        configuration.setAllowedOrigins(allowedOrigins);
 
         configuration.setAllowedMethods(List.of(
                 "GET",
