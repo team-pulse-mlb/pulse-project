@@ -46,10 +46,13 @@ docker compose -f infra/local/docker-compose.yml --env-file .env up -d --wait
 
 백엔드를 한 번 실행해 스키마를 만든다. 로컬 기본 프로파일은 Flyway 대신 JPA `ddl-auto=update`로 엔티티 기준 스키마를 생성한다. 이미 스키마가 있는 DB라면 이 단계는 생략할 수 있다.
 
-```bash
-cd backend
-./gradlew bootRun
-```
+1. IntelliJ에서 저장소 루트인 `pulse-project/`를 연다.
+2. **Settings → Plugins**에서 `EnvFile` 플러그인을 설치하고 IntelliJ를 재시작한다.
+3. **Run → Edit Configurations → PulseApplication**에서 **Enable EnvFile**을 선택한다.
+4. EnvFile 목록에 저장소 루트의 `.env`를 추가한다.
+5. `PulseApplication`을 실행한다.
+
+Git Bash에서 `./gradlew bootRun`을 직접 실행하면 IntelliJ의 EnvFile 설정이 적용되지 않는다.
 
 `user_notifications`, `user_favorite_players`는 확정 마이그레이션(V1·V10)에는 있으나 아직 JPA 엔티티가 없어 로컬 DB에는 테이블이 없을 수 있다. 시드는 해당 테이블이 있을 때만 채우므로, 엔티티가 생기면 별도 수정 없이 자동으로 시드된다.
 
