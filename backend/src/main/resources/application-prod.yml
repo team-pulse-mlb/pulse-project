@@ -1,4 +1,10 @@
 # RDS는 Flyway 마이그레이션만 사용하며, Hibernate는 스키마를 건드리지 않는다.
+app:
+  cors:
+    # 프론트는 CloudFront + 커스텀 도메인(HTTPS)으로 서빙한다.
+    # 값은 CORS_ALLOWED_ORIGINS 환경변수로 덮어쓸 수 있다(쉼표 구분).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://pulsemlb.com,https://www.pulsemlb.com}
+
 pulse:
   simulation:
     enabled: false

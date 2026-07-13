@@ -61,6 +61,11 @@ jwt:
   refresh-token-expiration: 7d    # 7일
 
 app:
+  cors:
+    # CORS 허용 오리진. 로컬은 Vite 개발 서버만 허용한다.
+    # 배포 환경에서는 CORS_ALLOWED_ORIGINS로 프론트 커스텀 도메인을 주입한다(application-prod.yml 참고).
+    # 오리진은 스킴·호스트·포트까지 정확히 일치해야 하고 마지막 슬래시는 넣지 않는다.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   cookie:
     refresh-token:
       # 로컬 개발 환경은 http://localhost 이므로 false
