@@ -10,18 +10,6 @@ FastAPI 기반 AI 문구 생성 서비스다. backend에서 스포일러 없는 
 | `POST /ai/final-headline` | 종료 경기 헤드라인 생성 |
 | `POST /ai/event-copy` | 경기 이벤트 문구 생성 |
 
-## 실행
-
-Docker Desktop을 켠 뒤 저장소 루트에서 실행한다.
-
-```bash
-docker compose -f infra/local/docker-compose.yml --env-file .env up -d --build ai-service
-```
-
-- 상태 확인: `http://localhost:8000/health`
-- API 문서: `http://localhost:8000/docs`
-- 로그 확인: `docker compose -f infra/local/docker-compose.yml logs -f ai-service`
-
 ## 원칙
 
 - 추천 여부와 관전 점수는 결정하지 않는다.
