@@ -46,6 +46,8 @@ Spring Boot는 원본 경기 데이터를 그대로 보내지 않고, 화면 노
 
 `mode=PROTECTED` 요청은 점수·이닝 초/말·play 원문·타석 결과·우세 팀·승패 결과를 어떤 경우에도 포함하지 않는다. `mode=REVEALED` 요청만 예외로, 이미 공개 모드에서 노출 중인 최종 점수·승패 또는 이벤트 근거를 `safeContext`에 담아 전달할 수 있다.
 
+"포함하지 않는다"는 값이 아니라 키 기준이다. `mode=PROTECTED` 요청 JSON에는 금지 필드의 키 자체가 없어야 하며, `"finalScore": null`처럼 값만 비운 형태도 계약 위반이다(SPOILER_POLICY.md §5). 요청 DTO를 모드별로 나누거나 `safeContext`에 `@JsonInclude(NON_NULL)`을 적용해 직렬화 단계에서 강제한다. 전역 Jackson 설정에 의존하지 않는다. ai-service는 보호 계약 검사를 필드 존재 여부로 수행할 수 있다.
+
 ### 4.0 컨텍스트 제공 계약 (`AiCopyContextReader`)
 
 컨텍스트 조립과 `contextHash` 계산은 예은 영역(`com.pulse.common.ai`의 `AiCopyContextReader` 계약, 구현은 `com.pulse.api.AiCopyContextService`)이 담당한다. 창현 모듈(`com.pulse.ai`)은 이 빈을 주입받아 반환값을 ai-service 요청으로 변환·전송하고, 응답 검수·저장을 담당한다. 외부 REST GET 컨텍스트 API는 두지 않는다(기존 `GET /api/ai/games/{gameId}/spoiler-free-context`는 폐기).
@@ -67,7 +69,11 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
 | `spoilerSafeSignals` | `safeContext.reasonCodes` |
 | `keyMoments` | `safeContext.keyMoments` |
 
-`recentPlays`, `teams`, `startTime` 같은 경기 원본 필드는 컨텍스트에 아예 담지 않는다(play 원문 `text`·`inningType`은 보호 정책 금지 필드다). `safeContext.gameStatus`는 Spring 상태값을 그대로 사용한다. 종료 경기 문구만 생성하므로 `STATUS_FINAL`만 생성 대상이다. `mode=REVEALED`의 `finalScore`·`winner`(동점이면 `null`)도 `AiCopyContextReader`가 함께 제공한다.
+`recentPlays`, `teams`, `startTime` 같은 경기 원본 필드는 컨텍스트에 아예 담지 않는다(play 원문 `text`·`inningType`은 보호 정책 금지 필드다). `safeContext.gameStatus`는 Spring 상태값을 그대로 사용한다. 종료 경기 문구만 생성하므로 `STATUS_FINAL`만 생성 대상이다. `mode=REVEALED`의 `finalScore`·`winner`도 `AiCopyContextReader`가 함께 제공한다.
+
+`finalScore`·`winner` 키는 `mode=REVEALED` 요청에만 존재한다. `mode=PROTECTED` 요청 JSON에는 두 키가 나타나지 않는다. `mode=REVEALED`에서 무승부라 `winner`를 정할 수 없으면 키를 생략하지 않고 `"winner": null`로 보낸다(공개 모드에서 `null`은 무승부라는 사실 자체를 뜻하므로 부재와 구분해야 한다). 추천 점수 파생 값(`tensionLevel`·`scoreBand` 등 내부 점수 등급)은 모드와 무관하게 컨텍스트에 넣지 않는다. AI는 추천 여부를 판단하지 않고, 긴장 흐름은 `safeTags`·`reasonCodes`·`keyMoments`로만 전달한다.
+
+내부 점수 파생 값을 넣지 않는 이유는 AI 문구가 그대로 화면에 노출되기 때문이다. `watch_score`·`peak_base_score`의 등급을 컨텍스트로 전달하면 문구를 통해 내부 추천 점수가 간접 노출된다(SPOILER_POLICY.md §5 전 모드 금지).
 
 `keyMoments`는 `game_events`의 `spoiler_level=PROTECTED_SAFE` 행에서 산출하며, 보호·공개 모드 모두 같은 목록을 사용한다(공개 전용 이벤트는 넣지 않는다 — 문구 방향이 두 모드 모두 '긴장 흐름' 서술이므로).
 
@@ -84,8 +90,6 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
   "safeContext": {
     "gameStatus": "STATUS_FINAL",
     "inningPhase": "경기 종료",
-    "tensionLevel": "HIGH",
-    "scoreBand": "RECOMMEND",
     "safeTags": ["후반 긴장 구간"],
     "reasonCodes": ["late_or_extra"],
     "keyMoments": [
@@ -94,6 +98,7 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
     ]
   }
 }
+// finalScore·winner 키는 나타나지 않는다.
 
 // POST /ai/final-headline (mode=REVEALED)
 {
@@ -103,8 +108,6 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
   "safeContext": {
     "gameStatus": "STATUS_FINAL",
     "inningPhase": "경기 종료",
-    "tensionLevel": "HIGH",
-    "scoreBand": "RECOMMEND",
     "safeTags": ["후반 긴장 구간"],
     "reasonCodes": ["late_or_extra"],
     "keyMoments": [
@@ -178,6 +181,7 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
 | 저장 위치 | `games.final_headline_*` | `game_events.copy_*`, `copy_protected_context_hash`·`copy_revealed_context_hash` |
 | 저장 책임 | scorer | scorer |
 
+- 요청 직렬화: `mode=PROTECTED` 요청의 `safeContext`에는 금지 필드 키가 존재하지 않아야 한다(§4). 모드별 직렬화 결과를 검증하는 테스트를 둔다 — `PROTECTED`는 `finalScore`·`winner` 키 부재, `REVEALED`는 두 키 존재.
 - 응답 필드는 `violations: []`, `fallbackUsed: false` 같은 기본값도 생략하지 않는다.
 - 검수 기준: `mode=PROTECTED` 응답은 결과·방향성 표현(SPOILER_POLICY.md §6)이 포함되면 `spoilerSafe=false`로 반려한다. `mode=REVEALED` 응답은 `safeContext`로 전달한 실제 결과와 근거 범위 안의 언급만 허용한다. 요청에 없는 사실을 지어내면 반려한다.
 - 범위 밖 계약: 알림·토스트·`switchSuggestion` 문구는 LLM을 사용하지 않는다. 태그별 고정 템플릿으로 서버가 완성 문자열을 조립한다.
