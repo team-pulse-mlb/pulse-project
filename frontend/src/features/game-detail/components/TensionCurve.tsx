@@ -1,17 +1,28 @@
-import Card from '../../../shared/components/Card';
+import { useId } from 'react';
 
-// 긴장 곡선(펄스 그래프) — 종료 경기 전용 (SPOILER_POLICY §3·§5).
-// 서버가 1~5단계로 양자화한 레벨만 받는다. 세로축 눈금·숫자 금지, 가로축 이닝 라벨만 허용.
+import Card from '../../../shared/components/Card';
+import type { DisplayMode } from '../lib/displayMode';
+
+/**
+ * 서버가 계산한 긴장도 한 지점이다.
+ *
+ * 프론트엔드에서는 level 값을 재계산하거나 임의로 증폭하지 않고
+ * 전달받은 1~5 값을 그대로 그래프에 사용한다.
+ */
 export interface TensionPoint {
   inning: number;
-  /** 공개 모드만 값이 있다 (하프이닝 단위) */
+
+  /**
+   * 보호 응답에는 포함되지 않을 수 있다.
+   * 공개 모드에서만 초·말 라벨 표시에 사용한다.
+   */
   inningType?: 'TOP' | 'BOTTOM';
+
   level: 1 | 2 | 3 | 4 | 5;
-  /** 이벤트 노드 라벨 (있는 지점에만 마커 표시) */
-  eventLabel?: string;
 }
 
 interface TensionCurveProps {
+  mode: DisplayMode;
   points: TensionPoint[];
 }
 
@@ -21,7 +32,23 @@ const PADDING_X = 24;
 const PADDING_TOP = 16;
 const PADDING_BOTTOM = 32;
 
-function TensionCurve({ points }: TensionCurveProps) {
+function getInningLabel(point: TensionPoint, mode: DisplayMode) {
+  /**
+   * 보호 모드에서는 현재 공격 방향을 추측할 수 없도록
+   * 이닝 숫자만 표시한다.
+   */
+  if (mode === 'PROTECTED' || !point.inningType) {
+    return String(point.inning);
+  }
+
+  return `${point.inning}${
+      point.inningType === 'TOP' ? '초' : '말'
+  }`;
+}
+
+function TensionCurve({ mode, points }: TensionCurveProps) {
+  const gradientId = useId().replace(/:/g, '');
+
   if (points.length === 0) {
     return null;
   }
@@ -29,96 +56,117 @@ function TensionCurve({ points }: TensionCurveProps) {
   const innerWidth = WIDTH - PADDING_X * 2;
   const innerHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
 
-  const x = (index: number) =>
-    PADDING_X + (points.length === 1 ? innerWidth / 2 : (index / (points.length - 1)) * innerWidth);
-  const y = (level: number) => PADDING_TOP + ((5 - level) / 4) * innerHeight;
+  const getX = (index: number) =>
+      PADDING_X +
+      (points.length === 1
+          ? innerWidth / 2
+          : (index / (points.length - 1)) * innerWidth);
 
-  const path = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p.level).toFixed(1)}`)
-    .join(' ');
+  const getY = (level: TensionPoint['level']) =>
+      PADDING_TOP + ((5 - level) / 4) * innerHeight;
 
-  const areaPath = `${path} L ${x(points.length - 1).toFixed(1)} ${HEIGHT - PADDING_BOTTOM} L ${x(0).toFixed(1)} ${HEIGHT - PADDING_BOTTOM} Z`;
+  /**
+   * 서버 레벨을 순서대로 직선 연결한다.
+   * 부드러운 곡선 보간이나 임의의 진폭은 추가하지 않는다.
+   */
+  const linePath = points
+      .map(
+          (point, index) =>
+              `${index === 0 ? 'M' : 'L'} ${getX(index).toFixed(1)} ${getY(
+                  point.level,
+              ).toFixed(1)}`,
+      )
+      .join(' ');
+
+  const baselineY = HEIGHT - PADDING_BOTTOM;
+
+  const areaPath = [
+    linePath,
+    `L ${getX(points.length - 1).toFixed(1)} ${baselineY}`,
+    `L ${getX(0).toFixed(1)} ${baselineY}`,
+    'Z',
+  ].join(' ');
 
   return (
-    <Card>
-      <h3 className="mb-3 text-[15px] font-bold text-text-strong">경기 흐름</h3>
-      <p className="mb-4 text-[13px] text-text-faint">
-        점수를 드러내지 않는 긴장도 곡선입니다
-      </p>
+      <Card>
+        <h3 className="text-[15px] font-bold text-text-strong">
+          경기 흐름
+        </h3>
 
-      <div className="overflow-x-auto">
-        <svg
-          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-          className="min-w-[480px]"
-          role="img"
-          aria-label="이닝별 긴장도 곡선"
-        >
-          <defs>
-            <linearGradient id="pulseArea" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#E4002B" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#E4002B" stopOpacity="0" />
-            </linearGradient>
-          </defs>
+        <p className="mb-4 mt-1 text-[13px] text-text-faint">
+          점수를 드러내지 않는 이닝별 긴장도입니다
+        </p>
 
-          {/* 이닝 격자선 */}
-          {points.map((_, i) => (
-            <line
-              key={i}
-              x1={x(i)}
-              x2={x(i)}
-              y1={PADDING_TOP}
-              y2={HEIGHT - PADDING_BOTTOM}
-              stroke="#F1F3F6"
-              strokeWidth="1"
+        <div className="overflow-x-auto">
+          <svg
+              viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+              className="min-w-[480px] w-full"
+              role="img"
+              aria-label="이닝별 긴장도 곡선"
+          >
+            <defs>
+              <linearGradient
+                  id={gradientId}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+              >
+                <stop
+                    offset="0%"
+                    stopColor="#E4002B"
+                    stopOpacity="0.18"
+                />
+                <stop
+                    offset="100%"
+                    stopColor="#E4002B"
+                    stopOpacity="0"
+                />
+              </linearGradient>
+            </defs>
+
+            {/* 세로축 숫자는 표시하지 않고 이닝 위치만 구분한다. */}
+            {points.map((point, index) => (
+                <line
+                    key={`grid-${point.inning}-${point.inningType ?? 'FULL'}-${index}`}
+                    x1={getX(index)}
+                    x2={getX(index)}
+                    y1={PADDING_TOP}
+                    y2={baselineY}
+                    stroke="#F1F3F6"
+                    strokeWidth="1"
+                />
+            ))}
+
+            <path
+                d={areaPath}
+                fill={`url(#${gradientId})`}
             />
-          ))}
 
-          <path d={areaPath} fill="url(#pulseArea)" />
-          <path
-            d={path}
-            fill="none"
-            stroke="#E4002B"
-            strokeWidth="2.5"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
+            <path
+                d={linePath}
+                fill="none"
+                stroke="#E4002B"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+            />
 
-          {/* 이벤트 노드 (마름모) — 탭/호버 시 라벨 확인 */}
-          {points.map(
-            (p, i) =>
-              p.eventLabel && (
-                <g key={`marker-${i}`}>
-                  <rect
-                    x={x(i) - 5}
-                    y={y(p.level) - 5}
-                    width="10"
-                    height="10"
-                    rx="2"
-                    transform={`rotate(45 ${x(i)} ${y(p.level)})`}
-                    fill="#002D72"
-                  >
-                    <title>{p.eventLabel}</title>
-                  </rect>
-                </g>
-              ),
-          )}
-
-          {/* 가로축: 이닝 라벨만 허용 (세로축 눈금·숫자 금지) */}
-          {points.map((p, i) => (
-            <text
-              key={`label-${i}`}
-              x={x(i)}
-              y={HEIGHT - 10}
-              textAnchor="middle"
-              className="fill-text-faint"
-              fontSize="11"
-            >
-              {p.inningType ? `${p.inning}${p.inningType === 'TOP' ? '초' : '말'}` : p.inning}
-            </text>
-          ))}
-        </svg>
-      </div>
-    </Card>
+            {points.map((point, index) => (
+                <text
+                    key={`label-${point.inning}-${point.inningType ?? 'FULL'}-${index}`}
+                    x={getX(index)}
+                    y={HEIGHT - 10}
+                    textAnchor="middle"
+                    className="fill-text-faint"
+                    fontSize="11"
+                >
+                  {getInningLabel(point, mode)}
+                </text>
+            ))}
+          </svg>
+        </div>
+      </Card>
   );
 }
 
