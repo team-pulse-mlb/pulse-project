@@ -157,13 +157,6 @@ function NotificationBell() {
     }, [isOpen]);
 
     /**
-     * 다른 페이지로 이동하면 열려 있던 드롭다운을 닫습니다.
-     */
-    useEffect(() => {
-        setIsOpen(false);
-    }, [location.pathname]);
-
-    /**
      * 알림 한 건 클릭 처리
      *
      * 1. 미읽음이면 읽음 API 호출
