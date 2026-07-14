@@ -50,9 +50,13 @@ pulse-project/
 - [운영 인프라 가이드](infra/prod/README.md)
 - [원본 데이터 아카이브 가이드](raw-archive/README.md)
 
+## 운영 배포
+
+웹 브라우저에서 [https://pulsemlb.com](https://pulsemlb.com)에 접속한다.
+
 ## 빠른 로컬 실행
 
-필수 프로그램은 Docker Desktop, JDK 21, IntelliJ IDEA, Node.js LTS, VS Code다.
+Docker Desktop을 사용한다.
 
 ### 1. 환경 변수 준비
 
@@ -67,43 +71,20 @@ openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
 
 출력된 값을 `.env`의 `JWT_SECRET=` 뒤에 붙인다. 이 값은 로컬 전용이며 저장소에 커밋하지 않는다.
 
-### 2. Docker 실행
+### 2. 실행
 
-Docker Desktop을 켠 뒤 저장소 루트의 VS Code Git Bash 터미널에서 PostgreSQL·Redis·RabbitMQ를 실행한다.
-
-```bash
-docker compose -f infra/local/docker-compose.yml --env-file .env up -d
-docker compose -f infra/local/docker-compose.yml --env-file .env ps
-```
-
-세 컨테이너가 `healthy`인지 확인한다.
-
-### 3. IntelliJ에서 백엔드 실행
-
-1. IntelliJ에서 저장소 루트인 `pulse-project/`를 연다.
-2. **Settings → Plugins**에서 `EnvFile` 플러그인을 설치하고 IntelliJ를 재시작한다.
-3. **Run → Edit Configurations → PulseApplication**에서 **Enable EnvFile**을 선택하고 저장소 루트의 `.env`를 추가한다.
-4. `PulseApplication`을 실행한다.
-
-백엔드 상태는 `http://localhost:8080/actuator/health`에서 확인한다.
-
-### 4. VS Code에서 프론트엔드 실행
-
-VS Code로 저장소를 열고 Git Bash 터미널에서 실행한다.
+Docker Desktop을 켠 뒤 저장소 루트에서 실행한다.
+`8080` 포트를 사용하는 기존 백엔드는 먼저 종료한다.
 
 ```bash
-cd frontend
-npm install
-npm run dev
+docker compose -f infra/local/docker-compose.yml --env-file .env up -d --build --wait
 ```
 
 - 프론트엔드: `http://localhost:5173`
 - 백엔드: `http://localhost:8080`
-- Docker 상태 확인과 시뮬레이션 등 세부 사용법은 각 폴더의 README를 따른다.
-
-## 운영 배포
-
-AWS EC2·RDS·S3 기반으로 배포한다. 리소스 구성, 시크릿·환경 변수, 네트워크, IAM 원칙은 [운영 인프라 가이드](infra/prod/README.md)를 따른다. 운영 배포와 시크릿 값은 저장소에 두지 않고 소유자가 관리한다.
+- ai-service: `http://localhost:8000`
+- 상태 확인: `docker compose -f infra/local/docker-compose.yml --env-file .env ps`
+- 시뮬레이션은 backend README를 따른다.
 
 ## 문서 인덱스
 

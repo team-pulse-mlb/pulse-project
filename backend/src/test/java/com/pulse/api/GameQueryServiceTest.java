@@ -279,6 +279,129 @@ class GameQueryServiceTest {
         verifyNoInteractions(playerRepository);
     }
 
+
+    @Test
+    void protectedFinalGame_shouldUseProtectedHeadline() {
+        // given
+        Game game = finalGame(500L);
+
+        game.setFinalHeadlineProtected(
+                "스포일러 없이 긴장감이 이어진 경기");
+
+        game.setFinalHeadlineRevealed(
+                "홈팀이 10-4로 승리한 경기");
+
+        when(gameRepository.findById(500L))
+                .thenReturn(Optional.of(game));
+
+        // when
+        GameDetailView response =
+                service.getGameDetail(
+                        500L,
+                        "protected");
+
+        // then
+        assertThat(response)
+                .isInstanceOfSatisfying(
+                        ProtectedFinalGameDetailResponse.class,
+                        detail -> {
+                            assertThat(detail.headline())
+                                    .isEqualTo(
+                                            "스포일러 없이 긴장감이 이어진 경기");
+
+                            assertThat(detail.displayMode())
+                                    .isEqualTo(
+                                            DisplayMode.PROTECTED);
+                        });
+    }
+
+    @Test
+    void revealedFinalGame_shouldUseRevealedHeadline() {
+        // given
+        Game game = finalGame(501L);
+
+        game.setFinalHeadlineProtected(
+                "스포일러 없이 긴장감이 이어진 경기");
+
+        game.setFinalHeadlineRevealed(
+                "홈팀이 10-4로 승리한 경기");
+
+        when(gameRepository.findById(501L))
+                .thenReturn(Optional.of(game));
+
+        /*
+         * 종료 공개 응답은 득점 요약을 만들기 위해
+         * 오름차순 play 목록을 조회한다.
+         */
+        when(
+                playRepository
+                        .findByGameIdOrderByPlayOrderAsc(501L))
+                .thenReturn(List.of());
+
+        // when
+        GameDetailView response =
+                service.getGameDetail(
+                        501L,
+                        "revealed");
+
+        // then
+        assertThat(response)
+                .isInstanceOfSatisfying(
+                        RevealedFinalGameDetailResponse.class,
+                        detail -> {
+                            assertThat(detail.headline())
+                                    .isEqualTo(
+                                            "홈팀이 10-4로 승리한 경기");
+
+                            assertThat(detail.displayMode())
+                                    .isEqualTo(
+                                            DisplayMode.REVEALED);
+                        });
+    }
+
+    @Test
+    void finalGame_shouldReturnNullHeadlineWhenStoredHeadlineIsBlank() {
+        // given
+        Game game = finalGame(502L);
+
+        game.setFinalHeadlineProtected("   ");
+        game.setFinalHeadlineRevealed("   ");
+
+        when(gameRepository.findById(502L))
+                .thenReturn(Optional.of(game));
+
+        when(
+                playRepository
+                        .findByGameIdOrderByPlayOrderAsc(502L))
+                .thenReturn(List.of());
+
+        // when
+        GameDetailView protectedResponse =
+                service.getGameDetail(
+                        502L,
+                        "protected");
+
+        GameDetailView revealedResponse =
+                service.getGameDetail(
+                        502L,
+                        "revealed");
+
+        // then
+        assertThat(protectedResponse)
+                .isInstanceOfSatisfying(
+                        ProtectedFinalGameDetailResponse.class,
+                        detail ->
+                                assertThat(detail.headline())
+                                        .isNull());
+
+        assertThat(revealedResponse)
+                .isInstanceOfSatisfying(
+                        RevealedFinalGameDetailResponse.class,
+                        detail ->
+                                assertThat(detail.headline())
+                                        .isNull());
+    }
+
     private static Game scheduledGame(long gameId) {
         Game game = baseGame(gameId);
 

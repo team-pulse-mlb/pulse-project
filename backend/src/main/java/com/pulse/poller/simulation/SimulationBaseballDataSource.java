@@ -124,6 +124,9 @@ public class SimulationBaseballDataSource implements BaseballDataSource {
     }
 
     private Duration presetOffset(List<BdlPlay> plays, String preset) {
+        if ("FINISH".equals(preset)) {
+            return properties.playInterval().multipliedBy(Math.max(0, plays.size() - 5L));
+        }
         if (!"SURGE".equals(preset)) return Duration.ZERO;
         for (int i = 0; i < plays.size(); i++) {
             BdlPlay play = plays.get(i);

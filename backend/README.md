@@ -34,35 +34,26 @@ MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API
 | 경기 수집 | `poller/` | `common/client/` |
 | 알림 발행 | `scorer/SurgeDetector.java` | `common/message/NotificationOutboxDispatcher.java` |
 
-## 로컬 실행
-
-1. 저장소 루트에서 로컬 인프라(PostgreSQL·Redis·RabbitMQ)를 실행한다.
-
-```bash
-docker compose -f infra/local/docker-compose.yml --env-file .env up -d --wait
-```
-
-2. IntelliJ의 `PulseApplication` 실행 구성에 저장소 루트의 `.env`를 EnvFile로 적용해 실행하거나, `backend`에서 `./gradlew bootRun`으로 실행한다.
-
-기본값은 poller·scorer가 꺼져 있어 REST API·SSE만 뜬다. `.env`가 없으면 저장소 루트에서 `cp .env.example .env`를 먼저 실행한다.
-
 ## 시뮬레이터 실행
 
-연출할 경기는 `application.yml`의 `pulse.simulation.games`에 고정돼 있다.
+연출할 예정·진행·곧 종료 경기는 `application.yml`의 `pulse.simulation.games`에 고정돼 있다. 곧 종료 경기는 종료 전이 후 실제 ai-service 호출 결과를 홈 카드에 표시한다.
 
-1. 실행 중인 `PulseApplication`을 중지한다(8080 포트 사용). Docker는 유지한다.
-
-2. 저장소 루트에서 원본 시드를 적재한다.
+1. 저장소 루트에서 원본 시드를 적재한다.
 
 ```bash
 bash backend/scripts/seed-dev-slate.sh
 ```
 
-3. 시뮬레이션을 켜고 실행한다.
+2. 같은 `pulse-api` 컨테이너를 시뮬레이션 모드로 재생성한다.
 
 ```bash
-cd backend
-PULSE_POLLER_ENABLED=true PULSE_SCORER_ENABLED=true PULSE_SIMULATION_ENABLED=true ./gradlew bootRun
+bash backend/scripts/run-simulation.sh
+```
+
+종료 후 일반 API 모드로 되돌린다.
+
+```bash
+docker compose -f infra/local/docker-compose.yml --env-file .env up -d --force-recreate --wait pulse-api
 ```
 
 ## 테스트와 빌드

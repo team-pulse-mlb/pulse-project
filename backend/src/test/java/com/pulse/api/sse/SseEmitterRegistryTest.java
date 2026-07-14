@@ -80,4 +80,116 @@ class SseEmitterRegistryTest {
 
         assertThat(registry.activeConnectionCount()).isZero();
     }
+
+    @Test
+    @DisplayName("로그인 subscribe는 전체 연결과 사용자별 연결에 함께 등록한다")
+    void authenticatedSubscribe_shouldRegisterUserEmitter() {
+        SseEmitter emitter =
+                registry.subscribe(7L);
+
+        assertThat(emitter.getTimeout())
+                .isEqualTo(
+                        Duration.ofMinutes(60).toMillis()
+                );
+
+        assertThat(registry.activeConnectionCount())
+                .isEqualTo(1);
+
+        assertThat(registry.activeUserConnectionCount(7L))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("sendToUser는 해당 사용자의 연결에만 이벤트를 전송한다")
+    void sendToUser_shouldSendOnlyToTargetUser()
+            throws IOException {
+
+        SseEmitter firstUserEmitter =
+                mock(SseEmitter.class);
+
+        SseEmitter secondUserEmitter =
+                mock(SseEmitter.class);
+
+        registry.register(
+                7L,
+                firstUserEmitter
+        );
+
+        registry.register(
+                8L,
+                secondUserEmitter
+        );
+
+        registry.sendToUser(
+                7L,
+                "notification_created",
+                "{\"notificationId\":501}"
+        );
+
+        /*
+         * 사용자 7:
+         * connected 코멘트 1회
+         * notification_created 1회
+         */
+        verify(firstUserEmitter, times(2))
+                .send(
+                        any(
+                                SseEmitter.SseEventBuilder.class
+                        )
+                );
+
+        /*
+         * 사용자 8:
+         * connected 코멘트만 1회
+         */
+        verify(secondUserEmitter, times(1))
+                .send(
+                        any(
+                                SseEmitter.SseEventBuilder.class
+                        )
+                );
+    }
+
+    @Test
+    @DisplayName("로그인 연결도 ranking_changed 전체 방송을 수신한다")
+    void broadcast_shouldAlsoSendToAuthenticatedEmitter()
+            throws IOException {
+
+        SseEmitter anonymousEmitter =
+                mock(SseEmitter.class);
+
+        SseEmitter authenticatedEmitter =
+                mock(SseEmitter.class);
+
+        registry.register(anonymousEmitter);
+
+        registry.register(
+                7L,
+                authenticatedEmitter
+        );
+
+        registry.broadcast(
+                "ranking_changed",
+                "{\"sequence\":1}"
+        );
+
+        /*
+         * 두 연결 모두:
+         * connected 코멘트 1회
+         * ranking_changed 1회
+         */
+        verify(anonymousEmitter, times(2))
+                .send(
+                        any(
+                                SseEmitter.SseEventBuilder.class
+                        )
+                );
+
+        verify(authenticatedEmitter, times(2))
+                .send(
+                        any(
+                                SseEmitter.SseEventBuilder.class
+                        )
+                );
+    }
 }

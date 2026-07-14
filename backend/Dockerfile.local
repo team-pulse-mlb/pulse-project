@@ -1,0 +1,35 @@
+# 로컬 Docker Compose에서 backend 소스를 빌드해 실행한다.
+FROM eclipse-temurin:21-jdk-noble AS builder
+
+WORKDIR /workspace
+
+COPY gradlew build.gradle settings.gradle ./
+COPY gradle ./gradle
+
+RUN chmod +x gradlew \
+    && ./gradlew dependencies --no-daemon
+
+COPY src ./src
+
+RUN ./gradlew bootJar --no-daemon \
+    && find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' -exec cp '{}' /workspace/pulse.jar \;
+
+FROM eclipse-temurin:21-jre-noble
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --create-home --shell /usr/sbin/nologin pulse
+
+WORKDIR /app
+
+COPY --from=builder /workspace/pulse.jar /app/pulse.jar
+
+USER pulse
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=10 \
+    CMD curl -fsS http://127.0.0.1:8080/actuator/health || exit 1
+
+ENTRYPOINT ["java", "-jar", "/app/pulse.jar"]

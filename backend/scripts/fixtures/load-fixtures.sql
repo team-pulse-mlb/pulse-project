@@ -13,7 +13,7 @@ CREATE TEMP TABLE fixture_plays (LIKE plays INCLUDING DEFAULTS) ON COMMIT DROP;
 \copy fixture_games (game_id, away_inning_scores, away_runs, away_team_abbr, away_team_id, away_team_name, created_at, final_headline_protected, final_headline_revealed, home_inning_scores, home_runs, home_team_abbr, home_team_id, home_team_name, last_play_order, last_polled_at, lifecycle_state, observed_at, peak_base_score, period, postseason, pregame_inputs, pregame_score, source, start_time, status, updated_at, venue) FROM '/tmp/pulse-fixtures/game_5059222.csv' WITH (FORMAT csv, HEADER true)
 \copy fixture_plays (id, away_score, backfilled, balls, batter_id, observed_at, game_id, home_score, inning, inning_type, outs, pitcher_id, play_order, runner_on_first, runner_on_second, runner_on_third, score_value, scoring_play, source, strikes, text, type) FROM '/tmp/pulse-fixtures/plays_5059222.csv' WITH (FORMAT csv, HEADER true)
 
--- 이전 실행에서 만든 픽스처 범위만 정리한다. 운영 및 시뮬레이션 경기는 유지한다.
+-- 이전 실행에서 만든 픽스처 원본과 고정 시뮬레이션 대상만 정리한다. 운영 경기는 유지한다.
 -- user_notifications는 로컬 dev DB(JPA ddl-auto)에는 아직 엔티티가 없어 테이블이 없을 수 있으므로
 -- 존재할 때만 정리한다. 확정 마이그레이션(V1)에는 있는 테이블이다.
 DO $$
@@ -24,17 +24,42 @@ BEGIN
             SELECT event_id
             FROM notification_events
             WHERE game_id BETWEEN 8800000001 AND 8800000008
+               OR game_id IN (14059224001, 14059226001, 14059226002)
         );
     END IF;
 END $$;
-DELETE FROM notification_outbox WHERE game_id BETWEEN 8800000001 AND 8800000008;
-DELETE FROM notification_events WHERE game_id BETWEEN 8800000001 AND 8800000008;
-DELETE FROM game_events WHERE game_id BETWEEN 8800000001 AND 8800000008;
-DELETE FROM lineups WHERE game_id BETWEEN 8800000001 AND 8800000008;
-DELETE FROM odds_snapshots WHERE game_id BETWEEN 8800000001 AND 8800000008;
-DELETE FROM plays WHERE game_id BETWEEN 8800000001 AND 8800000008;
-DELETE FROM watch_scores WHERE game_id BETWEEN 8800000001 AND 8800000008;
-DELETE FROM games WHERE game_id BETWEEN 8800000001 AND 8800000008;
+DELETE FROM notification_outbox
+WHERE game_id BETWEEN 8800000001 AND 8800000008
+   OR game_id IN (14059224001, 14059226001, 14059226002);
+DELETE FROM notification_events
+WHERE game_id BETWEEN 8800000001 AND 8800000008
+   OR game_id IN (14059224001, 14059226001, 14059226002);
+DELETE FROM game_events
+WHERE game_id BETWEEN 8800000001 AND 8800000008
+   OR game_id IN (14059224001, 14059226001, 14059226002);
+DELETE FROM lineups
+WHERE game_id BETWEEN 8800000001 AND 8800000008
+   OR game_id IN (14059224001, 14059226001, 14059226002);
+DELETE FROM odds_snapshots
+WHERE game_id BETWEEN 8800000001 AND 8800000008
+   OR game_id IN (14059224001, 14059226001, 14059226002);
+DELETE FROM plays
+WHERE game_id BETWEEN 8800000001 AND 8800000008
+   OR game_id IN (14059224001, 14059226001, 14059226002);
+DELETE FROM watch_scores
+WHERE game_id BETWEEN 8800000001 AND 8800000008
+   OR game_id IN (14059224001, 14059226001, 14059226002);
+DO $$
+BEGIN
+    IF to_regclass('public.replay_segments') IS NOT NULL THEN
+        DELETE FROM replay_segments
+        WHERE game_id BETWEEN 8800000001 AND 8800000008
+           OR game_id IN (14059224001, 14059226001, 14059226002);
+    END IF;
+END $$;
+DELETE FROM games
+WHERE game_id BETWEEN 8800000001 AND 8800000008
+   OR game_id IN (14059224001, 14059226001, 14059226002);
 
 INSERT INTO teams (
     team_id, abbreviation, created_at, display_name, division, league,

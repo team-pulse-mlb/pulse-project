@@ -9,7 +9,7 @@ AWS EC2·RDS에서 실행하는 운영 환경 가이드다.
 | EC2 | backend·Redis·RabbitMQ·Prometheus·Grafana 실행 |
 | RDS PostgreSQL | 경기 원본·계산 이력 저장 |
 | S3 | 원본 아카이브와 배포 파일 저장 |
-| Secrets Manager | RDS 자격 증명 관리 |
+| Secrets Manager | RDS 자격 증명·운영 런타임 시크릿 관리 |
 
 EC2와 RDS는 같은 VPC에 있으며 RDS는 외부에 공개하지 않는다. 리전은 `ap-northeast-2`다.
 
@@ -29,29 +29,19 @@ backend 세 역할은 같은 이미지를 사용한다. Flyway는 `pulse-api`에
 
 ## 배포
 
-### 1. 로컬 빌드
+### 자동 배포
 
-JDK 21에서 실행한다.
+`main`의 `backend/**`, `ai-service/**`, 운영 Compose 또는 배포 스크립트가 바뀌면 `.github/workflows/application-deploy.yml`이 실행된다.
 
-```bash
-cd backend
-./gradlew clean build
-```
+1. JDK 21로 backend 테스트·빌드
+2. backend·ai-service 이미지를 ECR에 커밋 SHA 태그로 push
+3. Compose와 배포 스크립트를 비공개 배포 S3 버킷에 업로드
+4. GitHub OIDC 역할로 지정 EC2에 SSM 명령 전송
+5. EC2가 Secret Manager를 동기화하고 ai-service → api → poller·scorer 순서로 재생성
 
-### 2. 배포 파일 전달
+GitHub에는 장기 AWS 액세스 키를 저장하지 않는다. `main` 브랜치만 `pulse-github-actions-deploy` 역할을 위임받으며, CI에는 운영 시크릿이 전달되지 않는다.
 
-빌드 jar, Dockerfile, 운영 Compose와 설정 파일을 S3 `deploy/` 경로에 업로드한다. 실제 버킷과 파일 경로는 운영 환경 값으로 지정한다.
-
-### 3. EC2 반영
-
-SSM으로 EC2에 접속해 다음 순서로 진행한다.
-
-1. S3 배포 파일을 `/home/ubuntu/pulse-runtime`에 내려받는다.
-2. backend 이미지를 새 날짜 태그로 빌드한다.
-3. `.env`의 `PULSE_APP_IMAGE`를 새 태그로 변경한다.
-4. `docker compose -f docker-compose.prod.yml up -d`를 실행한다.
-
-### 4. 확인
+### 확인
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
@@ -78,6 +68,14 @@ docker compose -f docker-compose.prod.yml run --rm \
 docker compose -f docker-compose.prod.yml run --rm \
   -e JAVA_OPTS='-Dpulse.rescore.game-ids=<GAME_ID>' \
   pulse-rescore
+
+# AI 헤드라인이 누락된 전체 종료 경기 백필
+docker compose -f docker-compose.prod.yml run --rm pulse-headline-backfill
+
+# 특정 종료 경기만 백필
+docker compose -f docker-compose.prod.yml run --rm \
+  -e JAVA_OPTS='-Dpulse.headline-backfill.game-ids=<GAME_ID_1>,<GAME_ID_2>' \
+  pulse-headline-backfill
 ```
 
 ## 프론트엔드·API HTTPS
@@ -96,6 +94,25 @@ docker compose -f docker-compose.prod.yml run --rm \
 | RabbitMQ | `RABBITMQ_USER`, `RABBITMQ_PASSWORD` |
 | 인증 | `JWT_SECRET` |
 | 관측 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` |
+
+RDS 관리 시크릿은 `username`·`password`를 제공한다. `POSTGRES_HOST`·`POSTGRES_PORT`·`POSTGRES_DB`와 나머지 런타임 값은 `pulse/prod/runtime`에서 관리한다. EC2의 `pulse-secret-sync.timer`가 5분마다 두 시크릿을 확인하고 값이 바뀐 경우에만 애플리케이션 컨테이너를 재생성한다.
+
+```bash
+systemctl status pulse-secret-sync.timer
+journalctl -u pulse-secret-sync.service --since today
+```
+
+`OPENAI_API_KEY`는 `pulse/prod/runtime` JSON에 추가한다. 값이 없어도 ai-service 헬스 서버는 기동하지만 실제 문구 생성 요청은 실패하므로 운영 AI 기능 활성화 전 반드시 등록한다. 시크릿 값은 GitHub Variables·Secrets나 CI 로그에 넣지 않는다.
+
+### GitHub 저장소 Variables
+
+| 변수 | 역할 |
+|---|---|
+| `AWS_DEPLOY_ROLE_ARN` | GitHub OIDC 배포 역할 |
+| `BACKEND_ECR_REPOSITORY`, `AI_ECR_REPOSITORY` | 이미지 저장소 이름 |
+| `DEPLOY_S3_BUCKET` | Compose·배포 스크립트 전달 버킷 |
+| `EC2_INSTANCE_ID` | SSM 배포 대상 |
+| `RDS_SECRET_ARN`, `RUNTIME_SECRET_ARN` | EC2가 동기화할 시크릿 식별자 |
 
 ## AWS 콘솔 확인
 
