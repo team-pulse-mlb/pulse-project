@@ -43,8 +43,9 @@ class AiFinalHeadlineGeneratorTest {
         latestContextHash(AiCopyMode.PROTECTED, "hash-final");
         latestContextHash(AiCopyMode.REVEALED, "hash-final");
 
-        generator.generate(100L);
+        AiFinalHeadlineGenerator.GenerationStatus status = generator.generateSynchronously(100L);
 
+        assertThat(status).isEqualTo(AiFinalHeadlineGenerator.GenerationStatus.SAVED);
         assertThat(game.getFinalHeadlineProtected()).isEqualTo("접전 끝에 마무리된 경기");
         assertThat(game.getFinalHeadlineRevealed()).isEqualTo("홈팀이 5-3으로 승리");
         verify(gameRepository).save(game);
@@ -62,8 +63,9 @@ class AiFinalHeadlineGeneratorTest {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game));
         latestContextHash(AiCopyMode.PROTECTED, "hash-final");
 
-        generator.generate(100L);
+        AiFinalHeadlineGenerator.GenerationStatus status = generator.generateSynchronously(100L);
 
+        assertThat(status).isEqualTo(AiFinalHeadlineGenerator.GenerationStatus.PARTIALLY_SAVED);
         assertThat(game.getFinalHeadlineProtected()).isEqualTo("접전 끝에 마무리된 경기");
         assertThat(game.getFinalHeadlineRevealed()).isNull();
         verify(gameRepository).save(game);
@@ -81,8 +83,9 @@ class AiFinalHeadlineGeneratorTest {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game));
         latestContextHash(AiCopyMode.REVEALED, "hash-final");
 
-        generator.generate(100L);
+        AiFinalHeadlineGenerator.GenerationStatus status = generator.generateSynchronously(100L);
 
+        assertThat(status).isEqualTo(AiFinalHeadlineGenerator.GenerationStatus.PARTIALLY_SAVED);
         assertThat(game.getFinalHeadlineProtected()).isNull();
         assertThat(game.getFinalHeadlineRevealed()).isEqualTo("홈팀이 5-3으로 승리");
         verify(gameRepository).save(game);
@@ -92,6 +95,7 @@ class AiFinalHeadlineGeneratorTest {
 
     @Test
     void generate_shouldSkipWhenNoStorableHeadline() {
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(finalGame()));
         when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.PROTECTED))
                 .thenReturn(Optional.of(unsafeResult()));
         when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.REVEALED))
@@ -102,6 +106,39 @@ class AiFinalHeadlineGeneratorTest {
         verify(gameRepository, never()).save(any(Game.class));
         verify(liveSignalPublisher, never()).publishGameSignal(100L);
         verify(liveSignalPublisher, never()).publishRankingSignal();
+    }
+
+    @Test
+    void generateSynchronously_shouldCallOnlyMissingMode() {
+        Game game = finalGame();
+        game.setFinalHeadlineProtected("이미 저장된 보호 헤드라인");
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(game));
+        when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.REVEALED))
+                .thenReturn(Optional.of(result("홈팀이 5-3으로 승리")));
+        latestContextHash(AiCopyMode.REVEALED, "hash-final");
+
+        AiFinalHeadlineGenerator.GenerationStatus status = generator.generateSynchronously(100L);
+
+        assertThat(status).isEqualTo(AiFinalHeadlineGenerator.GenerationStatus.SAVED);
+        assertThat(game.getFinalHeadlineProtected()).isEqualTo("이미 저장된 보호 헤드라인");
+        assertThat(game.getFinalHeadlineRevealed()).isEqualTo("홈팀이 5-3으로 승리");
+        verify(finalHeadlineCopyClient, never()).generateFinalHeadline(100L, AiCopyMode.PROTECTED);
+        verify(gameRepository).save(game);
+    }
+
+    @Test
+    void generateSynchronously_shouldSkipWhenBothModesAlreadyExist() {
+        Game game = finalGame();
+        game.setFinalHeadlineProtected("보호 헤드라인");
+        game.setFinalHeadlineRevealed("공개 헤드라인");
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(game));
+
+        AiFinalHeadlineGenerator.GenerationStatus status = generator.generateSynchronously(100L);
+
+        assertThat(status).isEqualTo(AiFinalHeadlineGenerator.GenerationStatus.ALREADY_PRESENT);
+        verify(finalHeadlineCopyClient, never()).generateFinalHeadline(
+                org.mockito.ArgumentMatchers.anyLong(), any(AiCopyMode.class));
+        verify(gameRepository, never()).save(any(Game.class));
     }
 
     @Test

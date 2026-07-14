@@ -238,6 +238,27 @@ services:
       RABBITMQ_HOST: rabbitmq
       JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
 
+  pulse-headline-backfill:
+    <<: *app-base
+    profiles: ["batch"]
+    restart: "no"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod,headline-backfill
+      PULSE_POLLER_ENABLED: "false"
+      PULSE_SCORER_ENABLED: "true"
+      PULSE_SSE_ENABLED: "false"
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      # pulse.headline-backfill.game-ids는 실행 시 JAVA_OPTS -D로 선택 지정한다.
+      JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+
 volumes:
   rabbitmq-data:
   prometheus-data:

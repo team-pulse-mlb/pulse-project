@@ -45,23 +45,46 @@ class AiFinalHeadlineGenerator {
      */
     @Async(AiGenerationAsyncConfig.TASK_EXECUTOR)
     public void generate(long gameId) {
-        Optional<AiCopyResult> protectedResult = finalHeadlineCopyClient
-                .generateFinalHeadline(gameId, AiCopyMode.PROTECTED)
-                .filter(this::isStorable);
+        generateSynchronously(gameId);
+    }
 
-        Optional<AiCopyResult> revealedResult = finalHeadlineCopyClient
-                .generateFinalHeadline(gameId, AiCopyMode.REVEALED)
-                .filter(this::isStorable);
+    /**
+     * 라이브 종료 처리와 일회성 백필이 공유하는 동기 생성 경로입니다.
+     * 이미 저장된 모드는 다시 호출하지 않아 재실행 시 비용과 문구 변경을 막습니다.
+     */
+    GenerationStatus generateSynchronously(long gameId) {
+        Game current = gameRepository.findById(gameId).orElse(null);
+        if (current == null || !current.isFinal()) {
+            log.debug("AI 종료 헤드라인 저장 대상 경기 없음/미종료: gameId={}", gameId);
+            return GenerationStatus.NOT_ELIGIBLE;
+        }
+
+        boolean needsProtected = isBlank(current.getFinalHeadlineProtected());
+        boolean needsRevealed = isBlank(current.getFinalHeadlineRevealed());
+        if (!needsProtected && !needsRevealed) {
+            log.debug("AI 종료 헤드라인 이미 저장됨: gameId={}", gameId);
+            return GenerationStatus.ALREADY_PRESENT;
+        }
+
+        Optional<AiCopyResult> protectedResult = needsProtected
+                ? finalHeadlineCopyClient.generateFinalHeadline(gameId, AiCopyMode.PROTECTED)
+                        .filter(this::isStorable)
+                : Optional.empty();
+
+        Optional<AiCopyResult> revealedResult = needsRevealed
+                ? finalHeadlineCopyClient.generateFinalHeadline(gameId, AiCopyMode.REVEALED)
+                        .filter(this::isStorable)
+                : Optional.empty();
 
         if (protectedResult.isEmpty() && revealedResult.isEmpty()) {
             log.debug("AI 종료 헤드라인 저장 대상 없음: gameId={}", gameId);
-            return;
+            return GenerationStatus.NOT_GENERATED;
         }
 
         Game game = gameRepository.findById(gameId).orElse(null);
         if (game == null || !game.isFinal()) {
             log.debug("AI 종료 헤드라인 저장 대상 경기 없음/미종료: gameId={}", gameId);
-            return;
+            return GenerationStatus.NOT_ELIGIBLE;
         }
 
         protectedResult = filterLatestContextHash(
@@ -77,19 +100,29 @@ class AiFinalHeadlineGenerator {
 
         if (protectedResult.isEmpty() && revealedResult.isEmpty()) {
             log.debug("AI 종료 헤드라인 최신 contextHash 불일치로 저장 생략: gameId={}", gameId);
-            return;
+            return GenerationStatus.NOT_GENERATED;
         }
 
-        protectedResult.ifPresent(result ->
-                game.setFinalHeadlineProtected(result.safeTitle())
-        );
-        revealedResult.ifPresent(result ->
-                game.setFinalHeadlineRevealed(result.safeTitle())
-        );
+        boolean changed = false;
+        if (isBlank(game.getFinalHeadlineProtected()) && protectedResult.isPresent()) {
+            game.setFinalHeadlineProtected(protectedResult.orElseThrow().safeTitle());
+            changed = true;
+        }
+        if (isBlank(game.getFinalHeadlineRevealed()) && revealedResult.isPresent()) {
+            game.setFinalHeadlineRevealed(revealedResult.orElseThrow().safeTitle());
+            changed = true;
+        }
+        if (!changed) {
+            log.debug("AI 종료 헤드라인 동시 저장으로 갱신 생략: gameId={}", gameId);
+            return GenerationStatus.ALREADY_PRESENT;
+        }
 
         gameRepository.save(game);
         liveSignalPublisher.publishGameSignal(gameId);
         liveSignalPublisher.publishRankingSignal();
+        return isBlank(game.getFinalHeadlineProtected()) || isBlank(game.getFinalHeadlineRevealed())
+                ? GenerationStatus.PARTIALLY_SAVED
+                : GenerationStatus.SAVED;
     }
 
     /**
@@ -119,5 +152,17 @@ class AiFinalHeadlineGenerator {
                 .map(FinalHeadlineContext::contextHash)
                 .filter(candidate.contextHash()::equals)
                 .isPresent());
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    enum GenerationStatus {
+        SAVED,
+        PARTIALLY_SAVED,
+        ALREADY_PRESENT,
+        NOT_GENERATED,
+        NOT_ELIGIBLE
     }
 }

@@ -9,7 +9,7 @@ AWS EC2·RDS에서 실행하는 운영 환경 가이드다.
 | EC2 | backend·Redis·RabbitMQ·Prometheus·Grafana 실행 |
 | RDS PostgreSQL | 경기 원본·계산 이력 저장 |
 | S3 | 원본 아카이브와 배포 파일 저장 |
-| Secrets Manager | RDS 자격 증명 관리 |
+| Secrets Manager | RDS 자격 증명·운영 런타임 시크릿 관리 |
 
 EC2와 RDS는 같은 VPC에 있으며 RDS는 외부에 공개하지 않는다. 리전은 `ap-northeast-2`다.
 
@@ -68,6 +68,14 @@ docker compose -f docker-compose.prod.yml run --rm \
 docker compose -f docker-compose.prod.yml run --rm \
   -e JAVA_OPTS='-Dpulse.rescore.game-ids=<GAME_ID>' \
   pulse-rescore
+
+# AI 헤드라인이 누락된 전체 종료 경기 백필
+docker compose -f docker-compose.prod.yml run --rm pulse-headline-backfill
+
+# 특정 종료 경기만 백필
+docker compose -f docker-compose.prod.yml run --rm \
+  -e JAVA_OPTS='-Dpulse.headline-backfill.game-ids=<GAME_ID_1>,<GAME_ID_2>' \
+  pulse-headline-backfill
 ```
 
 ## 프론트엔드·API HTTPS
@@ -87,7 +95,7 @@ docker compose -f docker-compose.prod.yml run --rm \
 | 인증 | `JWT_SECRET` |
 | 관측 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` |
 
-RDS 접속 정보는 RDS 관리 시크릿, 나머지 런타임 값은 `pulse/prod/runtime`에서 관리한다. EC2의 `pulse-secret-sync.timer`가 5분마다 두 시크릿을 확인하고 값이 바뀐 경우에만 애플리케이션 컨테이너를 재생성한다.
+RDS 관리 시크릿은 `username`·`password`를 제공한다. `POSTGRES_HOST`·`POSTGRES_PORT`·`POSTGRES_DB`와 나머지 런타임 값은 `pulse/prod/runtime`에서 관리한다. EC2의 `pulse-secret-sync.timer`가 5분마다 두 시크릿을 확인하고 값이 바뀐 경우에만 애플리케이션 컨테이너를 재생성한다.
 
 ```bash
 systemctl status pulse-secret-sync.timer
