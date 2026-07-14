@@ -172,6 +172,93 @@ function BaseGraphic({
     );
 }
 
+/**
+ * 보호 모드에서 실제 카운트 값을 사용하지 않고
+ * 영역의 형태만 보여주는 고정 미리보기다.
+ */
+function ProtectedCountPreview() {
+    const rows = [
+        {
+            label: 'B',
+            max: 3,
+            activeClassName: 'bg-dot-ball',
+        },
+        {
+            label: 'S',
+            max: 2,
+            activeClassName: 'bg-dot-strike',
+        },
+        {
+            label: 'O',
+            max: 2,
+            activeClassName: 'bg-dot-out',
+        },
+    ] as const;
+
+    return (
+        <div
+            aria-hidden="true"
+            className="flex select-none flex-col gap-3 opacity-55 blur-[3px]"
+        >
+            {rows.map((row) => (
+                <div
+                    key={row.label}
+                    className="flex items-center gap-3"
+                >
+                    <span className="w-5 shrink-0 font-display text-sm font-bold text-text-muted">
+                        {row.label}
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                        {Array.from({
+                            length: row.max,
+                        }).map((_, index) => (
+                            <span
+                                key={`${row.label}-protected-${index}`}
+                                className={`h-3 w-3 shrink-0 rounded-full border border-transparent ${
+                                    index === 0
+                                        ? row.activeClassName
+                                        : 'bg-[#D9DEE7]'
+                                }`}
+                            />
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/**
+ * 보호 모드에서는 실제 주자 점유 상태를 전달하지 않고
+ * 베이스 영역의 형태만 보여주는 고정 미리보기를 사용한다.
+ */
+function ProtectedBasePreview() {
+    return (
+        <div
+            aria-hidden="true"
+            className="relative h-[104px] w-[112px] shrink-0 select-none opacity-55 blur-[3px]"
+        >
+            <Base
+                occupied={false}
+                className="left-1/2 top-1 -translate-x-1/2"
+            />
+
+            <Base
+                occupied={true}
+                className="left-2 top-[39px]"
+            />
+
+            <Base
+                occupied={false}
+                className="right-2 top-[39px]"
+            />
+
+            <HomePlate />
+        </div>
+    );
+}
+
 interface CurrentSituationCardProps {
     /**
      * 이닝 교대 중이거나 현재 상황 데이터가 없으면 null이다.
@@ -194,6 +281,9 @@ function CurrentSituationCard({
     const isRevealed =
         mode === 'REVEALED';
 
+    const isProtected =
+        mode === 'PROTECTED';
+
     return (
         <Card>
             <h3 className="mb-5 text-[15px] font-bold text-text-strong">
@@ -208,7 +298,11 @@ function CurrentSituationCard({
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]">
                     <section className="min-w-0 rounded-panel border border-card-border bg-white p-5">
                         <div className="mb-5 flex flex-wrap items-center gap-2">
-                            {situation.basesLoaded ? (
+                            {isProtected ? (
+                                <span className="rounded-full bg-divider px-3 py-1 text-xs font-semibold text-text-muted">
+                                    상황 보호 중
+                                </span>
+                            ) : situation.basesLoaded ? (
                                 <span className="rounded-full bg-red-tint px-3 py-1 text-xs font-bold text-mlb-red">
                                     만루
                                 </span>
@@ -223,48 +317,76 @@ function CurrentSituationCard({
                             )}
 
                             <span className="text-xs text-text-faint">
-                                현재 카운트와 주자 상황
+                                {isProtected
+                                    ? '공개 모드에서 현재 상황을 확인할 수 있습니다.'
+                                    : '현재 카운트와 주자 상황'}
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-1 items-center gap-5 sm:grid-cols-[minmax(120px,1fr)_112px]">
-                            <div className="flex flex-col gap-3">
-                                <CountDots
-                                    label="B"
-                                    count={
-                                        situation.balls
-                                    }
-                                    max={3}
-                                    activeClassName="bg-dot-ball"
-                                />
+                        {isProtected ? (
+                            <div
+                                className="relative"
+                                aria-label="보호 모드에서는 현재 카운트와 주자 상황을 숨깁니다."
+                            >
+                                {/*
+                                 * 실제 situation 값은 렌더링하지 않는다.
+                                 * 고정된 자리 표시자만 흐리게 보여서
+                                 * 영역의 용도만 알 수 있도록 한다.
+                                 */}
+                                <div className="grid grid-cols-1 items-center gap-5 sm:grid-cols-[minmax(120px,1fr)_112px]">
+                                    <ProtectedCountPreview />
 
-                                <CountDots
-                                    label="S"
-                                    count={
-                                        situation.strikes
-                                    }
-                                    max={2}
-                                    activeClassName="bg-dot-strike"
-                                />
+                                    <div className="flex justify-center sm:justify-end">
+                                        <ProtectedBasePreview />
+                                    </div>
+                                </div>
 
-                                <CountDots
-                                    label="O"
-                                    count={
-                                        situation.outs
-                                    }
-                                    max={2}
-                                    activeClassName="bg-dot-out"
-                                />
+                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                    <span className="rounded-full border border-card-border bg-white/90 px-3 py-1 text-xs font-semibold text-text-muted shadow-sm">
+                                        보호 중
+                                    </span>
+                                </div>
                             </div>
+                        ) : (
+                            <div className="grid grid-cols-1 items-center gap-5 sm:grid-cols-[minmax(120px,1fr)_112px]">
+                                <div className="flex flex-col gap-3">
+                                    <CountDots
+                                        label="B"
+                                        count={
+                                            situation.balls
+                                        }
+                                        max={3}
+                                        activeClassName="bg-dot-ball"
+                                    />
 
-                            <div className="flex justify-center sm:justify-end">
-                                <BaseGraphic
-                                    situation={
-                                        situation
-                                    }
-                                />
+                                    <CountDots
+                                        label="S"
+                                        count={
+                                            situation.strikes
+                                        }
+                                        max={2}
+                                        activeClassName="bg-dot-strike"
+                                    />
+
+                                    <CountDots
+                                        label="O"
+                                        count={
+                                            situation.outs
+                                        }
+                                        max={2}
+                                        activeClassName="bg-dot-out"
+                                    />
+                                </div>
+
+                                <div className="flex justify-center sm:justify-end">
+                                    <BaseGraphic
+                                        situation={
+                                            situation
+                                        }
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </section>
 
                     <section className="min-w-0 rounded-panel bg-red-tint-soft p-5">

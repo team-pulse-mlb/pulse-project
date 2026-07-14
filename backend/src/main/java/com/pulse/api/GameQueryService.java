@@ -20,6 +20,13 @@ import java.util.stream.Collectors;
 public class GameQueryService {
 
     private final GameRepository gameRepository;
+
+    /*
+     * games의 팀 ID와 MLB 공식 로고용 ID는 서로 다를 수 있으므로
+     * teams.logo_team_id를 조회하기 위해 사용한다.
+     */
+    private final TeamRepository teamRepository;
+
     private final PlayRepository playRepository;
     private final PlayerRepository playerRepository;
     private final LineupRepository lineupRepository;
@@ -331,15 +338,44 @@ public class GameQueryService {
                 .toList();
     }
 
-    private static TeamResponse team(
+    private TeamResponse team(
             Long id,
             String name,
             String abbr) {
 
+        /*
+         * balldontlie 팀 ID와 MLB 로고용 ID는 서로 다를 수 있으므로
+         * games의 팀 ID를 URL에 직접 사용하지 않고 teams에서 조회한다.
+         */
+        String logoUrl =
+                id == null
+                        ? null
+                        : teamRepository
+                                .findById(id)
+                                .map(Team::getLogoTeamId)
+                                .map(GameQueryService::teamLogoUrl)
+                                .orElse(null);
+
         return new TeamResponse(
                 id,
                 name,
-                abbr);
+                abbr,
+                logoUrl);
+    }
+
+    /**
+     * teams.logo_team_id를 MLB 공식 팀 로고 주소로 변환한다.
+     */
+    private static String teamLogoUrl(
+            Long logoTeamId) {
+
+        if (logoTeamId == null) {
+            return null;
+        }
+
+        return "https://www.mlbstatic.com/team-logos/"
+                + logoTeamId
+                + ".svg";
     }
 
     private static ScoreResponse score(Game game) {
@@ -701,7 +737,8 @@ public class GameQueryService {
     public record TeamResponse(
             Long id,
             String name,
-            String abbr) {}
+            String abbr,
+            String logoUrl) {}
 
     public record ScoreResponse(
             Integer home,

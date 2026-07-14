@@ -1,8 +1,10 @@
 import Card from '../../../shared/components/Card';
-import type { FixtureRecentPlay } from '../fixtures/liveGameDetailFixture';
+import type {
+    RecentPlayViewModel,
+} from '../model/gameRecentPlayViewModels';
 
 interface RecentPlayListProps {
-    plays: FixtureRecentPlay[];
+    plays: RecentPlayViewModel[];
 }
 
 function getHalfInningLabel(
@@ -44,16 +46,16 @@ function RecentPlayList({
                                 className="border-t border-divider py-4 first:border-t-0 first:pt-0 last:pb-0"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="font-display text-xs font-bold text-mlb-red">
-                    {getHalfInningLabel(
-                        play.inning,
-                        play.inningType,
-                    )}
-                  </span>
+                                    <span className="font-display text-xs font-bold text-mlb-red">
+                                        {getHalfInningLabel(
+                                            play.inning,
+                                            play.inningType,
+                                        )}
+                                    </span>
 
                                     <span className="font-display text-sm font-semibold text-mlb-navy">
-                    {play.scoreLabel}
-                  </span>
+                                        {play.scoreLabel}
+                                    </span>
                                 </div>
 
                                 <p className="mt-2 text-sm leading-relaxed text-text-body">
@@ -62,8 +64,8 @@ function RecentPlayList({
                                             aria-label="관심 선수"
                                             className="mr-1 text-gold"
                                         >
-                      ★
-                    </span>
+                                            ★
+                                        </span>
                                     )}
 
                                     {play.text}

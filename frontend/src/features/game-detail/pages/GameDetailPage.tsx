@@ -1,7 +1,4 @@
-import {
-    useEffect,
-    useState,
-} from 'react';
+import { useState } from 'react';
 import {
     Link,
     useParams,
@@ -11,11 +8,15 @@ import BoxScoreTable from '../../../shared/components/BoxScoreTable';
 import Card from '../../../shared/components/Card';
 import EmptyState from '../../../shared/components/EmptyState';
 import { useGameDetailQuery } from '../api/useGameDetailQuery';
+import { useGameEventsQuery } from '../api/useGameEventsQuery';
+import { useGameRecentPlaysQuery } from '../api/useGameRecentPlaysQuery';
 import CurrentSituationCard from '../components/CurrentSituationCard';
+import EventTimeline from '../components/EventTimeline';
 import FinalGameDetail from '../components/FinalGameDetail';
 import FinalMatchupHero from '../components/FinalMatchupHero';
 import GameMatchupHero from '../components/GameMatchupHero';
 import ModeToggle from '../components/ModeToggle';
+import RecentPlayList from '../components/RecentPlayList';
 import RecommendedSidebar from '../components/RecommendedSidebar';
 import ScheduledGameDetail from '../components/ScheduledGameDetail';
 import {
@@ -24,6 +25,8 @@ import {
     type DisplayMode,
 } from '../lib/displayMode';
 import { toGameDetailViewModel } from '../lib/gameDetailMapper';
+import { toTimelineEvents } from '../lib/gameEventMapper';
+import { toRecentPlayViewModels } from '../lib/gameRecentPlayMapper';
 
 function GameDetailPage() {
     const { gameId } =
@@ -40,36 +43,20 @@ function GameDetailPage() {
             : null;
 
     /**
-     * 사용자가 경기별로 마지막에 선택한 보호·공개 모드를 복원한다.
+     * 같은 GameDetailPage 안에서 URL의 gameId가 바뀌어도
+     * 경기별 선택 모드를 독립적으로 유지한다.
      *
-     * 예정 경기는 서버가 항상 PROTECTED로 응답하며,
-     * 화면에도 모드 토글을 표시하지 않는다.
+     * useEffect 안에서 setState를 호출하지 않아
+     * 불필요한 연쇄 렌더링을 방지한다.
      */
-    const [mode, setMode] =
-        useState<DisplayMode>(() =>
-            gameId
-                ? getStoredMode(gameId)
-                : 'PROTECTED',
-        );
+    const [selectedModes, setSelectedModes] =
+        useState<Record<string, DisplayMode>>({});
 
-    /**
-     * URL의 gameId가 바뀌면 새 경기의 저장 모드를 다시 읽는다.
-     */
-    useEffect(() => {
-        if (
-            !gameId
-            || validGameId === null
-        ) {
-            return;
-        }
-
-        setMode(
-            getStoredMode(gameId),
-        );
-    }, [
-        gameId,
-        validGameId,
-    ]);
+    const mode =
+        gameId
+            ? selectedModes[gameId]
+            ?? getStoredMode(gameId)
+            : 'PROTECTED';
 
     /**
      * 보호·공개 모드는 서로 다른 필드를 반환하므로
@@ -79,6 +66,42 @@ function GameDetailPage() {
         useGameDetailQuery(
             validGameId,
             mode,
+        );
+
+    /**
+     * 이벤트 타임라인은 진행 경기와 종료 경기에서만 조회한다.
+     */
+    const shouldFetchEvents =
+        gameDetailQuery.data?.status
+        === 'STATUS_IN_PROGRESS'
+        || gameDetailQuery.data?.status
+        === 'STATUS_FINAL';
+
+    const gameEventsQuery =
+        useGameEventsQuery(
+            validGameId,
+            mode,
+            shouldFetchEvents,
+        );
+
+    /**
+     * 최근 플레이에는 점수, 초·말, 실제 플레이 문구가 포함되므로
+     * 진행·종료 경기의 공개 모드에서만 조회한다.
+     */
+    const shouldFetchRecentPlays =
+        mode === 'REVEALED'
+        && (
+            gameDetailQuery.data?.status
+            === 'STATUS_IN_PROGRESS'
+            || gameDetailQuery.data?.status
+            === 'STATUS_FINAL'
+        );
+
+    const recentPlaysQuery =
+        useGameRecentPlaysQuery(
+            validGameId,
+            mode,
+            shouldFetchRecentPlays,
         );
 
     if (validGameId === null) {
@@ -96,7 +119,13 @@ function GameDetailPage() {
             return;
         }
 
-        setMode(nextMode);
+        setSelectedModes(
+            (previousModes) => ({
+                ...previousModes,
+                [gameId]: nextMode,
+            }),
+        );
+
         storeMode(
             gameId,
             nextMode,
@@ -146,8 +175,89 @@ function GameDetailPage() {
         );
     }
 
+    const isRevealed =
+        detail.displayMode === 'REVEALED';
+
+    /**
+     * 이벤트 API 응답을 기존 EventTimeline 화면 모델로 변환한다.
+     */
+    const timelineEvents =
+        gameEventsQuery.data
+            ? toTimelineEvents(
+                gameEventsQuery.data,
+            )
+            : [];
+
+    const eventTimelineContent =
+        gameEventsQuery.isPending ? (
+            <Card>
+                <div
+                    className="py-6 text-center text-sm text-text-muted"
+                    role="status"
+                >
+                    이벤트를 불러오는 중입니다.
+                </div>
+            </Card>
+        ) : (
+            gameEventsQuery.isError
+            || !gameEventsQuery.data
+        ) ? (
+            <Card>
+                <p className="py-2 text-sm text-text-muted">
+                    이벤트 타임라인을 불러오지 못했습니다.
+                </p>
+            </Card>
+        ) : (
+            <EventTimeline
+                mode={detail.displayMode}
+                events={timelineEvents}
+            />
+        );
+
+    /**
+     * 최근 플레이 API 응답을 화면 모델로 변환한다.
+     *
+     * 점수 표시는 상세 응답의 원정팀·홈팀 약어를 사용한다.
+     */
+    const recentPlays =
+        recentPlaysQuery.data
+            ? toRecentPlayViewModels(
+                recentPlaysQuery.data,
+                detail.awayTeam.abbr,
+                detail.homeTeam.abbr,
+            )
+            : [];
+
+    const recentPlayContent =
+        recentPlaysQuery.isPending ? (
+            <Card>
+                <div
+                    className="py-6 text-center text-sm text-text-muted"
+                    role="status"
+                >
+                    최근 플레이를 불러오는 중입니다.
+                </div>
+            </Card>
+        ) : (
+            recentPlaysQuery.isError
+            || !recentPlaysQuery.data
+        ) ? (
+            <Card>
+                <p className="py-2 text-sm text-text-muted">
+                    최근 플레이를 불러오지 못했습니다.
+                </p>
+            </Card>
+        ) : (
+            <RecentPlayList
+                plays={recentPlays}
+            />
+        );
+
     /**
      * 종료 경기 상세 화면이다.
+     *
+     * 공개 모드 화면 순서:
+     * 이닝별 점수판 → 이벤트 타임라인 → 최근 플레이
      */
     if (detail.kind === 'FINAL') {
         return (
@@ -181,6 +291,11 @@ function GameDetailPage() {
                     <FinalGameDetail
                         data={detail}
                     />
+
+                    {eventTimelineContent}
+
+                    {isRevealed
+                        && recentPlayContent}
                 </div>
 
                 <aside className="lg:sticky lg:top-[86px]">
@@ -197,14 +312,9 @@ function GameDetailPage() {
     /**
      * 진행 경기 상세 화면이다.
      *
-     * 상세 응답에는 이벤트 타임라인과 최근 플레이가 없으므로
-     * fixture 데이터를 섞지 않는다.
-     * 이벤트는 별도의 /events API 연결 단계에서 추가한다.
+     * 이벤트 타임라인 아래에 최근 플레이를 배치하며,
+     * 최근 플레이는 공개 모드에서만 렌더링한다.
      */
-    const isRevealed =
-        detail.displayMode
-        === 'REVEALED';
-
     return (
         <div className="mx-auto grid max-w-[1160px] grid-cols-1 items-start gap-10 px-4 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_336px]">
             <div className="flex min-w-0 flex-col gap-[18px]">
@@ -295,6 +405,11 @@ function GameDetailPage() {
                             : null
                     }
                 />
+
+                {eventTimelineContent}
+
+                {isRevealed
+                    && recentPlayContent}
             </div>
 
             <aside className="lg:sticky lg:top-[86px]">

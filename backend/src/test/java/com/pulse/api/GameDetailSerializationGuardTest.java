@@ -24,11 +24,13 @@ class GameDetailSerializationGuardTest {
                         new TeamResponse(
                                 28L,
                                 "Texas Rangers",
-                                "TEX"),
+                                "TEX",
+                                null),
                         new TeamResponse(
                                 10L,
                                 "Detroit Tigers",
-                                "DET"),
+                                "DET",
+                                null),
                         Instant.parse(
                                 "2026-07-15T00:05:00Z"),
                         "Globe Life Field",
@@ -135,11 +137,13 @@ class GameDetailSerializationGuardTest {
                         new TeamResponse(
                                 1L,
                                 "Chicago Cubs",
-                                "CHC"),
+                                "CHC",
+                                null),
                         new TeamResponse(
                                 2L,
                                 "San Diego Padres",
-                                "SD"),
+                                "SD",
+                                null),
                         Instant.parse(
                                 "2026-07-02T00:00:00Z"),
                         "후반",
@@ -226,11 +230,13 @@ class GameDetailSerializationGuardTest {
                         new TeamResponse(
                                 1L,
                                 "Chicago Cubs",
-                                "CHC"),
+                                "CHC",
+                                null),
                         new TeamResponse(
                                 2L,
                                 "San Diego Padres",
-                                "SD"),
+                                "SD",
+                                null),
                         Instant.parse(
                                 "2026-07-02T00:00:00Z"),
                         new ScoreResponse(
@@ -331,11 +337,13 @@ class GameDetailSerializationGuardTest {
                         new TeamResponse(
                                 28L,
                                 "Texas Rangers",
-                                "TEX"),
+                                "TEX",
+                                null),
                         new TeamResponse(
                                 10L,
                                 "Detroit Tigers",
-                                "DET"),
+                                "DET",
+                                null),
                         Instant.parse(
                                 "2026-07-03T00:05:00Z"),
 
@@ -444,11 +452,13 @@ class GameDetailSerializationGuardTest {
                         new TeamResponse(
                                 28L,
                                 "Texas Rangers",
-                                "TEX"),
+                                "TEX",
+                                null),
                         new TeamResponse(
                                 10L,
                                 "Detroit Tigers",
-                                "DET"),
+                                "DET",
+                                null),
                         Instant.parse(
                                 "2026-07-03T00:05:00Z"),
                         "Texas Rangers가 10-4로 승리한 경기입니다.",

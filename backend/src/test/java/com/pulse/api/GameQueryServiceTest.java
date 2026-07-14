@@ -19,6 +19,9 @@ class GameQueryServiceTest {
     private final GameRepository gameRepository =
             mock(GameRepository.class);
 
+    private final TeamRepository teamRepository =
+            mock(TeamRepository.class);
+
     private final PlayRepository playRepository =
             mock(PlayRepository.class);
 
@@ -31,6 +34,7 @@ class GameQueryServiceTest {
     private final GameQueryService service =
             new GameQueryService(
                     gameRepository,
+                    teamRepository,
                     playRepository,
                     playerRepository,
                     lineupRepository);

@@ -47,10 +47,13 @@ function toTeamViewModel(
         abbr,
 
         /*
-         * 현재 경기 상세 API에는 팀 로고 URL이 없다.
-         * HeroTeamIdentity는 null일 때 팀 약어를 대신 표시한다.
+         * 백엔드에서 내려준 MLB 공식 팀 로고 URL을 사용한다.
+         * URL이 없거나 이미지 로딩에 실패하면 HeroTeamIdentity가
+         * 기존처럼 팀 약어를 대신 표시한다.
          */
-        logoUrl: null,
+        logoUrl:
+            team.logoUrl?.trim()
+            || null,
     };
 }
 

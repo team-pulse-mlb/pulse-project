@@ -19,6 +19,12 @@ export interface TeamResponse {
     id: number | null;
     name: string | null;
     abbr: string | null;
+
+    /*
+     * 백엔드가 teams.logo_team_id를 이용해 만든
+     * MLB 공식 팀 로고 URL이다.
+     */
+    logoUrl: string | null;
 }
 
 export interface ScoreResponse {

@@ -12,10 +12,7 @@ interface HeroTeamIdentityProps {
 }
 
 /**
- * 팀 심볼 이미지를 표시하는 원형 영역이다.
- *
- * 이미지 주소가 없거나 현재 주소의 이미지 로딩에 실패하면
- * 원 중앙에 팀 약어를 출력한다.
+ * 팀 심볼 이미지를 표시하는 영역이다.
  */
 function TeamSymbol({
                         team,
@@ -23,10 +20,10 @@ function TeamSymbol({
     team: HeroTeamIdentityData;
 }) {
     /**
-     * 단순 성공/실패 여부가 아니라 실패한 URL을 저장한다.
+     * 실패한 로고 URL을 기억해 같은 실패 URL을 계속 재시도하지 않는다.
      *
-     * API 재조회로 logoUrl이 바뀌면 기존 실패 URL과 달라지므로
-     * 별도의 useEffect와 상태 초기화 없이 새 이미지를 다시 시도한다.
+     * API 재조회로 logoUrl이 바뀌면 실패 URL도 달라지므로
+     * 별도 초기화 없이 새 로고 로딩을 다시 시도할 수 있다.
      */
     const [failedLogoUrl, setFailedLogoUrl] =
         useState<string | null>(null);
@@ -37,22 +34,40 @@ function TeamSymbol({
         logoUrl !== null &&
         failedLogoUrl !== logoUrl;
 
-    return (
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white/10 sm:h-16 sm:w-16">
-            {canShowImage ? (
+    /**
+     * 로고 사이즈
+     */
+    const symbolSizeClass =
+        'h-[60px] w-[60px] sm:h-[68px] sm:w-[68px]';
+
+    if (canShowImage) {
+        return (
+            <div
+                className={`flex shrink-0 items-center justify-center ${symbolSizeClass}`}
+            >
                 <img
                     src={logoUrl}
-                    alt={`${team.name} 심볼`}
-                    className="h-full w-full object-contain p-1.5"
+                    alt={`${team.name} 로고`}
+                    className="h-full w-full object-contain"
                     onError={() => {
                         setFailedLogoUrl(logoUrl);
                     }}
                 />
-            ) : (
-                <span className="font-display text-sm font-bold text-white/90 sm:text-base">
-          {team.abbr}
-        </span>
-            )}
+            </div>
+        );
+    }
+
+    /**
+     * 로고가 없거나 로딩 실패한 경우에는
+     * 기존처럼 원형 테두리 + 약어 fallback을 유지한다.
+     */
+    return (
+        <div
+            className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white/10 ${symbolSizeClass}`}
+        >
+            <span className="font-display text-sm font-bold text-white/90 sm:text-base">
+                {team.abbr}
+            </span>
         </div>
     );
 }
@@ -67,41 +82,27 @@ function HeroTeamIdentity({
                           }: HeroTeamIdentityProps) {
     const isAwaySide = align === 'right';
 
-    const textBlock = (
-        <div
-            className={`min-w-0 ${
-                isAwaySide ? 'text-right' : 'text-left'
-            }`}
-        >
-            <div className="max-w-[190px] font-display text-lg font-semibold leading-tight text-white sm:text-[22px]">
-                {team.name}
-            </div>
-
-            <div className="mt-1.5 font-display text-xs font-semibold tracking-[0.08em] text-white/50 sm:text-[13px]">
-                {team.abbr}
-            </div>
-        </div>
-    );
-
     return (
         <div
-            className={`flex min-w-0 items-center gap-3 ${
-                isAwaySide
-                    ? 'justify-end'
-                    : 'justify-start'
+            className={`flex min-w-0 items-center gap-3 sm:gap-4 ${
+                isAwaySide ? 'flex-row' : 'flex-row-reverse'
             }`}
         >
-            {isAwaySide ? (
-                <>
-                    {textBlock}
-                    <TeamSymbol team={team} />
-                </>
-            ) : (
-                <>
-                    <TeamSymbol team={team} />
-                    {textBlock}
-                </>
-            )}
+            <div
+                className={`min-w-0 ${
+                    isAwaySide ? 'text-right' : 'text-left'
+                }`}
+            >
+                <p className="line-clamp-2 font-display text-[20px] font-semibold leading-[1.05] tracking-[-0.02em] text-white sm:text-[22px]">
+                    {team.name}
+                </p>
+
+                <p className="mt-1 text-[13px] font-semibold tracking-[0.08em] text-white/65">
+                    {team.abbr}
+                </p>
+            </div>
+
+            <TeamSymbol team={team} />
         </div>
     );
 }
