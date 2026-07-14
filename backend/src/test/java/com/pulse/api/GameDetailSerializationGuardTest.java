@@ -33,6 +33,8 @@ class GameDetailSerializationGuardTest {
                 "STATUS_IN_PROGRESS",
                 Instant.parse("2026-07-02T00:00:00Z"),
                 "후반",
+                // FINAL_HEADLINE은 보호 모드에서도 허용되는 스포일러 없는 상위 문구다.
+                "스포일러 없이 긴장감이 이어지는 경기",
                 new ProtectedSummaryResponse(List.of("후반 긴장 구간", "득점권 압박")),
                 List.of(
                         new ProtectedPlayResponse(
@@ -59,6 +61,10 @@ class GameDetailSerializationGuardTest {
         assertThat(json.has("awayTeam")).isFalse();
         assertThat(json.has("score")).isFalse();
         assertThat(json.has("scoreSummary")).isFalse();
+
+        // 보호 모드에서도 스포일러 없는 FINAL_HEADLINE은 허용된다.
+        assertThat(json.has("headline")).isTrue();
+        assertThat(json.get("headline").asText()).isEqualTo("스포일러 없이 긴장감이 이어지는 경기");
 
         // 보호 모드 play 응답에는 결과를 직접 드러내는 필드가 없어야 한다.
         assertThat(play.has("text")).isFalse();
@@ -92,6 +98,8 @@ class GameDetailSerializationGuardTest {
                 new TeamResponse(1L, "Home Team", "HOM"),
                 new TeamResponse(2L, "Away Team", "AWY"),
                 new ScoreResponse(3, 2),
+                // 공개 모드에서는 공개용 FINAL_HEADLINE도 응답에 포함될 수 있다.
+                "홈팀이 3-2로 앞선 경기",
                 new ScoreSummaryResponse(
                         45.0,
                         72.0,
@@ -133,6 +141,10 @@ class GameDetailSerializationGuardTest {
         assertThat(json.has("awayTeam")).isTrue();
         assertThat(json.has("score")).isTrue();
         assertThat(json.has("scoreSummary")).isTrue();
+
+        // 공개 모드에서도 FINAL_HEADLINE은 응답에 포함될 수 있다.
+        assertThat(json.has("headline")).isTrue();
+        assertThat(json.get("headline").asText()).isEqualTo("홈팀이 3-2로 앞선 경기");
 
         // 공개 모드 play 응답에는 결과 설명과 점수 변화 정보가 포함되어야 한다.
         assertThat(play.has("text")).isTrue();

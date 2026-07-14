@@ -47,6 +47,7 @@ public class GameQueryService {
                     team(game.getHomeTeamId(), game.getHomeTeamName(), game.getHomeTeamAbbr()),
                     team(game.getAwayTeamId(), game.getAwayTeamName(), game.getAwayTeamAbbr()),
                     score(game),
+                    revealedHeadline(game),
                     scoreSummary(latestScore),
                     recentPlays.stream()
                             .map(GameQueryService::revealedPlayResponse)
@@ -63,6 +64,7 @@ public class GameQueryService {
                 game.getStatus(),
                 game.getStartTime(),
                 periodLabel(game),
+                protectedHeadline(game),
                 protectedSummary(latestScore),
                 recentPlays.stream()
                         .map(GameQueryService::protectedPlayResponse)
@@ -70,7 +72,6 @@ public class GameQueryService {
                 DisplayMode.PROTECTED
         );
     }
-
 
     private Game findGame(long gameId) {
         return gameRepository.findById(gameId)
@@ -93,6 +94,21 @@ public class GameQueryService {
 
     private static ScoreResponse score(Game game) {
         return new ScoreResponse(game.getHomeRuns(), game.getAwayRuns());
+    }
+
+    private static String protectedHeadline(Game game) {
+        return normalizedHeadline(game.getFinalHeadlineProtected());
+    }
+
+    private static String revealedHeadline(Game game) {
+        return normalizedHeadline(game.getFinalHeadlineRevealed());
+    }
+
+    private static String normalizedHeadline(String headline) {
+        if (headline == null || headline.isBlank()) {
+            return null;
+        }
+        return headline;
     }
 
     private static ScoreSummaryResponse scoreSummary(WatchScore latestScore) {
@@ -125,9 +141,6 @@ public class GameQueryService {
     private static double numericScore(Integer score) {
         return score == null ? 0.0 : score.doubleValue();
     }
-
-
-
 
     private static RevealedPlayResponse revealedPlayResponse(Play play) {
         // 공개 모드에서는 사용자가 스포일러 공개를 선택했으므로
@@ -166,7 +179,6 @@ public class GameQueryService {
                 play.getStrikes()
         );
     }
-
 
     private static DisplayMode parseDisplayMode(String mode) {
         // mode가 없거나 공백이면 기본값은 PROTECTED다.
@@ -223,7 +235,6 @@ public class GameQueryService {
         NORMAL
     }
 
-
     public sealed interface GameDetailView
             permits ProtectedGameDetailResponse, RevealedGameDetailResponse {
         // 경기 상세 응답의 공통 타입이다.
@@ -240,6 +251,10 @@ public class GameQueryService {
             // 이닝도 숫자 자체보다 초반/중반/후반/연장 같은 흐름 라벨로 제공한다.
             String periodLabel,
 
+            // 저장된 PROTECTED FINAL_HEADLINE이다.
+            // 없거나 blank이면 null로 내려간다.
+            String headline,
+
             // 보호 모드에서는 내부 watchScore 숫자를 숨긴다.
             // 사용자에게는 스포일러 없는 추천 태그만 제공한다.
             ProtectedSummaryResponse summary,
@@ -251,7 +266,6 @@ public class GameQueryService {
             DisplayMode displayMode
     ) implements GameDetailView {
     }
-
 
     public record RevealedGameDetailResponse(
             long gameId,
@@ -267,6 +281,10 @@ public class GameQueryService {
             // 공개 모드에서만 점수를 제공한다.
             ScoreResponse score,
 
+            // 저장된 REVEALED FINAL_HEADLINE이다.
+            // 없거나 blank이면 null로 내려간다.
+            String headline,
+
             // 공개 모드에서는 내부 추천 점수와 signal도 확인할 수 있다.
             ScoreSummaryResponse scoreSummary,
 
@@ -278,15 +296,12 @@ public class GameQueryService {
     ) implements GameDetailView {
     }
 
-
-
     public record ProtectedSummaryResponse(
             // 예: 후반 긴장 구간, 득점권 압박, 접전 흐름
             // 단, 홈런 발생/역전 성공/끝내기 같은 결과성 태그는 넣으면 안 된다.
             List<String> reasonTags
     ) {
     }
-
 
     public record RevealedPlayResponse(
             Long id,
@@ -306,7 +321,6 @@ public class GameQueryService {
     ) {
     }
 
-
     public record ProtectedPlayResponse(
             String type,
             Integer inning,
@@ -316,7 +330,6 @@ public class GameQueryService {
             Integer strikes
     ) {
     }
-
 
     public record TeamResponse(Long id, String name, String abbr) {
     }
@@ -333,6 +346,4 @@ public class GameQueryService {
             Instant calculatedAt
     ) {
     }
-
-
 }
