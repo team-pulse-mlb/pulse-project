@@ -74,10 +74,14 @@ aws cloudfront create-invalidation \
 
 ## 자동 배포 (GitHub Actions)
 
-`.github/workflows/frontend-deploy.yml`이 `main`의 `frontend/**` 변경에서 위 절차를 수행한다. 저장소 설정에 다음이 필요하다.
+`.github/workflows/frontend-ci.yml`은 PR과 `main` push에서 lint·build를 검증한다. `.github/workflows/frontend-deploy.yml`은 `main`의 `frontend/**` 변경에서 위 배포 절차를 수행한다.
 
-- Secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (S3·CloudFront 배포 권한 IAM 사용자)
-- Variables: `FRONTEND_S3_BUCKET=pulse-frontend-027903150609`, `CLOUDFRONT_DISTRIBUTION_ID=E2WHX2XB2FI3AQ`, `VITE_API_BASE_URL=https://api.pulsemlb.com`
+배포 인증은 장기 액세스 키가 아니라 GitHub OIDC를 사용한다. 저장소 Variables에 다음 값이 필요하다.
+
+- `AWS_DEPLOY_ROLE_ARN=arn:aws:iam::027903150609:role/pulse-github-actions-deploy`
+- `FRONTEND_S3_BUCKET=pulse-frontend-027903150609`
+- `CLOUDFRONT_DISTRIBUTION_ID=E2WHX2XB2FI3AQ`
+- `VITE_API_BASE_URL=https://api.pulsemlb.com`
 
 변수가 비어 있으면 빌드까지만 하고 배포는 건너뛴다.
 
