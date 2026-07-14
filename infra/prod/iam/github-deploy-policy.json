@@ -1,0 +1,72 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrPush",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": [
+        "arn:aws:ecr:ap-northeast-2:027903150609:repository/pulse-backend",
+        "arn:aws:ecr:ap-northeast-2:027903150609:repository/pulse-ai-service"
+      ]
+    },
+    {
+      "Sid": "FrontendBucket",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::pulse-frontend-027903150609"
+    },
+    {
+      "Sid": "FrontendObjects",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::pulse-frontend-027903150609/*"
+    },
+    {
+      "Sid": "DeploymentBucket",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::pulse-deploy-027903150609"
+    },
+    {
+      "Sid": "DeploymentObjects",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::pulse-deploy-027903150609/*"
+    },
+    {
+      "Sid": "CloudFrontInvalidation",
+      "Effect": "Allow",
+      "Action": ["cloudfront:CreateInvalidation", "cloudfront:GetDistribution"],
+      "Resource": "arn:aws:cloudfront::027903150609:distribution/E2WHX2XB2FI3AQ"
+    },
+    {
+      "Sid": "SendDeploymentCommand",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ssm:ap-northeast-2::document/AWS-RunShellScript",
+        "arn:aws:ec2:ap-northeast-2:027903150609:instance/i-08eec3a0a7d90c8fe"
+      ]
+    },
+    {
+      "Sid": "ReadDeploymentCommand",
+      "Effect": "Allow",
+      "Action": ["ssm:GetCommandInvocation", "ssm:ListCommands"],
+      "Resource": "*"
+    }
+  ]
+}
