@@ -42,7 +42,16 @@ MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API
 docker compose -f infra/local/docker-compose.yml --env-file .env up -d --wait
 ```
 
-2. IntelliJ의 `PulseApplication` 실행 구성에 저장소 루트의 `.env`를 EnvFile로 적용해 실행하거나, `backend`에서 `./gradlew bootRun`으로 실행한다.
+2. 다음 중 한 방법으로 애플리케이션을 실행한다.
+
+- IntelliJ: `PulseApplication` 실행 구성에 저장소 루트의 `.env`를 EnvFile로 적용해 실행한다.
+- 터미널: `./gradlew bootRun`은 `.env`를 자동으로 읽지 않는다. 먼저 `.env`를 현재 셸에 주입한 뒤 실행한다.
+
+```bash
+cd backend
+set -a; source ../.env; set +a
+./gradlew bootRun
+```
 
 기본값은 poller·scorer가 꺼져 있어 REST API·SSE만 뜬다. `.env`가 없으면 저장소 루트에서 `cp .env.example .env`를 먼저 실행한다.
 
@@ -58,10 +67,11 @@ docker compose -f infra/local/docker-compose.yml --env-file .env up -d --wait
 bash backend/scripts/seed-dev-slate.sh
 ```
 
-3. 시뮬레이션을 켜고 실행한다.
+3. 시뮬레이션을 켜고 실행한다. 터미널 실행은 `.env`를 먼저 셸에 주입한다.
 
 ```bash
 cd backend
+set -a; source ../.env; set +a
 PULSE_POLLER_ENABLED=true PULSE_SCORER_ENABLED=true PULSE_SIMULATION_ENABLED=true ./gradlew bootRun
 ```
 
