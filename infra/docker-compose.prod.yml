@@ -52,7 +52,8 @@ services:
       # t3.medium(4GB) 기준 초기값. 측정 후 조정한다(WORK_PLAN 2-2).
       JAVA_OPTS: "-Xmx512m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC -Xss512k"
     ports:
-      - "8080:8080"
+      # 공개 진입점은 호스트 nginx(80/443)이며 API 포트는 로컬 프록시에서만 접근한다.
+      - "127.0.0.1:8080:8080"
     depends_on:
       redis:
         condition: service_healthy
@@ -188,12 +189,13 @@ services:
 
   # scorer가 pulse.ai.base-url=http://ai-service:8000으로 호출하는 AI 문구 서버.
   ai-service:
-    build: ../ai-service
+    image: ${PULSE_AI_IMAGE:?PULSE_AI_IMAGE required}
     container_name: pulse-ai-service
     restart: unless-stopped
     logging: *app-logging
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY required}
+      # 키가 없어도 헬스 서버는 기동하고, 실제 생성 요청은 ai-service가 명시적으로 실패 처리한다.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.2}
     healthcheck:

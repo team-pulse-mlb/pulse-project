@@ -21,13 +21,20 @@ fi
 
 echo "[2/3] CloudFront 배포에 별칭·인증서 연결"
 tmp=$(mktemp -d)
-aws cloudfront get-distribution-config --id "$DISTRIBUTION_ID" > "$tmp/dist.json"
-etag=$(python -c "import json,sys;print(json.load(open('$tmp/dist.json'))['ETag'])")
-python - "$tmp/dist.json" "$tmp/config.json" "$CERT_ARN" "${DOMAINS[@]}" <<'PY'
+trap 'rm -rf "$tmp"' EXIT
+etag=$(aws cloudfront get-distribution-config --id "$DISTRIBUTION_ID" --query "ETag" --output text)
+aws cloudfront get-distribution-config --id "$DISTRIBUTION_ID" \
+  --query "DistributionConfig" --output json > "$tmp/config.json"
+python_config_path="$tmp/config.json"
+if command -v cygpath >/dev/null 2>&1; then
+  python_config_path=$(cygpath -m "$python_config_path")
+fi
+python - "$python_config_path" "$CERT_ARN" "${DOMAINS[@]}" > "$tmp/config.updated.json" <<'PY'
 import json, sys
-src, out, cert = sys.argv[1], sys.argv[2], sys.argv[3]
-domains = sys.argv[4:]
-cfg = json.load(open(src))["DistributionConfig"]
+config_path, cert = sys.argv[1], sys.argv[2]
+domains = sys.argv[3:]
+with open(config_path, encoding="utf-8") as config_file:
+    cfg = json.load(config_file)
 cfg["Aliases"] = {"Quantity": len(domains), "Items": domains}
 cfg["ViewerCertificate"] = {
     "ACMCertificateArn": cert,
@@ -36,10 +43,14 @@ cfg["ViewerCertificate"] = {
     "Certificate": cert,
     "CertificateSource": "acm",
 }
-json.dump(cfg, open(out, "w"))
+json.dump(cfg, sys.stdout)
 PY
+config_path="$tmp/config.updated.json"
+if command -v cygpath >/dev/null 2>&1; then
+  config_path=$(cygpath -m "$config_path")
+fi
 aws cloudfront update-distribution --id "$DISTRIBUTION_ID" \
-  --distribution-config "file://$tmp/config.json" --if-match "$etag" >/dev/null
+  --distribution-config "file://$config_path" --if-match "$etag" >/dev/null
 echo "  별칭 연결 완료"
 
 echo "[3/3] Route53 프론트 별칭 레코드 생성"
@@ -52,7 +63,11 @@ done
 cat > "$tmp/records.json" <<EOF
 { "Comment": "frontend alias to CloudFront", "Changes": [ ${changes%,} ] }
 EOF
+records_path="$tmp/records.json"
+if command -v cygpath >/dev/null 2>&1; then
+  records_path=$(cygpath -m "$records_path")
+fi
 aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" \
-  --change-batch "file://$tmp/records.json" --query "ChangeInfo.Status" --output text
+  --change-batch "file://$records_path" --query "ChangeInfo.Status" --output text
 
 echo "완료. https://pulsemlb.com 으로 확인한다(전파에 수 분 소요)."

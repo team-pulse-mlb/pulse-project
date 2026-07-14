@@ -1,0 +1,119 @@
+name: application-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "ai-service/**"
+      - "infra/docker-compose.prod.yml"
+      - "infra/prod/deploy/**"
+      - ".github/workflows/application-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: application-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ap-northeast-2
+      BACKEND_REPOSITORY: ${{ vars.BACKEND_ECR_REPOSITORY }}
+      AI_REPOSITORY: ${{ vars.AI_ECR_REPOSITORY }}
+      DEPLOY_BUCKET: ${{ vars.DEPLOY_S3_BUCKET }}
+      INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      RDS_SECRET_ID: ${{ vars.RDS_SECRET_ARN }}
+      RUNTIME_SECRET_ID: ${{ vars.RUNTIME_SECRET_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Build backend
+        working-directory: backend
+        run: ./gradlew clean build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          jar_path=$(find backend/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' | head -n 1)
+          test -n "$jar_path"
+          cp "$jar_path" backend/pulse.jar
+          docker build -t "$REGISTRY/$BACKEND_REPOSITORY:$GITHUB_SHA" backend
+          docker build -t "$REGISTRY/$AI_REPOSITORY:$GITHUB_SHA" ai-service
+          docker push "$REGISTRY/$BACKEND_REPOSITORY:$GITHUB_SHA"
+          docker push "$REGISTRY/$AI_REPOSITORY:$GITHUB_SHA"
+          echo "BACKEND_IMAGE=$REGISTRY/$BACKEND_REPOSITORY:$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "AI_IMAGE=$REGISTRY/$AI_REPOSITORY:$GITHUB_SHA" >> "$GITHUB_ENV"
+
+      - name: Upload deployment bundle
+        run: |
+          prefix="deploy/$GITHUB_SHA"
+          aws s3 cp infra/docker-compose.prod.yml "s3://$DEPLOY_BUCKET/$prefix/docker-compose.prod.yml"
+          aws s3 sync infra/prod/deploy/ "s3://$DEPLOY_BUCKET/$prefix/deploy/" --delete
+
+      - name: Deploy through SSM
+        run: |
+          jq -n \
+            --arg instance "$INSTANCE_ID" \
+            --arg bucket "$DEPLOY_BUCKET" \
+            --arg sha "$GITHUB_SHA" \
+            --arg backend "$BACKEND_IMAGE" \
+            --arg ai "$AI_IMAGE" \
+            --arg rds "$RDS_SECRET_ID" \
+            --arg runtime "$RUNTIME_SECRET_ID" \
+            '{
+              DocumentName: "AWS-RunShellScript",
+              InstanceIds: [$instance],
+              Comment: "PULSE application deploy",
+              TimeoutSeconds: 1200,
+              Parameters: {commands: [
+                "set -euo pipefail",
+                "prefix=s3://" + $bucket + "/deploy/" + $sha,
+                "mkdir -p /home/ubuntu/pulse-runtime /usr/local/lib/pulse /etc/pulse",
+                "aws s3 cp \"$prefix/docker-compose.prod.yml\" /home/ubuntu/pulse-runtime/docker-compose.prod.yml",
+                "aws s3 cp \"$prefix/deploy/sync-secrets.py\" /usr/local/lib/pulse/sync-secrets.py",
+                "aws s3 cp \"$prefix/deploy/deploy-runtime.sh\" /usr/local/bin/pulse-deploy-runtime",
+                "aws s3 cp \"$prefix/deploy/refresh-secrets.sh\" /usr/local/bin/pulse-refresh-secrets",
+                "aws s3 cp \"$prefix/deploy/pulse-secret-sync.service\" /etc/systemd/system/pulse-secret-sync.service",
+                "aws s3 cp \"$prefix/deploy/pulse-secret-sync.timer\" /etc/systemd/system/pulse-secret-sync.timer",
+                "chmod 755 /usr/local/lib/pulse/sync-secrets.py /usr/local/bin/pulse-deploy-runtime /usr/local/bin/pulse-refresh-secrets",
+                "printf \"AWS_REGION=ap-northeast-2\\nPULSE_RDS_SECRET_ID=" + $rds + "\\nPULSE_RUNTIME_SECRET_ID=" + $runtime + "\\n\" > /etc/pulse/secrets.conf",
+                "chmod 600 /etc/pulse/secrets.conf",
+                "systemctl daemon-reload",
+                "/usr/local/bin/pulse-deploy-runtime \"" + $backend + "\" \"" + $ai + "\"",
+                "systemctl enable --now pulse-secret-sync.timer"
+              ]}
+          }' > /tmp/ssm-deploy.json
+          command_id=$(aws ssm send-command --region "$AWS_REGION" --cli-input-json file:///tmp/ssm-deploy.json --query 'Command.CommandId' --output text)
+          status="InProgress"
+          for _ in $(seq 1 120); do
+            status=$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$command_id" --instance-id "$INSTANCE_ID" --query 'Status' --output text)
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut) break ;;
+            esac
+            sleep 10
+          done
+          aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$command_id" --instance-id "$INSTANCE_ID" --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' --output json
+          test "$status" = "Success"
