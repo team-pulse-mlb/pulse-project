@@ -100,6 +100,14 @@
     font-weight: 800;
     cursor: pointer;
     white-space: nowrap;
+
+    /*
+     * 옆 설명 영역의 높이가 커져도
+     * 버튼 높이가 같이 늘어나지 않게 합니다.
+     */
+    align-self: flex-start;
+    height: fit-content;
+    line-height: 1.2;
 }
 
 .mypage-primary-button:disabled {
@@ -124,6 +132,7 @@
 .mypage-card-title-row {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
     gap: 18px;
     margin-bottom: 18px;
 }
@@ -425,8 +434,16 @@
         flex-direction: column;
     }
 
+    /*
+    * 태블릿 정도의 화면에서는 저장 버튼을
+    * 내용 크기만큼만 유지합니다.
+    *
+    * 개발자 도구를 열어 화면 폭이 줄어들어도
+    * 버튼이 가로 전체로 늘어나지 않습니다.
+    */
     .mypage-primary-button {
-        width: 100%;
+        width: auto;
+        flex-shrink: 0;
     }
 
     .mypage-account-grid,
@@ -647,4 +664,36 @@
     .mypage-account-inline-actions button {
         flex: 1;
     }
+}
+
+@media (max-width: 640px) {
+    /*
+     * 휴대폰에서는 설명과 저장 버튼을 세로로 배치합니다.
+     */
+    .mypage-card-title-row {
+        flex-direction: column;
+    }
+
+    .mypage-primary-button {
+        width: 100%;
+    }
+}
+
+/*
+ * 마이페이지를 기존 왼쪽 탭 구조가 아닌
+ * 하나의 세로 화면으로 보여주기 위한 컨테이너입니다.
+ */
+.mypage-single-column {
+    width: 100%;
+    max-width: 920px;
+    margin: 0 auto;
+}
+
+/*
+ * 요청 처리 중인 계정 버튼의 중복 클릭을 막고
+ * 비활성 상태를 시각적으로 보여줍니다.
+ */
+.mypage-account-inline-actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
