@@ -1,5 +1,6 @@
 package com.pulse.ai;
 
+import com.pulse.common.ai.AiCopyMode;
 import com.pulse.common.ai.FinalHeadlineContext;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,7 @@ import java.util.List;
  *     <li>{@code FinalHeadlineContext}는 {@code AiCopyContextReader}가 반환한 검증 완료 context입니다.</li>
  *     <li>이 mapper는 safeContext를 새로 판단하거나 contextHash를 재계산하지 않습니다.</li>
  *     <li>필드명을 ai-service HTTP 계약에 맞게 옮기는 역할만 합니다.</li>
+ *     <li>PROTECTED와 REVEALED의 JSON key 차이는 DTO 타입 분리로 보장합니다.</li>
  * </ul>
  */
 @Component
@@ -45,23 +47,34 @@ public class AiFinalHeadlineContextMapper {
      *     <li>reasonTags → safeTags</li>
      *     <li>spoilerSafeSignals → reasonCodes</li>
      *     <li>keyMoments → keyMoments</li>
-     *     <li>finalScore → finalScore</li>
-     *     <li>winner → winner</li>
+     *     <li>finalScore → finalScore, REVEALED 전용</li>
+     *     <li>winner → winner, REVEALED 전용</li>
      * </ul>
      */
     private AiFinalHeadlineRequest.SafeContext toSafeContext(
             FinalHeadlineContext context
     ) {
-        return new AiFinalHeadlineRequest.SafeContext(
+        if (context.mode() == AiCopyMode.REVEALED) {
+            return new AiFinalHeadlineRequest.RevealedSafeContext(
+                    context.status(),
+                    context.periodLabel(),
+                    // AI_COPY 계약 기준: reasonTags는 사용자에게 노출 가능한 보호형 태그입니다.
+                    copyList(context.reasonTags()),
+                    // AI_COPY 계약 기준: spoilerSafeSignals는 reasonCodes로 전달합니다.
+                    copyList(context.spoilerSafeSignals()),
+                    toKeyMoments(context.keyMoments()),
+                    toFinalScore(context.finalScore()),
+                    context.winner()
+            );
+        }
+
+        return new AiFinalHeadlineRequest.ProtectedSafeContext(
                 context.status(),
                 context.periodLabel(),
-                // AI_COPY 계약 기준: reasonTags는 사용자에게 노출 가능한 보호형 태그입니다.
+                // PROTECTED에서도 safeTags/reasonCodes/keyMoments만 전달합니다.
                 copyList(context.reasonTags()),
-                // AI_COPY 계약 기준: spoilerSafeSignals는 reasonCodes로 전달합니다.
                 copyList(context.spoilerSafeSignals()),
-                toKeyMoments(context.keyMoments()),
-                toFinalScore(context.finalScore()),
-                context.winner()
+                toKeyMoments(context.keyMoments())
         );
     }
 
@@ -85,7 +98,7 @@ public class AiFinalHeadlineContextMapper {
 
     /**
      * REVEALED 모드에서만 finalScore가 들어올 수 있습니다.
-     * PROTECTED 모드에서는 null 그대로 ai-service 요청에 전달합니다.
+     * PROTECTED 모드에서는 이 메서드를 호출하지 않는 구조로 key 자체 노출을 방지합니다.
      */
     private AiFinalHeadlineRequest.FinalScore toFinalScore(
             FinalHeadlineContext.FinalScore finalScore
