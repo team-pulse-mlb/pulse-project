@@ -1,11 +1,13 @@
 export interface ScheduledFixtureTeam {
-    abbr: string;
     name: string;
+    abbr: string;
+    logoUrl?: string | null;
 }
 
 export interface ScheduledGameDetailFixture {
     gameId: number;
     season: number;
+    dateLabel: string;
     badgeLabel: string;
     venue: string;
     venueDetail: string;
@@ -26,19 +28,22 @@ export interface ScheduledGameDetailFixture {
 export const scheduledGameDetailFixture = {
     gameId: 900002,
     season: 2026,
+    dateLabel: '7/10',
     badgeLabel: '예정 · 7/10 08:05',
     venue: 'Yankee Stadium',
     venueDetail: 'Yankee Stadium, New York',
     startTimeLabel: '7/10 (목) 08:05 KST',
 
     awayTeam: {
+        name: 'Boston Red Sox',
         abbr: 'BOS',
-        name: 'Boston',
+        logoUrl: null,
     },
 
     homeTeam: {
+        name: 'New York Yankees',
         abbr: 'NYY',
-        name: 'New York',
+        logoUrl: null,
     },
 
     probablePitchers: {

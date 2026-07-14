@@ -1,92 +1,49 @@
-import type {
-    ScheduledFixtureTeam,
-    ScheduledGameDetailFixture,
-} from '../fixtures/scheduledGameDetailFixture';
+import HeroTeamIdentity from '../../../shared/components/HeroTeamIdentity';
+import StatusBadge from '../../../shared/components/StatusBadge';
+import type { ScheduledGameDetailFixture } from '../fixtures/scheduledGameDetailFixture';
 
 interface ScheduledMatchupHeroProps {
     fixture: ScheduledGameDetailFixture;
 }
 
-interface TeamIdentityProps {
-    team: ScheduledFixtureTeam;
-    align: 'left' | 'right';
-}
-
-function TeamIdentity({ team, align }: TeamIdentityProps) {
-    const isAwaySide = align === 'right';
-
-    const logo = (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 font-display text-sm font-bold text-white sm:h-14 sm:w-14">
-            {team.abbr}
-        </div>
-    );
-
-    const text = (
-        <div className={isAwaySide ? 'text-right' : 'text-left'}>
-            <div className="font-display text-[25px] font-semibold leading-none text-white sm:text-[28px]">
-                {team.abbr}
-            </div>
-
-            <div className="mt-1.5 text-xs font-medium text-white/45 sm:text-[13px]">
-                {team.name}
-            </div>
-        </div>
-    );
-
-    return (
-        <div
-            className={`flex items-center gap-3 ${
-                isAwaySide ? 'justify-end' : 'justify-start'
-            }`}
-        >
-            {isAwaySide ? (
-                <>
-                    {text}
-                    {logo}
-                </>
-            ) : (
-                <>
-                    {logo}
-                    {text}
-                </>
-            )}
-        </div>
-    );
-}
-
+/**
+ * 예정 경기 상단 매치업 영역.
+ *
+ * 왼쪽 상단에는 녹색 경기 예정 배지를 표시하고,
+ * 오른쪽 상단에는 연도·날짜·구장 정보를 표시한다.
+ */
 function ScheduledMatchupHero({
                                   fixture,
                               }: ScheduledMatchupHeroProps) {
     return (
         <section className="relative overflow-hidden rounded-hero bg-[linear-gradient(158deg,#0B2559_0%,#04122E_100%)] shadow-hero">
-            {/* 이미지 없이 프로토타입의 은은한 배경 조명을 표현한다. */}
-            <div className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.12),transparent_65%)]" />
-
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,transparent_0%,rgba(255,255,255,0.025)_45%,transparent_46%)]" />
             <div className="relative px-5 py-6 sm:px-8 sm:py-7">
-                <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
-          <span className="inline-flex h-7 items-center rounded-full border border-white/15 bg-white/10 px-3.5 text-xs font-bold tracking-[0.04em] text-white">
-            {fixture.badgeLabel}
-          </span>
+                {/* 경기 상태와 기본 정보 */}
+                <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
 
-                    <span className="font-display text-xs font-medium text-white/50 sm:text-[13px]">
-            {fixture.season} · {fixture.venue}
+                    <StatusBadge status="scheduled" />
+
+                    <span className="font-display text-xs font-medium text-white/55 sm:text-[13px]">
+            {fixture.season} · {fixture.dateLabel} · {fixture.venue}
           </span>
                 </div>
 
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-5">
-                    <TeamIdentity
+                {/* 팀 매치업 */}
+                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-5">
+                    <HeroTeamIdentity
                         team={fixture.awayTeam}
                         align="right"
                     />
 
                     <div
-                        className="min-w-[54px] text-center font-display text-xl font-semibold text-white/40 sm:min-w-[100px] sm:text-2xl"
-                        aria-label={`${fixture.awayTeam.abbr} 대 ${fixture.homeTeam.abbr}`}
+                        className="min-w-[70px] text-center font-display text-xl font-bold tracking-[0.08em] text-white/40 sm:min-w-[120px]"
+                        aria-label={`${fixture.awayTeam.name} 대 ${fixture.homeTeam.name}`}
                     >
-                        @
+                        VS
                     </div>
 
-                    <TeamIdentity
+                    <HeroTeamIdentity
                         team={fixture.homeTeam}
                         align="left"
                     />
