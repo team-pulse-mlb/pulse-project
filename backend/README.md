@@ -44,16 +44,10 @@ docker compose -f infra/local/docker-compose.yml --env-file .env up -d --wait
 
 2. IntelliJ의 `PulseApplication` 실행 구성에 저장소 루트의 `.env`를 EnvFile로 적용한 뒤 실행한다.
 
-3. 다른 터미널의 저장소 루트에서 시드를 적용한다.
+3. 다른 터미널의 저장소 루트에서 시드를 적용한다. 팀·선수와 시뮬레이터 원본 경기(games+plays)만 적재하며, 원본은 과거 종료 상태라 슬레이트에 직접 노출되지 않는다. 예정·진행·종료 카드와 점수·문구·알림은 아래 시뮬레이터가 라이브로 만든다.
 
 ```bash
 bash backend/scripts/seed-dev-slate.sh
-```
-
-예정·진행 경기 수를 지정하려면 인자를 추가한다.
-
-```bash
-bash backend/scripts/seed-dev-slate.sh 3 2
 ```
 
 픽스처를 갱신하려면 다음 중 하나를 실행한다.
@@ -65,7 +59,7 @@ bash backend/scripts/dump-fixture-game.sh 5059222
 
 ## 시뮬레이션
 
-시뮬레이션은 선택 사항이다. 정적 슬레이트 대신 `poller → RabbitMQ → scorer → Redis/SSE` 실시간 흐름을 재현할 때 로컬 DB의 과거 경기를 복제해 사용한다.
+시드 이후 카드·점수·문구·알림은 시뮬레이터가 만든다. 로컬 DB의 과거 경기를 원본으로 복제해 `poller → RabbitMQ → scorer → Redis/SSE → AI 문구 → SURGE → notify` 실시간 흐름을 그대로 재현한다.
 
 시뮬레이션 스크립트가 별도의 백엔드를 8080 포트로 실행하므로, IntelliJ에서 실행 중인 `PulseApplication`을 먼저 중지한다. Docker 컨테이너는 중지하지 않는다.
 
@@ -87,6 +81,14 @@ bash backend/scripts/run-simulation.sh
 ```bash
 bash backend/scripts/run-simulation.sh 123456
 ```
+
+### 다중 경기 연출 (발표용 데모)
+
+예정·진행·종료 카드를 동시에 띄우려면 `run-simulation.sh`(단일 경기) 대신 `pulse.simulation.games` 목록으로 여러 원본을 한 번에 연출한다. 원본은 시드가 적재한 8800000004·8800000006(플레이 100개 이상)을 쓰고, 경기별 `target-game-id`와 `start-offset`으로 상태를 나눈다. `start-offset`은 양수면 그만큼 이미 진행된 상태(진행·종료), 음수면 미래 시작(예정)을 의미한다. 설정 예시는 `application.yml`의 `pulse.simulation.games` 주석을 따른다.
+
+- SURGE 전역 발화 한도 때문에 여러 진행 경기가 동시에 득점하면 알림이 일부만 발화한다. 알림을 보이려는 경기는 `start-offset`을 시차로 벌린다.
+- 예정 카드의 음수 `start-offset`이 너무 크면 시작 시각이 다음 날(ET)로 넘어가 오늘 슬레이트에서 빠진다. 같은 ET 날짜 안에 두도록 조정한다.
+- 실제 AI 문구는 `ai-service` 컨테이너와 `OPENAI_API_KEY`가 있어야 생성된다. 없으면 문구만 비고 나머지 흐름은 동작한다.
 
 경기 데이터가 없으면 다음 방법 중 하나로 로컬 DB에 저장한다.
 
