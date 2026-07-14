@@ -57,7 +57,7 @@ set -a; source ../.env; set +a
 
 ## 시뮬레이터 실행
 
-연출할 경기는 `application.yml`의 `pulse.simulation.games`에 고정돼 있다.
+연출할 예정·진행·곧 종료 경기는 `application.yml`의 `pulse.simulation.games`에 고정돼 있다. 곧 종료 경기는 종료 전이 후 실제 ai-service 호출 결과를 홈 카드에 표시한다.
 
 1. 실행 중인 `PulseApplication`을 중지한다(8080 포트 사용). Docker는 유지한다.
 
