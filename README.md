@@ -52,7 +52,7 @@ pulse-project/
 
 ## 빠른 로컬 실행
 
-필수 프로그램은 Docker Desktop, JDK 21, IntelliJ IDEA, Node.js LTS, VS Code다.
+필수 프로그램은 Docker Desktop, JDK 21, IntelliJ IDEA, Node.js LTS, Python 3.12, VS Code다.
 
 ### 1. 환경 변수 준비
 
@@ -87,7 +87,25 @@ docker compose -f infra/local/docker-compose.yml --env-file .env ps
 
 백엔드 상태는 `http://localhost:8080/actuator/health`에서 확인한다.
 
-### 4. VS Code에서 프론트엔드 실행
+### 4. AI 문구 서비스(ai-service) 실행
+
+AI 헤드라인·이벤트 카피를 생성하려면 ai-service를 함께 띄운다. 백엔드는 `PULSE_AI_BASE_URL`(기본값 `http://localhost:8000`)로 호출하므로, 아래 포트로 실행하면 별도 설정이 필요 없다.
+
+저장소 루트의 Git Bash 터미널에서 실행한다.
+
+```bash
+cd ai-service
+python -m venv .venv
+source .venv/Scripts/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+- 상태 확인: `http://localhost:8000/health`
+- API 문서: `http://localhost:8000/docs`
+- 실제 문구 생성에는 OpenAI 키가 필요하다. `ai-service/.env.example`을 복사해 `ai-service/.env`를 만들고 `OPENAI_API_KEY`를 넣는다. 키가 없으면 오류 없이 AI 문구만 빈 값으로 유지되고 나머지 기능은 정상 동작한다.
+
+### 5. VS Code에서 프론트엔드 실행
 
 VS Code로 저장소를 열고 Git Bash 터미널에서 실행한다.
 
@@ -99,6 +117,7 @@ npm run dev
 
 - 프론트엔드: `http://localhost:5173`
 - 백엔드: `http://localhost:8080`
+- ai-service: `http://localhost:8000`
 - Docker 상태 확인과 시뮬레이션 등 세부 사용법은 각 폴더의 README를 따른다.
 
 ## 운영 배포
