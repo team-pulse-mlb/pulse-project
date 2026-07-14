@@ -72,6 +72,8 @@ REFRESH_TOKEN_COOKIE_SECURE=true
 ## 검증
 
 ```bash
-curl -I https://api.pulsemlb.com/actuator/health   # 관리 포트는 비공개이므로 공개 헬스 경로로 대체 확인
+curl -sS -o /dev/null -w '%{http_code}\n' https://api.pulsemlb.com/api/games
 # 프론트에서 로그인·SSE 수신·재발급이 정상 동작하는지 확인한다.
 ```
+
+`/actuator/health`는 비공개 관리 포트 8081에서만 제공하므로 외부 HTTPS 검증에 사용하지 않는다. 위 명령이 `200`을 반환하면 nginx TLS 종료와 API 프록시가 모두 정상이다.
