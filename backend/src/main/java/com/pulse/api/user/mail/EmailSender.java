@@ -12,7 +12,20 @@ public class EmailSender {
 
     private final JavaMailSender mailSender;
 
-    @Value("${spring.mail.username}")
+    /**
+     * 실제 메일의 발신 주소입니다.
+     *
+     * MAIL_FROM이 설정되어 있으면 해당 주소를 사용하고,
+     * 없으면 SMTP 로그인 사용자명인 spring.mail.username을 사용합니다.
+     *
+     * 로컬 Gmail:
+     * MAIL_USERNAME과 MAIL_FROM이 같은 Gmail 주소
+     *
+     * 운영 AWS SES:
+     * MAIL_USERNAME은 SES SMTP 사용자명
+     * MAIL_FROM은 no-reply@pulsemlb.com
+     */
+    @Value("${MAIL_FROM:${spring.mail.username}}")
     private String fromAddress;
 
     public void sendVerificationCode(

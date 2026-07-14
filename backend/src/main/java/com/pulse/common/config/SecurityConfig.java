@@ -120,11 +120,36 @@ public class SecurityConfig {
                                 "/api/members/email/**"
                         ).permitAll()
 
-                        // 비로그인 SSE 구독은 공개 (EventSource는 Authorization 헤더를 못 싣는다)
-                        .requestMatchers("/api/sse").permitAll()
+                        /*
+                         * SSE 1회용 토큰 발급은 로그인 사용자만 가능합니다.
+                         *
+                         * POST /api/sse/token
+                         * - Authorization: Bearer AccessToken 필요
+                         */
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/sse/token"
+                        ).authenticated()
+
+                        /*
+                         * 실제 SSE 연결은 공개 경로로 둡니다.
+                         *
+                         * GET /api/sse
+                         * - token 없음: 비로그인 연결
+                         * - token 있음: Controller가 1회용 토큰을 검증
+                         *
+                         * EventSource는 Authorization 헤더를 직접 넣기 어렵기 때문에
+                         * 이 경로 자체는 Spring Security에서 공개합니다.
+                         */
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/sse"
+                        ).permitAll()
 
                         /*
                          * 로그인한 사용자 전용 API는 Access Token이 필요합니다.
+                         * - POST /api/sse/token
+                         *   SSE 인증 연결용 1회용 토큰 발급
                          *
                          * /api/members/me
                          * - 현재 로그인한 회원 기본 정보 조회
