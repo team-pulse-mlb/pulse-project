@@ -6,6 +6,7 @@ import SectionHeader from '../../../shared/components/SectionHeader';
 import SegmentToggle from '../../../shared/components/SegmentToggle';
 import Skeleton from '../../../shared/components/Skeleton';
 import { useSse } from '../../../shared/hooks/useSse';
+import { todaySlateDate } from '../../../shared/lib/format';
 
 import { toRecommendedCards, toSlateCard } from '../api/mappers';
 import type { SlateSort, SlateStatusFilter } from '../api/types';
@@ -20,6 +21,18 @@ const statusOptions: { value: SlateStatusFilter; label: string }[] = [
   { value: 'finished', label: '종료' },
 ];
 
+// 날짜 네비게이터는 과거 슬레이트 탐색이 의미 있는 전체·종료 탭에서만 노출한다.
+// 예정·진행은 항상 오늘 기준이므로 날짜 선택이 필요 없다.
+const DATE_NAVIGABLE: SlateStatusFilter[] = ['all', 'finished'];
+
+// 빈 목록 안내는 탭 성격에 맞춘다(종료 탭인데 "예정" 안내가 뜨는 오해 방지).
+const emptyMessages: Record<SlateStatusFilter, string> = {
+  all: '이 날짜에는 경기가 없어요.',
+  scheduled: '예정된 경기가 없어요.',
+  live: '지금 진행 중인 경기가 없어요.',
+  finished: '이 날짜에는 종료된 경기가 없어요.',
+};
+
 function HomePage() {
   // SSE 신호 수신 → 랭킹·목록 재조회 (홈이 열려 있는 동안 구독)
   useSse();
@@ -31,14 +44,19 @@ function HomePage() {
   // 전체 탭은 시작 시각순 고정 (진행 중 상단 고정은 서버가 처리)
   const effectiveSort: SlateSort = status === 'all' ? 'startTime' : sort;
 
+  const showDateNavigator = DATE_NAVIGABLE.includes(status);
+  const today = todaySlateDate();
+  // 예정·진행 탭은 선택 날짜를 무시하고 항상 오늘 슬레이트를 조회한다.
+  const effectiveDate = showDateNavigator ? date : undefined;
+
   const rankingsQuery = useLiveRankings();
-  const gamesQuery = useGames({ date, status, sort: effectiveSort });
+  const gamesQuery = useGames({ date: effectiveDate, status, sort: effectiveSort });
 
   const recommendedCards = rankingsQuery.data
     ? toRecommendedCards(rankingsQuery.data)
     : undefined;
 
-  const slateDate = gamesQuery.data?.slateDate ?? date;
+  const slateDate = gamesQuery.data?.slateDate ?? effectiveDate;
   const games = gamesQuery.data?.games ?? [];
 
   const showRecommended =
@@ -61,10 +79,15 @@ function HomePage() {
         <SectionHeader title="전체 경기" />
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <DateNavigator
-            slateDate={slateDate}
-            onChange={(next) => setDate(next)}
-          />
+          {showDateNavigator ? (
+            <DateNavigator
+              slateDate={slateDate}
+              maxDate={today}
+              onChange={(next) => setDate(next)}
+            />
+          ) : (
+            <div />
+          )}
 
           <div className="flex items-center gap-3">
             <SegmentToggle
@@ -98,7 +121,7 @@ function HomePage() {
         ) : gamesQuery.isError ? (
           <EmptyState message="경기 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." />
         ) : games.length === 0 ? (
-          <EmptyState message="이 날짜에는 예정된 경기가 없어요." />
+          <EmptyState message={emptyMessages[status]} />
         ) : (
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {games.map((game) => (
