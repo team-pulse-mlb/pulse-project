@@ -38,7 +38,7 @@ function StatusBadge({
       {shouldShowDot && (
           <span
               aria-hidden="true"
-              className="h-2 w-2 shrink-0 rounded-full bg-white"
+              className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-current"
           />
       )}
 
@@ -46,24 +46,5 @@ function StatusBadge({
     </span>
     );
 }
-
-// interface StatusBadgeProps {
-//   status: GameStatus;
-//   /* 배지 안에 표시할 문구. 생략하면 상태 기본 라벨. */
-//   label?: string;
-// }
-//
-// function StatusBadge({ status, label }: StatusBadgeProps) {
-//   return (
-//     <span
-//       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold tracking-[0.06em] ${badgeStyles[status]}`}
-//     >
-//       {status === 'live' && (
-//         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
-//       )}
-//       {label ?? badgeLabels[status]}
-//     </span>
-//   );
-// }
 
 export default StatusBadge;
