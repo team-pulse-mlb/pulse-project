@@ -50,6 +50,10 @@ pulse-project/
 - [운영 인프라 가이드](infra/prod/README.md)
 - [원본 데이터 아카이브 가이드](raw-archive/README.md)
 
+## 운영 배포
+
+웹 브라우저에서 [https://pulsemlb.com](https://pulsemlb.com)에 접속한다.
+
 ## 빠른 로컬 실행
 
 필수 프로그램은 Docker Desktop, JDK 21, IntelliJ IDEA, Node.js LTS, Python 3.12, VS Code다.
@@ -119,10 +123,6 @@ npm run dev
 - 백엔드: `http://localhost:8080`
 - ai-service: `http://localhost:8000`
 - Docker 상태 확인과 시뮬레이션 등 세부 사용법은 각 폴더의 README를 따른다.
-
-## 운영 배포
-
-AWS EC2·RDS·S3 기반으로 배포한다. 리소스 구성, 시크릿·환경 변수, 네트워크, IAM 원칙은 [운영 인프라 가이드](infra/prod/README.md)를 따른다. 운영 배포와 시크릿 값은 저장소에 두지 않고 소유자가 관리한다.
 
 ## 문서 인덱스
 
