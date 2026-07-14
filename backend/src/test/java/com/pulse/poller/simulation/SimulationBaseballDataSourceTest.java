@@ -95,6 +95,22 @@ class SimulationBaseballDataSourceTest {
         assertThat(source.getPlays(99L, null).data()).isEmpty();
     }
 
+    @Test
+    void 종료_직전_프리셋은_처음에_진행_상태로_노출한다() {
+        SimulationProperties properties = new SimulationProperties(
+                true, null, null,
+                List.of(new SimulationProperties.GameSpec(
+                        10L, 9_000_000_010L, Duration.ZERO, "FINISH")),
+                1.0, Duration.ZERO, Duration.ofSeconds(20), "START", null, null, 1000);
+        SimulationBaseballDataSource source = source(properties);
+
+        List<BdlGame> games = source.getGames(LocalDate.of(2026, 7, 12));
+
+        assertThat(games).singleElement()
+                .extracting(BdlGame::status)
+                .isEqualTo(Game.STATUS_IN_PROGRESS);
+    }
+
     private SimulationBaseballDataSource source(SimulationProperties properties) {
         for (SimulationProperties.ResolvedGameSpec spec : properties.resolvedGames()) {
             when(gameRepository.findById(spec.sourceGameId())).thenReturn(Optional.of(game(spec.sourceGameId())));
