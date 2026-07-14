@@ -1,0 +1,50 @@
+name: infra-ci
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/*deploy.yml"
+      - ".github/workflows/infra-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/*deploy.yml"
+      - ".github/workflows/infra-ci.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check deployment scripts
+        env:
+          PULSE_RDS_SECRET_ID: test
+        run: |
+          bash -n infra/prod/deploy/deploy-runtime.sh
+          bash -n infra/prod/deploy/refresh-secrets.sh
+          python -m py_compile infra/prod/deploy/sync-secrets.py
+          python - <<'PY'
+          import runpy
+          namespace = runpy.run_path("infra/prod/deploy/sync-secrets.py")
+          result = namespace["merge_env"]("A=old\n", {"A": "x$y", "B": "a'b"})
+          assert "A='x$y'" in result
+          assert "B='a\\'b'" in result
+          PY
+
+      - name: Check production compose
+        run: |
+          cat > infra/.env <<'EOF'
+          PULSE_APP_IMAGE=example.invalid/pulse-backend:test
+          PULSE_AI_IMAGE=example.invalid/pulse-ai:test
+          RABBITMQ_USER=test
+          RABBITMQ_PASSWORD=test
+          GRAFANA_ADMIN_PASSWORD=test
+          EOF
+          docker compose -f infra/docker-compose.prod.yml config --quiet
