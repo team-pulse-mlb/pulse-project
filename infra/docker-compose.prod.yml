@@ -52,7 +52,8 @@ services:
       # t3.medium(4GB) 기준 초기값. 측정 후 조정한다(WORK_PLAN 2-2).
       JAVA_OPTS: "-Xmx512m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC -Xss512k"
     ports:
-      - "8080:8080"
+      # 공개 진입점은 호스트 nginx(80/443)이며 API 포트는 로컬 프록시에서만 접근한다.
+      - "127.0.0.1:8080:8080"
     depends_on:
       redis:
         condition: service_healthy
