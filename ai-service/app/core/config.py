@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     app_env: str = "local"
 
     openai_api_key: str | None = None
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-5.4-nano"
     openai_temperature: float = 0.2
     openai_max_output_tokens: int = 200
 
