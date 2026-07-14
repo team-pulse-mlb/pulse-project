@@ -1,46 +1,87 @@
-import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import {
+    useEffect,
+    useState,
+} from 'react';
+import {
+    Link,
+    useParams,
+} from 'react-router';
 
 import BoxScoreTable from '../../../shared/components/BoxScoreTable';
 import Card from '../../../shared/components/Card';
 import EmptyState from '../../../shared/components/EmptyState';
+import { useGameDetailQuery } from '../api/useGameDetailQuery';
 import CurrentSituationCard from '../components/CurrentSituationCard';
-import EventTimeline from '../components/EventTimeline';
 import FinalGameDetail from '../components/FinalGameDetail';
 import FinalMatchupHero from '../components/FinalMatchupHero';
 import GameMatchupHero from '../components/GameMatchupHero';
 import ModeToggle from '../components/ModeToggle';
-import RecentPlayList from '../components/RecentPlayList';
 import RecommendedSidebar from '../components/RecommendedSidebar';
 import ScheduledGameDetail from '../components/ScheduledGameDetail';
-import { finalGameDetailFixture } from '../fixtures/finalGameDetailFixture';
-import { liveGameDetailFixture } from '../fixtures/liveGameDetailFixture';
-import { scheduledGameDetailFixture } from '../fixtures/scheduledGameDetailFixture';
 import {
     getStoredMode,
     storeMode,
     type DisplayMode,
 } from '../lib/displayMode';
+import { toGameDetailViewModel } from '../lib/gameDetailMapper';
 
 function GameDetailPage() {
-    const { gameId } = useParams<{ gameId: string }>();
+    const { gameId } =
+        useParams<{ gameId: string }>();
+
+    const parsedGameId =
+        Number(gameId);
+
+    const validGameId =
+        gameId
+        && Number.isInteger(parsedGameId)
+        && parsedGameId > 0
+            ? parsedGameId
+            : null;
 
     /**
-     * 훅은 경기 상태와 관계없이 항상 같은 순서로 호출한다.
-     * 예정 경기에는 토글이 없지만 훅 호출 구조는 유지한다.
+     * 사용자가 경기별로 마지막에 선택한 보호·공개 모드를 복원한다.
+     *
+     * 예정 경기는 서버가 항상 PROTECTED로 응답하며,
+     * 화면에도 모드 토글을 표시하지 않는다.
      */
-    const [mode, setMode] = useState<DisplayMode>(() =>
-        gameId ? getStoredMode(gameId) : 'PROTECTED',
-    );
+    const [mode, setMode] =
+        useState<DisplayMode>(() =>
+            gameId
+                ? getStoredMode(gameId)
+                : 'PROTECTED',
+        );
 
-    const parsedGameId = Number(gameId);
-    const isRevealed = mode === 'REVEALED';
+    /**
+     * URL의 gameId가 바뀌면 새 경기의 저장 모드를 다시 읽는다.
+     */
+    useEffect(() => {
+        if (
+            !gameId
+            || validGameId === null
+        ) {
+            return;
+        }
 
-    if (
-        !gameId ||
-        !Number.isInteger(parsedGameId) ||
-        parsedGameId <= 0
-    ) {
+        setMode(
+            getStoredMode(gameId),
+        );
+    }, [
+        gameId,
+        validGameId,
+    ]);
+
+    /**
+     * 보호·공개 모드는 서로 다른 필드를 반환하므로
+     * mode가 바뀌면 React Query가 새 API 요청을 실행한다.
+     */
+    const gameDetailQuery =
+        useGameDetailQuery(
+            validGameId,
+            mode,
+        );
+
+    if (validGameId === null) {
         return (
             <div className="mx-auto max-w-[1160px] px-4 py-8">
                 <EmptyState message="경기를 찾을 수 없습니다." />
@@ -48,63 +89,105 @@ function GameDetailPage() {
         );
     }
 
-    const handleModeChange = (nextMode: DisplayMode) => {
+    const handleModeChange = (
+        nextMode: DisplayMode,
+    ) => {
+        if (!gameId) {
+            return;
+        }
+
         setMode(nextMode);
-        storeMode(gameId, nextMode);
+        storeMode(
+            gameId,
+            nextMode,
+        );
     };
 
+    if (gameDetailQuery.isPending) {
+        return (
+            <div className="mx-auto max-w-[1160px] px-4 py-8 sm:px-8">
+                <Card>
+                    <div
+                        className="py-10 text-center text-sm text-text-muted"
+                        role="status"
+                    >
+                        경기 정보를 불러오는 중입니다.
+                    </div>
+                </Card>
+            </div>
+        );
+    }
+
+    if (
+        gameDetailQuery.isError
+        || !gameDetailQuery.data
+    ) {
+        return (
+            <div className="mx-auto max-w-[1160px] px-4 py-8">
+                <EmptyState message="경기 정보를 불러오지 못했습니다." />
+            </div>
+        );
+    }
+
+    const detail =
+        toGameDetailViewModel(
+            gameDetailQuery.data,
+        );
+
     /**
-     * 예정 경기에는 보호·공개 모드가 없으므로
-     * 예정 경기 전용 페이지 구조를 그대로 사용한다.
+     * 예정 경기는 결과 공개 개념이 없으므로
+     * 별도 페이지를 사용하고 모드 토글을 표시하지 않는다.
      */
-    if (parsedGameId === scheduledGameDetailFixture.gameId) {
+    if (detail.kind === 'SCHEDULED') {
         return (
             <ScheduledGameDetail
-                fixture={scheduledGameDetailFixture}
+                data={detail}
             />
         );
     }
 
-
-    if (parsedGameId === finalGameDetailFixture.gameId) {
+    /**
+     * 종료 경기 상세 화면이다.
+     */
+    if (detail.kind === 'FINAL') {
         return (
             <div className="mx-auto grid max-w-[1160px] grid-cols-1 items-start gap-10 px-4 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_336px]">
                 <div className="flex min-w-0 flex-col gap-[18px]">
-                    {/* 뒤로가기와 종료 경기 모드 토글 */}
                     <div className="flex items-center justify-between gap-4">
                         <Link
                             to="/"
                             className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-text-muted transition-colors hover:text-mlb-navy"
                         >
-                            <span aria-hidden="true">←</span>
+                            <span aria-hidden="true">
+                                ←
+                            </span>
                             뒤로
                         </Link>
 
                         <ModeToggle
-                            mode={mode}
-                            onChange={handleModeChange}
+                            mode={
+                                detail.displayMode
+                            }
+                            onChange={
+                                handleModeChange
+                            }
                         />
                     </div>
 
-                    {/* 종료 경기 매치업과 최종 점수 */}
                     <FinalMatchupHero
-                        fixture={finalGameDetailFixture}
-                        mode={mode}
+                        data={detail}
                     />
 
-                    {/*
-           * 종료 경기 본문 출력 순서:
-           * 이닝별 점수 → 경기 흐름 → 이벤트 타임라인 → 득점 플레이
-           */}
                     <FinalGameDetail
-                        fixture={finalGameDetailFixture}
-                        mode={mode}
+                        data={detail}
                     />
                 </div>
 
                 <aside className="lg:sticky lg:top-[86px]">
                     <RecommendedSidebar
-                        currentGameId={parsedGameId}
+                        currentGameId={
+                            detail.gameId
+                        }
                     />
                 </aside>
             </div>
@@ -112,8 +195,16 @@ function GameDetailPage() {
     }
 
     /**
-     * 진행 중 경기 상세 화면이다.
+     * 진행 경기 상세 화면이다.
+     *
+     * 상세 응답에는 이벤트 타임라인과 최근 플레이가 없으므로
+     * fixture 데이터를 섞지 않는다.
+     * 이벤트는 별도의 /events API 연결 단계에서 추가한다.
      */
+    const isRevealed =
+        detail.displayMode
+        === 'REVEALED';
+
     return (
         <div className="mx-auto grid max-w-[1160px] grid-cols-1 items-start gap-10 px-4 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_336px]">
             <div className="flex min-w-0 flex-col gap-[18px]">
@@ -122,43 +213,69 @@ function GameDetailPage() {
                         to="/"
                         className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-text-muted transition-colors hover:text-mlb-navy"
                     >
-                        <span aria-hidden="true">←</span>
+                        <span aria-hidden="true">
+                            ←
+                        </span>
                         뒤로
                     </Link>
 
                     <ModeToggle
-                        mode={mode}
-                        onChange={handleModeChange}
+                        mode={
+                            detail.displayMode
+                        }
+                        onChange={
+                            handleModeChange
+                        }
                     />
                 </div>
 
                 <GameMatchupHero
-                    mode={mode}
-                    dateLabel={liveGameDetailFixture.dateLabel}
-                    season={liveGameDetailFixture.season}
-                    venue={liveGameDetailFixture.venue}
-                    inning={liveGameDetailFixture.inning}
-                    inningType={liveGameDetailFixture.inningType}
-                    awayTeam={liveGameDetailFixture.awayTeam}
-                    homeTeam={liveGameDetailFixture.homeTeam}
-                    awayScore={liveGameDetailFixture.awayScore}
-                    homeScore={liveGameDetailFixture.homeScore}
+                    mode={
+                        detail.displayMode
+                    }
+                    dateLabel={
+                        detail.dateLabel
+                    }
+                    season={
+                        detail.season
+                    }
+                    venue={
+                        detail.venue
+                    }
+                    inning={
+                        detail.inning
+                    }
+                    inningType={
+                        detail.inningType
+                    }
+                    awayTeam={
+                        detail.awayTeam
+                    }
+                    homeTeam={
+                        detail.homeTeam
+                    }
+                    awayScore={
+                        detail.awayScore
+                    }
+                    homeScore={
+                        detail.homeScore
+                    }
                 />
 
-                {/**
-                 * 진행 경기 공개 모드에서 이닝별 점수 데이터가 있을 때만
-                 * 이닝별 점수 카드 전체를 표시한다.
-                 */}
-                {isRevealed &&
-                    liveGameDetailFixture.inningScores && (
+                {isRevealed
+                    && detail.inningScores && (
                         <Card flush>
                             <div className="px-3 py-2 sm:px-4 sm:py-2.5">
                                 <BoxScoreTable
                                     awayLine={
-                                        liveGameDetailFixture.inningScores.awayLine
+                                        detail
+                                            .inningScores
+                                            .awayLine
                                     }
                                     homeLine={
-                                        liveGameDetailFixture.inningScores.homeLine
+                                        detail
+                                            .inningScores
+                                            .homeLine
                                     }
                                 />
                             </div>
@@ -166,34 +283,25 @@ function GameDetailPage() {
                     )}
 
                 <CurrentSituationCard
-                    mode={mode}
-                    situation={liveGameDetailFixture.situation}
+                    mode={
+                        detail.displayMode
+                    }
+                    situation={
+                        detail.situation
+                    }
                     matchup={
                         isRevealed
-                            ? liveGameDetailFixture.currentMatchup
+                            ? detail.currentMatchup
                             : null
                     }
                 />
-
-                <EventTimeline
-                    mode={mode}
-                    events={liveGameDetailFixture.events}
-                />
-
-                {/**
-                 * 최근 플레이에는 점수와 타석 결과가 있으므로
-                 * 공개 모드에서만 표시한다.
-                 */}
-                {isRevealed && (
-                    <RecentPlayList
-                        plays={liveGameDetailFixture.recentPlays}
-                    />
-                )}
             </div>
 
             <aside className="lg:sticky lg:top-[86px]">
                 <RecommendedSidebar
-                    currentGameId={parsedGameId}
+                    currentGameId={
+                        detail.gameId
+                    }
                 />
             </aside>
         </div>

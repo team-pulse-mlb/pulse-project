@@ -103,8 +103,6 @@ export const finalGameDetailFixture = {
             abbr: 'LAD',
             innings: [0, 0, 0, 1, 0, 0, 2, 0, 0],
             runs: 3,
-            hits: 7,
-            errors: 0,
         },
 
         homeLine: {
@@ -115,8 +113,6 @@ export const finalGameDetailFixture = {
              */
             innings: [0, 1, 0, 0, 0, 1, 0, 3, null],
             runs: 5,
-            hits: 9,
-            errors: 1,
         },
     },
 
