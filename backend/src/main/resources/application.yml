@@ -107,6 +107,7 @@ pulse:
     games:
       - { source-game-id: 8800000004, target-game-id: 14059224001, start-offset: 6m, preset: SURGE }   # 진행
       - { source-game-id: 8800000006, target-game-id: 14059226001, start-offset: -3h, preset: START }  # 예정
+      - { source-game-id: 8800000006, target-game-id: 14059226002, start-offset: 0s, preset: FINISH }  # 곧 종료
     speed: ${PULSE_SIMULATION_SPEED:1}
     start-offset: ${PULSE_SIMULATION_START_OFFSET:0s}
     play-interval: ${PULSE_SIMULATION_PLAY_INTERVAL:20s}

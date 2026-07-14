@@ -39,4 +39,14 @@ class NotificationOutboxSchedulerRoleGateTest {
                         "pulse.scorer.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(NotificationOutboxScheduler.class));
     }
+
+    @Test
+    @DisplayName("배치에서 스케줄러를 명시적으로 비활성화하면 scorer가 켜져 있어도 등록하지 않는다")
+    void shouldNotRegisterSchedulerWhenExplicitlyDisabled() {
+        contextRunner.withPropertyValues(
+                        "pulse.poller.enabled=false",
+                        "pulse.scorer.enabled=true",
+                        "pulse.notification-outbox.scheduler-enabled=false")
+                .run(context -> assertThat(context).doesNotHaveBean(NotificationOutboxScheduler.class));
+    }
 }

@@ -35,6 +35,18 @@ export function shiftDate(date: string, days: number): string {
   return `${year}-${month}-${day}`;
 }
 
+const slateDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/** 미 동부시간 기준 오늘 슬레이트 날짜 "YYYY-MM-DD" (서버 SlateZone과 동일 기준) */
+export function todaySlateDate(): string {
+  return slateDateFormatter.format(new Date());
+}
+
 /** 이닝 숫자 → "5회" (초/말 없음, 보호 안전) */
 export function formatInning(inning: number | null | undefined): string | null {
   if (inning == null) {
