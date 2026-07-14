@@ -34,27 +34,6 @@ MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API
 | 경기 수집 | `poller/` | `common/client/` |
 | 알림 발행 | `scorer/SurgeDetector.java` | `common/message/NotificationOutboxDispatcher.java` |
 
-## 로컬 실행
-
-1. 저장소 루트에서 로컬 인프라(PostgreSQL·Redis·RabbitMQ)를 실행한다.
-
-```bash
-docker compose -f infra/local/docker-compose.yml --env-file .env up -d --wait
-```
-
-2. 다음 중 한 방법으로 애플리케이션을 실행한다.
-
-- IntelliJ: `PulseApplication` 실행 구성에 저장소 루트의 `.env`를 EnvFile로 적용해 실행한다.
-- 터미널: `./gradlew bootRun`은 `.env`를 자동으로 읽지 않는다. 먼저 `.env`를 현재 셸에 주입한 뒤 실행한다.
-
-```bash
-cd backend
-set -a; source ../.env; set +a
-./gradlew bootRun
-```
-
-기본값은 poller·scorer가 꺼져 있어 REST API·SSE만 뜬다. `.env`가 없으면 저장소 루트에서 `cp .env.example .env`를 먼저 실행한다.
-
 ## 시뮬레이터 실행
 
 연출할 예정·진행·곧 종료 경기는 `application.yml`의 `pulse.simulation.games`에 고정돼 있다. 곧 종료 경기는 종료 전이 후 실제 ai-service 호출 결과를 홈 카드에 표시한다.
