@@ -38,20 +38,22 @@ MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API
 
 연출할 예정·진행·곧 종료 경기는 `application.yml`의 `pulse.simulation.games`에 고정돼 있다. 곧 종료 경기는 종료 전이 후 실제 ai-service 호출 결과를 홈 카드에 표시한다.
 
-1. 실행 중인 `PulseApplication`을 중지한다(8080 포트 사용). Docker는 유지한다.
-
-2. 저장소 루트에서 원본 시드를 적재한다.
+1. 저장소 루트에서 원본 시드를 적재한다.
 
 ```bash
 bash backend/scripts/seed-dev-slate.sh
 ```
 
-3. 시뮬레이션을 켜고 실행한다. 터미널 실행은 `.env`를 먼저 셸에 주입한다.
+2. 같은 `pulse-api` 컨테이너를 시뮬레이션 모드로 재생성한다.
 
 ```bash
-cd backend
-set -a; source ../.env; set +a
-PULSE_POLLER_ENABLED=true PULSE_SCORER_ENABLED=true PULSE_SIMULATION_ENABLED=true ./gradlew bootRun
+bash backend/scripts/run-simulation.sh
+```
+
+종료 후 일반 API 모드로 되돌린다.
+
+```bash
+docker compose -f infra/local/docker-compose.yml --env-file .env up -d --force-recreate --wait pulse-api
 ```
 
 ## 테스트와 빌드

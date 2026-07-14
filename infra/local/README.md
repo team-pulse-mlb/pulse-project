@@ -1,6 +1,6 @@
 # 로컬 인프라
 
-로컬 개발용 PostgreSQL 16·Redis 7·RabbitMQ 3.13 구성이다.
+로컬 개발용 전체 스택 구성이다.
 
 ## 구성
 
@@ -10,22 +10,17 @@
 | Redis | `6379` | 컨테이너 종료 시 초기화 |
 | RabbitMQ | `5672` | 로컬 메시지 큐 |
 | RabbitMQ 관리 화면 | `15672` | 브라우저 접속 |
+| backend API | `8080` | Spring Boot API·SSE |
+| ai-service | `8000` | AI 문구 생성 |
+| frontend | `5173` | Vite 개발 서버 |
 
 ## 상태 확인
 
 ```bash
-docker exec pulse-postgres pg_isready
-docker exec pulse-redis redis-cli ping
-docker exec pulse-rabbitmq rabbitmq-diagnostics -q ping
+docker compose -f infra/local/docker-compose.yml --env-file .env ps
 ```
 
-정상 응답:
-
-- PostgreSQL: `accepting connections`
-- Redis: `PONG`
-- RabbitMQ: `Ping succeeded`
-
-로그는 Docker Desktop의 **Containers** 화면에서 확인한다.
+모든 서비스가 `healthy`인지 확인한다. 로그는 Docker Desktop의 **Containers** 화면에서 확인한다.
 
 ## 종료와 초기화
 

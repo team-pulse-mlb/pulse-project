@@ -1,4 +1,4 @@
-# 로컬 개발용 인프라 (PostgreSQL + Redis + RabbitMQ)
+# 로컬 개발용 전체 스택
 # 사용법: 레포 루트에서
 #   cp .env.example .env  (값 채우기)
 #   docker compose -f infra/local/docker-compose.yml --env-file .env up -d
@@ -65,5 +65,86 @@ services:
       timeout: 5s
       retries: 5
 
+  # 운영과 같은 backend 애플리케이션을 로컬에서는 API 역할만 기본으로 실행한다.
+  # 시뮬레이션은 같은 컨테이너를 poller·scorer·simulation 활성 상태로 재생성한다.
+  pulse-api:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile.local
+    container_name: pulse-api
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-pulse}
+      POSTGRES_USER: ${POSTGRES_USER:-pulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER:-pulse}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: "${MAIL_PORT:-587}"
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+      BDL_API_KEY: ${BDL_API_KEY:-}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      PULSE_REPLAY_S3_BUCKET: ${PULSE_REPLAY_S3_BUCKET:-}
+      PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX: ${PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX:-200}
+      PULSE_AI_BASE_URL: http://ai-service:8000
+      PULSE_POLLER_ENABLED: ${PULSE_POLLER_ENABLED:-false}
+      PULSE_SCORER_ENABLED: ${PULSE_SCORER_ENABLED:-false}
+      PULSE_SIMULATION_ENABLED: ${PULSE_SIMULATION_ENABLED:-false}
+      PULSE_SIMULATION_SOURCE_GAME_ID: ${PULSE_SIMULATION_SOURCE_GAME_ID:-}
+      PULSE_SIMULATION_TARGET_GAME_ID: ${PULSE_SIMULATION_TARGET_GAME_ID:-}
+      PULSE_SIMULATION_SPEED: ${PULSE_SIMULATION_SPEED:-20}
+      PULSE_SIMULATION_PRESET: ${PULSE_SIMULATION_PRESET:-SURGE}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  # 브라우저 요청은 Vite 프록시를 거쳐 pulse-api 컨테이너로 전달한다.
+  frontend:
+    image: node:22-alpine
+    container_name: pulse-frontend
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_DEV_PROXY_TARGET: http://pulse-api:8080
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../../frontend:/app
+      - frontend-node-modules:/app/node_modules
+    depends_on:
+      pulse-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5173"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
 volumes:
   pulse-pgdata:
+  frontend-node-modules:

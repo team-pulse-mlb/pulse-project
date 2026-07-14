@@ -8,10 +8,10 @@ export default defineConfig({
 
   server: {
     proxy: {
-      // 개발 환경에서 /api 요청을 백엔드(localhost:8080)로 전달한다.
+      // 호스트 실행은 localhost, Docker Compose는 pulse-api 컨테이너로 전달한다.
       // 브라우저 기준 동일 출처가 되므로 CORS 설정 없이 개발할 수 있다.
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_DEV_PROXY_TARGET ?? 'http://localhost:8080',
         changeOrigin: true,
       },
     },
