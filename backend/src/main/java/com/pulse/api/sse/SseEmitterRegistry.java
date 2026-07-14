@@ -173,12 +173,28 @@ public class SseEmitterRegistry {
     ) {
         emitters.add(emitter);
 
-        userEmitters
-                .computeIfAbsent(
-                        userId,
-                        ignored -> ConcurrentHashMap.newKeySet()
-                )
-                .add(emitter);
+        /*
+         * 같은 사용자의 SSE 연결 등록과 Map 갱신을
+         * 하나의 compute 연산 안에서 처리합니다.
+         *
+         * 기존 computeIfAbsent(...).add(...) 방식은
+         * Map 조회와 Set 추가가 분리되어 있기 때문에,
+         * 기존 연결이 제거되는 순간 새 연결이 등록되면
+         * 새 연결이 들어 있는 Set이 Map에서 빠질 수 있습니다.
+         */
+        userEmitters.compute(
+                userId,
+                (ignored, connections) -> {
+                    Set<SseEmitter> updatedConnections =
+                            connections == null
+                                    ? ConcurrentHashMap.newKeySet()
+                                    : connections;
+
+                    updatedConnections.add(emitter);
+
+                    return updatedConnections;
+                }
+        );
 
         emitterOwners.put(
                 emitter,
@@ -386,24 +402,27 @@ public class SseEmitterRegistry {
             return;
         }
 
-        Set<SseEmitter> connections =
-                userEmitters.get(userId);
-
-        if (connections == null) {
-            return;
-        }
-
-        connections.remove(emitter);
-
         /*
-         * 해당 사용자의 연결이 하나도 남지 않았다면
-         * 빈 Set도 Map에서 제거합니다.
+         * 같은 사용자의 연결 제거와 Map 항목 정리를
+         * 하나의 computeIfPresent 연산 안에서 처리합니다.
+         *
+         * 등록과 제거가 모두 userId 기준 compute 연산을 사용하므로,
+         * 기존 연결을 제거하는 순간 새 탭의 연결이 등록되더라도
+         * 새 연결이 들어 있는 사용자 매핑 전체가 삭제되지 않습니다.
          */
-        if (connections.isEmpty()) {
-            userEmitters.remove(
-                    userId,
-                    connections
-            );
-        }
+        userEmitters.computeIfPresent(
+                userId,
+                (ignored, connections) -> {
+                    connections.remove(emitter);
+
+                    /*
+                     * 연결이 하나도 남지 않았으면 null을 반환해
+                     * 해당 userId의 Map 항목을 제거합니다.
+                     */
+                    return connections.isEmpty()
+                            ? null
+                            : connections;
+                }
+        );
     }
 }

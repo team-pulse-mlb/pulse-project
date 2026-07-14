@@ -13,6 +13,16 @@ import {
 import { queryKeys } from '../../../shared/lib/queryKeys';
 
 /**
+ * SSE가 차단되거나 장시간 재연결되지 않는 환경을 대비한
+ * 알림 목록 안전망 조회 주기입니다.
+ *
+ * 실시간 갱신은 SSE가 담당하고,
+ * 이 주기 조회는 누락된 알림을 최종 복구하는 역할만 합니다.
+ */
+const NOTIFICATION_POLL_INTERVAL_MS =
+    3 * 60 * 1000;
+
+/**
  * 알림 조회와 읽음 처리를 담당하는 공통 Hook입니다.
  *
  * 페이지와 헤더 드롭다운에서 같은 Hook을 사용하면
@@ -32,6 +42,18 @@ export function useNotifications() {
         queryKey: queryKeys.me.notifications,
         queryFn: fetchMyNotifications,
         retry: false,
+
+        /*
+        * SSE 연결이 차단되거나 끊긴 상태가 오래 지속되더라도
+        * 최대 약 3분 안에는 알림 목록과 미읽음 표시를 복구합니다.
+        */
+        refetchInterval: NOTIFICATION_POLL_INTERVAL_MS,
+
+        /*
+        * 브라우저 탭이 백그라운드에 있어도 안전망 조회를 유지합니다.
+        * 알림 조회 빈도가 3분으로 낮기 때문에 요청 부담도 크지 않습니다.
+        */
+        refetchIntervalInBackground: true,
     });
 
     /**
