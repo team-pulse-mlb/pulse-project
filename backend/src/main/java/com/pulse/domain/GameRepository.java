@@ -17,6 +17,8 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     List<Game> findByStatusStartingWithAndStartTimeGreaterThanEqual(String statusPrefix, Instant start);
 
+    List<Game> findByStatusAndStartTimeGreaterThanEqual(String status, Instant start);
+
     /** 창 밖 보충용: 상태 접두사에 해당하는 경기를 정렬·페이지 기준으로 조회한다. */
     List<Game> findByStatusStartingWith(String statusPrefix, Pageable pageable);
 

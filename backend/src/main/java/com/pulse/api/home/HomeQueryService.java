@@ -148,16 +148,21 @@ public class HomeQueryService {
         Instant endExclusive = slateDate.plusDays(1).atStartOfDay(SLATE_ZONE).toInstant();
         String normalizedStatus = normalizeStatus(status);
         String normalizedSort = normalizeSort(sort, normalizedStatus);
+        Instant now = Instant.now();
         Map<Long, Double> liveScores = "recommended".equals(normalizedSort)
                 ? rankingService.topLive(MAX_RANKING_LOOKUP)
                 : Map.of();
 
-        List<Game> candidates = gameRepository
-                .findByStartTimeGreaterThanEqualAndStartTimeLessThan(startInclusive, endExclusive)
-                .stream()
-                .filter(game -> inSlate(game, startInclusive, endExclusive))
-                .filter(game -> matchesStatus(game, normalizedStatus))
-                .toList();
+        List<Game> candidates = "scheduled".equals(normalizedStatus)
+                ? gameRepository.findByStatusAndStartTimeGreaterThanEqual(Game.STATUS_SCHEDULED, now)
+                        .stream()
+                        .filter(game -> isUpcomingScheduled(game, now))
+                        .toList()
+                : gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(startInclusive, endExclusive)
+                        .stream()
+                        .filter(game -> inSlate(game, startInclusive, endExclusive))
+                        .filter(game -> matchesStatus(game, normalizedStatus))
+                        .toList();
         UserPreferences preferences = preferencesFor(username);
         Map<Long, Set<Long>> lineupPlayerIds = lineupPlayerIdsByGame(candidates, preferences);
         List<Game> selectedGames = candidates.stream()
@@ -326,11 +331,15 @@ public class HomeQueryService {
     }
 
     private static boolean isScheduledForHome(Game game, Instant now) {
+        return isUpcomingScheduled(game, now)
+                && !game.getStartTime().isAfter(now.plusSeconds(SCHEDULED_LOOKAHEAD_HOURS * 60L * 60L));
+    }
+
+    private static boolean isUpcomingScheduled(Game game, Instant now) {
         Instant startTime = game.getStartTime();
         return Game.STATUS_SCHEDULED.equals(game.getStatus())
                 && startTime != null
-                && !startTime.isBefore(now)
-                && !startTime.isAfter(now.plusSeconds(SCHEDULED_LOOKAHEAD_HOURS * 60L * 60L));
+                && !startTime.isBefore(now);
     }
 
     private static boolean isFinishedForHome(Game game, Instant now) {
