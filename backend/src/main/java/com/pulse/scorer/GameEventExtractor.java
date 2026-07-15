@@ -441,6 +441,12 @@ public class GameEventExtractor {
         if (!GameEvent.SPOILER_PROTECTED_SAFE.equals(event.getSpoilerLevel())) {
             return;
         }
+        // 하이라이트 트리거가 켜지면 문구 생성은 급변 anchor 단위로만 하므로,
+        // 이벤트별 문구 생성 트리거는 건너뛴다.
+        ScoringProperties.Highlight highlight = props.highlight();
+        if (highlight != null && highlight.enabled()) {
+            return;
+        }
         afterCommitExecutor.execute(() -> aiGenerationTrigger.onGameEventPersisted(
                 event.getGameId(), event.getId(), AiGenerationTrigger.MODE_PROTECTED, observedAt));
     }

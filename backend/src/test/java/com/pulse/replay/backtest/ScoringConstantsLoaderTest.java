@@ -17,6 +17,6 @@ class ScoringConstantsLoaderTest {
     @Test void 임시_yml을_로드한다() throws Exception {
         Path target = directory.resolve("candidate.yml");
         Files.copy(Path.of("src/main/resources/scoring.yml"), target);
-        assertThat(new ScoringConstantsLoader().loadCandidate(target.toString()).version()).isEqualTo(7);
+        assertThat(new ScoringConstantsLoader().loadCandidate(target.toString()).version()).isEqualTo(8);
     }
 }
