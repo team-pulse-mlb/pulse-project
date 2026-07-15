@@ -66,8 +66,13 @@ public class HomeQueryService {
         UserPreferences preferences = preferencesFor(username);
         Map<Long, Double> liveScores = rankingService.topLive(MAX_RANKING_LOOKUP);
         List<Game> liveCandidates = liveScores.keySet().stream()
-                .map(gameRepository::findById)
-                .flatMap(java.util.Optional::stream)
+                .map(gameId -> gameRepository.findById(gameId)
+                        .filter(Game::isLive)
+                        .orElseGet(() -> {
+                            rankingService.removeLive(gameId);
+                            return null;
+                        }))
+                .filter(java.util.Objects::nonNull)
                 .toList();
         Map<Long, Set<Long>> liveLineups = lineupPlayerIdsByGame(liveCandidates, preferences);
         List<RankingLiveGameCard> live = liveCandidates.stream()

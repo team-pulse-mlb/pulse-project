@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
@@ -89,6 +90,27 @@ class HomeQueryServiceTest {
                 .containsExactly(1L, 2L, 3L, 4L, 5L);
         assertThat(response.scheduled()).isEmpty();
         assertThat(response.finished()).isEmpty();
+    }
+
+    @Test
+    void getRanking_shouldExcludeAndRemoveStaleLiveRankingMembers() {
+        Game finished = finished(100L, 80);
+        Game live = live(101L);
+        Map<Long, Double> liveScores = new LinkedHashMap<>();
+        liveScores.put(100L, 90.0);
+        liveScores.put(101L, 80.0);
+        liveScores.put(102L, 70.0);
+        when(rankingService.topLive(1000)).thenReturn(liveScores);
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(finished));
+        when(gameRepository.findById(101L)).thenReturn(Optional.of(live));
+        when(gameRepository.findById(102L)).thenReturn(Optional.empty());
+
+        HomeRankingResponse response = service.getRanking(5);
+
+        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
+                .containsExactly(101L);
+        verify(rankingService).removeLive(100L);
+        verify(rankingService).removeLive(102L);
     }
 
     @Test
