@@ -59,6 +59,17 @@ class AiEventCopyGeneratorTest {
     }
 
     @Test
+    void generateSynchronously_shouldRejectRevealedModeWithoutCallingAiService() {
+        AiEventCopyGenerator.GenerationStatus status =
+                generator.generateSynchronously(10L, 20L, AiCopyMode.REVEALED);
+
+        assertThat(status).isEqualTo(AiEventCopyGenerator.GenerationStatus.NOT_ELIGIBLE);
+        verify(contextReader, never()).eventCopyContext(10L, 20L, AiCopyMode.REVEALED);
+        verify(aiServiceClient, never()).generateEventCopy(org.mockito.ArgumentMatchers.any());
+        verify(gameEventRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void generateSynchronously_shouldIncreaseAttemptsAndReturnCallFailedWhenResponseIsEmpty() {
         ProtectedEventCopyContext context = context("hash-1");
         AiEventCopyRequest request = request("hash-1");

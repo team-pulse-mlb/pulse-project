@@ -42,6 +42,12 @@ class AiEventCopyGenerator {
     }
 
     GenerationStatus generateSynchronously(long gameId, long eventId, AiCopyMode mode) {
+        if (mode != AiCopyMode.PROTECTED) {
+            log.warn("지원하지 않는 AI 이벤트 문구 모드: gameId={} eventId={} mode={}",
+                    gameId, eventId, mode);
+            return GenerationStatus.NOT_ELIGIBLE;
+        }
+
         Optional<EventCopyContext> context = contextReader.eventCopyContext(gameId, eventId, mode);
         if (context.isEmpty()) {
             log.debug("AI 이벤트 문구 생성 대상 아님: gameId={} eventId={} mode={}",
@@ -55,7 +61,7 @@ class AiEventCopyGenerator {
                     gameId, eventId, mode);
             return GenerationStatus.NOT_ELIGIBLE;
         }
-        if (hasCopy(event, mode)) {
+        if (hasCopy(event)) {
             log.debug("AI 이벤트 문구 이미 저장됨: gameId={} eventId={} mode={}",
                     gameId, eventId, mode);
             return GenerationStatus.ALREADY_PRESENT;
@@ -63,7 +69,7 @@ class AiEventCopyGenerator {
 
         AiEventCopyRequest request = contextMapper.toRequest(mode, context.get());
         Optional<AiCopyResponse> response = aiServiceClient.generateEventCopy(request);
-        incrementAttempts(event, mode);
+        incrementAttempts(event);
 
         GenerationStatus status;
         if (response.isEmpty()) {
@@ -100,8 +106,7 @@ class AiEventCopyGenerator {
             return GenerationStatus.CALL_FAILED;
         }
         if (!isStorable(response)) {
-            log.warn("AI 이벤트 문구 검수 반려: gameId={} eventId={} mode={} violations={}",
-                    gameId, eventId, mode, response.violations());
+            logRejectedResponse(gameId, eventId, mode, response);
             return GenerationStatus.REVIEW_REJECTED;
         }
         if (!hasLatestContextHash(gameId, eventId, mode, response)) {
@@ -110,7 +115,7 @@ class AiEventCopyGenerator {
             return GenerationStatus.STALE;
         }
 
-        saveCopy(event, mode, response);
+        saveCopy(event, response);
         return GenerationStatus.SAVED;
     }
 
@@ -125,6 +130,25 @@ class AiEventCopyGenerator {
         return response.violations() != null && response.violations().contains(expected);
     }
 
+    private static void logRejectedResponse(
+            long gameId,
+            long eventId,
+            AiCopyMode mode,
+            AiCopyResponse response
+    ) {
+        log.warn("AI 이벤트 문구 검수 반려/저장 조건 불충족: gameId={} eventId={} mode={} "
+                        + "spoilerSafe={} fallbackUsed={} safeTitleBlank={} "
+                        + "contextHashMissing={} violations={}",
+                gameId,
+                eventId,
+                mode,
+                response.spoilerSafe(),
+                response.fallbackUsed(),
+                isBlank(response.safeTitle()),
+                response.contextHash() == null,
+                response.violations());
+    }
+
     private static AiCopyMode parseMode(String value) {
         try {
             return value == null ? null : AiCopyMode.valueOf(value);
@@ -137,8 +161,11 @@ class AiEventCopyGenerator {
         return response.spoilerSafe()
                 && !response.fallbackUsed()
                 && response.contextHash() != null
-                && response.safeTitle() != null
-                && !response.safeTitle().isBlank();
+                && !isBlank(response.safeTitle());
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private boolean hasLatestContextHash(
@@ -153,33 +180,21 @@ class AiEventCopyGenerator {
                 .isPresent();
     }
 
-    private static boolean hasCopy(GameEvent event, AiCopyMode mode) {
-        return mode == AiCopyMode.PROTECTED
-                ? event.getCopyProtected() != null
-                : event.getCopyRevealed() != null;
+    private static boolean hasCopy(GameEvent event) {
+        return event.getCopyProtected() != null;
     }
 
-    private static void incrementAttempts(GameEvent event, AiCopyMode mode) {
-        if (mode == AiCopyMode.PROTECTED) {
-            event.setCopyProtectedAttempts(attempts(event.getCopyProtectedAttempts()) + 1);
-            return;
-        }
-        event.setCopyRevealedAttempts(attempts(event.getCopyRevealedAttempts()) + 1);
+    private static void incrementAttempts(GameEvent event) {
+        event.setCopyProtectedAttempts(attempts(event.getCopyProtectedAttempts()) + 1);
     }
 
     private static int attempts(Integer value) {
         return value == null ? 0 : value;
     }
 
-    private static void saveCopy(GameEvent event, AiCopyMode mode, AiCopyResponse response) {
-        if (mode == AiCopyMode.PROTECTED) {
-            event.setCopyProtected(response.safeTitle());
-            event.setCopyProtectedContextHash(response.contextHash());
-            return;
-        }
-
-        event.setCopyRevealed(response.safeTitle());
-        event.setCopyRevealedContextHash(response.contextHash());
+    private static void saveCopy(GameEvent event, AiCopyResponse response) {
+        event.setCopyProtected(response.safeTitle());
+        event.setCopyProtectedContextHash(response.contextHash());
     }
 
     enum GenerationStatus {

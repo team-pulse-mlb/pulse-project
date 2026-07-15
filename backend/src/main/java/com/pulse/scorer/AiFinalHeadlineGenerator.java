@@ -67,13 +67,11 @@ class AiFinalHeadlineGenerator {
         }
 
         Optional<AiCopyResult> protectedResult = needsProtected
-                ? finalHeadlineCopyClient.generateFinalHeadline(gameId, AiCopyMode.PROTECTED)
-                        .filter(this::isStorable)
+                ? requestStorableHeadline(gameId, AiCopyMode.PROTECTED)
                 : Optional.empty();
 
         Optional<AiCopyResult> revealedResult = needsRevealed
-                ? finalHeadlineCopyClient.generateFinalHeadline(gameId, AiCopyMode.REVEALED)
-                        .filter(this::isStorable)
+                ? requestStorableHeadline(gameId, AiCopyMode.REVEALED)
                 : Optional.empty();
 
         if (protectedResult.isEmpty() && revealedResult.isEmpty()) {
@@ -125,10 +123,52 @@ class AiFinalHeadlineGenerator {
                 : GenerationStatus.SAVED;
     }
 
-    /**
-     * ai-service 응답이 저장 가능한 형태인지 1차 검증합니다.
-     */
-    private boolean isStorable(AiCopyResult result) {
+    private Optional<AiCopyResult> requestStorableHeadline(long gameId, AiCopyMode mode) {
+        Optional<AiCopyResult> response = finalHeadlineCopyClient.generateFinalHeadline(gameId, mode);
+        if (response.isEmpty()) {
+            log.warn("AI 종료 헤드라인 호출 실패/응답 없음: gameId={} mode={}", gameId, mode);
+            return Optional.empty();
+        }
+
+        AiCopyResult result = response.orElseThrow();
+        if (hasViolation(result, "OPENAI_TIMEOUT")) {
+            log.warn("AI 종료 헤드라인 호출 타임아웃: gameId={} mode={} violations={}",
+                    gameId, mode, result.violations());
+            return Optional.empty();
+        }
+        if (hasOpenAiFailure(result)) {
+            log.warn("AI 종료 헤드라인 생성 실패: gameId={} mode={} violations={}",
+                    gameId, mode, result.violations());
+            return Optional.empty();
+        }
+        if (!isStorable(result)) {
+            log.warn("AI 종료 헤드라인 검수 반려/저장 조건 불충족: gameId={} mode={} "
+                            + "spoilerSafe={} fallbackUsed={} safeTitleBlank={} "
+                            + "contextHashMissing={} violations={}",
+                    gameId,
+                    mode,
+                    result.spoilerSafe(),
+                    result.fallbackUsed(),
+                    isBlank(result.safeTitle()),
+                    result.contextHash() == null,
+                    result.violations());
+            return Optional.empty();
+        }
+        return response;
+    }
+
+    private static boolean hasOpenAiFailure(AiCopyResult result) {
+        return result.violations().stream()
+                .filter(violation -> violation != null)
+                .anyMatch(violation -> violation.startsWith("OPENAI_"));
+    }
+
+    private static boolean hasViolation(AiCopyResult result, String expected) {
+        return result.violations().contains(expected);
+    }
+
+    /** ai-service 응답이 저장 가능한 형태인지 1차 검증합니다. */
+    private static boolean isStorable(AiCopyResult result) {
         return result.spoilerSafe()
                 && !result.fallbackUsed()
                 && result.contextHash() != null
@@ -147,11 +187,22 @@ class AiFinalHeadlineGenerator {
             AiCopyMode mode,
             Optional<AiCopyResult> result
     ) {
-        return result.filter(candidate -> aiCopyContextReader
+        if (result.isEmpty()) {
+            return result;
+        }
+
+        AiCopyResult candidate = result.orElseThrow();
+        String latestContextHash = aiCopyContextReader
                 .finalHeadlineContext(gameId, mode)
                 .map(FinalHeadlineContext::contextHash)
-                .filter(candidate.contextHash()::equals)
-                .isPresent());
+                .orElse(null);
+        if (candidate.contextHash().equals(latestContextHash)) {
+            return result;
+        }
+
+        log.info("AI 종료 헤드라인 stale 응답 폐기: gameId={} mode={} latestContextMissing={}",
+                gameId, mode, latestContextHash == null);
+        return Optional.empty();
     }
 
     private static boolean isBlank(String value) {

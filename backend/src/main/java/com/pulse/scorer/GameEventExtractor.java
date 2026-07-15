@@ -438,14 +438,11 @@ public class GameEventExtractor {
     }
 
     private void requestEventCopyAfterCommit(GameEvent event, Instant observedAt) {
-        afterCommitExecutor.execute(() -> {
-            if (GameEvent.SPOILER_PROTECTED_SAFE.equals(event.getSpoilerLevel())) {
-                aiGenerationTrigger.onGameEventPersisted(
-                        event.getGameId(), event.getId(), AiGenerationTrigger.MODE_PROTECTED, observedAt);
-            }
-            aiGenerationTrigger.onGameEventPersisted(
-                    event.getGameId(), event.getId(), AiGenerationTrigger.MODE_REVEALED, observedAt);
-        });
+        if (!GameEvent.SPOILER_PROTECTED_SAFE.equals(event.getSpoilerLevel())) {
+            return;
+        }
+        afterCommitExecutor.execute(() -> aiGenerationTrigger.onGameEventPersisted(
+                event.getGameId(), event.getId(), AiGenerationTrigger.MODE_PROTECTED, observedAt));
     }
 
     private static Map<String, Object> scorePayload(Play play) {

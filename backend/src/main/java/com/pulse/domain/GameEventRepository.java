@@ -33,16 +33,4 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
             @Param("since") Instant since,
             Pageable pageable);
 
-    @Query("""
-            SELECT gameEvent FROM GameEvent gameEvent
-            WHERE gameEvent.spoilerLevel IN ('PROTECTED_SAFE', 'REVEALED_ONLY')
-              AND gameEvent.copyRevealed IS NULL
-              AND gameEvent.copyRevealedAttempts < :maxAttempts
-              AND gameEvent.observedAt >= :since
-            ORDER BY gameEvent.observedAt ASC
-            """)
-    List<GameEvent> findRevealedCopyRetryTargets(
-            @Param("maxAttempts") int maxAttempts,
-            @Param("since") Instant since,
-            Pageable pageable);
 }
