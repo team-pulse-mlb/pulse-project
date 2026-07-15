@@ -30,8 +30,8 @@ class GameEventQueryServiceTest {
             mock(GameEventRepository.class);
 
     /*
-     * 공개 이벤트의 선수 정보 조회가 폐기되었으므로
-     * 서비스는 경기 존재 여부와 보호 안전 이벤트 조회에 필요한
+     * 공개 모드 이벤트 조회는 폐기되었으므로
+     * 서비스는 경기 존재 여부와 보호 하이라이트 조회에 필요한
      * 두 저장소만 의존한다.
      */
     private final GameEventQueryService service =
@@ -40,11 +40,11 @@ class GameEventQueryServiceTest {
                     gameEventRepository);
 
     @Test
-    void protectedMode_shouldReturnOnlyProtectedSafeEvents() {
+    void protectedMode_shouldReturnOnlyTimelineHighlights() {
         // given
         long gameId = 100L;
 
-        GameEvent protectedEvent =
+        GameEvent highlightedEvent =
                 event(
                         1L,
                         gameId,
@@ -53,14 +53,20 @@ class GameEventQueryServiceTest {
                         Instant.parse("2026-07-14T10:00:00Z"));
 
         /*
-         * 원본 엔티티에 공개 모드용 정보가 들어 있어도
+         * 실제 저장 데이터에서도 급변 순간으로 선택된 이벤트만
+         * 보호 모드 경기 흐름 조회 결과에 포함된다.
+         */
+        highlightedEvent.setTimelineHighlight(true);
+
+        /*
+         * 엔티티에 공개 모드용 정보가 들어 있어도
          * 보호 응답 DTO에는 초·말, 선수 ID, 근거 수치가
          * 포함되지 않아야 한다.
          */
-        protectedEvent.setInningType("Bottom");
-        protectedEvent.setBatterId(10L);
-        protectedEvent.setPitcherId(20L);
-        protectedEvent.setPayload(
+        highlightedEvent.setInningType("Bottom");
+        highlightedEvent.setBatterId(10L);
+        highlightedEvent.setPitcherId(20L);
+        highlightedEvent.setPayload(
                 Map.of(
                         "outs", 2,
                         "balls", 3,
@@ -71,10 +77,11 @@ class GameEventQueryServiceTest {
 
         when(
                 gameEventRepository
-                        .findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                        .findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
                                 gameId,
                                 GameEvent.SPOILER_PROTECTED_SAFE))
-                .thenReturn(List.of(protectedEvent));
+                .thenReturn(
+                        List.of(highlightedEvent));
 
         // when
         GameEventsResponse response =
@@ -106,16 +113,15 @@ class GameEventQueryServiceTest {
                         });
 
         /*
-         * 보호 모드에서는 REVEALED_ONLY 이벤트를 조회하지 않는다.
-         * 결과 방향을 드러내는 공개 전용 이벤트가 보호 응답에
-         * 섞이지 않도록 저장소 호출 자체를 차단한다.
+         * 보호 모드는 PROTECTED_SAFE 전체가 아니라
+         * timelineHighlight=true 이벤트 전용 조회를 사용해야 한다.
          */
         verify(
                 gameEventRepository,
                 never())
                 .findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
                         gameId,
-                        GameEvent.SPOILER_REVEALED_ONLY);
+                        GameEvent.SPOILER_PROTECTED_SAFE);
     }
 
     @Test
@@ -139,17 +145,17 @@ class GameEventQueryServiceTest {
         /*
          * 공개 모드의 경기 흐름은 최근 플레이 API만 사용한다.
          * 이벤트 API는 빈 목록을 즉시 반환해야 하므로
-         * 이벤트 저장소 조회가 발생하지 않았는지 검증한다.
+         * 이벤트 저장소를 조회하지 않는다.
          */
         verifyNoInteractions(gameEventRepository);
     }
 
     @Test
-    void invalidMode_shouldFallBackToProtectedMode() {
+    void invalidMode_shouldFallBackToProtectedHighlightQuery() {
         // given
         long gameId = 300L;
 
-        GameEvent protectedEvent =
+        GameEvent highlightedEvent =
                 event(
                         30L,
                         gameId,
@@ -157,15 +163,18 @@ class GameEventQueryServiceTest {
                         GameEvent.SPOILER_PROTECTED_SAFE,
                         Instant.parse("2026-07-14T11:00:00Z"));
 
+        highlightedEvent.setTimelineHighlight(true);
+
         when(gameRepository.existsById(gameId))
                 .thenReturn(true);
 
         when(
                 gameEventRepository
-                        .findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                        .findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
                                 gameId,
                                 GameEvent.SPOILER_PROTECTED_SAFE))
-                .thenReturn(List.of(protectedEvent));
+                .thenReturn(
+                        List.of(highlightedEvent));
 
         // when
         GameEventsResponse response =
@@ -180,15 +189,15 @@ class GameEventQueryServiceTest {
                         ProtectedEventResponse.class);
 
         /*
-         * 알 수 없는 mode는 보호 모드로 처리해야 한다.
-         * 공개 전용 이벤트 저장소를 조회하지 않는지도 함께 검증한다.
+         * 알 수 없는 mode는 보호 모드로 처리하며,
+         * 전체 보호 이벤트 조회가 아니라 하이라이트 조회를 사용한다.
          */
         verify(
                 gameEventRepository,
                 never())
                 .findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
                         gameId,
-                        GameEvent.SPOILER_REVEALED_ONLY);
+                        GameEvent.SPOILER_PROTECTED_SAFE);
     }
 
     @Test
@@ -214,8 +223,8 @@ class GameEventQueryServiceTest {
                                                 HttpStatus.NOT_FOUND));
 
         /*
-         * 존재하지 않는 경기는 404를 반환한 뒤 즉시 종료해야 한다.
-         * 불필요한 이벤트 조회가 수행되지 않았는지 함께 검증한다.
+         * 존재하지 않는 경기는 404를 반환한 뒤 즉시 종료하며,
+         * 이벤트 저장소를 조회하지 않는다.
          */
         verifyNoInteractions(gameEventRepository);
     }

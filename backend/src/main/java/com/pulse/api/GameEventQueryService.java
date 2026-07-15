@@ -58,7 +58,7 @@ public class GameEventQueryService {
 
         List<ProtectedEventResponse> responses =
                 gameEventRepository
-                        .findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                        .findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
                                 gameId,
                                 GameEvent.SPOILER_PROTECTED_SAFE)
                         .stream()
