@@ -3,6 +3,8 @@ package com.pulse.common.message;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -11,7 +13,8 @@ class ScoreTaskOutboxSchedulerRoleGateTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(ScoreTaskOutboxScheduler.class)
-            .withBean(ScoreTaskOutboxDispatcher.class, () -> mock(ScoreTaskOutboxDispatcher.class));
+            .withBean(ScoreTaskOutboxDispatcher.class, () -> mock(ScoreTaskOutboxDispatcher.class))
+            .withBean(MeterRegistry.class, SimpleMeterRegistry::new);
 
     @Test
     @DisplayName("poller만 활성화되면 ScoreTask outbox 스케줄러를 등록한다")
@@ -19,7 +22,16 @@ class ScoreTaskOutboxSchedulerRoleGateTest {
         contextRunner.withPropertyValues(
                         "pulse.poller.enabled=true",
                         "pulse.scorer.enabled=false")
-                .run(context -> assertThat(context).hasSingleBean(ScoreTaskOutboxScheduler.class));
+                .run(context -> {
+                    assertThat(context).hasSingleBean(ScoreTaskOutboxScheduler.class);
+                    MeterRegistry meterRegistry = context.getBean(MeterRegistry.class);
+                    assertThat(meterRegistry.get("pulse.score.task.publish.failures")
+                            .counter()
+                            .count()).isZero();
+                    assertThat(meterRegistry.get("pulse.score.task.outbox.republish.runs")
+                            .counter()
+                            .count()).isZero();
+                });
     }
 
     @Test
