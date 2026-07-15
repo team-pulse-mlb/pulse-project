@@ -38,7 +38,7 @@ function HeroGameCard({ game }: { game: GameCardData }) {
       </div>
 
       {game.metaText && (
-        <span className="relative line-clamp-2 max-w-full self-start rounded-2xl bg-white/10 px-3.5 py-1.5 text-sm font-semibold leading-5 text-white">
+        <span className="relative line-clamp-2 max-w-full self-start whitespace-pre-line rounded-2xl bg-white/10 px-3.5 py-1.5 text-sm font-semibold leading-5 text-white">
           {game.metaText}
         </span>
       )}

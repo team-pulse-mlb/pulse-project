@@ -40,7 +40,7 @@ function fromScheduled(
     awayTeam: toTeamIdentity(card.matchup.away, teams),
     homeTeam: toTeamIdentity(card.matchup.home, teams),
     startTimeText: formatStartTime(card.startTime),
-    metaText: parts.join(' · ') || undefined,
+    metaText: parts.join('\n') || undefined,
   };
 }
 
@@ -112,7 +112,7 @@ export function toSlateCard(
     awayTeam: toTeamIdentity(card.matchup.away, teams),
     homeTeam: toTeamIdentity(card.matchup.home, teams),
     startTimeText: card.startTime ? formatStartTime(card.startTime) : undefined,
-    metaText: parts.join(' · ') || undefined,
+    metaText: parts.join('\n') || undefined,
   };
 }
 

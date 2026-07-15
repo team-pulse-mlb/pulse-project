@@ -55,7 +55,7 @@ function GameCard({ game, variant, showTeamLogos = true }: GameCardProps) {
           </span>
         )}
         {game.metaText && (
-          <span className="min-w-0 flex-1 truncate text-sm text-text-muted">
+          <span className="min-w-0 flex-1 whitespace-pre-line text-sm text-text-muted">
             {game.metaText}
           </span>
         )}
@@ -85,7 +85,7 @@ function GameCard({ game, variant, showTeamLogos = true }: GameCardProps) {
         </span>
       )}
       {game.metaText && (
-        <span className="line-clamp-2 text-[13.5px] text-text-muted">
+        <span className="line-clamp-2 whitespace-pre-line text-[13.5px] text-text-muted">
           {game.metaText}
         </span>
       )}
