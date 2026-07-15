@@ -25,3 +25,5 @@ pulse:
     event-batch-size: 100
   notification-outbox:
     scheduler-enabled: false
+  score-task-outbox:
+    scheduler-enabled: false
