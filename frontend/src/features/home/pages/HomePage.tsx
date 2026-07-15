@@ -22,7 +22,7 @@ const statusOptions: { value: SlateStatusFilter; label: string }[] = [
 ];
 
 // 날짜 네비게이터는 과거 슬레이트 탐색이 의미 있는 전체·종료 탭에서만 노출한다.
-// 예정·진행은 항상 오늘 기준이므로 날짜 선택이 필요 없다.
+// 예정은 현재 이후 전체 경기, 진행은 오늘 슬레이트를 조회하므로 날짜 선택이 필요 없다.
 const DATE_NAVIGABLE: SlateStatusFilter[] = ['all', 'finished'];
 
 // 빈 목록 안내는 탭 성격에 맞춘다(종료 탭인데 "예정" 안내가 뜨는 오해 방지).
@@ -46,7 +46,7 @@ function HomePage() {
 
   const showDateNavigator = DATE_NAVIGABLE.includes(status);
   const today = todaySlateDate();
-  // 예정·진행 탭은 선택 날짜를 무시하고 항상 오늘 슬레이트를 조회한다.
+  // 예정 탭은 현재 이후 전체 경기, 진행 탭은 오늘 슬레이트를 조회한다.
   const effectiveDate = showDateNavigator ? date : undefined;
 
   const rankingsQuery = useLiveRankings();

@@ -242,6 +242,24 @@ class HomeQueryServiceTest {
     }
 
     @Test
+    void getSlate_shouldReturnAllUpcomingScheduledGamesRegardlessOfSlateDate() {
+        Game earlier = scheduled(40L, 70);
+        earlier.setStartTime(Instant.now().plusSeconds(60 * 60));
+        Game later = scheduled(41L, 90);
+        later.setStartTime(Instant.now().plusSeconds(7 * 24 * 60 * 60));
+        Game past = scheduled(42L, 100);
+        past.setStartTime(Instant.now().minusSeconds(60));
+        when(gameRepository.findByStatusAndStartTimeGreaterThanEqual(
+                eq(Game.STATUS_SCHEDULED), any(Instant.class)))
+                .thenReturn(List.of(later, past, earlier));
+
+        HomeSlateResponse response = service.getSlate("2026-07-01", "scheduled", "startTime");
+
+        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameId)
+                .containsExactly(40L, 41L);
+    }
+
+    @Test
     void getSlate_shouldThrowInvalidSlateDateExceptionForInvalidDate() {
         assertThatThrownBy(() -> service.getSlate("2026-02-30", "all", "startTime"))
                 .isInstanceOf(InvalidSlateDateException.class)

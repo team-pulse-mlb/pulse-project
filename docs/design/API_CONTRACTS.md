@@ -5,7 +5,7 @@
 | 메서드·경로 | 설명 | 로그인 |
 |---|---|---|
 | `GET /api/rankings/live` | 홈 상단 추천 영역(예정/진행/종료 슬롯, 추천순). 로그인 시 관심 팀/선수 가산이 적용된 순서 | 선택 |
-| `GET /api/games?date=&status=&sort=` | 홈 하단 전체 경기 목록(슬레이트 단위). `date` 미지정 시 오늘 슬레이트, `status` in `all\|scheduled\|live\|finished`(기본 `all`), `sort` in `recommended\|startTime`(기본 `startTime`) | 선택 |
+| `GET /api/games?date=&status=&sort=` | 홈 하단 전체 경기 목록. `status=scheduled`는 현재 이후 모든 예정 경기를 조회하고, 나머지 상태는 슬레이트 단위로 조회한다. `date` 미지정 시 오늘 슬레이트, `status` in `all\|scheduled\|live\|finished`(기본 `all`), `sort` in `recommended\|startTime`(기본 `startTime`) | 선택 |
 | `GET /api/games/{id}?mode=PROTECTED\|REVEALED` | 경기 상세. `mode` 기본값 `PROTECTED`. 진행 중이면 `switchSuggestion` 포함 | 선택 |
 | `GET /api/games/{id}/events?mode=` | 보호 모드 `경기 흐름`용 흥미 순간 이벤트. 공개 모드는 빈 목록 | 선택 |
 | `GET /api/games/{id}/recent-plays?mode=` | 공개 모드 `경기 흐름`용 최근 타석 결과 10건. 보호 모드는 빈 목록 | 선택 |
@@ -21,7 +21,7 @@
 
 공통 에러 응답: `{ "code": "GAME_NOT_FOUND", "message": "..." }` 형식, HTTP 상태 코드와 함께.
 
-`GET /api/games`의 `date`는 MLB 슬레이트 날짜(미국 동부시간 기준 `YYYY-MM-DD`)다. 서버가 해당 슬레이트를 `start_time`(UTC) 범위로 변환해 조회한다. `sort=recommended`는 상태 탭(`scheduled`/`live`/`finished`)에서만 유효하며, `status=all`이면 `startTime`으로 강제하고 진행 중 경기를 상단에 고정한다. 추천순 정렬 키는 예정 `pregame_score`, 진행 `watch_score`, 종료 `peak_base_score`이고, 응답에는 점수·순위 숫자를 포함하지 않는다. 홈 카드 필드는 상태별로 다르며 진행 카드는 `latestTag` 단일 필드만 포함하고, 예정 카드는 태그 필드를 포함하지 않으며, 종료 카드는 `headline`과 `keyMoment`만 포함한다. 이 엔드포인트는 홈(api.home) 소유이며 경기 상세(`GET /api/games/{id}`)와 경로 네임스페이스를 공유한다.
+`GET /api/games`의 `date`는 MLB 슬레이트 날짜(미국 동부시간 기준 `YYYY-MM-DD`)다. `status=scheduled`이면 `date`와 무관하게 현재 시각 이후의 `STATUS_SCHEDULED` 경기를 모두 조회한다. 그 외 상태는 서버가 해당 슬레이트를 `start_time`(UTC) 범위로 변환해 조회한다. `sort=recommended`는 상태 탭(`scheduled`/`live`/`finished`)에서만 유효하며, `status=all`이면 `startTime`으로 강제하고 진행 중 경기를 상단에 고정한다. 추천순 정렬 키는 예정 `pregame_score`, 진행 `watch_score`, 종료 `peak_base_score`이고, 응답에는 점수·순위 숫자를 포함하지 않는다. 홈 카드 필드는 상태별로 다르며 진행 카드는 `latestTag` 단일 필드만 포함하고, 예정 카드는 태그 필드를 포함하지 않으며, 종료 카드는 `headline`과 `keyMoment`만 포함한다. 이 엔드포인트는 홈(api.home) 소유이며 경기 상세(`GET /api/games/{id}`)와 경로 네임스페이스를 공유한다.
 
 ### 1.1 인증 토큰 정책
 
