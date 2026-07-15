@@ -27,12 +27,12 @@ function TeamMark({ team, size, tone, side }: TeamMarkProps) {
     ? 'border-white/20 bg-white/10 text-white/90'
     : 'border-card-border bg-page text-text-strong';
   const alignmentStyle = side === 'away'
-    ? 'justify-start'
-    : 'justify-end';
-  const symbolOrderStyle = side === 'home'
+    ? 'justify-end'
+    : 'justify-start';
+  const symbolOrderStyle = side === 'away'
     ? 'order-2'
     : '';
-  const labelOrderStyle = side === 'home'
+  const labelOrderStyle = side === 'away'
     ? 'order-1 text-right'
     : '';
 
@@ -91,15 +91,15 @@ function TeamMatchup({
 
   return (
     <span
-      className={`grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-3 ${toneStyle} ${className}`}
+      className={`grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 ${toneStyle} ${className}`}
       aria-label={`${awayTeam.name} 대 ${homeTeam.name}`}
     >
       <TeamMark team={awayTeam} size={size} tone={tone} side="away" />
       <span
         aria-hidden="true"
-        className={`shrink-0 font-display font-semibold lowercase ${versusStyle} ${versusTone}`}
+        className={`shrink-0 font-display font-semibold ${versusStyle} ${versusTone}`}
       >
-        vs
+        VS
       </span>
       <TeamMark team={homeTeam} size={size} tone={tone} side="home" />
     </span>

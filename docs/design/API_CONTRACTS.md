@@ -17,7 +17,7 @@
 | `POST /api/members/email/**` | 이메일 인증 요청·확인 | — |
 | `GET·PUT /api/me/preferences` | 관심 팀/선수, 알림 설정 | 필요 |
 | `GET /api/me/notifications` · `POST /api/me/notifications/read` | 알림 센터 목록·읽음 처리 | 필요 |
-| `GET /api/players?search=` | 관심 선수 등록용 이름 검색 | 필요 |
+| `GET /api/players?search=` | 관심 선수 등록용 이름 검색(§1.3). 외부 우선 read-only, DB 쓰기 없음 | 필요 |
 
 공통 에러 응답: `{ "code": "GAME_NOT_FOUND", "message": "..." }` 형식, HTTP 상태 코드와 함께.
 
@@ -210,6 +210,24 @@
 이벤트 API의 `copy`는 nullable이며, 프론트 폴백은 `label`이다. 공개 모드는 이벤트 타임라인을 사용하지 않으므로 `mode=REVEALED`이면 빈 목록을 반환한다.
 
 최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 최신 10건을 `play_order DESC`로 반환한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
+
+### 1.3 관심 선수 검색·등록 계약
+
+`players` 테이블은 지금까지 poller 파이프라인(추적 경기의 라인업·plays)에서만 채웠다. 관심 선수 기능은 추적 경기에 없던 선수도 등록 대상이므로, `players`는 "추적 경기에 등장한 선수만 존재한다"는 불변식을 버리고 **선수 신원 마스터 겸 관심 선수 FK 대상**으로 확장한다. 소비처(홈·경기 상세·AI 문구)는 특정 `player_id`로만 조인하므로 여분 행이 있어도 영향이 없다.
+
+검색과 저장의 책임을 분리한다.
+
+| 구분 | 정책 |
+|---|---|
+| 검색 `GET /api/players?search=` | **read-only, DB 쓰기 없음.** balldontlie 이름 검색이 커버리지 원천이다(로컬 `players`는 관측된 부분집합이라 검색 완전성을 보장하지 못한다). 검색어 정규화 → 인메모리 TTL 캐시(짧은 만료, 영속 테이블 아님) → 미스 시 외부 호출 → 동일 ID 로컬 정보만 보조 병합. 외부 장애 시 로컬 결과로 폴백하고 응답에 불완전 상태(예: `complete=false`)를 표시해 "외부 장애"와 "실제 0건"을 구분한다. 쿼터 보호는 최소 검색어 길이·프론트 디바운스·동일 키워드 single-flight·0건 짧은 캐시로 한다. |
+| 등록 `PUT /api/me/preferences`(`selectedPlayerIds`) | 저장 시점에만 `players` upsert. 선택된 ID가 검색 캐시에 있으면 재사용, 없으면 `getPlayers(ids)`로 검증·조회한다(클라이언트 임의 ID 삽입 차단). **선수 upsert와 `user_favorite_players` insert는 한 트랜잭션**으로 처리한다. |
+
+필수 안전장치.
+
+- **최대 5명 동시성**: 앱 레벨 `count < 5` 확인만으로는 동시 요청이 모두 통과할 수 있다. 사용자 단위 잠금으로 (이미 등록 시 멱등 성공 → 개수 재확인 → upsert → insert)를 직렬화한다.
+- **`team_id`**: 자유계약·은퇴 선수는 팀이 없거나 로컬 `teams`에 없을 수 있다. 로컬 `teams`에 존재하는 팀만 FK 연결하고 나머지는 `null`로 저장한다. 팀 정보 때문에 등록 전체가 실패하면 안 된다.
+- **null 덮어쓰기 금지**: 외부 응답의 null/빈 값이 기존 정상 값을 덮어쓰지 않는다.
+- **최신성 한계**: 등록으로 이름까지 채워진 행은 기존 보강 배치(`full_name IS NULL` 대상) 갱신 범위 밖이다. 트레이드 등 변경은 **재등록 또는 파이프라인 재관측 시점까지만** 반영한다. 주기 갱신 배치는 MVP 범위에서 제외한다.
 
 ## 2. SSE 이벤트
 
