@@ -19,34 +19,40 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 선수 이름 검색으로 받아온 외부 API 결과를
- * 로컬 players 테이블에 저장하는 Writer입니다.
+ * 사용자가 관심 선수로 등록한 선수 정보를
+ * players 테이블에 저장하거나 갱신하는 Writer입니다.
  *
- * 기존 PlayerEnrichmentWriter는 이미 존재하는 스텁 선수만
- * 보강하는 역할이므로 수정하지 않고,
- * 관심 선수 검색용 저장 책임을 별도 클래스로 분리합니다.
+ * 선수 이름 검색 GET 요청에서는 이 Writer를 사용하지 않습니다.
+ *
+ * 사용자가 PUT /api/me/preferences로 관심 선수를 저장할 때만
+ * 선택된 선수 정보를 players 테이블에 반영합니다.
+ *
+ * 기존 PlayerEnrichmentWriter는 경기 수집 과정에서 생성된
+ * 이름 없는 스텁 선수를 보강하는 역할이므로 별도로 유지합니다.
  */
 @Component
 @RequiredArgsConstructor
-public class PlayerSearchCacheWriter {
+public class PlayerRegistrationWriter {
 
     private final PlayerRepository playerRepository;
     private final TeamRepository teamRepository;
 
     /**
-     * 외부 API에서 검색한 선수들을 players 테이블에 저장합니다.
+     * 관심 선수 등록 대상으로 확인된 선수들을
+     * players 테이블에 저장하거나 갱신합니다.
      *
      * - 기존 선수: 이름·포지션·팀 정보 갱신
      * - 신규 선수: 새로운 Player 행 생성
      * - 이름이 없는 잘못된 응답: 저장하지 않음
-     * - teams 테이블에 없는 팀 ID: FK 문제를 막기 위해 저장하지 않음
+     * - 로컬 teams에 없는 팀 ID: team_id를 연결하지 않음
+     * - 외부 null·빈 값: 기존 정상 값을 덮어쓰지 않음
      *
-     * @param playerDtos 외부 API 선수 검색 결과
-     * @param observedAt 검색 결과를 받은 시각
+     * @param playerDtos 외부 API 또는 검색 캐시에서 확인한 선수 정보
+     * @param observedAt 선수 정보를 확인한 시각
      * @return 저장 또는 갱신된 Player 목록
      */
     @Transactional
-    public List<Player> upsertSearchResults(
+    public List<Player> upsertPlayers(
             List<BdlPlayer> playerDtos,
             Instant observedAt
     ) {
@@ -166,20 +172,35 @@ public class PlayerSearchCacheWriter {
             }
 
             /*
-             * teams 테이블에 실제로 존재하는 팀일 때만
-             * 선수의 team_id를 갱신합니다.
+             * 외부 응답에 팀 정보 자체가 없는 경우에는
+             * 기존의 정상적인 teamId를 유지합니다.
              *
-             * 알려지지 않은 팀이라고 해서 기존 teamId를 null로
-             * 덮어쓰지는 않습니다.
+             * 반면 외부 응답에는 팀 ID가 있지만
+             * 로컬 teams 테이블에 존재하지 않는 팀이라면,
+             * 외래 키로 연결할 수 없으므로 teamId를 null로 둡니다.
              */
-            if (dto.team() != null &&
-                    knownTeamIds.contains(
-                            dto.team().id()
-                    )) {
+            if (dto.team() != null) {
+                Long externalTeamId = dto.team().id();
 
-                player.setTeamId(
-                        dto.team().id()
-                );
+                if (externalTeamId != null
+                        && knownTeamIds.contains(externalTeamId)) {
+
+                    /*
+                     * 로컬에서 알고 있는 정상 팀이면
+                     * 해당 팀 ID로 갱신합니다.
+                     */
+                    player.setTeamId(externalTeamId);
+
+                } else {
+                    /*
+                     * 외부에는 팀 정보가 있지만 로컬에 없는 팀이면
+                     * 잘못된 외래 키를 남기지 않도록 연결을 해제합니다.
+                     *
+                     * 팀을 알 수 없다는 이유로 선수 등록 자체를
+                     * 실패시키지는 않습니다.
+                     */
+                    player.setTeamId(null);
+                }
             }
 
             player.setUpdatedAt(observedAt);

@@ -219,6 +219,22 @@ function SettingsPlayersPage() {
             return;
         }
 
+        /*
+         * 한 글자 검색은 결과 범위가 너무 넓고
+         * 외부 API 호출량도 크게 증가할 수 있으므로 차단합니다.
+         *
+         * 백엔드도 같은 기준으로 최소 2글자를 요구합니다.
+         */
+        if (keyword.length < 2) {
+            setSearchResults([]);
+
+            setErrorMessage(
+                '선수 이름은 영문 2글자 이상 입력해 주세요.',
+            );
+
+            return;
+        }
+
         if (isSearching) {
             return;
         }
@@ -229,9 +245,39 @@ function SettingsPlayersPage() {
             const response =
                 await searchPlayers(keyword);
 
-            setSearchResults(response);
+            /*
+            * 백엔드 검색 응답은 이제 배열 자체가 아니라
+            * { players, complete } 구조입니다.
+            */
+            setSearchResults(response.players);
 
-            if (response.length === 0) {
+            /*
+            * complete=false는 요청 실패가 아니라,
+            * 외부 balldontlie 검색에 실패해
+            * 로컬 DB의 일부 결과만 반환한 상태입니다.
+            *
+            * 따라서 검색 결과는 그대로 보여주되
+            * 결과가 완전하지 않을 수 있음을 안내합니다.
+            */
+            if (!response.complete) {
+                if (response.players.length === 0) {
+                    setInfoMessage(
+                        '외부 선수 검색에 일시적으로 연결할 수 없습니다. 잠시 후 다시 검색해 주세요.',
+                    );
+                } else {
+                    setInfoMessage(
+                        '외부 선수 검색에 일시적으로 연결할 수 없어 일부 결과만 표시합니다.',
+                    );
+                }
+
+                return;
+            }
+
+            /*
+            * 외부 검색이 정상적으로 완료됐는데도
+            * 선수가 없다면 실제 검색 결과가 없는 상태입니다.
+            */
+            if (response.players.length === 0) {
                 setInfoMessage(
                     '검색 결과가 없습니다. 선수의 영문 이름을 확인해 주세요.',
                 );
@@ -585,11 +631,10 @@ function SettingsPlayersPage() {
                                     return (
                                         <article
                                             key={player.playerId}
-                                            className={`player-result-card ${
-                                                isSelected
-                                                    ? 'selected'
-                                                    : ''
-                                            }`}
+                                            className={`player-result-card ${isSelected
+                                                ? 'selected'
+                                                : ''
+                                                }`}
                                         >
                                             <div className="player-avatar">
                                                 {player.fullName

@@ -1,14 +1,12 @@
 package com.pulse.api.user;
 
-import com.pulse.api.user.dto.PlayerSearchResponse;
+import com.pulse.api.user.dto.PlayerSearchResultResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 /**
  * 관심 선수 등록 화면에서 사용하는 선수 검색 API입니다.
@@ -26,21 +24,24 @@ public class PlayerSearchController {
     /**
      * 선수 영문 이름을 검색합니다.
      *
-     * 예:
-     * GET /api/players?search=Ohtani
-     * GET /api/players?search=judge
+     * 응답 예:
+     * {
+     *   "players": [...],
+     *   "complete": true
+     * }
      *
-     * 검색어가 비어 있으면 빈 배열을 반환합니다.
+     * complete=false이면 외부 API 장애로
+     * 로컬 DB의 불완전한 검색 결과만 반환한 상태입니다.
      */
     @GetMapping
-    public ResponseEntity<List<PlayerSearchResponse>> searchPlayers(
+    public ResponseEntity<PlayerSearchResultResponse> searchPlayers(
             @RequestParam(
                     name = "search",
                     defaultValue = ""
             )
             String search
     ) {
-        List<PlayerSearchResponse> response =
+        PlayerSearchResultResponse response =
                 playerSearchService.searchPlayers(search);
 
         return ResponseEntity.ok(response);

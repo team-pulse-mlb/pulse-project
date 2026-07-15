@@ -51,6 +51,21 @@ export interface PlayerSearchResponse {
 }
 
 /*
+ * GET /api/players?search= 응답 전체 구조입니다.
+ *
+ * players:
+ * - 검색된 선수 목록
+ *
+ * complete:
+ * - true: 외부 balldontlie 검색이 정상적으로 완료됨
+ * - false: 외부 검색 실패로 로컬 DB 결과만 반환됨
+ */
+export interface PlayerSearchResultResponse {
+    players: PlayerSearchResponse[];
+    complete: boolean;
+}
+
+/*
  * 선수 영문 이름 검색 API입니다.
  *
  * 호출 예:
@@ -61,7 +76,7 @@ export interface PlayerSearchResponse {
  */
 export const searchPlayers = async (
     search: string,
-): Promise<PlayerSearchResponse[]> => {
+): Promise<PlayerSearchResultResponse> => {
     /*
      * 입력창 앞뒤 공백은 검색 의미가 없으므로 제거합니다.
      *
@@ -76,11 +91,14 @@ export const searchPlayers = async (
      * 프론트에서도 불필요한 네트워크 요청을 막습니다.
      */
     if (!keyword) {
-        return [];
+        return {
+        players: [],
+        complete: true,
+    };
     }
 
     const response =
-        await apiClient.get<PlayerSearchResponse[]>(
+        await apiClient.get<PlayerSearchResultResponse>(
             '/api/players',
             {
                 params: {

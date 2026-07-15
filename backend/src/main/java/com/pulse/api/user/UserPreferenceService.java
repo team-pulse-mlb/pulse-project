@@ -11,11 +11,16 @@ import com.pulse.api.user.dto.UserPreferenceResponse;
 import com.pulse.api.user.dto.UserPreferenceUpdateRequest;
 import com.pulse.api.user.exception.FavoriteTeamLimitExceededException;
 import com.pulse.api.user.exception.InvalidFavoriteTeamException;
+import com.pulse.api.user.exception.PlayerLookupUnavailableException;
+import com.pulse.common.client.BaseballDataSource;
+import com.pulse.common.client.BdlDtos.BdlPlayer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+
+import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -59,6 +64,24 @@ public class UserPreferenceService {
      */
     private final PlayerRepository playerRepository;
 
+    /*
+     * 선수 ID로 외부 balldontlie 선수 정보를 확인하기 위한
+     * 공통 야구 데이터 조회 인터페이스입니다.
+     */
+    private final BaseballDataSource baseballDataSource;
+
+    /*
+     * 직전에 선수 검색으로 확인한 외부 선수 정보를
+     * playerId 기준으로 다시 사용하는 인메모리 캐시입니다.
+     */
+    private final PlayerSearchMemoryCache playerSearchMemoryCache;
+
+    /*
+     * 관심 선수 등록 대상으로 확인된 선수만
+     * players 테이블에 저장하거나 갱신하는 Writer입니다.
+     */
+    private final PlayerRegistrationWriter playerRegistrationWriter;
+
 
     /*
      * 로그인한 사용자의 관심팀 + 알림 설정 + 스포일러 모드를 조회한다.
@@ -98,7 +121,7 @@ public class UserPreferenceService {
             String email,
             UserPreferenceUpdateRequest request
     ) {
-        Member member = findMemberByEmail(email);
+        Member member = findMemberByEmailForUpdate(email);
 
         UserSetting userSetting = userSettingRepository
                 .findById(member.getUserId())
@@ -212,6 +235,31 @@ public class UserPreferenceService {
                 );
     }
 
+    /**
+     * 선호 설정 변경을 위해 회원을 잠금 조회합니다.
+     *
+     * 일반 회원 조회와 동일하게 이메일을 소문자로 정규화하지만,
+     * Repository의 PESSIMISTIC_WRITE 조회를 사용합니다.
+     *
+     * updateMyPreferences()의 트랜잭션이 끝날 때까지 회원 행이 잠기므로,
+     * 같은 사용자의 관심 선수 변경 요청이 동시에 실행되지 않습니다.
+     */
+    private Member findMemberByEmailForUpdate(
+            String email
+    ) {
+        String normalizedEmail = email
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        return memberRepository
+                .findByEmailForUpdate(normalizedEmail)
+                .orElseThrow(() ->
+                        new UsernameNotFoundException(
+                                "가입되지 않은 이메일입니다."
+                        )
+                );
+    }
+
     /*
      * 관심팀 ID 목록을 정리하고 검증한다.
      *
@@ -285,20 +333,13 @@ public class UserPreferenceService {
                 );
 
         /*
-         * 요청에 포함된 모든 선수가 players 테이블에 실제로 존재하는지 확인합니다.
+         * 검색 캐시 또는 외부 API를 통해 선수 ID를 검증한 뒤,
+         * 관심 선수로 선택된 선수만 players 테이블에 저장합니다.
          */
         List<Player> selectedPlayers =
-                selectedPlayerIds.isEmpty()
-                        ? List.of()
-                        : playerRepository.findAllById(
+                resolveAndUpsertSelectedPlayers(
                         selectedPlayerIds
                 );
-
-        if (selectedPlayers.size() != selectedPlayerIds.size()) {
-            throw new InvalidFavoritePlayerException(
-                    "존재하지 않는 관심 선수가 포함되어 있습니다."
-            );
-        }
 
         /*
          * playerId로 Player를 빠르게 찾을 수 있도록 Map으로 변환합니다.
@@ -375,6 +416,165 @@ public class UserPreferenceService {
                 .findByMemberUserIdOrderByCreatedAtAsc(
                         member.getUserId()
                 );
+    }
+
+
+    /**
+     * 관심 선수로 요청된 ID를 검증하고,
+     * 확인된 선수만 players 테이블에 저장하거나 갱신합니다.
+     *
+     * 처리 순서:
+     * 1. 직전 선수 검색의 인메모리 캐시 확인
+     * 2. 캐시에 없는 선수 ID는 외부 getPlayers(ids)로 조회
+     * 3. 요청한 모든 ID가 실제 외부 선수인지 검증
+     * 4. 선택된 선수만 players 테이블에 upsert
+     *
+     * 이 메서드는 updateMyPreferences()의 트랜잭션 안에서 실행되므로,
+     * players upsert와 user_favorite_players 저장이 하나의
+     * 트랜잭션으로 처리됩니다.
+     */
+    private List<Player> resolveAndUpsertSelectedPlayers(
+            List<Long> selectedPlayerIds
+    ) {
+        /*
+         * 빈 배열은 관심 선수를 모두 해제하는 요청입니다.
+         *
+         * 저장할 선수 정보도 없으므로 바로 빈 목록을 반환합니다.
+         */
+        if (selectedPlayerIds.isEmpty()) {
+            return List.of();
+        }
+
+        /*
+         * 먼저 직전 이름 검색으로 확인된 선수 정보를
+         * playerId 기준으로 검색 캐시에서 가져옵니다.
+         */
+        Map<Long, BdlPlayer> confirmedPlayerDtos =
+                new LinkedHashMap<>(
+                        playerSearchMemoryCache.findPlayersByIds(
+                                selectedPlayerIds
+                        )
+                );
+
+        /*
+         * 검색 캐시에 없는 선수 ID만 따로 추립니다.
+         *
+         * 검색 후 시간이 지나 캐시가 만료되었거나,
+         * 클라이언트가 검색하지 않은 ID를 직접 보낸 경우가 여기에 해당합니다.
+         */
+        List<Long> uncachedPlayerIds =
+                selectedPlayerIds.stream()
+                        .filter(playerId ->
+                                !confirmedPlayerDtos.containsKey(
+                                        playerId
+                                )
+                        )
+                        .toList();
+
+        /*
+         * 캐시에 없는 ID는 balldontlie의 정확한 ID 조회로
+         * 실제 선수인지 다시 검증합니다.
+         */
+        if (!uncachedPlayerIds.isEmpty()) {
+            List<BdlPlayer> fetchedPlayers;
+
+            /*
+             * 외부 API 호출 실패와 존재하지 않는 선수 ID를 구분합니다.
+             *
+             * - 호출 자체 실패: 현재 선수 정보를 확인할 수 없는 상태이므로 503
+             * - 호출 성공 후 일부 ID가 결과에 없음: 잘못된 선수 ID이므로 400
+             */
+            try {
+                fetchedPlayers =
+                        baseballDataSource.getPlayers(
+                                uncachedPlayerIds
+                        );
+            } catch (RuntimeException exception) {
+                throw new PlayerLookupUnavailableException(
+                        "선수 정보를 일시적으로 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+                        exception
+                );
+            }
+
+            /*
+             * 외부 데이터 소스는 정상적인 경우 빈 목록을 반환해야 합니다.
+             * null은 정상적인 조회 결과로 판단할 수 없으므로 장애로 처리합니다.
+             */
+            if (fetchedPlayers == null) {
+                throw new PlayerLookupUnavailableException(
+                        "선수 정보를 일시적으로 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."
+                );
+            }
+
+            /*
+             * 외부 API가 요청하지 않은 ID를 반환하는 상황까지 막기 위해
+             * 실제 요청한 ID만 Map에 포함합니다.
+             */
+            Set<Long> requestedPlayerIdSet =
+                    new HashSet<>(uncachedPlayerIds);
+
+            fetchedPlayers.stream()
+                    .filter(Objects::nonNull)
+                    .filter(player ->
+                            player.id() != null
+                                    && requestedPlayerIdSet.contains(
+                                    player.id()
+                            )
+                    )
+                    .forEach(player ->
+                            confirmedPlayerDtos.putIfAbsent(
+                                    player.id(),
+                                    player
+                            )
+                    );
+        }
+
+        /*
+         * 검색 캐시와 외부 정확 조회를 모두 사용했는데도
+         * 확인되지 않은 ID가 있으면 임의 ID 요청으로 판단합니다.
+         */
+        if (confirmedPlayerDtos.size()
+                != selectedPlayerIds.size()) {
+
+            throw new InvalidFavoritePlayerException(
+                    "존재하지 않는 관심 선수가 포함되어 있습니다."
+            );
+        }
+
+        /*
+         * Map의 저장 순서가 아니라 사용자가 전달한 선택 순서대로
+         * 선수 DTO 목록을 다시 구성합니다.
+         */
+        List<BdlPlayer> orderedPlayerDtos =
+                selectedPlayerIds.stream()
+                        .map(confirmedPlayerDtos::get)
+                        .toList();
+
+        /*
+         * 검증된 선택 선수만 players 테이블에 저장하거나 갱신합니다.
+         *
+         * 검색 결과 전체가 아니라 실제 관심 선수로 등록한 선수만
+         * 영속화된다는 점이 핵심입니다.
+         */
+        List<Player> savedPlayers =
+                playerRegistrationWriter.upsertPlayers(
+                        orderedPlayerDtos,
+                        Instant.now()
+                );
+
+        /*
+         * 이름 누락 등으로 Writer가 저장을 거부한 선수가 있다면
+         * 관심 선수 관계를 만들지 않고 요청 전체를 실패시킵니다.
+         */
+        if (savedPlayers.size()
+                != selectedPlayerIds.size()) {
+
+            throw new InvalidFavoritePlayerException(
+                    "관심 선수 정보를 확인할 수 없습니다."
+            );
+        }
+
+        return savedPlayers;
     }
 
 
