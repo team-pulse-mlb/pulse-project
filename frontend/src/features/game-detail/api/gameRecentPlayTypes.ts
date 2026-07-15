@@ -13,14 +13,16 @@ export interface RecentPlayScoreResponse {
 /**
  * 최근 플레이 API가 반환하는 개별 타석 결과다.
  *
- * 최근 플레이에는 점수, 이닝 초·말, 실제 플레이 문구가 포함되므로
- * 공개 모드 화면에서만 사용한다.
+ * 공개 모드에서만 사용하며 text는 화면에 표시할 완성 문구다.
+ * 한국어 번역이 저장되어 있으면 translated가 true이고,
+ * 번역이 아직 없으면 원문과 translated=false가 반환된다.
  */
 export interface RecentPlayResponse {
     playId: number;
     inning: number;
     inningType: ApiInningType;
     text: string;
+    translated: boolean;
     score: RecentPlayScoreResponse;
     observedAt: string;
 }
