@@ -5,6 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.message.ScoreTask.PitchSnapshot;
@@ -88,6 +91,11 @@ class GameEventExtractorTest {
                 );
         assertThat(savedEvents()).allMatch(event ->
                 GameEvent.SPOILER_PROTECTED_SAFE.equals(event.getSpoilerLevel()));
+        verify(aiGenerationTrigger, times(2)).onGameEventPersisted(
+                org.mockito.ArgumentMatchers.eq(100L),
+                anyLong(),
+                org.mockito.ArgumentMatchers.eq(AiGenerationTrigger.MODE_PROTECTED),
+                org.mockito.ArgumentMatchers.eq(observedAt));
     }
 
     @Test
@@ -149,6 +157,8 @@ class GameEventExtractorTest {
                 );
         assertThat(savedEvents()).allMatch(event ->
                 GameEvent.SPOILER_REVEALED_ONLY.equals(event.getSpoilerLevel()));
+        verify(aiGenerationTrigger, never()).onGameEventPersisted(
+                anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.any(Instant.class));
     }
 
     @Test

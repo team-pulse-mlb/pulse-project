@@ -109,6 +109,20 @@ class AiFinalHeadlineGeneratorTest {
     }
 
     @Test
+    void generateSynchronously_shouldClassifyOpenAiFailureAsNotGenerated() {
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(finalGame()));
+        when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.PROTECTED))
+                .thenReturn(Optional.of(openAiFailureResult()));
+        when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.REVEALED))
+                .thenReturn(Optional.empty());
+
+        AiFinalHeadlineGenerator.GenerationStatus status = generator.generateSynchronously(100L);
+
+        assertThat(status).isEqualTo(AiFinalHeadlineGenerator.GenerationStatus.NOT_GENERATED);
+        verify(gameRepository, never()).save(any(Game.class));
+    }
+
+    @Test
     void generateSynchronously_shouldCallOnlyMissingMode() {
         Game game = finalGame();
         game.setFinalHeadlineProtected("이미 저장된 보호 헤드라인");
@@ -282,6 +296,11 @@ class AiFinalHeadlineGeneratorTest {
 
     private static AiCopyResult unsafeResult() {
         return new AiCopyResult(false, "hash-final", null, List.of("FORBIDDEN"), false);
+    }
+
+    private static AiCopyResult openAiFailureResult() {
+        return new AiCopyResult(
+                false, "hash-final", null, List.of("OPENAI_GENERATION_FAILED"), false);
     }
 
     private static AiCopyResult fallbackUsedResult() {
