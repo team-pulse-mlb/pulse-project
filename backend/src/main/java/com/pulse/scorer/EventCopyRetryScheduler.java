@@ -19,6 +19,12 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(
+        prefix = "pulse.ai.event-copy-retry",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 class EventCopyRetryScheduler {
 
     private final GameEventRepository gameEventRepository;

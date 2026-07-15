@@ -18,6 +18,9 @@ pulse:
   scorer:
     # 실제 생성기와 Redis 재조회 신호 발행 빈만 사용한다.
     enabled: true
+  ai:
+    event-copy-retry:
+      enabled: false
   sse:
     enabled: false
   headline-backfill:

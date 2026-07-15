@@ -81,6 +81,14 @@ class EventCopyRetrySchedulerTest {
                 .run(context -> assertThat(context).doesNotHaveBean(EventCopyRetryScheduler.class));
     }
 
+    @Test
+    void 재시도_설정이_꺼지면_스케줄러를_등록하지_않는다() {
+        contextRunner().withPropertyValues(
+                        "pulse.scorer.enabled=true",
+                        "pulse.ai.event-copy-retry.enabled=false")
+                .run(context -> assertThat(context).doesNotHaveBean(EventCopyRetryScheduler.class));
+    }
+
     private ApplicationContextRunner contextRunner() {
         return new ApplicationContextRunner()
                 .withUserConfiguration(EventCopyRetryScheduler.class)

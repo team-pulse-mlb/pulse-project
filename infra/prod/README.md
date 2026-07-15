@@ -76,7 +76,11 @@ docker compose -f docker-compose.prod.yml run --rm pulse-headline-backfill
 docker compose -f docker-compose.prod.yml run --rm \
   -e JAVA_OPTS='-Dpulse.headline-backfill.game-ids=<GAME_ID_1>,<GAME_ID_2>' \
   pulse-headline-backfill
+
 ```
+
+기존 값을 유지하면서 전체 종료 헤드라인과 보호 이벤트 문구를 재생성할 때는 GitHub Actions의
+`ai-copy-reprocess` 워크플로를 열고 확인값 `REGENERATE_ALL_AI_COPY`를 입력해 실행한다.
 
 ## 프론트엔드·API HTTPS
 
