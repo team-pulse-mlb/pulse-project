@@ -62,10 +62,10 @@ class RescoreJdbcRepository {
         String sql = """
                 INSERT INTO watch_scores (
                     game_id, computed_at, play_order, inning, inning_type, base_score,
-                    importance_multiplier, pregame_bonus, watch_score, signal_contributions,
+                    importance_multiplier, pregame_bonus, watch_score, scoring_version, signal_contributions,
                     tags, backfilled, source
                 )
-                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?::jsonb, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?::jsonb, ?, ?, ?)
                 ON CONFLICT (game_id, computed_at) DO NOTHING
                 """;
         return jdbcTemplate.update(connection -> {
@@ -77,10 +77,11 @@ class RescoreJdbcRepository {
             ps.setString(5, row.inningType());
             ps.setObject(6, row.baseScore(), Types.SMALLINT);
             ps.setObject(7, row.watchScore(), Types.SMALLINT);
-            ps.setString(8, json(row));
-            setTextArray(ps, 9, row.tags());
-            ps.setBoolean(10, row.backfilled());
-            ps.setString(11, row.source());
+            ps.setInt(8, row.scoringVersion());
+            ps.setString(9, json(row));
+            setTextArray(ps, 10, row.tags());
+            ps.setBoolean(11, row.backfilled());
+            ps.setString(12, row.source());
             return ps;
         });
     }

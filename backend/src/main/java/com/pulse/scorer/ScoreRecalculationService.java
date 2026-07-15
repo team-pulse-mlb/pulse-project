@@ -74,6 +74,7 @@ public class ScoreRecalculationService {
         record.setInningType(latestPlay == null ? null : latestPlay.getInningType());
         record.setBaseScore(roundScore(result.baseScore()));
         record.setWatchScore(roundScore(watchScore));
+        record.setScoringVersion(props.version());
         record.setSignalContributions(result.signals());
         record.setTags(reasonTags);
         record.setBackfilled(false);
