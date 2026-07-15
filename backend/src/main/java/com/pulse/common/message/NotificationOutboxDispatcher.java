@@ -1,6 +1,7 @@
 package com.pulse.common.message;
 
 import com.pulse.common.config.RabbitMqConfig;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.NotificationOutbox;
 import com.pulse.domain.NotificationOutboxRepository;
 import java.time.Clock;
@@ -60,6 +61,9 @@ public class NotificationOutboxDispatcher {
                 now,
                 PageRequest.of(0, properties.batchSize())
         );
+        if (!ready.isEmpty()) {
+            PulseMetrics.increment("pulse.notification.outbox.republish.runs");
+        }
         ready.forEach(this::publish);
     }
 
@@ -70,6 +74,7 @@ public class NotificationOutboxDispatcher {
             outbox.markPublished(now);
             log.info("알림 outbox 발행 성공: eventId={} attempts={}", outbox.getEventId(), outbox.getAttemptCount());
         } catch (RuntimeException exception) {
+            PulseMetrics.increment("pulse.notification.publish.failures");
             Duration delay = retryDelay(outbox.getAttemptCount());
             outbox.recordFailure(now.plus(delay), errorMessage(exception));
             log.warn("알림 outbox 발행 실패: eventId={} nextAttemptAt={}",

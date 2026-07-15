@@ -2,6 +2,7 @@ package com.pulse.scorer;
 
 import com.pulse.common.config.RabbitMqConfig;
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.poller.GameLifecycle;
 import com.pulse.poller.ScoreTaskFactory;
 import lombok.RequiredArgsConstructor;
@@ -28,15 +29,26 @@ public class ScoreTaskListener {
         }
 
         String lifecycleState = task.lifecycleState();
+        String taskType = taskType(lifecycleState);
+        PulseMetrics.increment("pulse.score.task.consumed", "type", taskType);
+        PulseMetrics.record("pulse.score.task.processing", () -> route(task, lifecycleState), "type", taskType);
+    }
+
+    private void route(ScoreTask task, String lifecycleState) {
         if (ScoreTaskFactory.PREGAME_LIFECYCLE.equals(lifecycleState)) {
             pregameScoringService.handle(task);
-            return;
-        }
-        if (isTerminal(lifecycleState)) {
+        } else if (isTerminal(lifecycleState)) {
             gameFinalizationService.handle(task);
-            return;
+        } else {
+            liveScoringService.handle(task);
         }
-        liveScoringService.handle(task);
+    }
+
+    private static String taskType(String lifecycleState) {
+        if (ScoreTaskFactory.PREGAME_LIFECYCLE.equals(lifecycleState)) {
+            return "pregame";
+        }
+        return isTerminal(lifecycleState) ? "terminal" : "live";
     }
 
     private static boolean isTerminal(String lifecycleState) {

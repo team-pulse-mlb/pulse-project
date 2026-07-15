@@ -1,7 +1,6 @@
 # PULSE 운영 Prometheus 설정.
 # 세 backend 역할의 actuator 관리 포트(8081)를 compose 내부 네트워크에서 scrape한다.
-# /actuator/prometheus 노출(micrometer-registry-prometheus)은 WORK_PLAN 4번에서 추가 예정이며,
-# 그 전까지 backend job은 404로 수집이 비어 있어도 무방하다.
+# /actuator/prometheus는 compose 내부 네트워크에서만 접근한다.
 
 global:
   scrape_interval: 15s
