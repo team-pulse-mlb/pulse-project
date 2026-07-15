@@ -86,6 +86,15 @@ public class SimulationBaseballDataSource implements BaseballDataSource {
     @Override public List<BdlPlayerSeasonStat> getPlayerSeasonStats(int season, List<Long> playerIds) { return List.of(); }
     @Override public List<BdlPlayer> getPlayers(List<Long> playerIds) { return List.of(); }
 
+    // 팀 설정 관련 코드
+    @Override
+    public List<BdlPlayer> searchPlayers(
+            String search,
+            int perPage
+    ) {
+        return List.of();
+    }
+
     private List<Timeline> timelines() {
         if (timelines != null) return timelines;
         synchronized (this) {

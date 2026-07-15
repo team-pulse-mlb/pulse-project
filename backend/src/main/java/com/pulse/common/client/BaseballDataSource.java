@@ -30,6 +30,14 @@ public interface BaseballDataSource {
 
     List<BdlPlayer> getPlayers(List<Long> playerIds);
 
+    /**
+     * 관심 선수 설정 화면에서 선수 영문 이름을 검색합니다.
+     *
+     * 운영 환경에서는 balldontlie MLB 선수 검색 API를 호출하고,
+     * 시뮬레이션 환경에서는 빈 목록을 반환합니다.
+     */
+    List<BdlPlayer> searchPlayers(String search, int perPage);
+
     List<BdlPlateAppearance> getPlateAppearances(long gameId);
 
     PlateAppearancesRaw getPlateAppearancesRaw(long gameId);

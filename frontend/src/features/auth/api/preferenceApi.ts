@@ -59,6 +59,44 @@ export interface FavoriteTeamResponse {
 }
 
 /*
+ * 마이페이지와 관심 선수 설정 화면에서 사용하는
+ * 관심 선수 응답 타입입니다.
+ *
+ * 백엔드 GET /api/me/preferences 응답의
+ * favoritePlayers 배열과 맞춥니다.
+ */
+export interface FavoritePlayerResponse {
+    /*
+     * balldontlie에서 사용하는 선수 ID입니다.
+     *
+     * 관심 선수 저장 요청의 selectedPlayerIds에
+     * 이 값을 넣어야 합니다.
+     */
+    playerId: number;
+
+    /*
+     * 화면에 표시할 선수 전체 이름입니다.
+     *
+     * 기존에 ID만 저장된 스텁 선수라면
+     * 이름이 아직 없을 수 있으므로 null도 허용합니다.
+     */
+    fullName: string | null;
+
+    /*
+     * 선수 포지션입니다.
+     *
+     * 예:
+     * DH, P, SS
+     */
+    position: string | null;
+
+    /*
+     * 선수의 현재 소속팀 ID입니다.
+     */
+    teamId: number | null;
+}
+
+/*
  * 알림 설정 타입입니다.
  *
  * all은 DB 컬럼이 아니라 프론트 UI용 전체 토글 값입니다.
@@ -76,6 +114,12 @@ export interface NotificationSettings {
  */
 export interface UserPreferenceResponse {
     favoriteTeams: FavoriteTeamResponse[];
+
+    /*
+     * 현재 로그인한 사용자가 등록한 관심 선수 목록입니다.
+     */
+    favoritePlayers: FavoritePlayerResponse[];
+
     notificationSettings: NotificationSettings;
 }
 
@@ -88,6 +132,24 @@ export interface UserPreferenceResponse {
  */
 export interface UserPreferenceUpdateRequest {
     selectedTeamIds: number[];
+
+    /*
+     * 변경할 관심 선수 ID 목록입니다.
+     *
+     * 이 필드를 보내지 않으면:
+     * - 기존 관심 선수 설정 유지
+     *
+     * 빈 배열을 보내면:
+     * - 모든 관심 선수 해제
+     *
+     * 선수 ID 배열을 보내면:
+     * - 해당 목록으로 관심 선수 설정 변경
+     *
+     * 기존 관심팀·알림 저장 코드가 아직 이 값을 보내지 않으므로
+     * 선택적 속성으로 선언합니다.
+     */
+    selectedPlayerIds?: number[];
+
     notificationSettings: NotificationSettings;
 }
 

@@ -145,4 +145,38 @@ public class GlobalExceptionHandler {
     }
 
 
+    /**
+     * 관심 선수 ID가 올바르지 않거나,
+     * players 테이블에 존재하지 않는 선수가 포함된 경우 처리합니다.
+     */
+    @ExceptionHandler(InvalidFavoritePlayerException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidFavoritePlayer(
+            InvalidFavoritePlayerException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "INVALID_FAVORITE_PLAYER",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
+
+    /**
+     * 관심 선수 선택 개수가 최대 허용 개수인 5명을 초과한 경우 처리합니다.
+     */
+    @ExceptionHandler(FavoritePlayerLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleFavoritePlayerLimitExceeded(
+            FavoritePlayerLimitExceededException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "TOO_MANY_FAVORITE_PLAYERS",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
 }

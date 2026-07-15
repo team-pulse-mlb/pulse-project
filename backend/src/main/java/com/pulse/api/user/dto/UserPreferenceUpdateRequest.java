@@ -64,4 +64,20 @@ public class UserPreferenceUpdateRequest {
          */
         private boolean gameSwitch = true;
     }
+
+    /*
+     * 사용자가 선택한 관심 선수 ID 목록입니다.
+     *
+     * 처리 규칙:
+     * - null: 기존 관심 선수 설정을 그대로 유지
+     * - 빈 배열 []: 관심 선수를 모두 해제
+     * - [208, ...]: 전달된 선수 목록으로 교체
+     *
+     * 현재 프론트의 관심팀·알림 저장 요청에는 아직 selectedPlayerIds가 없으므로,
+     * 필드를 기본 빈 배열로 만들지 않고 null을 허용합니다.
+     *
+     * 이렇게 해야 기존 관심팀이나 알림 설정을 수정했을 때
+     * 관심 선수 목록이 의도치 않게 모두 삭제되는 문제를 막을 수 있습니다.
+     */
+    private List<Long> selectedPlayerIds;
 }

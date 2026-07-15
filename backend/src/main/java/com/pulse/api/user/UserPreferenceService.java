@@ -1,13 +1,12 @@
 package com.pulse.api.user;
 
+import com.pulse.api.user.domain.*;
+import com.pulse.api.user.exception.FavoritePlayerLimitExceededException;
+import com.pulse.api.user.exception.InvalidFavoritePlayerException;
+import com.pulse.domain.Player;
+import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.Team;
 import com.pulse.domain.TeamRepository;
-import com.pulse.api.user.domain.Member;
-import com.pulse.api.user.domain.MemberRepository;
-import com.pulse.api.user.domain.UserFavoriteTeam;
-import com.pulse.api.user.domain.UserFavoriteTeamRepository;
-import com.pulse.api.user.domain.UserSetting;
-import com.pulse.api.user.domain.UserSettingRepository;
 import com.pulse.api.user.dto.UserPreferenceResponse;
 import com.pulse.api.user.dto.UserPreferenceUpdateRequest;
 import com.pulse.api.user.exception.FavoriteTeamLimitExceededException;
@@ -17,11 +16,9 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +49,18 @@ public class UserPreferenceService {
     private final TeamRepository teamRepository;
 
     /*
+     * 사용자가 선택한 관심 선수 관계를 조회·저장·삭제하기 위한 Repository입니다.
+     */
+    private final UserFavoritePlayerRepository userFavoritePlayerRepository;
+
+    /*
+     * 요청으로 들어온 playerId가 실제 players 테이블에 존재하는지
+     * 확인하기 위한 Repository입니다.
+     */
+    private final PlayerRepository playerRepository;
+
+
+    /*
      * 로그인한 사용자의 관심팀 + 알림 설정 + 스포일러 모드를 조회한다.
      */
     public UserPreferenceResponse getMyPreferences(String email) {
@@ -66,9 +75,16 @@ public class UserPreferenceService {
                         member.getUserId()
                 );
 
+        List<UserFavoritePlayer> favoritePlayers =
+                userFavoritePlayerRepository
+                        .findByMemberUserIdOrderByCreatedAtAsc(
+                                member.getUserId()
+                        );
+
         return UserPreferenceResponse.of(
                 userSetting,
-                favoriteTeams
+                favoriteTeams,
+                favoritePlayers
         );
     }
 
@@ -155,9 +171,28 @@ public class UserPreferenceService {
                         member.getUserId()
                 );
 
+        /*
+         * selectedPlayerIds가 요청에 없으면 null입니다.
+         *
+         * null:
+         * - 기존 관심 선수 설정 유지
+         *
+         * 빈 배열 []:
+         * - 관심 선수 모두 해제
+         *
+         * 선수 ID 목록:
+         * - 해당 목록으로 관심 선수 수정
+         */
+        List<UserFavoritePlayer> updatedFavoritePlayers =
+                updateFavoritePlayersIfRequested(
+                        member,
+                        request.getSelectedPlayerIds()
+                );
+
         return UserPreferenceResponse.of(
                 userSetting,
-                updatedFavoriteTeams
+                updatedFavoriteTeams,
+                updatedFavoritePlayers
         );
     }
 
@@ -214,5 +249,173 @@ public class UserPreferenceService {
         }
 
         return new ArrayList<>(uniqueTeamIds);
+    }
+
+
+    /**
+     * 관심 선수 수정 요청이 들어온 경우에만 관심 선수 목록을 변경합니다.
+     *
+     * selectedPlayerIds가 null이면:
+     * - 프론트가 관심 선수 값을 보내지 않은 요청
+     * - 기존 관심 선수 목록을 그대로 유지합니다.
+     *
+     * selectedPlayerIds가 빈 배열이면:
+     * - 사용자가 관심 선수를 모두 해제한 요청
+     * - 기존 관계를 모두 삭제합니다.
+     */
+    private List<UserFavoritePlayer> updateFavoritePlayersIfRequested(
+            Member member,
+            List<Long> requestedPlayerIds
+    ) {
+        /*
+         * 기존 관심팀/알림 수정 요청에서는 selectedPlayerIds가 없을 수 있습니다.
+         *
+         * 이때 기존 관심 선수를 삭제하지 않고 그대로 반환합니다.
+         */
+        if (requestedPlayerIds == null) {
+            return userFavoritePlayerRepository
+                    .findByMemberUserIdOrderByCreatedAtAsc(
+                            member.getUserId()
+                    );
+        }
+
+        List<Long> selectedPlayerIds =
+                normalizeAndValidateSelectedPlayerIds(
+                        requestedPlayerIds
+                );
+
+        /*
+         * 요청에 포함된 모든 선수가 players 테이블에 실제로 존재하는지 확인합니다.
+         */
+        List<Player> selectedPlayers =
+                selectedPlayerIds.isEmpty()
+                        ? List.of()
+                        : playerRepository.findAllById(
+                        selectedPlayerIds
+                );
+
+        if (selectedPlayers.size() != selectedPlayerIds.size()) {
+            throw new InvalidFavoritePlayerException(
+                    "존재하지 않는 관심 선수가 포함되어 있습니다."
+            );
+        }
+
+        /*
+         * playerId로 Player를 빠르게 찾을 수 있도록 Map으로 변환합니다.
+         */
+        Map<Long, Player> playerById =
+                selectedPlayers.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Player::getId,
+                                        Function.identity()
+                                )
+                        );
+
+        List<UserFavoritePlayer> existingFavorites =
+                userFavoritePlayerRepository
+                        .findByMemberUserIdOrderByCreatedAtAsc(
+                                member.getUserId()
+                        );
+
+        Set<Long> selectedPlayerIdSet =
+                new LinkedHashSet<>(selectedPlayerIds);
+
+        /*
+         * 기존에는 있었지만 새 요청에는 없는 선수 관계만 삭제합니다.
+         *
+         * 전체 삭제 후 전체 INSERT 방식이 아니라 차이만 반영하므로,
+         * 복합 PK 충돌과 불필요한 DELETE/INSERT를 줄일 수 있습니다.
+         */
+        List<UserFavoritePlayer> favoritesToDelete =
+                existingFavorites.stream()
+                        .filter(favorite ->
+                                !selectedPlayerIdSet.contains(
+                                        favorite.getPlayer().getId()
+                                )
+                        )
+                        .toList();
+
+        if (!favoritesToDelete.isEmpty()) {
+            userFavoritePlayerRepository.deleteAll(
+                    favoritesToDelete
+            );
+        }
+
+        Set<Long> existingPlayerIds =
+                existingFavorites.stream()
+                        .map(favorite ->
+                                favorite.getPlayer().getId()
+                        )
+                        .collect(Collectors.toSet());
+
+        /*
+         * 새 요청에는 있지만 기존 관계에는 없었던 선수만 추가합니다.
+         */
+        List<UserFavoritePlayer> favoritesToSave =
+                selectedPlayerIds.stream()
+                        .filter(playerId ->
+                                !existingPlayerIds.contains(playerId)
+                        )
+                        .map(playerId ->
+                                UserFavoritePlayer.create(
+                                        member,
+                                        playerById.get(playerId)
+                                )
+                        )
+                        .toList();
+
+        if (!favoritesToSave.isEmpty()) {
+            userFavoritePlayerRepository.saveAll(
+                    favoritesToSave
+            );
+        }
+
+        return userFavoritePlayerRepository
+                .findByMemberUserIdOrderByCreatedAtAsc(
+                        member.getUserId()
+                );
+    }
+
+
+    /**
+     * 관심 선수 ID 목록을 정리하고 검증합니다.
+     *
+     * 정책:
+     * - 중복 선수 ID 제거
+     * - 선택 순서 유지
+     * - null 또는 0 이하 ID 거부
+     * - 최대 5명
+     */
+    private List<Long> normalizeAndValidateSelectedPlayerIds(
+            List<Long> selectedPlayerIds
+    ) {
+        if (selectedPlayerIds == null
+                || selectedPlayerIds.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> uniquePlayerIds =
+                new LinkedHashSet<>(selectedPlayerIds);
+
+        boolean hasInvalidPlayerId =
+                uniquePlayerIds.stream()
+                        .anyMatch(playerId ->
+                                playerId == null || playerId <= 0
+                        );
+
+        if (hasInvalidPlayerId) {
+            throw new InvalidFavoritePlayerException(
+                    "관심 선수 ID가 올바르지 않습니다."
+            );
+        }
+
+        if (uniquePlayerIds.size() > 5) {
+            throw new FavoritePlayerLimitExceededException(
+                    "관심 선수는 최대 5명까지 선택할 수 있습니다."
+            );
+        }
+
+        return new ArrayList<>(uniquePlayerIds);
     }
 }
