@@ -1,5 +1,8 @@
+import logging
+
 from fastapi import APIRouter
 
+from app.core.config import settings
 from app.schemas.ai_schema import (
     EventCopyRequest,
     EventCopyResponse,
@@ -12,6 +15,8 @@ from app.services.openai_service import (
 )
 from app.services.spoiler_guard import check_spoiler_text
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/ai",
@@ -31,7 +36,8 @@ def _generation_failure_violations(
     error: SpoilerFreeSummaryGenerationError,
 ) -> list[str]:
     """
-    OpenAI 생성 실패 예외를 Spring Boot가 저장 여부를 판단할 수 있는 violations 코드로 변환한다.
+    OpenAI 생성 실패 예외를 Spring Boot가 저장 여부를 판단할 수 있는
+    violations 코드로 변환한다.
     """
 
     error_code = str(error).strip()
@@ -82,6 +88,74 @@ def _extract_safe_title(generated_summary: dict) -> str | None:
     return safe_title
 
 
+def _copy_purpose(
+    request: FinalHeadlineRequest | EventCopyRequest,
+) -> str:
+    """
+    요청 DTO 타입을 운영 로그의 AI 문구 목적값으로 변환한다.
+    """
+
+    if isinstance(request, FinalHeadlineRequest):
+        return "FINAL_HEADLINE"
+
+    return "EVENT_COPY"
+
+
+def _copy_event_id(
+    request: FinalHeadlineRequest | EventCopyRequest,
+) -> int | None:
+    """
+    EVENT_COPY 요청에만 존재하는 eventId를 반환한다.
+    """
+
+    if isinstance(request, EventCopyRequest):
+        return request.event_id
+
+    return None
+
+
+def _log_copy_failure(
+    event_name: str,
+    request: FinalHeadlineRequest | EventCopyRequest,
+    violations: list[str],
+) -> None:
+    """
+    생성 실패 또는 spoiler guard 반려를 운영 로그에 기록한다.
+
+    safeTitle, safeContext, contextHash는 스포일러 또는 내부 데이터가
+    포함될 수 있으므로 로그에 기록하지 않는다.
+    """
+
+    logger.warning(
+        "%s purpose=%s gameId=%s eventId=%s mode=%s model=%s violations=%s",
+        event_name,
+        _copy_purpose(request),
+        request.game_id,
+        _copy_event_id(request),
+        request.mode.value,
+        settings.openai_model,
+        violations,
+    )
+
+
+def _log_copy_success(
+    request: FinalHeadlineRequest | EventCopyRequest,
+) -> None:
+    """
+    AI 문구가 생성과 spoiler guard 검수를 모두 통과했음을 기록한다.
+    """
+
+    logger.info(
+        "AI_COPY_GENERATED purpose=%s gameId=%s eventId=%s mode=%s model=%s violations=%s",
+        _copy_purpose(request),
+        request.game_id,
+        _copy_event_id(request),
+        request.mode.value,
+        settings.openai_model,
+        [],
+    )
+
+
 def _generate_checked_copy(
     request: FinalHeadlineRequest | EventCopyRequest,
     response_type: type[FinalHeadlineResponse] | type[EventCopyResponse],
@@ -101,19 +175,35 @@ def _generate_checked_copy(
     try:
         generated_summary = generate_spoiler_free_summary(request)
     except SpoilerFreeSummaryGenerationError as error:
+        violations = _generation_failure_violations(error)
+
+        _log_copy_failure(
+            event_name="AI_COPY_GENERATION_FAILED",
+            request=request,
+            violations=violations,
+        )
+
         return _build_failed_response(
             response_type=response_type,
             context_hash=request.context_hash,
-            violations=_generation_failure_violations(error),
+            violations=violations,
         )
 
     safe_title = _extract_safe_title(generated_summary)
 
     if safe_title is None:
+        violations = ["OPENAI_RESPONSE_MISSING_FIELD:safe_title"]
+
+        _log_copy_failure(
+            event_name="AI_COPY_GENERATION_FAILED",
+            request=request,
+            violations=violations,
+        )
+
         return _build_failed_response(
             response_type=response_type,
             context_hash=request.context_hash,
-            violations=["OPENAI_RESPONSE_MISSING_FIELD:safe_title"],
+            violations=violations,
         )
 
     # 요청 모드와 검증 기준이 되는 safeContext를 함께 전달해
@@ -125,11 +215,21 @@ def _generate_checked_copy(
     )
 
     if not guard_result["spoiler_safe"]:
+        violations = guard_result["violations"]
+
+        _log_copy_failure(
+            event_name="SPOILER_GUARD_REJECTED",
+            request=request,
+            violations=violations,
+        )
+
         return _build_failed_response(
             response_type=response_type,
             context_hash=request.context_hash,
-            violations=guard_result["violations"],
+            violations=violations,
         )
+
+    _log_copy_success(request)
 
     return response_type(
         spoiler_safe=True,
@@ -153,7 +253,8 @@ def final_headline(request: FinalHeadlineRequest):
     - 점수, 승패, 우세 팀을 언급하면 안 된다.
 
     REVEALED:
-    - safeContext에 포함된 finalScore, winner와 일치하는 범위에서만 결과 언급이 가능하다.
+    - safeContext에 포함된 finalScore, winner와 일치하는 범위에서만
+      결과 언급이 가능하다.
     """
 
     return _generate_checked_copy(
@@ -171,7 +272,8 @@ def event_copy(request: EventCopyRequest):
     """
     이벤트 타임라인 문구를 생성한다.
 
-    구간 요약 API가 아니라, 경기 이벤트 타임라인에 표시할 짧은 문구를 생성한다.
+    구간 요약 API가 아니라,
+    경기 이벤트 타임라인에 표시할 짧은 문구를 생성한다.
     """
 
     return _generate_checked_copy(

@@ -71,14 +71,45 @@ def _generate_openai_copy(
     )
 
     response = client.responses.create(
-        model=settings.openai_model,
-        input=build_spoiler_free_prompt(request),
-        temperature=settings.openai_temperature,
-        max_output_tokens=settings.openai_max_output_tokens,
-        text={"format": {"type": "json_object"}},
+        **_build_response_create_options(request)
     )
 
     return _parse_openai_copy(response.output_text)
+
+
+def _build_response_create_options(
+    request: AiCopyRequest,
+) -> dict[str, object]:
+    """
+    OpenAI Responses API 호출 옵션을 모델 호환성에 맞게 구성합니다.
+
+    gpt-5.6-luna는 temperature 파라미터를 지원하지 않으므로
+    해당 모델 요청에서는 temperature 키 자체를 전달하지 않습니다.
+    """
+
+    options: dict[str, object] = {
+        "model": settings.openai_model,
+        "input": build_spoiler_free_prompt(request),
+        "max_output_tokens": settings.openai_max_output_tokens,
+        "text": {
+            "format": {
+                "type": "json_object",
+            },
+        },
+    }
+
+    if _supports_temperature(settings.openai_model):
+        options["temperature"] = settings.openai_temperature
+
+    return options
+
+
+def _supports_temperature(model: str) -> bool:
+    """
+    현재 서비스에서 사용하는 모델의 temperature 지원 여부를 반환합니다.
+    """
+
+    return not model.startswith("gpt-5.6-luna")
 
 
 def _parse_openai_copy(raw_text: str) -> dict[str, str]:
