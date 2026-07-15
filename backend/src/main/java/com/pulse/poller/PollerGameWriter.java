@@ -50,16 +50,8 @@ public class PollerGameWriter {
         if (dto.venue() != null) {
             game.setVenue(dto.venue());
         }
-        if (dto.homeTeam() != null) {
-            game.setHomeTeamId(dto.homeTeam().id());
-            game.setHomeTeamName(dto.homeTeam().displayName());
-            game.setHomeTeamAbbr(dto.homeTeam().abbreviation());
-        }
-        if (dto.awayTeam() != null) {
-            game.setAwayTeamId(dto.awayTeam().id());
-            game.setAwayTeamName(dto.awayTeam().displayName());
-            game.setAwayTeamAbbr(dto.awayTeam().abbreviation());
-        }
+        applyHomeTeam(game, dto.homeTeam(), dto.homeTeamName());
+        applyAwayTeam(game, dto.awayTeam(), dto.awayTeamName());
         if (dto.homeTeamData() != null) {
             game.setHomeRuns(dto.homeTeamData().runs());
             game.setHomeInningScores(dto.homeTeamData().inningScores());
@@ -168,6 +160,52 @@ public class PollerGameWriter {
         team.setAbbreviation(dto.abbreviation());
         team.setUpdatedAt(observedAt);
         teamRepository.save(team);
+    }
+
+    private static void applyHomeTeam(Game game, BdlGame.Team team, String fallbackName) {
+        if (team == null && !hasText(fallbackName)) {
+            return;
+        }
+        if (team != null) {
+            game.setHomeTeamId(team.id());
+        }
+        game.setHomeTeamName(resolveTeamName(team, fallbackName));
+        game.setHomeTeamAbbr(resolveTeamAbbreviation(team));
+    }
+
+    private static void applyAwayTeam(Game game, BdlGame.Team team, String fallbackName) {
+        if (team == null && !hasText(fallbackName)) {
+            return;
+        }
+        if (team != null) {
+            game.setAwayTeamId(team.id());
+        }
+        game.setAwayTeamName(resolveTeamName(team, fallbackName));
+        game.setAwayTeamAbbr(resolveTeamAbbreviation(team));
+    }
+
+    private static String resolveTeamName(BdlGame.Team team, String fallbackName) {
+        if ((team == null || isUnknownTeam(team)) && hasText(fallbackName)) {
+            return fallbackName;
+        }
+        if (team != null && hasText(team.displayName())) {
+            return team.displayName();
+        }
+        return hasText(fallbackName) ? fallbackName : null;
+    }
+
+    private static String resolveTeamAbbreviation(BdlGame.Team team) {
+        return team == null || isUnknownTeam(team) ? null : team.abbreviation();
+    }
+
+    private static boolean isUnknownTeam(BdlGame.Team team) {
+        return team.id() < 0
+                || "UNK".equalsIgnoreCase(team.abbreviation())
+                || "Unknown".equalsIgnoreCase(team.displayName());
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private static Instant parseInstant(String value) {

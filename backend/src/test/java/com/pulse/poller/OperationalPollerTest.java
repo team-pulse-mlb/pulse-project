@@ -280,7 +280,8 @@ class OperationalPollerTest {
     }
 
     private static BdlGame gameDto(long gameId, String status) {
-        return new BdlGame(gameId, "2026-07-08T00:00:00Z", status, 1, null, null, null, null, null);
+        return new BdlGame(gameId, "2026-07-08T00:00:00Z", status, 1,
+                null, null, null, null, null, null, null);
     }
 
     private static PollerGameWriter.GameUpsertResult liveResult(Game game) {

@@ -147,6 +147,7 @@ public class SimulationBaseballDataSource implements BaseballDataSource {
         if (now.isBefore(timeline.startedAt())) {
             return new BdlGame(
                     timeline.targetGameId(), timeline.startedAt().toString(), Game.STATUS_SCHEDULED, 1,
+                    timeline.source().getHomeTeamName(), timeline.source().getAwayTeamName(),
                     team(timeline.source().getHomeTeamId(), timeline.source().getHomeTeamName(), timeline.source().getHomeTeamAbbr()),
                     team(timeline.source().getAwayTeamId(), timeline.source().getAwayTeamName(), timeline.source().getAwayTeamAbbr()),
                     new BdlGame.TeamData(0, List.of()), new BdlGame.TeamData(0, List.of()), timeline.source().getVenue());
@@ -157,6 +158,7 @@ public class SimulationBaseballDataSource implements BaseballDataSource {
         return new BdlGame(
                 timeline.targetGameId(), now.minus(Duration.ofMinutes(1)).toString(), status,
                 latest == null ? 1 : latest.inning(),
+                timeline.source().getHomeTeamName(), timeline.source().getAwayTeamName(),
                 team(timeline.source().getHomeTeamId(), timeline.source().getHomeTeamName(), timeline.source().getHomeTeamAbbr()),
                 team(timeline.source().getAwayTeamId(), timeline.source().getAwayTeamName(), timeline.source().getAwayTeamAbbr()),
                 new BdlGame.TeamData(score(latest == null ? null : latest.homeScore()), List.of()),
