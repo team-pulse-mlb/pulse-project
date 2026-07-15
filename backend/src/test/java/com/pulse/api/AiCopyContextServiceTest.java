@@ -74,6 +74,23 @@ class AiCopyContextServiceTest {
     }
 
     @Test
+    void 보호_evidence는_상황만_남기고_결과_암시값을_제외한다() {
+        assertThat(AiCopyContextService.projectProtectedEvidence("full_count_two_out", Map.of(
+                "outs", 2, "balls", 3, "strikes", 2,
+                "runnerOnFirst", true, "runnerOnSecond", false, "runnerOnThird", true)))
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        "outs", 2, "balls", 3, "strikes", 2,
+                        "runnerOnFirst", true, "runnerOnSecond", false, "runnerOnThird", true));
+        // 투수 흔들림은 누적 투구수만, 구속 저하(결과 암시)는 제외
+        assertThat(AiCopyContextService.projectProtectedEvidence("pitcher_instability", Map.of(
+                "pitcherPitchCount", 102, "velocityDropMph", 2.4)))
+                .containsExactlyInAnyOrderEntriesOf(Map.of("pitcherPitchCount", 102));
+        // 강한 타구는 타구질(결과 암시)뿐이라 보호 상황 근거가 없다
+        assertThat(AiCopyContextService.projectProtectedEvidence("hard_contact", Map.of(
+                "isBarrel", true, "exitVelocity", 112))).isEmpty();
+    }
+
+    @Test
     void 이벤트_컨텍스트의_차단_조건을_적용한다() {
         when(eventRepository.findById(10L)).thenReturn(Optional.empty());
         assertThat(service.eventCopyContext(1L, 10L, AiCopyMode.PROTECTED)).isEmpty();
