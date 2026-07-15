@@ -55,6 +55,6 @@ class PersonalizationCalculatorTest {
         return new ScoringProperties(
                 6, null, null, null, null, null, null, null, null, null,
                 10, new ScoringProperties.Personalization(10, 5, 15),
-                null, null, null, null);
+                null, null, null, null, null);
     }
 }

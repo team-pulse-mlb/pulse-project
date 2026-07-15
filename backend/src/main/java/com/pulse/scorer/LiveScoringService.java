@@ -43,6 +43,7 @@ public class LiveScoringService {
     private final GameEventExtractor gameEventExtractor;
     private final LiveSignalPublisher liveSignalPublisher;
     private final SurgeDetector surgeDetector;
+    private final TimelineHighlightTrigger timelineHighlightTrigger;
     private final NotificationEventPublisher notificationEventPublisher;
     private final ScoringProperties props;
 
@@ -105,6 +106,11 @@ public class LiveScoringService {
             PulseMetrics.increment("pulse.scorer.surge.fired");
             publishSurge(game, tags, previousTags, observedAt);
         }
+
+        // 급변 순간의 anchor 보호 이벤트를 하이라이트로 표시하고 보호 문구 생성을 요청한다.
+        // (scoring.highlight.enabled=false면 no-op)
+        timelineHighlightTrigger.evaluate(gameId, watchScoreRounded, observedAt);
+
         log.debug("라이브 점수 계산 gameId={} watchScore={} observedAt={}", gameId, watchScoreRounded, observedAt);
     }
 

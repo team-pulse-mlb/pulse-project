@@ -119,6 +119,7 @@ class HistoricalScoreReplayServiceTest {
                 new ScoringProperties.Pregame(30, 0.15, 0.25, 20, 4.6, 2.0, 30, 15),
                 new ScoringProperties.Detail(100, 100, 2.0, 10, 8, 8),
                 new ScoringProperties.TensionCurve(List.of(20, 40, 60, 80)),
-                new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 3, 15, 70, 20));
+                new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 3, 15, 70, 20),
+                new ScoringProperties.Highlight(false, 40, 12, 6, 8));
     }
 }

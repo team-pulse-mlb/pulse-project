@@ -20,6 +20,20 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
     Optional<GameEvent> findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
             Long gameId, String spoilerLevel);
 
+    /**
+     * 급변 하이라이트의 anchor 후보를 찾는다.
+     * 윈도 안에서 아직 하이라이트로 표시되지 않은 가장 최근 보호 이벤트를 고른다.
+     */
+    Optional<GameEvent>
+            findFirstByGameIdAndSpoilerLevelAndTimelineHighlightFalseAndObservedAtGreaterThanEqualOrderByObservedAtDescIdDesc(
+                    Long gameId, String spoilerLevel, Instant since);
+
+    /**
+     * 하이라이트 쿨다운 판정용. 최근 윈도에 이미 표시된 하이라이트가 있으면 true.
+     */
+    boolean existsByGameIdAndTimelineHighlightTrueAndObservedAtGreaterThanEqual(
+            Long gameId, Instant since);
+
     List<GameEvent> findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(Long gameId, String spoilerLevel);
 
     @Query("""
