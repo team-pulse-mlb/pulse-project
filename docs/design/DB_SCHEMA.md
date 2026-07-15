@@ -11,7 +11,7 @@
 | `backfilled` | 과거 백필로 적재한 행은 `true`. 시간 기반 계산에서 제외한다(백테스트는 order 윈도우로 근사). |
 | `source` | 데이터 출처를 `OPERATIONAL`(기본)·`S3_LIVE_ARCHIVE`·`S3_BACKFILL`로 구분한다. S3에서 이전한 데이터를 운영 수집분과 구분하는 컬럼이다. `backfilled`는 `source = 'S3_BACKFILL'`과 동치다. |
 | 배열·구조 | 이닝별 점수·신호 기여·태그 등 가변 구조는 `JSONB` 또는 Postgres 배열 타입을 쓴다. |
-| 상수 | 가중치·임계값·중요도 배수는 **DB에 저장하지 않는다.** `scoring.yml`에서 관리하고 변경 시 `version`을 올린다. |
+| 상수 | 가중치·임계값·중요도 배수 자체는 **DB에 저장하지 않는다.** `scoring.yml`에서 관리하고 변경 시 `version`을 올리며, 산출물에는 적용한 version만 추적 메타데이터로 남긴다. |
 | 스키마 관리 | 로컬은 `ddl-auto: update`, 배포 환경(RDS)은 **Flyway 마이그레이션만** 사용한다. 베이스라인 V1은 DB 이전에 앞서 만들고, 이후 변경은 증분 마이그레이션으로 리뷰를 거친다. |
 
 ## 2. 스포일러 보호 규칙
@@ -157,6 +157,7 @@ erDiagram
 | `importance_multiplier` | `NUMERIC(4,2)` | 경기 중요도 배수 ×0.90–×1.15 | [내부] |
 | `pregame_bonus` | `NUMERIC(4,2)` | 사전 가산 `pregame_score/10`(0–10) | [내부] |
 | `watch_score` | `SMALLINT` | 최종 `clamp(raw, 0, 100)` | [내부] 랭킹 정렬 키 |
+| `scoring_version` | `INT` | 계산에 적용한 `scoring.yml` version | 기존 행은 `null`, 신규 저장분부터 기록 |
 | `signal_contributions` | `JSONB` | 신호별 기여 맵 | [내부] 예: `{"후반연장":20,"점수차":15}` |
 | `tags` | `TEXT[]` | 추천 이유 태그 | 예: `접전 흐름`, `득점권 압박`, `후반 긴장 구간` |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
@@ -165,6 +166,8 @@ erDiagram
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `computed_at`)** (`score.tasks` 재전달 멱등 키) · idx(`game_id`, `computed_at`)
 
 > `base_score`의 8개 신호 = 후반/연장 · 점수 차 · 최근 득점 · 리드 변경 · 빅이닝 · 압박 · 카운트/아웃 · 초반 난타. **관심 팀/선수 가산(최대 +15)은 저장하지 않고** Redis 공용 랭킹을 읽은 뒤 API 응답 조립 시점에 사용자별로 더한다. 압박 신호는 `plate_appearances`에서 산출하되 기여값만 이 테이블에 남는다.
+
+> `scoring_version`은 가중치 설정 전체를 복제하는 컬럼이 아니라, 해당 시계열이 어떤 설정 스냅샷으로 계산됐는지 연결하는 추적 키다. 기존 행은 정확한 버전을 역산할 수 없어 `null`로 유지한다.
 
 ### A-4. `game_events` — 흥미로운 순간 이벤트(확정 결과)
 
