@@ -17,7 +17,7 @@ function HeroGameCard({ game }: { game: GameCardData }) {
     <Link
       to={`/games/${game.gameId}`}
       state={{ fromCard: true }}
-      className="relative flex h-full min-h-44 flex-col overflow-hidden rounded-hero bg-gradient-to-br from-[#0B2559] to-[#04122E] p-7 shadow-hero transition-transform hover:-translate-y-0.5 md:min-h-[280px]"
+      className="relative flex h-full min-h-[232px] flex-col overflow-hidden rounded-hero bg-gradient-to-br from-[#0B2559] to-[#04122E] p-5 shadow-hero transition-transform hover:-translate-y-0.5 sm:p-7 md:min-h-[280px]"
     >
       <div
         aria-hidden="true"
@@ -28,16 +28,17 @@ function HeroGameCard({ game }: { game: GameCardData }) {
         <StatusBadge status={game.status} label={badgeLabel} />
       </div>
 
-      <TeamMatchup
-        awayTeam={game.awayTeam}
-        homeTeam={game.homeTeam}
-        size="hero"
-        tone="dark"
-        className="absolute inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-7"
-      />
+      <div className="relative flex flex-1 items-center py-5">
+        <TeamMatchup
+          awayTeam={game.awayTeam}
+          homeTeam={game.homeTeam}
+          size="hero"
+          tone="dark"
+        />
+      </div>
 
       {game.metaText && (
-        <span className="absolute bottom-7 left-7 rounded-full bg-white/10 px-3.5 py-1.5 text-sm font-semibold text-white">
+        <span className="relative line-clamp-2 max-w-full self-start rounded-2xl bg-white/10 px-3.5 py-1.5 text-sm font-semibold leading-5 text-white">
           {game.metaText}
         </span>
       )}
