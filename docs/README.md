@@ -33,6 +33,7 @@
 | [API_CONTRACTS.md](design/API_CONTRACTS.md) | REST/SSE 명세, 모듈 인터페이스, 메시징·캐시 스키마 |
 | [TECH_STACK.md](design/TECH_STACK.md) | 기술 스택 선정 이유, 배포 토폴로지, 기각 목록 |
 | [PROJECT_STRUCTURE.md](design/PROJECT_STRUCTURE.md) | 레포 폴더·패키지 구조와 의존 방향 |
+| [OBSERVABILITY.md](design/OBSERVABILITY.md) | Prometheus 지표 정의, Grafana 조회·경보 기준 |
 
 ## reference — 데이터 레퍼런스
 
@@ -46,4 +47,3 @@
 |---|---|
 | [CONVENTIONS.md](team/CONVENTIONS.md) | 브랜치·커밋·PR 규칙, 코드 컨벤션 |
 | [ROLES_AND_SCHEDULE.md](team/ROLES_AND_SCHEDULE.md) | 담당 영역, 계약 지점, 완료 기준, 일정 |
-| [OPERATIONS.md](team/OPERATIONS.md) | 운영 점검, Prometheus·Grafana 지표, 장애 초동 대응·복구 기준 |
