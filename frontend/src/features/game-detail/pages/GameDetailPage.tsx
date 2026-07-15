@@ -69,13 +69,21 @@ function GameDetailPage() {
         );
 
     /**
-     * 이벤트 타임라인은 진행 경기와 종료 경기에서만 조회한다.
+     * 경기 흐름은 진행 경기와 종료 경기에서만 제공한다.
+     *
+     * 보호 모드는 보호 안전 이벤트 API만 사용하고,
+     * 공개 모드는 최근 플레이 API만 사용해
+     * 두 데이터가 중복으로 조회·노출되지 않도록 한다.
      */
-    const shouldFetchEvents =
+    const shouldFetchGameFlow =
         gameDetailQuery.data?.status
         === 'STATUS_IN_PROGRESS'
         || gameDetailQuery.data?.status
         === 'STATUS_FINAL';
+
+    const shouldFetchEvents =
+        mode === 'PROTECTED'
+        && shouldFetchGameFlow;
 
     const gameEventsQuery =
         useGameEventsQuery(
@@ -84,18 +92,9 @@ function GameDetailPage() {
             shouldFetchEvents,
         );
 
-    /**
-     * 최근 플레이에는 점수, 초·말, 실제 플레이 문구가 포함되므로
-     * 진행·종료 경기의 공개 모드에서만 조회한다.
-     */
     const shouldFetchRecentPlays =
         mode === 'REVEALED'
-        && (
-            gameDetailQuery.data?.status
-            === 'STATUS_IN_PROGRESS'
-            || gameDetailQuery.data?.status
-            === 'STATUS_FINAL'
-        );
+        && shouldFetchGameFlow;
 
     const recentPlaysQuery =
         useGameRecentPlaysQuery(
@@ -179,7 +178,7 @@ function GameDetailPage() {
         detail.displayMode === 'REVEALED';
 
     /**
-     * 이벤트 API 응답을 기존 EventTimeline 화면 모델로 변환한다.
+     * 보호 모드의 경기 흐름은 스포일러 안전 이벤트를 사용한다.
      */
     const timelineEvents =
         gameEventsQuery.data
@@ -188,14 +187,19 @@ function GameDetailPage() {
             )
             : [];
 
-    const eventTimelineContent =
+    const orderedTimelineEvents =
+        detail.kind === 'FINAL'
+            ? timelineEvents
+            : [...timelineEvents].reverse();
+
+    const protectedGameFlowContent =
         gameEventsQuery.isPending ? (
             <Card>
                 <div
                     className="py-6 text-center text-sm text-text-muted"
                     role="status"
                 >
-                    이벤트를 불러오는 중입니다.
+                    경기 흐름을 불러오는 중입니다.
                 </div>
             </Card>
         ) : (
@@ -204,18 +208,22 @@ function GameDetailPage() {
         ) ? (
             <Card>
                 <p className="py-2 text-sm text-text-muted">
-                    이벤트 타임라인을 불러오지 못했습니다.
+                    경기 흐름을 불러오지 못했습니다.
                 </p>
             </Card>
         ) : (
             <EventTimeline
+                title="경기 흐름"
                 mode={detail.displayMode}
-                events={timelineEvents}
+                events={orderedTimelineEvents}
             />
         );
 
     /**
-     * 최근 플레이 API 응답을 화면 모델로 변환한다.
+     * 공개 모드의 경기 흐름은 최근 타석 결과를 사용한다.
+     *
+     * API가 반환한 플레이 문구를 화면에서 다시 요약하거나
+     * 조합하지 않고 기존 매퍼를 통해 그대로 표시한다.
      *
      * 점수 표시는 상세 응답의 원정팀·홈팀 약어를 사용한다.
      */
@@ -228,14 +236,14 @@ function GameDetailPage() {
             )
             : [];
 
-    const recentPlayContent =
+    const revealedGameFlowContent =
         recentPlaysQuery.isPending ? (
             <Card>
                 <div
                     className="py-6 text-center text-sm text-text-muted"
                     role="status"
                 >
-                    최근 플레이를 불러오는 중입니다.
+                    경기 흐름을 불러오는 중입니다.
                 </div>
             </Card>
         ) : (
@@ -244,20 +252,33 @@ function GameDetailPage() {
         ) ? (
             <Card>
                 <p className="py-2 text-sm text-text-muted">
-                    최근 플레이를 불러오지 못했습니다.
+                    경기 흐름을 불러오지 못했습니다.
                 </p>
             </Card>
         ) : (
             <RecentPlayList
+                title="경기 흐름"
                 plays={recentPlays}
             />
         );
 
+    /*
+     * 현재 공개 상태에 맞는 데이터 원천 하나만 선택한다.
+     * 보호 이벤트와 최근 플레이가 동시에 노출되지 않게 한다.
+     */
+    const gameFlowContent =
+        isRevealed
+            ? revealedGameFlowContent
+            : protectedGameFlowContent;
+
     /**
      * 종료 경기 상세 화면이다.
      *
-     * 공개 모드 화면 순서:
-     * 이닝별 점수판 → 이벤트 타임라인 → 최근 플레이
+     * 보호 모드:
+     * 상세 정보 → 보호 안전 이벤트 기반 경기 흐름
+     *
+     * 공개 모드:
+     * 이닝별 점수판 → 최근 플레이 기반 경기 흐름
      */
     if (detail.kind === 'FINAL') {
         return (
@@ -292,10 +313,7 @@ function GameDetailPage() {
                         data={detail}
                     />
 
-                    {eventTimelineContent}
-
-                    {isRevealed
-                        && recentPlayContent}
+                    {gameFlowContent}
                 </div>
 
                 <aside className="lg:sticky lg:top-[86px]">
@@ -312,8 +330,9 @@ function GameDetailPage() {
     /**
      * 진행 경기 상세 화면이다.
      *
-     * 이벤트 타임라인 아래에 최근 플레이를 배치하며,
-     * 최근 플레이는 공개 모드에서만 렌더링한다.
+     * 보호 모드는 보호 안전 이벤트를,
+     * 공개 모드는 최근 플레이를 경기 흐름으로 표시한다.
+     * 두 목록은 동시에 렌더링하지 않는다.
      */
     return (
         <div className="mx-auto grid max-w-[1160px] grid-cols-1 items-start gap-10 px-4 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_336px]">
@@ -406,10 +425,7 @@ function GameDetailPage() {
                     }
                 />
 
-                {eventTimelineContent}
-
-                {isRevealed
-                    && recentPlayContent}
+                {gameFlowContent}
             </div>
 
             <aside className="lg:sticky lg:top-[86px]">

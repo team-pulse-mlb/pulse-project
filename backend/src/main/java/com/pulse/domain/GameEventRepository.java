@@ -36,6 +36,17 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     List<GameEvent> findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(Long gameId, String spoilerLevel);
 
+    /**
+     * 보호 모드 경기 흐름에 노출할 급변 하이라이트만 시간순으로 조회한다.
+     *
+     * 일반 보호 이벤트 전체를 반환하지 않고
+     * is_timeline_highlight=true로 선택된 이벤트만 반환한다.
+     */
+    List<GameEvent>
+            findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
+                    Long gameId,
+                    String spoilerLevel);
+
     /** 보호 문구의 '기여 라벨' 산출용. 같은 이닝의 보호 이벤트를 시간순으로 조회한다. */
     List<GameEvent> findByGameIdAndInningAndSpoilerLevelOrderByObservedAtAscIdAsc(
             Long gameId, Integer inning, String spoilerLevel);
