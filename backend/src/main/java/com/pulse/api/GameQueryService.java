@@ -8,194 +8,583 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class GameQueryService {
 
-    private static final int DETAIL_RECENT_PLAY_COUNT = 20;
-
     private final GameRepository gameRepository;
+
+    /*
+     * games의 팀 ID와 MLB 공식 로고용 ID는 서로 다를 수 있으므로
+     * teams.logo_team_id를 조회하기 위해 사용한다.
+     */
+    private final TeamRepository teamRepository;
+
     private final PlayRepository playRepository;
-    private final WatchScoreRepository watchScoreRepository;
+    private final PlayerRepository playerRepository;
+    private final LineupRepository lineupRepository;
 
-    public GameDetailView getGameDetail(long gameId, String mode) {
+    /**
+     * 경기 상태와 사용자가 선택한 공개 모드에 맞는 상세 응답을 반환한다.
+     *
+     * 보호 모드에서는 점수, 초·말, 현재 타자·투수처럼
+     * 경기 결과나 공격 팀을 드러낼 수 있는 필드를 응답에서 제거한다.
+     */
+    public GameDetailView getGameDetail(
+            long gameId,
+            String mode) {
+
         Game game = findGame(gameId);
-        WatchScore latestScore = latestScore(gameId);
-        List<Play> recentPlays = recentPlays(gameId, DETAIL_RECENT_PLAY_COUNT);
-
-        // mode 파라미터는 사용자가 직접 입력하는 값이므로 대소문자 차이와 공백을 방어한다.
-        // 잘못된 값이 들어오면 스포일러 보호 원칙에 따라 PROTECTED로 처리한다.
         DisplayMode safeMode = parseDisplayMode(mode);
 
-        // 기존 코드에서 NORMAL을 쓰고 있을 수 있으므로
-        // 당장은 NORMAL도 REVEALED와 같은 공개 모드로 취급한다.
-        // 추후 NORMAL은 제거 가능
-        boolean revealed = safeMode == DisplayMode.REVEALED || safeMode == DisplayMode.NORMAL;
+        /*
+         * 기존 클라이언트 호환을 위해 NORMAL은 공개 모드로 처리한다.
+         * 신규 API와 프론트에서는 PROTECTED와 REVEALED만 사용한다.
+         */
+        boolean revealed =
+                safeMode == DisplayMode.REVEALED
+                        || safeMode == DisplayMode.NORMAL;
+
+        /*
+         * 종료 경기에는 현재 타석이나 B/S/O 상황이 존재하지 않는다.
+         *
+         * 마지막으로 수집된 play가 경기 종료 시점보다 오래된 데이터일 수도
+         * 있으므로, 종료 경기는 play 기반 상황을 만들지 않고 전용 DTO로 분기한다.
+         */
+        if (game.isFinal()) {
+            return finalGameDetail(game, revealed);
+        }
+
+        /*
+         * 예정 경기에는 공개할 결과가 없다.
+         *
+         * mode 요청값과 관계없이 예정 경기 전용 응답을 반환하며,
+         * 프론트에서는 보호/공개 토글을 표시하지 않는다.
+         */
+        if (Game.STATUS_SCHEDULED.equals(game.getStatus())) {
+            return scheduledGameDetail(game);
+        }
+
+        Play latestPlay = latestPlay(gameId);
+
+        TeamResponse homeTeam =
+                team(
+                        game.getHomeTeamId(),
+                        game.getHomeTeamName(),
+                        game.getHomeTeamAbbr());
+
+        TeamResponse awayTeam =
+                team(
+                        game.getAwayTeamId(),
+                        game.getAwayTeamName(),
+                        game.getAwayTeamAbbr());
+
+        Integer inning = currentInning(game, latestPlay);
+        SituationResponse situation = situation(latestPlay);
 
         if (revealed) {
-            // 공개 모드는 사용자가 직접 스포일러 공개를 선택한 경우다.
-            // 따라서 팀명, 점수, play text, 득점 관련 필드를 포함한다.
             return new RevealedGameDetailResponse(
                     game.getId(),
                     game.getStatus(),
+                    DisplayMode.REVEALED,
+                    homeTeam,
+                    awayTeam,
                     game.getStartTime(),
-                    game.getPeriod(),
-                    team(game.getHomeTeamId(), game.getHomeTeamName(), game.getHomeTeamAbbr()),
-                    team(game.getAwayTeamId(), game.getAwayTeamName(), game.getAwayTeamAbbr()),
                     score(game),
-                    revealedHeadline(game),
-                    scoreSummary(latestScore),
-                    recentPlays.stream()
-                            .map(GameQueryService::revealedPlayResponse)
-                            .toList(),
-                    DisplayMode.REVEALED
-            );
+                    inning,
+                    latestPlay == null
+                            ? null
+                            : latestPlay.getInningType(),
+                    situation,
+                    currentMatchup(latestPlay),
+                    favoritePlayersPlaying(),
+                    inningScores(game));
         }
 
-        // 보호 모드는 기본 응답이다.
-        // DTO 자체에서 팀명, 점수, 득점 여부, play text를 제외해
-        // 실수로 null이 아닌 값이 직렬화되는 위험을 줄인다.
         return new ProtectedGameDetailResponse(
                 game.getId(),
                 game.getStatus(),
+                DisplayMode.PROTECTED,
+                homeTeam,
+                awayTeam,
                 game.getStartTime(),
                 periodLabel(game),
-                protectedHeadline(game),
-                protectedSummary(latestScore),
-                recentPlays.stream()
-                        .map(GameQueryService::protectedPlayResponse)
-                        .toList(),
-                DisplayMode.PROTECTED
-        );
+                inning,
+                situation,
+                favoritePlayersPlaying(),
+                null);
     }
 
     private Game findGame(long gameId) {
-        return gameRepository.findById(gameId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "game not found: " + gameId));
+        return gameRepository
+                .findById(gameId)
+                .orElseThrow(
+                        () ->
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "game not found: " + gameId));
     }
 
-    private WatchScore latestScore(long gameId) {
-        return watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(gameId).orElse(null);
+    /**
+     * 예정 경기 상세에서는 결과성 데이터 없이
+     * 매치업, 시작 시각, 구장, 예상 선발 투수만 반환한다.
+     */
+    private GameDetailView scheduledGameDetail(Game game) {
+        TeamResponse homeTeam =
+                team(
+                        game.getHomeTeamId(),
+                        game.getHomeTeamName(),
+                        game.getHomeTeamAbbr());
+
+        TeamResponse awayTeam =
+                team(
+                        game.getAwayTeamId(),
+                        game.getAwayTeamName(),
+                        game.getAwayTeamAbbr());
+
+        return new ScheduledGameDetailResponse(
+                game.getId(),
+                game.getStatus(),
+                DisplayMode.PROTECTED,
+                homeTeam,
+                awayTeam,
+                game.getStartTime(),
+                nullableText(game.getVenue()),
+                probablePitchers(game));
     }
 
-    private List<Play> recentPlays(long gameId, int count) {
-        List<Play> plays = playRepository.findByGameIdOrderByPlayOrderDesc(gameId, PageRequest.of(0, count));
-        Collections.reverse(plays);
-        return plays;
+    /**
+     * lineups에서 예상 선발로 지정된 선수를 찾아
+     * 홈·원정 팀별 선수 이름으로 변환한다.
+     *
+     * 선발이 아직 확정되지 않았거나 선수 정보가 없으면
+     * 해당 home/away 값은 null로 반환한다.
+     */
+    private ProbablePitchersResponse probablePitchers(Game game) {
+        List<Lineup> probablePitcherLineups =
+                lineupRepository
+                        .findByGameIdAndIsProbablePitcherTrue(
+                                game.getId());
+
+        if (probablePitcherLineups.isEmpty()) {
+            return new ProbablePitchersResponse(
+                    null,
+                    null);
+        }
+
+        /*
+         * 선수마다 개별 쿼리를 실행하지 않도록
+         * 필요한 선수 ID를 한 번에 조회한다.
+         */
+        List<Long> playerIds =
+                probablePitcherLineups
+                        .stream()
+                        .map(Lineup::getPlayerId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+
+        Map<Long, Player> playersById =
+                playerRepository
+                        .findAllById(playerIds)
+                        .stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Player::getId,
+                                        Function.identity()));
+
+        String homePitcher = null;
+        String awayPitcher = null;
+
+        for (Lineup lineup : probablePitcherLineups) {
+            Player player =
+                    playersById.get(
+                            lineup.getPlayerId());
+
+            String name = playerName(player);
+
+            if (name == null) {
+                continue;
+            }
+
+            if (Objects.equals(
+                    lineup.getTeamId(),
+                    game.getHomeTeamId())) {
+
+                if (homePitcher == null) {
+                    homePitcher = name;
+                }
+
+                continue;
+            }
+
+            if (Objects.equals(
+                    lineup.getTeamId(),
+                    game.getAwayTeamId())
+                    && awayPitcher == null) {
+
+                awayPitcher = name;
+            }
+        }
+
+        return new ProbablePitchersResponse(
+                homePitcher,
+                awayPitcher);
     }
 
-    private static TeamResponse team(Long id, String name, String abbr) {
-        return new TeamResponse(id, name, abbr);
+    /**
+     * 종료 경기는 진행 경기와 응답 필드가 다르므로
+     * 마지막 play 기반 상황 정보 없이 전용 응답을 반환한다.
+     */
+    private GameDetailView finalGameDetail(
+            Game game,
+            boolean revealed) {
+
+        TeamResponse homeTeam =
+                team(
+                        game.getHomeTeamId(),
+                        game.getHomeTeamName(),
+                        game.getHomeTeamAbbr());
+
+        TeamResponse awayTeam =
+                team(
+                        game.getAwayTeamId(),
+                        game.getAwayTeamName(),
+                        game.getAwayTeamAbbr());
+
+        if (revealed) {
+            return new RevealedFinalGameDetailResponse(
+                    game.getId(),
+                    game.getStatus(),
+                    DisplayMode.REVEALED,
+                    homeTeam,
+                    awayTeam,
+                    game.getStartTime(),
+                    nullableText(
+                            game.getFinalHeadlineRevealed()),
+                    score(game),
+                    inningScores(game),
+                    scoringSummary(game.getId()),
+
+                    /*
+                     * 경기 흐름 그래프는 추후 디자인과 데이터 구조를
+                     * 함께 재작업하므로 현재 단계에서는 빈 배열을 반환한다.
+                     */
+                    List.of());
+        }
+
+        return new ProtectedFinalGameDetailResponse(
+                game.getId(),
+                game.getStatus(),
+                DisplayMode.PROTECTED,
+                homeTeam,
+                awayTeam,
+                game.getStartTime(),
+                nullableText(
+                        game.getFinalHeadlineProtected()),
+
+                /*
+                 * 보호 모드 경기 흐름도 추후 작업 전까지
+                 * 빈 배열로 반환한다.
+                 */
+                List.of());
+    }
+
+    /**
+     * 현재 상황과 현재 타석은 가장 최근 play 스냅샷을 기준으로 만든다.
+     */
+    private Play latestPlay(long gameId) {
+        return playRepository
+                .findByGameIdOrderByPlayOrderDesc(
+                        gameId,
+                        PageRequest.of(0, 1))
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * 득점 플레이는 plays 테이블에서 scoring_play=true인 행만 사용한다.
+     *
+     * 외부 API의 별도 scoring summary를 전달하거나,
+     * 수집되지 않은 후반 득점 장면을 서버가 추측해서 생성하지 않는다.
+     */
+    private List<ScoringPlayResponse> scoringSummary(
+            long gameId) {
+
+        return playRepository
+                .findByGameIdOrderByPlayOrderAsc(gameId)
+                .stream()
+                .filter(
+                        play ->
+                                Boolean.TRUE.equals(
+                                        play.getScoringPlay()))
+                .filter(
+                        play ->
+                                hasText(play.getText()))
+                .map(
+                        play ->
+                                new ScoringPlayResponse(
+                                        play.getInning(),
+                                        play.getInningType(),
+                                        play.getText().trim()))
+                .toList();
+    }
+
+    private TeamResponse team(
+            Long id,
+            String name,
+            String abbr) {
+
+        /*
+         * balldontlie 팀 ID와 MLB 로고용 ID는 서로 다를 수 있으므로
+         * games의 팀 ID를 URL에 직접 사용하지 않고 teams에서 조회한다.
+         */
+        String logoUrl =
+                id == null
+                        ? null
+                        : teamRepository
+                                .findById(id)
+                                .map(Team::getLogoTeamId)
+                                .map(GameQueryService::teamLogoUrl)
+                                .orElse(null);
+
+        return new TeamResponse(
+                id,
+                name,
+                abbr,
+                logoUrl);
+    }
+
+    /**
+     * teams.logo_team_id를 MLB 공식 팀 로고 주소로 변환한다.
+     */
+    private static String teamLogoUrl(
+            Long logoTeamId) {
+
+        if (logoTeamId == null) {
+            return null;
+        }
+
+        return "https://www.mlbstatic.com/team-logos/"
+                + logoTeamId
+                + ".svg";
     }
 
     private static ScoreResponse score(Game game) {
-        return new ScoreResponse(game.getHomeRuns(), game.getAwayRuns());
+        return new ScoreResponse(
+                game.getHomeRuns(),
+                game.getAwayRuns());
     }
 
-    private static String protectedHeadline(Game game) {
-        return normalizedHeadline(game.getFinalHeadlineProtected());
+    /**
+     * 진행 경기에서는 play의 이닝을 우선 사용한다.
+     *
+     * 아직 play가 수집되지 않았다면 games.period를 사용한다.
+     * 종료 경기는 이 메서드를 사용하지 않고 finalGameDetail로 분기된다.
+     */
+    private static Integer currentInning(
+            Game game,
+            Play latestPlay) {
+
+        if (latestPlay != null
+                && latestPlay.getInning() != null) {
+            return latestPlay.getInning();
+        }
+
+        return game.getPeriod();
     }
 
-    private static String revealedHeadline(Game game) {
-        return normalizedHeadline(game.getFinalHeadlineRevealed());
-    }
-
-    private static String normalizedHeadline(String headline) {
-        if (headline == null || headline.isBlank()) {
+    /**
+     * 현재 타석이 없거나 이닝 교대 중이면 situation=null을 반환한다.
+     */
+    private static SituationResponse situation(Play play) {
+        if (play == null) {
             return null;
         }
-        return headline;
-    }
 
-    private static ScoreSummaryResponse scoreSummary(WatchScore latestScore) {
-        if (latestScore == null) {
-            return null;
-        }
-        return new ScoreSummaryResponse(
-                numericScore(latestScore.getBaseScore()),
-                numericScore(latestScore.getWatchScore()),
-                latestScore.getSignalContributions(),
-                latestScore.getTags(),
-                null,
-                latestScore.getComputedAt()
-        );
-    }
+        boolean runnerOnFirst =
+                Boolean.TRUE.equals(
+                        play.getRunnerOnFirst());
 
-    private static ProtectedSummaryResponse protectedSummary(WatchScore latestScore) {
-        // 아직 추천 점수가 계산되지 않은 경기일 수 있으므로 null을 허용한다.
-        // protected 응답에서는 내부 점수 숫자보다 사용자가 이해할 수 있는
-        // 스포일러 없는 reason tag만 내려준다.
-        if (latestScore == null) {
-            return new ProtectedSummaryResponse(List.of());
-        }
+        boolean runnerOnSecond =
+                Boolean.TRUE.equals(
+                        play.getRunnerOnSecond());
 
-        return new ProtectedSummaryResponse(
-                latestScore.getTags() == null ? List.of() : latestScore.getTags()
-        );
-    }
+        boolean runnerOnThird =
+                Boolean.TRUE.equals(
+                        play.getRunnerOnThird());
 
-    private static double numericScore(Integer score) {
-        return score == null ? 0.0 : score.doubleValue();
-    }
-
-    private static RevealedPlayResponse revealedPlayResponse(Play play) {
-        // 공개 모드에서는 사용자가 스포일러 공개를 선택했으므로
-        // play text, 점수 변화, 득점 여부를 모두 내려줄 수 있다.
-        return new RevealedPlayResponse(
-                play.getId(),
-                play.getPlayOrder(),
-                play.getType(),
-                play.getInning(),
-                play.getInningType(),
-                play.getText(),
-                play.getHomeScore(),
-                play.getAwayScore(),
-                play.getScoringPlay(),
-                play.getScoreValue(),
+        return new SituationResponse(
                 play.getOuts(),
                 play.getBalls(),
                 play.getStrikes(),
-                play.getFetchedAt()
-        );
+                runnerOnFirst,
+                runnerOnSecond,
+                runnerOnThird,
+                runnerOnSecond || runnerOnThird,
+                runnerOnFirst
+                        && runnerOnSecond
+                        && runnerOnThird);
     }
 
-    private static ProtectedPlayResponse protectedPlayResponse(Play play) {
-        // 보호 모드에서는 play text를 제외한다.
-        // text에는 "homered", "scored", "RBI", "walk-off"처럼
-        // 결과를 직접 드러내는 문구가 포함될 수 있기 때문이다.
-        //
-        // homeScore, awayScore, scoringPlay, scoreValue도 제외한다.
-        // 이 값들은 점수 변화와 득점 발생 여부를 직접 드러낸다.
-        return new ProtectedPlayResponse(
-                play.getType(),
-                play.getInning(),
-                play.getInningType(),
-                play.getOuts(),
-                play.getBalls(),
-                play.getStrikes()
-        );
+    /**
+     * 현재 타자와 투수는 공개 모드에서만 반환한다.
+     *
+     * 타자와 투수 중 하나라도 식별할 수 없으면
+     * currentMatchup 전체를 null로 반환한다.
+     */
+    private CurrentMatchupResponse currentMatchup(
+            Play play) {
+
+        if (play == null
+                || play.getBatterId() == null
+                || play.getPitcherId() == null) {
+            return null;
+        }
+
+        PlayerResponse batter =
+                playerResponse(
+                        play.getBatterId());
+
+        PlayerResponse pitcher =
+                playerResponse(
+                        play.getPitcherId());
+
+        if (batter == null || pitcher == null) {
+            return null;
+        }
+
+        return new CurrentMatchupResponse(
+                batter,
+                pitcher);
     }
 
-    private static DisplayMode parseDisplayMode(String mode) {
-        // mode가 없거나 공백이면 기본값은 PROTECTED다.
-        // PULSE는 사용자가 명시적으로 공개를 선택하기 전까지 스포일러를 숨긴다.
+    private PlayerResponse playerResponse(Long playerId) {
+        return playerRepository
+                .findById(playerId)
+                .map(
+                        player -> {
+                            String name =
+                                    playerName(player);
+
+                            if (name == null) {
+                                return null;
+                            }
+
+                            return new PlayerResponse(
+                                    player.getId(),
+                                    name);
+                        })
+                .orElse(null);
+    }
+
+    /**
+     * fullName을 우선 사용하고,
+     * 없으면 firstName과 lastName을 조합한다.
+     */
+    private static String playerName(Player player) {
+        if (player == null) {
+            return null;
+        }
+
+        if (hasText(player.getFullName())) {
+            return player.getFullName().trim();
+        }
+
+        String firstName =
+                hasText(player.getFirstName())
+                        ? player.getFirstName().trim()
+                        : "";
+
+        String lastName =
+                hasText(player.getLastName())
+                        ? player.getLastName().trim()
+                        : "";
+
+        String combinedName =
+                (firstName + " " + lastName).trim();
+
+        return combinedName.isBlank()
+                ? null
+                : combinedName;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null
+                && !value.isBlank();
+    }
+
+    /**
+     * DB의 빈 문자열은 의미 있는 화면 문구가 아니므로
+     * API 응답에서는 null로 통일한다.
+     */
+    private static String nullableText(String value) {
+        return hasText(value)
+                ? value.trim()
+                : null;
+    }
+
+    private static InningScoresResponse inningScores(
+            Game game) {
+
+        return new InningScoresResponse(
+                safeInningScores(
+                        game.getAwayInningScores()),
+                safeInningScores(
+                        game.getHomeInningScores()));
+    }
+
+    /**
+     * 종료 경기의 마지막 홈 공격처럼 null 값이 포함될 수 있다.
+     *
+     * List.copyOf는 null 원소가 있으면 예외가 발생하므로
+     * ArrayList로 복사한다.
+     */
+    private static List<Integer> safeInningScores(
+            List<Integer> scores) {
+
+        return scores == null
+                ? List.of()
+                : new ArrayList<>(scores);
+    }
+
+    /**
+     * 관심 선수 정보는 인증 사용자 설정과 연결하는 후속 작업이다.
+     *
+     * 최신 응답 계약의 필드는 유지하되 현재 단계에서는
+     * 빈 목록을 반환한다.
+     */
+    private static List<String> favoritePlayersPlaying() {
+        return List.of();
+    }
+
+    /**
+     * mode가 없거나 잘못된 값이면 보호 모드로 처리한다.
+     *
+     * 잘못된 요청 때문에 공개 응답이 반환되는 것을 방지한다.
+     */
+    private static DisplayMode parseDisplayMode(
+            String mode) {
+
         if (mode == null || mode.isBlank()) {
             return DisplayMode.PROTECTED;
         }
 
-        String normalizedMode = mode.trim().toUpperCase();
+        String normalizedMode =
+                mode.trim().toUpperCase();
 
-        // 프론트/사용자 요청은 보통 protected/revealed 소문자로 들어올 수 있다.
-        // 내부 enum은 대문자이므로 여기서 한 번 정규화한다.
         try {
-            return DisplayMode.valueOf(normalizedMode);
-        } catch (IllegalArgumentException e) {
-            // 알 수 없는 mode 값은 에러로 공개하지 않고 보호 모드로 처리한다.
-            // 잘못된 요청 때문에 스포일러가 노출되는 일을 막기 위한 안전장치다.
+            return DisplayMode.valueOf(
+                    normalizedMode);
+        } catch (IllegalArgumentException exception) {
             return DisplayMode.PROTECTED;
         }
     }
@@ -204,146 +593,211 @@ public class GameQueryService {
         if (game.isFinal()) {
             return "경기 종료";
         }
+
         if (!game.isLive()) {
             return "경기 전";
         }
+
         Integer period = game.getPeriod();
+
         if (period == null) {
             return "진행 중";
         }
+
         if (period >= 10) {
             return "연장";
         }
+
         if (period >= 7) {
             return "후반";
         }
+
         if (period >= 4) {
             return "중반";
         }
+
         return "초반";
     }
 
     public enum DisplayMode {
-        // 기본값. 점수, 팀명, 승패, 결과성 play 정보를 숨긴다.
         PROTECTED,
-
-        // 사용자가 직접 스포일러 공개를 선택한 경우에만 사용한다.
         REVEALED,
 
-        // 기존 코드 호환용이다.
-        // 새 API 문서와 프론트에서는 REVEALED 사용을 권장한다.
+        /*
+         * 기존 호출 호환용이다.
+         * 신규 API와 프론트에서는 사용하지 않는다.
+         */
         NORMAL
     }
 
+    /**
+     * 경기 상태와 공개 모드에 따라 서로 다른 DTO를 반환하기 위한
+     * 공통 응답 타입이다.
+     */
     public sealed interface GameDetailView
-            permits ProtectedGameDetailResponse, RevealedGameDetailResponse {
-        // 경기 상세 응답의 공통 타입이다.
-        // protected와 revealed는 응답 필드가 다르지만,
-        // 컨트롤러에서는 "경기 상세 응답"이라는 하나의 타입으로 반환하기 위해 사용한다.
-    }
+            permits ScheduledGameDetailResponse,
+            ProtectedGameDetailResponse,
+            RevealedGameDetailResponse,
+            ProtectedFinalGameDetailResponse,
+            RevealedFinalGameDetailResponse {}
 
+    /**
+     * 예정 경기 상세 응답이다.
+     *
+     * 공개할 결과가 없으므로 항상 PROTECTED이며,
+     * 점수·이닝·현재 상황·이벤트·AI 문구를 포함하지 않는다.
+     */
+    public record ScheduledGameDetailResponse(
+            long gameId,
+            String status,
+            DisplayMode displayMode,
+            TeamResponse homeTeam,
+            TeamResponse awayTeam,
+            Instant startTime,
+            String venue,
+            ProbablePitchersResponse probablePitchers)
+            implements GameDetailView {}
+
+    /**
+     * 진행 경기 보호 응답이다.
+     *
+     * 팀 정보, 이닝 숫자, 현재 상황은 제공하지만
+     * 점수, 초·말, 현재 타자·투수는 제공하지 않는다.
+     */
     public record ProtectedGameDetailResponse(
             long gameId,
             String status,
+            DisplayMode displayMode,
+            TeamResponse homeTeam,
+            TeamResponse awayTeam,
             Instant startTime,
-
-            // 보호 모드에서는 정확한 점수나 팀 우세를 드러내지 않는다.
-            // 이닝도 숫자 자체보다 초반/중반/후반/연장 같은 흐름 라벨로 제공한다.
             String periodLabel,
+            Integer inning,
+            SituationResponse situation,
+            List<String> favoritePlayersPlaying,
+            SwitchSuggestionResponse switchSuggestion)
+            implements GameDetailView {}
 
-            // 저장된 PROTECTED FINAL_HEADLINE이다.
-            // 없거나 blank이면 null로 내려간다.
-            String headline,
-
-            // 보호 모드에서는 내부 watchScore 숫자를 숨긴다.
-            // 사용자에게는 스포일러 없는 추천 태그만 제공한다.
-            ProtectedSummaryResponse summary,
-
-            // 보호 모드용 play 목록이다.
-            // 팀명, 점수, 득점 여부, play text를 포함하지 않는다.
-            List<ProtectedPlayResponse> recentPlays,
-
-            DisplayMode displayMode
-    ) implements GameDetailView {
-    }
-
+    /**
+     * 진행 경기 공개 응답이다.
+     */
     public record RevealedGameDetailResponse(
             long gameId,
             String status,
-            Instant startTime,
-            Integer period,
-
-            // 공개 모드에서는 사용자가 스포일러 공개를 선택했으므로
-            // 홈/원정 팀 정보를 제공한다.
+            DisplayMode displayMode,
             TeamResponse homeTeam,
             TeamResponse awayTeam,
-
-            // 공개 모드에서만 점수를 제공한다.
+            Instant startTime,
             ScoreResponse score,
-
-            // 저장된 REVEALED FINAL_HEADLINE이다.
-            // 없거나 blank이면 null로 내려간다.
-            String headline,
-
-            // 공개 모드에서는 내부 추천 점수와 signal도 확인할 수 있다.
-            ScoreSummaryResponse scoreSummary,
-
-            // 공개 모드용 play 목록이다.
-            // play text, 점수 변화, 득점 여부를 포함한다.
-            List<RevealedPlayResponse> recentPlays,
-
-            DisplayMode displayMode
-    ) implements GameDetailView {
-    }
-
-    public record ProtectedSummaryResponse(
-            // 예: 후반 긴장 구간, 득점권 압박, 접전 흐름
-            // 단, 홈런 발생/역전 성공/끝내기 같은 결과성 태그는 넣으면 안 된다.
-            List<String> reasonTags
-    ) {
-    }
-
-    public record RevealedPlayResponse(
-            Long id,
-            Long playOrder,
-            String type,
             Integer inning,
             String inningType,
-            String text,
-            Integer homeScore,
-            Integer awayScore,
-            Boolean scoringPlay,
-            Integer scoreValue,
+            SituationResponse situation,
+            CurrentMatchupResponse currentMatchup,
+            List<String> favoritePlayersPlaying,
+            InningScoresResponse inningScores)
+            implements GameDetailView {}
+
+    /**
+     * 종료 경기 보호 응답이다.
+     *
+     * 점수, 초·말, 득점 플레이처럼 결과를 드러내는 필드를
+     * 포함하지 않는다.
+     */
+    public record ProtectedFinalGameDetailResponse(
+            long gameId,
+            String status,
+            DisplayMode displayMode,
+            TeamResponse homeTeam,
+            TeamResponse awayTeam,
+            Instant startTime,
+            String headline,
+            List<ProtectedTensionPointResponse> tensionCurve)
+            implements GameDetailView {}
+
+    /**
+     * 종료 경기 공개 응답이다.
+     *
+     * 진행 경기의 현재 상황 대신 최종 점수와
+     * 득점 플레이 목록을 제공한다.
+     */
+    public record RevealedFinalGameDetailResponse(
+            long gameId,
+            String status,
+            DisplayMode displayMode,
+            TeamResponse homeTeam,
+            TeamResponse awayTeam,
+            Instant startTime,
+            String headline,
+            ScoreResponse finalScore,
+            InningScoresResponse inningScores,
+            List<ScoringPlayResponse> scoringSummary,
+            List<RevealedTensionPointResponse> tensionCurve)
+            implements GameDetailView {}
+
+    public record TeamResponse(
+            Long id,
+            String name,
+            String abbr,
+            String logoUrl) {}
+
+    public record ScoreResponse(
+            Integer home,
+            Integer away) {}
+
+    public record SituationResponse(
             Integer outs,
             Integer balls,
             Integer strikes,
-            Instant fetchedAt
-    ) {
-    }
+            boolean runnerOnFirst,
+            boolean runnerOnSecond,
+            boolean runnerOnThird,
+            boolean scoringPosition,
+            boolean basesLoaded) {}
 
-    public record ProtectedPlayResponse(
-            String type,
+    public record PlayerResponse(
+            Long id,
+            String name) {}
+
+    public record CurrentMatchupResponse(
+            PlayerResponse batter,
+            PlayerResponse pitcher) {}
+
+    public record InningScoresResponse(
+            List<Integer> away,
+            List<Integer> home) {}
+
+    public record ProbablePitchersResponse(
+            String home,
+            String away) {}
+
+    public record ScoringPlayResponse(
             Integer inning,
             String inningType,
-            Integer outs,
-            Integer balls,
-            Integer strikes
-    ) {
-    }
+            String text) {}
 
-    public record TeamResponse(Long id, String name, String abbr) {
-    }
+    /**
+     * 보호 모드의 경기 흐름은 이닝 숫자와
+     * 1~5 단계 값만 제공한다.
+     */
+    public record ProtectedTensionPointResponse(
+            Integer inning,
+            Integer level) {}
 
-    public record ScoreResponse(Integer home, Integer away) {
-    }
+    /**
+     * 공개 모드의 경기 흐름은 필요할 경우
+     * 하프이닝 단위까지 제공할 수 있다.
+     */
+    public record RevealedTensionPointResponse(
+            Integer inning,
+            String inningType,
+            Integer level) {}
 
-    public record ScoreSummaryResponse(
-            double baseScore,
-            double watchScore,
-            Map<String, Double> signals,
-            List<String> reasonTags,
-            Integer configVersion,
-            Instant calculatedAt
-    ) {
-    }
+    public record SwitchSuggestionResponse(
+            long gameId,
+            MatchupResponse matchup,
+            String latestTag) {}
+
+    public record MatchupResponse(
+            String home,
+            String away) {}
 }

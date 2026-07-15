@@ -29,7 +29,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -95,7 +98,15 @@ public class HomeQueryService {
                 .stream()
                 .filter(game -> isFinishedForHome(game, now))
                 .toList();
-        List<Game> nonLiveCandidates = java.util.stream.Stream
+
+        // 최근 창(종료 48시간·예정 36시간) 안 경기만으로 추천 5개를 못 채우면
+        // 창 밖 최근 종료 경기와 다음 예정 경기로 보충해 추천 영역이 사라지지 않게 한다.
+        if (live.size() + scheduledCandidates.size() + finishedCandidates.size() < safeCount) {
+            finishedCandidates = fillFinishedFallback(finishedCandidates, safeCount);
+            scheduledCandidates = fillScheduledFallback(scheduledCandidates, now, safeCount);
+        }
+
+        List<Game> nonLiveCandidates = Stream
                 .concat(scheduledCandidates.stream(), finishedCandidates.stream())
                 .toList();
         Map<Long, Set<Long>> nonLiveLineups = lineupPlayerIdsByGame(nonLiveCandidates, preferences);
@@ -137,16 +148,21 @@ public class HomeQueryService {
         Instant endExclusive = slateDate.plusDays(1).atStartOfDay(SLATE_ZONE).toInstant();
         String normalizedStatus = normalizeStatus(status);
         String normalizedSort = normalizeSort(sort, normalizedStatus);
+        Instant now = Instant.now();
         Map<Long, Double> liveScores = "recommended".equals(normalizedSort)
                 ? rankingService.topLive(MAX_RANKING_LOOKUP)
                 : Map.of();
 
-        List<Game> candidates = gameRepository
-                .findByStartTimeGreaterThanEqualAndStartTimeLessThan(startInclusive, endExclusive)
-                .stream()
-                .filter(game -> inSlate(game, startInclusive, endExclusive))
-                .filter(game -> matchesStatus(game, normalizedStatus))
-                .toList();
+        List<Game> candidates = "scheduled".equals(normalizedStatus)
+                ? gameRepository.findByStatusAndStartTimeGreaterThanEqual(Game.STATUS_SCHEDULED, now)
+                        .stream()
+                        .filter(game -> isUpcomingScheduled(game, now))
+                        .toList()
+                : gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(startInclusive, endExclusive)
+                        .stream()
+                        .filter(game -> inSlate(game, startInclusive, endExclusive))
+                        .filter(game -> matchesStatus(game, normalizedStatus))
+                        .toList();
         UserPreferences preferences = preferencesFor(username);
         Map<Long, Set<Long>> lineupPlayerIds = lineupPlayerIdsByGame(candidates, preferences);
         List<Game> selectedGames = candidates.stream()
@@ -315,11 +331,15 @@ public class HomeQueryService {
     }
 
     private static boolean isScheduledForHome(Game game, Instant now) {
+        return isUpcomingScheduled(game, now)
+                && !game.getStartTime().isAfter(now.plusSeconds(SCHEDULED_LOOKAHEAD_HOURS * 60L * 60L));
+    }
+
+    private static boolean isUpcomingScheduled(Game game, Instant now) {
         Instant startTime = game.getStartTime();
         return Game.STATUS_SCHEDULED.equals(game.getStatus())
                 && startTime != null
-                && !startTime.isBefore(now)
-                && !startTime.isAfter(now.plusSeconds(SCHEDULED_LOOKAHEAD_HOURS * 60L * 60L));
+                && !startTime.isBefore(now);
     }
 
     private static boolean isFinishedForHome(Game game, Instant now) {
@@ -331,6 +351,38 @@ public class HomeQueryService {
 
     private static int scoreOrMin(Integer score) {
         return score == null ? Integer.MIN_VALUE : score;
+    }
+
+    /** 창 안 종료 경기에 창 밖 최근 종료 경기(시작 시각 내림차순)를 중복 없이 이어붙인다. */
+    private List<Game> fillFinishedFallback(List<Game> windowed, int limit) {
+        List<Game> recent = gameRepository.findByStatusStartingWith(
+                        Game.STATUS_FINAL,
+                        PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "startTime")))
+                .stream()
+                .filter(Game::isFinal)
+                .filter(game -> game.getStartTime() != null)
+                .toList();
+        return mergeDistinctById(windowed, recent);
+    }
+
+    /** 창 안 예정 경기에 창 밖 다음 예정 경기(시작 시각 오름차순)를 중복 없이 이어붙인다. */
+    private List<Game> fillScheduledFallback(List<Game> windowed, Instant now, int limit) {
+        List<Game> upcoming = gameRepository.findByStatusAndStartTimeGreaterThanEqual(
+                        Game.STATUS_SCHEDULED,
+                        now,
+                        PageRequest.of(0, limit, Sort.by(Sort.Direction.ASC, "startTime")))
+                .stream()
+                .filter(game -> Game.STATUS_SCHEDULED.equals(game.getStatus()))
+                .filter(game -> game.getStartTime() != null)
+                .toList();
+        return mergeDistinctById(windowed, upcoming);
+    }
+
+    private static List<Game> mergeDistinctById(List<Game> primary, List<Game> extra) {
+        Map<Long, Game> byId = new LinkedHashMap<>();
+        primary.forEach(game -> byId.putIfAbsent(game.getId(), game));
+        extra.forEach(game -> byId.putIfAbsent(game.getId(), game));
+        return List.copyOf(byId.values());
     }
 
     private Comparator<Game> personalizedComparator(

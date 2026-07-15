@@ -109,7 +109,7 @@ erDiagram
 
 ### A-2. `plays` — play 이벤트 append 로그
 
-`/plays`를 order 커서로 증분 수집해 새 play만 추가한다. 라이브 신호와 공개 상세 타임라인의 원천이다.
+`/plays`를 order 커서로 증분 수집해 새 play만 추가한다. 라이브 신호와 공개 모드 `경기 흐름`의 최근 플레이 원천이다.
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
@@ -120,6 +120,8 @@ erDiagram
 | `inning` | `SMALLINT` | 이닝 번호 | |
 | `inning_type` | `TEXT` | `Top`/`Bottom`/`Mid` | |
 | `text` | `TEXT` | play 설명 | [내부] 스포일러 검수 게이트 필요 |
+| `text_ko` | `TEXT` | 공개 최근 플레이용 한국어 번역 | nullable. LLM 결과를 화면에서 그대로 표시 |
+| `text_ko_context_hash` | `TEXT` | 번역 원문·목적 context hash | nullable. 원문과 해시가 일치할 때만 갱신 |
 | `home_score` · `away_score` | `SMALLINT` | play 후 점수 | [내부] 리드 변경 감지 |
 | `scoring_play` | `BOOLEAN` | 득점 play 여부 | 최근 득점·빅이닝 |
 | `score_value` | `SMALLINT` | 득점 수(1–3, 그 외 null) | |
@@ -135,6 +137,8 @@ erDiagram
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `play_order`)** · idx(`game_id`, `play_order`)
+
+> `text_ko`·`text_ko_context_hash`는 신규 Flyway 마이그레이션으로 추가한다. 적용 이력을 보존하기 위해 기존 baseline 파일은 수정하지 않는다.
 
 > `runner_on_*` 채움 규칙: poller가 PA를 `pa_number` 오름차순으로 소비하며 plays의 타석 경계 play에 순차 대응시키고, (`inning`, `half_inning`, `batter_id`) 일치로 검증한다. 검증 불일치·매핑 모호(재관측 순서 꼬임 등) 시 해당 타석은 `null`로 남긴다. 같은 이닝에 동일 타자가 다시 나오는 경우(batting around)에도 `pa_number` 순차 소비로 같은 결과를 보장한다.
 
@@ -164,7 +168,7 @@ erDiagram
 
 ### A-4. `game_events` — 흥미로운 순간 이벤트(확정 결과)
 
-scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하는 해석 계층이다. 경기 상세 타임라인의 원천이며, 라이브 1회 계산 결과를 종료 후 그대로 재사용한다. PA 유래 이벤트는 원본이 DB에 없으므로 이 테이블이 유일한 조회 저장소다. 원본 소급 재추출은 S3 아카이브를 사용한다.
+scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하는 해석 계층이다. 보호 모드 `경기 흐름`의 원천이며, 라이브 1회 계산 결과를 종료 후 그대로 재사용한다. 공개 모드의 `경기 흐름`은 이 테이블이 아니라 `plays`를 사용한다. PA 유래 이벤트는 원본이 DB에 없으므로 이 테이블이 유일한 조회 저장소다. 원본 소급 재추출은 S3 아카이브를 사용한다.
 
 | 컬럼 | 타입 | 설명 | 제약·비고 |
 |---|---|---|---|
@@ -175,18 +179,20 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 | `source_type` · `source_ref` | `TEXT` · `BIGINT` | 원천 행: `PLAY`+`play_order` / `PA`+`pa_number` | dedupe 키 구성 |
 | `inning` | `SMALLINT` | 이닝 숫자 | 보호 모드 노출 가능 |
 | `inning_type` | `TEXT` | 초/말 | [내부] 보호 DTO에서 제거 |
-| `batter_id` · `pitcher_id` | `BIGINT` | 관련 선수 | FK → `players`, nullable. 공개 모드·관심 선수 매칭용 |
-| `payload` | `JSONB` | 근거 수치(투구 수·구속 추이·exit_velocity 등) | [내부] 공개 모드 표시용 |
+| `batter_id` · `pitcher_id` | `BIGINT` | 관련 선수 | FK → `players`, nullable. 이벤트 판정 추적용 |
+| `payload` | `JSONB` | 근거 수치(투구 수·구속 추이·exit_velocity 등) | [내부] 이벤트 판정 추적용 |
 | `copy_protected` | `TEXT` | 이벤트 AI 문구 · 보호 모드용(검수 통과본) | nullable. `copy_protected_context_hash` 일치 시에만 갱신 |
-| `copy_revealed` | `TEXT` | 이벤트 AI 문구 · 공개 모드용(검수 통과본) | nullable. `copy_revealed_context_hash` 일치 시에만 갱신 |
+| `copy_revealed` | `TEXT` | 기존 공개 이벤트 AI 문구 | **폐기 예정**. 신규 생성·조회 금지 |
 | `copy_protected_context_hash` | `TEXT` | 보호 모드 문구 생성 컨텍스트 해시 | nullable. 모드별 컨텍스트가 달라 해시를 분리 저장 |
-| `copy_revealed_context_hash` | `TEXT` | 공개 모드 문구 생성 컨텍스트 해시 | nullable. 늦게 도착한 응답의 교차 덮어쓰기 방지 |
+| `copy_revealed_context_hash` | `TEXT` | 기존 공개 문구 생성 컨텍스트 해시 | **폐기 예정**. `copy_revealed` 제거 전까지만 보존 |
 | `ruleset_version` | `TEXT` | 추출 룰 버전(`scoring.yml` version) | |
 | `observed_at` | `TIMESTAMPTZ` | 최초 관측 시각 | 타임라인 공통 정렬 키 |
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `event_type`, `source_type`, `source_ref`)** (재관측 dedupe) · idx(`game_id`, `observed_at`)
+
+> `copy_revealed`·`copy_revealed_context_hash`는 공개 `경기 흐름` 전환 후 사용 여부를 확인한 다음 별도 Flyway 마이그레이션으로 제거한다. 제거 전에도 신규 쓰기와 API 조회에는 사용하지 않는다.
 
 > 발생 임계와 경기당 상한(예: `hard_contact` 타석당 1회·경기당 8회)은 `scoring.yml`에서 관리한다. `plays` 유래 이벤트(득점·리드 변경·홈런·빅이닝)는 원본에서 재파생 가능하지만 상세 API가 이 테이블 하나만 읽도록 함께 저장한다.
 

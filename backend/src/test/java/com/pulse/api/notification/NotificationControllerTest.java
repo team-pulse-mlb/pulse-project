@@ -248,7 +248,7 @@ class NotificationControllerTest {
         NotificationReadRequest request =
                 new NotificationReadRequest(
                         true,
-                        List.of(10L, 11L)
+                        List.of(0L)
                 );
 
         when(notificationService.markAllAsRead(
@@ -276,20 +276,20 @@ class NotificationControllerTest {
                 .markAllAsRead("user@example.com");
 
         /*
-         * all=true이므로 notificationIds는 무시되고
-         * 선택 읽음 메서드는 호출되지 않아야 합니다.
+         * all=true인 경우 유효하지 않은 notificationIds가 포함돼도
+         * ID 검증을 수행하지 않고 전체 읽음 처리하는지 확인합니다.
          */
         verify(notificationService, never())
                 .markSelectedAsRead(
                         "user@example.com",
-                        List.of(10L, 11L)
+                        List.of(0L)
                 );
     }
 
     /**
-     * 알림 ID는 1 이상의 양수여야 합니다.
+     * 선택 읽음 요청의 알림 ID는 1 이상의 양수여야 합니다.
      *
-     * 0이 포함된 요청은 @Positive 검증에 실패하여
+     * all=false인데 0이 포함된 요청은 조건부 검증에 실패하여
      * Controller 로직에 진입하기 전에 400 응답이 발생해야 합니다.
      */
     @Test

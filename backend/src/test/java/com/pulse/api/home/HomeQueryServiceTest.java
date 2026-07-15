@@ -126,6 +126,44 @@ class HomeQueryServiceTest {
     }
 
     @Test
+    void getRanking_shouldBackfillFromOutsideWindowsWhenRecentGamesMissing() {
+        // 창(48h/36h) 안 경기가 없어 랭킹이 비는 상황: 창 밖 종료·예정 경기로 5개를 채워야 한다.
+        List<Game> recentFinished = List.of(
+                finished(10L, 90),
+                finished(11L, 80),
+                finished(12L, 70),
+                finished(13L, 60)
+        );
+        List<Game> upcomingScheduled = List.of(
+                scheduled(20L, 90),
+                scheduled(21L, 80)
+        );
+
+        when(rankingService.topLive(1000)).thenReturn(Map.of());
+        when(gameRepository.findByStatusAndStartTimeBetween(
+                eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of());
+        when(gameRepository.findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                eq(Game.STATUS_FINAL), any(Instant.class)))
+                .thenReturn(List.of());
+        when(gameRepository.findByStatusStartingWith(
+                eq(Game.STATUS_FINAL), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(recentFinished);
+        when(gameRepository.findByStatusAndStartTimeGreaterThanEqual(
+                eq(Game.STATUS_SCHEDULED), any(Instant.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(upcomingScheduled);
+
+        HomeRankingResponse response = service.getRanking(5);
+
+        assertThat(response.live()).isEmpty();
+        assertThat(response.finished()).extracting(HomeQueryService.RankingFinishedGameCard::gameId)
+                .containsExactly(10L, 11L, 12L, 13L);
+        assertThat(response.scheduled()).extracting(HomeQueryService.RankingScheduledGameCard::gameId)
+                .containsExactly(20L);
+        assertThat(totalCards(response)).isEqualTo(5);
+    }
+
+    @Test
     void getRanking_shouldResolveProbablePitcherNamesFromLineups() {
         Game scheduled = scheduled(20L, 90);
         scheduled.setHomeTeamId(1L);
@@ -201,6 +239,24 @@ class HomeQueryServiceTest {
         assertThat(response.games()).hasSize(2).allMatch(SlateScheduledGameCard.class::isInstance);
         assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameState)
                 .containsExactly("POSTPONED", "CANCELED");
+    }
+
+    @Test
+    void getSlate_shouldReturnAllUpcomingScheduledGamesRegardlessOfSlateDate() {
+        Game earlier = scheduled(40L, 70);
+        earlier.setStartTime(Instant.now().plusSeconds(60 * 60));
+        Game later = scheduled(41L, 90);
+        later.setStartTime(Instant.now().plusSeconds(7 * 24 * 60 * 60));
+        Game past = scheduled(42L, 100);
+        past.setStartTime(Instant.now().minusSeconds(60));
+        when(gameRepository.findByStatusAndStartTimeGreaterThanEqual(
+                eq(Game.STATUS_SCHEDULED), any(Instant.class)))
+                .thenReturn(List.of(later, past, earlier));
+
+        HomeSlateResponse response = service.getSlate("2026-07-01", "scheduled", "startTime");
+
+        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameId)
+                .containsExactly(40L, 41L);
     }
 
     @Test

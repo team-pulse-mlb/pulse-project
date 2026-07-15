@@ -66,10 +66,23 @@ UNSUPPORTED_RESULT_PATTERNS = (
 )
 
 
-# 5-3, 5:3, 5대3 형식의 점수 쌍을 찾습니다.
+# 보호 모드에서 점수 노출을 차단하기 위한 넓은 점수 패턴입니다.
 # "7-8회" 같은 이닝 범위 표현은 점수로 처리하지 않습니다.
 SCORE_PAIR_PATTERN = re.compile(
     r"(?<!\d)(\d{1,3})\s*(?:대|:|-)\s*(\d{1,3})(?!\d|\s*회)"
+)
+
+
+# 공개 FINAL_HEADLINE에서 허용하는 최종 점수 표기는 home-away 한 가지입니다.
+# 예: 홈팀이 5-3으로 승리, 원정팀이 3-5로 승리
+REVEALED_FINAL_SCORE_PATTERN = re.compile(
+    r"(?<!\d)(\d{1,3})\s*-\s*(\d{1,3})(?!\d|\s*회)"
+)
+
+
+# 공개 모드에서도 5:3, 5대3 형식은 생성 포맷 통일을 위해 거부합니다.
+REVEALED_UNSUPPORTED_SCORE_PAIR_PATTERN = re.compile(
+    r"(?<!\d)\d{1,3}\s*(?:대|:)\s*\d{1,3}(?!\d|\s*회)"
 )
 
 
@@ -86,27 +99,28 @@ RESULT_MARKER_PATTERN = re.compile(
 )
 
 
-# 문구가 홈팀 승리를 명시하는 형태입니다.
-HOME_WIN_PATTERNS = (
-    re.compile(
-        r"홈팀(?:이|가)?[^.!?\n]{0,30}(?:승리|이겼|이긴|이김)"
-    ),
-    re.compile(
-        r"원정팀(?:이|가)?[^.!?\n]{0,30}(?:패배|졌다|패한)"
-    ),
-    re.compile(r"승자(?:는|가)?\s*홈팀"),
+# 승리 동사의 실제 주어에 가까운 팀만 winner claim으로 판별합니다.
+# 넓은 범위 탐색을 하지 않아 "홈팀과 원정팀의 접전 끝 원정팀이 승리"에서
+# 앞쪽의 "홈팀"을 승자로 오인하지 않습니다.
+WIN_CLAIM_PATTERN = re.compile(
+    r"(홈팀|원정팀)(?:이|가|은|는)?\s*"
+    r"(?:\d{1,3}\s*-\s*\d{1,3}(?:으로|로)?\s*)?"
+    r"(?:승리|이겼|이긴|이김)"
 )
 
 
-# 문구가 원정팀 승리를 명시하는 형태입니다.
-AWAY_WIN_PATTERNS = (
-    re.compile(
-        r"원정팀(?:이|가)?[^.!?\n]{0,30}(?:승리|이겼|이긴|이김)"
-    ),
-    re.compile(
-        r"홈팀(?:이|가)?[^.!?\n]{0,30}(?:패배|졌다|패한)"
-    ),
-    re.compile(r"승자(?:는|가)?\s*원정팀"),
+# 패배 동사의 실제 주어에 가까운 팀을 판별합니다.
+# 홈팀 패배는 원정팀 승리, 원정팀 패배는 홈팀 승리로 변환합니다.
+LOSS_CLAIM_PATTERN = re.compile(
+    r"(홈팀|원정팀)(?:이|가|은|는)?\s*"
+    r"(?:\d{1,3}\s*-\s*\d{1,3}(?:으로|로)?\s*)?"
+    r"(?:패배|졌다|패한)"
+)
+
+
+# 승자 표현에서 "승자는 홈팀"처럼 명시된 결과도 허용합니다.
+EXPLICIT_WINNER_PATTERN = re.compile(
+    r"승자(?:는|가)?\s*(홈팀|원정팀)"
 )
 
 
@@ -161,17 +175,23 @@ def _validate_revealed_score(
     """
     공개 모드 문구의 점수가 safeContext.finalScore와 일치하는지 검사합니다.
 
-    최종 점수는 home-away 순서로 표현해야 합니다.
+    공개 FINAL_HEADLINE의 점수 표기는 반드시 home-away 순서의 하이픈 형식이어야 합니다.
     """
 
-    score_matches = SCORE_PAIR_PATTERN.findall(text)
+    score_matches = REVEALED_FINAL_SCORE_PATTERN.findall(text)
+    unsupported_score_pair_found = (
+        REVEALED_UNSUPPORTED_SCORE_PAIR_PATTERN.search(text) is not None
+    )
     standalone_point_found = STANDALONE_POINT_PATTERN.search(text) is not None
 
-    if not score_matches and not standalone_point_found:
+    if (
+        not score_matches
+        and not unsupported_score_pair_found
+        and not standalone_point_found
+    ):
         return
 
-    if standalone_point_found:
-        # "5점"처럼 한쪽 점수만 있는 표현은 실제 결과와 안전하게 비교할 수 없습니다.
+    if unsupported_score_pair_found or standalone_point_found:
         _append_violation(
             violations,
             "UNSUPPORTED_SCORE_FORMAT",
@@ -202,20 +222,45 @@ def _validate_revealed_score(
             )
 
 
+def _team_to_winner(team_name: str) -> str:
+    """
+    한국어 팀 지시어를 내부 winner 값으로 변환합니다.
+    """
+
+    if team_name == "홈팀":
+        return "home"
+
+    return "away"
+
+
+def _opposite_winner(team_name: str) -> str:
+    """
+    패배 주어를 기준으로 반대 팀을 winner 값으로 변환합니다.
+    """
+
+    if team_name == "홈팀":
+        return "away"
+
+    return "home"
+
+
 def _resolve_claimed_winner(text: str) -> str | None:
     """
     문구에서 명시적으로 주장하는 승자를 home, away, draw로 변환합니다.
 
-    둘 이상의 서로 다른 결과가 감지되면 ambiguous를 반환합니다.
+    서로 모순된 결과가 실제로 둘 이상 감지되면 ambiguous를 반환합니다.
     """
 
     claimed_winners: set[str] = set()
 
-    if any(pattern.search(text) for pattern in HOME_WIN_PATTERNS):
-        claimed_winners.add("home")
+    for match in WIN_CLAIM_PATTERN.finditer(text):
+        claimed_winners.add(_team_to_winner(match.group(1)))
 
-    if any(pattern.search(text) for pattern in AWAY_WIN_PATTERNS):
-        claimed_winners.add("away")
+    for match in LOSS_CLAIM_PATTERN.finditer(text):
+        claimed_winners.add(_opposite_winner(match.group(1)))
+
+    for match in EXPLICIT_WINNER_PATTERN.finditer(text):
+        claimed_winners.add(_team_to_winner(match.group(1)))
 
     if any(pattern.search(text) for pattern in DRAW_PATTERNS):
         claimed_winners.add("draw")

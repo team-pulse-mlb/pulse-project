@@ -254,10 +254,22 @@ export function useNotificationSse() {
             );
 
             /**
-             * 연결에 성공하면 실패 횟수를 초기화합니다.
+             * SSE 연결에 성공하면:
+             *
+             * 1. 연속 연결 실패 횟수를 초기화합니다.
+             * 2. 연결이 끊겨 있던 동안 생성된 알림을 복구하기 위해
+             *    알림 목록을 한 번 다시 조회합니다.
+             *
+             * SSE는 연결이 끊긴 동안 발생한 과거 이벤트를
+             * 자동으로 다시 전달하지 않으므로 REST 재조회가 필요합니다.
              */
             eventSource.onopen = () => {
-            reconnectAttempt = 0;
+                reconnectAttempt = 0;
+
+                void queryClient.refetchQueries({
+                    queryKey: queryKeys.me.notifications,
+                    type: 'active',
+                });
             };
 
             eventSource.addEventListener(

@@ -56,6 +56,33 @@ class PollerGameWriterTest {
     }
 
     @Test
+    void upsertGame_shouldUseTopLevelNamesForUnknownTeams() {
+        BdlGame allStarGame = new BdlGame(
+                8712499L,
+                "2026-07-15T00:00:00Z",
+                Game.STATUS_SCHEDULED,
+                1,
+                "National All-Stars",
+                "American All-Stars",
+                new BdlGame.Team(-1L, "Unknown", "UNK"),
+                new BdlGame.Team(-1L, "Unknown", "UNK"),
+                new BdlGame.TeamData(0, List.of()),
+                new BdlGame.TeamData(0, List.of()),
+                "Citizens Bank Park"
+        );
+
+        writer.upsertGame(allStarGame, observedAt);
+
+        Game saved = gameRepository.findById(8712499L).orElseThrow();
+        assertThat(saved.getHomeTeamId()).isEqualTo(-1L);
+        assertThat(saved.getHomeTeamName()).isEqualTo("National All-Stars");
+        assertThat(saved.getHomeTeamAbbr()).isNull();
+        assertThat(saved.getAwayTeamId()).isEqualTo(-1L);
+        assertThat(saved.getAwayTeamName()).isEqualTo("American All-Stars");
+        assertThat(saved.getAwayTeamAbbr()).isNull();
+    }
+
+    @Test
     void appendPlay_shouldIgnoreDuplicateAndUpdateGameCursor() {
         Game game = writer.upsertGame(game(Game.STATUS_IN_PROGRESS), observedAt).game();
 
@@ -112,6 +139,8 @@ class PollerGameWriterTest {
                 "2026-07-08T00:00:00Z",
                 status,
                 1,
+                "Home",
+                "Away",
                 new BdlGame.Team(1L, "Home", "HOM"),
                 new BdlGame.Team(2L, "Away", "AWY"),
                 new BdlGame.TeamData(1, List.of(1)),

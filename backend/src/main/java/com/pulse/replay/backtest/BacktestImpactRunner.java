@@ -6,7 +6,9 @@ import static com.pulse.replay.backtest.BacktestModels.ReplayResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pulse.common.config.ScoringProperties;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -52,10 +54,15 @@ public class BacktestImpactRunner implements ApplicationRunner {
 
     private List<ReplayResult> replay(List<GameData> games, ScoringProperties properties,
                                       GameReplayEngine engine, AlertSimulator alerts) {
-        return games.stream().map(game -> {
-            List<Cycle> cycles = engine.replay(game, properties);
-            return new ReplayResult(game, cycles, alerts.simulate(cycles, properties));
-        }).toList();
+        Map<Long, List<Cycle>> cyclesByGame = new LinkedHashMap<>();
+        games.forEach(game -> cyclesByGame.put(game.game().gameId(), engine.replay(game, properties)));
+        Map<Long, Integer> alertCounts = alerts.simulate(cyclesByGame, properties);
+        return games.stream()
+                .map(game -> new ReplayResult(
+                        game,
+                        cyclesByGame.get(game.game().gameId()),
+                        alertCounts.getOrDefault(game.game().gameId(), 0)))
+                .toList();
     }
 
     private void validate() {

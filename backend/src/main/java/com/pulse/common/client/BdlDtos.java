@@ -33,6 +33,8 @@ public final class BdlDtos {
             String date,
             String status,
             Integer period,
+            @JsonProperty("home_team_name") String homeTeamName,
+            @JsonProperty("away_team_name") String awayTeamName,
             @JsonProperty("home_team") Team homeTeam,
             @JsonProperty("away_team") Team awayTeam,
             @JsonProperty("home_team_data") TeamData homeTeamData,
