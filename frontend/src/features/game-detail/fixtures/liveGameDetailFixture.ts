@@ -1,6 +1,6 @@
 import type { BoxScoreLine } from '../../../shared/components/BoxScoreTable';
-import type { Situation } from '../components/CurrentSituationCard';
 import type { TensionPoint } from '../components/TensionCurve';
+import type { GameSituationViewModel } from '../model/gameDetailViewModels';
 
 export interface FixtureTeam {
     /** 히어로 영역에서 크게 표시할 팀 전체 이름 */
@@ -63,7 +63,7 @@ export interface LiveGameDetailFixture {
     awayScore: number;
     homeScore: number;
 
-    situation: Situation;
+    situation: GameSituationViewModel;
 
     /**
      * 현재 타자·투수 이름은 공개 모드에서만 전달하고 표시한다.
@@ -168,16 +168,12 @@ export const liveGameDetailFixture = {
             abbr: 'SD',
             innings: [0, 1, 0, 2, 0, 0, 0, 1],
             runs: 4,
-            hits: 8,
-            errors: 1,
         },
 
         homeLine: {
             abbr: 'CHC',
             innings: [0, 0, 1, 0, 2, 0, 0, null],
             runs: 3,
-            hits: 7,
-            errors: 0,
         },
     },
 

@@ -2,155 +2,634 @@ package com.pulse.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pulse.api.GameQueryService.DisplayMode;
-import com.pulse.api.GameQueryService.ProtectedGameDetailResponse;
-import com.pulse.api.GameQueryService.ProtectedPlayResponse;
-import com.pulse.api.GameQueryService.ProtectedSummaryResponse;
-import com.pulse.api.GameQueryService.RevealedGameDetailResponse;
-import com.pulse.api.GameQueryService.RevealedPlayResponse;
-import com.pulse.api.GameQueryService.ScoreResponse;
-import com.pulse.api.GameQueryService.ScoreSummaryResponse;
-import com.pulse.api.GameQueryService.TeamResponse;
+import com.pulse.api.GameQueryService.*;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class GameDetailSerializationGuardTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper =
+            new ObjectMapper().findAndRegisterModules();
 
     @Test
-    void protectedDetailResponse_shouldNotSerializeSpoilerFields() {
-        // given
-        // 보호 모드 응답은 DTO 구조 자체에서 팀명, 점수, play text, 득점 여부를 제외해야 한다.
-        // 이 테스트는 나중에 누군가 protected DTO에 스포일러 필드를 추가하면 바로 실패하도록 막는 가드다.
-        ProtectedGameDetailResponse response = new ProtectedGameDetailResponse(
-                900001L,
-                "STATUS_IN_PROGRESS",
-                Instant.parse("2026-07-02T00:00:00Z"),
-                "후반",
-                // FINAL_HEADLINE은 보호 모드에서도 허용되는 스포일러 없는 상위 문구다.
-                "스포일러 없이 긴장감이 이어지는 경기",
-                new ProtectedSummaryResponse(List.of("후반 긴장 구간", "득점권 압박")),
-                List.of(
-                        new ProtectedPlayResponse(
-                                "Pitch",
-                                8,
-                                "Top",
-                                2,
-                                3,
-                                2
-                        )
-                ),
-                DisplayMode.PROTECTED
-        );
+    void scheduledDetail_shouldExposeOnlyPregameFields() {
+        ScheduledGameDetailResponse response =
+                new ScheduledGameDetailResponse(
+                        5059999L,
+                        "STATUS_SCHEDULED",
+                        DisplayMode.PROTECTED,
+                        new TeamResponse(
+                                28L,
+                                "Texas Rangers",
+                                "TEX",
+                                null),
+                        new TeamResponse(
+                                10L,
+                                "Detroit Tigers",
+                                "DET",
+                                null),
+                        Instant.parse(
+                                "2026-07-15T00:05:00Z"),
+                        "Globe Life Field",
+                        new ProbablePitchersResponse(
+                                "Home Starter",
+                                "Away Starter"));
 
-        // when
-        JsonNode json = objectMapper.valueToTree(response);
-        JsonNode play = json.get("recentPlays").get(0);
+        JsonNode json =
+                objectMapper.valueToTree(response);
 
-        // then
-        assertThat(json.get("displayMode").asText()).isEqualTo("PROTECTED");
+        SoftAssertions.assertSoftly(
+                softly -> {
+                    softly.assertThat(
+                                    json.get("status").asText())
+                            .isEqualTo("STATUS_SCHEDULED");
 
-        // 보호 모드 최상위 응답에는 팀명, 점수, 내부 점수 요약이 없어야 한다.
-        assertThat(json.has("homeTeam")).isFalse();
-        assertThat(json.has("awayTeam")).isFalse();
-        assertThat(json.has("score")).isFalse();
-        assertThat(json.has("scoreSummary")).isFalse();
+                    /*
+                     * 예정 경기에는 공개할 결과가 없으므로
+                     * 요청 모드와 관계없이 보호 상태로 응답한다.
+                     */
+                    softly.assertThat(
+                                    json.get("displayMode").asText())
+                            .isEqualTo("PROTECTED");
 
-        // 보호 모드에서도 스포일러 없는 FINAL_HEADLINE은 허용된다.
-        assertThat(json.has("headline")).isTrue();
-        assertThat(json.get("headline").asText()).isEqualTo("스포일러 없이 긴장감이 이어지는 경기");
+                    /*
+                     * 예정 상세에서 사용하는 기본 경기 정보다.
+                     */
+                    softly.assertThat(json.has("homeTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("awayTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("startTime"))
+                            .isTrue();
+                    softly.assertThat(json.has("venue"))
+                            .isTrue();
+                    softly.assertThat(json.has("probablePitchers"))
+                            .isTrue();
 
-        // 보호 모드 play 응답에는 결과를 직접 드러내는 필드가 없어야 한다.
-        assertThat(play.has("text")).isFalse();
-        assertThat(play.has("homeScore")).isFalse();
-        assertThat(play.has("awayScore")).isFalse();
-        assertThat(play.has("scoringPlay")).isFalse();
-        assertThat(play.has("scoreValue")).isFalse();
+                    JsonNode probablePitchers =
+                            json.get("probablePitchers");
 
-        // 대신 보호 모드에서 허용하는 흐름 정보는 남아 있어야 한다.
-        assertThat(json.has("periodLabel")).isTrue();
-        assertThat(json.has("summary")).isTrue();
-        assertThat(json.has("recentPlays")).isTrue();
-        assertThat(play.has("type")).isTrue();
-        assertThat(play.has("inning")).isTrue();
-        assertThat(play.has("inningType")).isTrue();
-        assertThat(play.has("outs")).isTrue();
-        assertThat(play.has("balls")).isTrue();
-        assertThat(play.has("strikes")).isTrue();
+                    softly.assertThat(
+                                    probablePitchers.get("home").asText())
+                            .isEqualTo("Home Starter");
+
+                    softly.assertThat(
+                                    probablePitchers.get("away").asText())
+                            .isEqualTo("Away Starter");
+
+                    /*
+                     * 예정 경기에는 진행 경기의 현재 상황이나
+                     * 종료 경기의 결과 정보를 포함하지 않는다.
+                     */
+                    softly.assertThat(json.has("score"))
+                            .isFalse();
+                    softly.assertThat(json.has("finalScore"))
+                            .isFalse();
+                    softly.assertThat(json.has("periodLabel"))
+                            .isFalse();
+                    softly.assertThat(json.has("inning"))
+                            .isFalse();
+                    softly.assertThat(json.has("inningType"))
+                            .isFalse();
+                    softly.assertThat(json.has("situation"))
+                            .isFalse();
+                    softly.assertThat(json.has("currentMatchup"))
+                            .isFalse();
+                    softly.assertThat(json.has("inningScores"))
+                            .isFalse();
+                    softly.assertThat(json.has("headline"))
+                            .isFalse();
+                    softly.assertThat(json.has("scoringSummary"))
+                            .isFalse();
+                    softly.assertThat(json.has("tensionCurve"))
+                            .isFalse();
+                    softly.assertThat(
+                                    json.has("favoritePlayersPlaying"))
+                            .isFalse();
+                    softly.assertThat(
+                                    json.has("switchSuggestion"))
+                            .isFalse();
+
+                    /*
+                     * 이벤트 목록은 별도의 /events API가 담당한다.
+                     */
+                    softly.assertThat(json.has("summary"))
+                            .isFalse();
+                    softly.assertThat(json.has("recentPlays"))
+                            .isFalse();
+
+                    assertInternalRecommendationFieldsAreAbsent(
+                            softly,
+                            json);
+                });
     }
 
     @Test
-    void revealedDetailResponse_shouldSerializeSpoilerFields() {
-        // given
-        // 공개 모드는 사용자가 직접 스포일러 공개를 선택한 상태다.
-        // 따라서 팀명, 점수, play text, 득점 관련 필드를 포함해야 한다.
-        RevealedGameDetailResponse response = new RevealedGameDetailResponse(
-                900001L,
-                "STATUS_IN_PROGRESS",
-                Instant.parse("2026-07-02T00:00:00Z"),
-                8,
-                new TeamResponse(1L, "Home Team", "HOM"),
-                new TeamResponse(2L, "Away Team", "AWY"),
-                new ScoreResponse(3, 2),
-                // 공개 모드에서는 공개용 FINAL_HEADLINE도 응답에 포함될 수 있다.
-                "홈팀이 3-2로 앞선 경기",
-                new ScoreSummaryResponse(
-                        45.0,
-                        72.0,
-                        Map.of("late_or_extra", 20.0, "score_gap", 25.0),
-                        List.of("후반 긴장 구간", "접전 흐름"),
-                        1,
-                        Instant.parse("2026-07-02T00:01:00Z")
-                ),
-                List.of(
-                        new RevealedPlayResponse(
-                                10L,
-                                100L,
-                                "Play Result",
-                                8,
-                                "Top",
-                                "Sample revealed play text",
+    void protectedLiveDetail_shouldFollowLatestSpoilerContract() {
+        ProtectedGameDetailResponse response =
+                new ProtectedGameDetailResponse(
+                        900001L,
+                        "STATUS_IN_PROGRESS",
+                        DisplayMode.PROTECTED,
+                        new TeamResponse(
+                                1L,
+                                "Chicago Cubs",
+                                "CHC",
+                                null),
+                        new TeamResponse(
+                                2L,
+                                "San Diego Padres",
+                                "SD",
+                                null),
+                        Instant.parse(
+                                "2026-07-02T00:00:00Z"),
+                        "후반",
+                        8,
+                        new SituationResponse(
+                                2,
                                 3,
                                 2,
+                                false,
                                 true,
-                                1,
+                                false,
+                                true,
+                                false),
+                        List.of("Shohei Ohtani"),
+                        null);
+
+        JsonNode json =
+                objectMapper.valueToTree(response);
+
+        SoftAssertions.assertSoftly(
+                softly -> {
+                    softly.assertThat(
+                                    json.get("displayMode").asText())
+                            .isEqualTo("PROTECTED");
+
+                    /*
+                     * 팀 정보와 이닝 숫자, 현재 상황은
+                     * 보호 모드에서도 허용한다.
+                     */
+                    softly.assertThat(json.has("homeTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("awayTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("inning"))
+                            .isTrue();
+                    softly.assertThat(json.has("situation"))
+                            .isTrue();
+                    softly.assertThat(
+                                    json.has("favoritePlayersPlaying"))
+                            .isTrue();
+                    softly.assertThat(
+                                    json.has("switchSuggestion"))
+                            .isTrue();
+
+                    /*
+                     * 초·말 정보는 보호 응답의 어느 위치에도
+                     * 포함되어서는 안 된다.
+                     */
+                    softly.assertThat(
+                                    json.findValue("inningType"))
+                            .isNull();
+
+                    /*
+                     * 점수와 현재 타석 선수는 공개 모드 전용이다.
+                     */
+                    softly.assertThat(json.has("score"))
+                            .isFalse();
+                    softly.assertThat(json.has("currentMatchup"))
+                            .isFalse();
+                    softly.assertThat(json.has("inningScores"))
+                            .isFalse();
+
+                    /*
+                     * 이벤트 목록은 별도의 /events API가 담당한다.
+                     */
+                    softly.assertThat(json.has("summary"))
+                            .isFalse();
+                    softly.assertThat(json.has("recentPlays"))
+                            .isFalse();
+
+                    assertInternalRecommendationFieldsAreAbsent(
+                            softly,
+                            json);
+                });
+    }
+
+    @Test
+    void revealedLiveDetail_shouldFollowLatestPublicContract() {
+        RevealedGameDetailResponse response =
+                new RevealedGameDetailResponse(
+                        900001L,
+                        "STATUS_IN_PROGRESS",
+                        DisplayMode.REVEALED,
+                        new TeamResponse(
+                                1L,
+                                "Chicago Cubs",
+                                "CHC",
+                                null),
+                        new TeamResponse(
+                                2L,
+                                "San Diego Padres",
+                                "SD",
+                                null),
+                        Instant.parse(
+                                "2026-07-02T00:00:00Z"),
+                        new ScoreResponse(
+                                3,
+                                4),
+                        8,
+                        "Top",
+                        new SituationResponse(
                                 2,
                                 3,
                                 2,
-                                Instant.parse("2026-07-02T00:02:00Z")
-                        )
-                ),
-                DisplayMode.REVEALED
-        );
+                                false,
+                                true,
+                                false,
+                                true,
+                                false),
+                        new CurrentMatchupResponse(
+                                new PlayerResponse(
+                                        1001L,
+                                        "Sample Batter"),
+                                new PlayerResponse(
+                                        2001L,
+                                        "Sample Pitcher")),
+                        List.of("Sample Batter"),
+                        new InningScoresResponse(
+                                List.of(
+                                        0,
+                                        1,
+                                        0,
+                                        2,
+                                        0,
+                                        0,
+                                        1,
+                                        0),
+                                List.of(
+                                        0,
+                                        0,
+                                        1,
+                                        0,
+                                        2,
+                                        0,
+                                        0,
+                                        0)));
 
-        // when
-        JsonNode json = objectMapper.valueToTree(response);
-        JsonNode play = json.get("recentPlays").get(0);
+        JsonNode json =
+                objectMapper.valueToTree(response);
 
-        // then
-        assertThat(json.get("displayMode").asText()).isEqualTo("REVEALED");
+        SoftAssertions.assertSoftly(
+                softly -> {
+                    softly.assertThat(
+                                    json.get("displayMode").asText())
+                            .isEqualTo("REVEALED");
 
-        // 공개 모드 최상위 응답에는 팀명, 점수, 점수 요약이 포함되어야 한다.
-        assertThat(json.has("homeTeam")).isTrue();
-        assertThat(json.has("awayTeam")).isTrue();
-        assertThat(json.has("score")).isTrue();
-        assertThat(json.has("scoreSummary")).isTrue();
+                    /*
+                     * 진행 공개 상세에서 사용하는 경기 정보다.
+                     */
+                    softly.assertThat(json.has("homeTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("awayTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("score"))
+                            .isTrue();
+                    softly.assertThat(json.has("inning"))
+                            .isTrue();
+                    softly.assertThat(json.has("inningType"))
+                            .isTrue();
+                    softly.assertThat(json.has("situation"))
+                            .isTrue();
+                    softly.assertThat(json.has("currentMatchup"))
+                            .isTrue();
+                    softly.assertThat(json.has("inningScores"))
+                            .isTrue();
+                    softly.assertThat(
+                                    json.has("favoritePlayersPlaying"))
+                            .isTrue();
 
-        // 공개 모드에서도 FINAL_HEADLINE은 응답에 포함될 수 있다.
-        assertThat(json.has("headline")).isTrue();
-        assertThat(json.get("headline").asText()).isEqualTo("홈팀이 3-2로 앞선 경기");
+                    /*
+                     * 이벤트 목록은 상세 응답에 포함하지 않는다.
+                     */
+                    softly.assertThat(json.has("summary"))
+                            .isFalse();
+                    softly.assertThat(json.has("recentPlays"))
+                            .isFalse();
 
-        // 공개 모드 play 응답에는 결과 설명과 점수 변화 정보가 포함되어야 한다.
-        assertThat(play.has("text")).isTrue();
-        assertThat(play.has("homeScore")).isTrue();
-        assertThat(play.has("awayScore")).isTrue();
-        assertThat(play.has("scoringPlay")).isTrue();
-        assertThat(play.has("scoreValue")).isTrue();
+                    assertInternalRecommendationFieldsAreAbsent(
+                            softly,
+                            json);
+                });
+    }
+
+    @Test
+    void protectedFinalDetail_shouldHideResultFields() {
+        ProtectedFinalGameDetailResponse response =
+                new ProtectedFinalGameDetailResponse(
+                        5059082L,
+                        "STATUS_FINAL",
+                        DisplayMode.PROTECTED,
+                        new TeamResponse(
+                                28L,
+                                "Texas Rangers",
+                                "TEX",
+                                null),
+                        new TeamResponse(
+                                10L,
+                                "Detroit Tigers",
+                                "DET",
+                                null),
+                        Instant.parse(
+                                "2026-07-03T00:05:00Z"),
+
+                        /*
+                         * 종료 헤드라인은 아직 생성되지 않았을 수 있다.
+                         * 이 경우 null을 정상 응답으로 허용한다.
+                         */
+                        null,
+                        List.of(
+                                new ProtectedTensionPointResponse(
+                                        7,
+                                        5)));
+
+        JsonNode json =
+                objectMapper.valueToTree(response);
+
+        SoftAssertions.assertSoftly(
+                softly -> {
+                    softly.assertThat(
+                                    json.get("displayMode").asText())
+                            .isEqualTo("PROTECTED");
+
+                    softly.assertThat(
+                                    json.get("status").asText())
+                            .isEqualTo("STATUS_FINAL");
+
+                    softly.assertThat(json.has("homeTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("awayTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("headline"))
+                            .isTrue();
+                    softly.assertThat(
+                                    json.get("headline").isNull())
+                            .isTrue();
+                    softly.assertThat(json.has("tensionCurve"))
+                            .isTrue();
+
+                    /*
+                     * 보호용 경기 흐름은 이닝 숫자와 단계만 포함한다.
+                     */
+                    JsonNode tensionPoint =
+                            json.get("tensionCurve").get(0);
+
+                    softly.assertThat(
+                                    tensionPoint.has("inning"))
+                            .isTrue();
+                    softly.assertThat(
+                                    tensionPoint.has("level"))
+                            .isTrue();
+                    softly.assertThat(
+                                    tensionPoint.has("inningType"))
+                            .isFalse();
+
+                    /*
+                     * 종료 보호 응답에는 경기 결과를 나타내는
+                     * 필드를 포함하지 않는다.
+                     */
+                    softly.assertThat(json.has("finalScore"))
+                            .isFalse();
+                    softly.assertThat(json.has("score"))
+                            .isFalse();
+                    softly.assertThat(json.has("inningScores"))
+                            .isFalse();
+                    softly.assertThat(json.has("scoringSummary"))
+                            .isFalse();
+
+                    /*
+                     * 진행 경기 전용 필드도 종료 응답에는 없다.
+                     */
+                    softly.assertThat(json.has("periodLabel"))
+                            .isFalse();
+                    softly.assertThat(json.has("inning"))
+                            .isFalse();
+                    softly.assertThat(json.has("inningType"))
+                            .isFalse();
+                    softly.assertThat(json.has("situation"))
+                            .isFalse();
+                    softly.assertThat(json.has("currentMatchup"))
+                            .isFalse();
+                    softly.assertThat(
+                                    json.has("favoritePlayersPlaying"))
+                            .isFalse();
+                    softly.assertThat(
+                                    json.has("switchSuggestion"))
+                            .isFalse();
+
+                    softly.assertThat(json.has("summary"))
+                            .isFalse();
+                    softly.assertThat(json.has("recentPlays"))
+                            .isFalse();
+
+                    assertInternalRecommendationFieldsAreAbsent(
+                            softly,
+                            json);
+                });
+    }
+
+    @Test
+    void revealedFinalDetail_shouldExposeOnlyFinalResultFields() {
+        RevealedFinalGameDetailResponse response =
+                new RevealedFinalGameDetailResponse(
+                        5059082L,
+                        "STATUS_FINAL",
+                        DisplayMode.REVEALED,
+                        new TeamResponse(
+                                28L,
+                                "Texas Rangers",
+                                "TEX",
+                                null),
+                        new TeamResponse(
+                                10L,
+                                "Detroit Tigers",
+                                "DET",
+                                null),
+                        Instant.parse(
+                                "2026-07-03T00:05:00Z"),
+                        "Texas Rangers가 10-4로 승리한 경기입니다.",
+                        new ScoreResponse(
+                                10,
+                                4),
+                        new InningScoresResponse(
+                                List.of(
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        3,
+                                        0,
+                                        0,
+                                        1,
+                                        0),
+                                List.of(
+                                        0,
+                                        3,
+                                        0,
+                                        2,
+                                        0,
+                                        1,
+                                        3,
+                                        1)),
+                        List.of(
+                                new ScoringPlayResponse(
+                                        2,
+                                        "Bottom",
+                                        "Díaz homered to left center.")),
+                        List.of(
+                                new RevealedTensionPointResponse(
+                                        8,
+                                        "Bottom",
+                                        5)));
+
+        JsonNode json =
+                objectMapper.valueToTree(response);
+
+        SoftAssertions.assertSoftly(
+                softly -> {
+                    softly.assertThat(
+                                    json.get("displayMode").asText())
+                            .isEqualTo("REVEALED");
+
+                    softly.assertThat(
+                                    json.get("status").asText())
+                            .isEqualTo("STATUS_FINAL");
+
+                    softly.assertThat(json.has("homeTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("awayTeam"))
+                            .isTrue();
+                    softly.assertThat(json.has("headline"))
+                            .isTrue();
+                    softly.assertThat(json.has("finalScore"))
+                            .isTrue();
+                    softly.assertThat(json.has("inningScores"))
+                            .isTrue();
+                    softly.assertThat(json.has("scoringSummary"))
+                            .isTrue();
+                    softly.assertThat(json.has("tensionCurve"))
+                            .isTrue();
+
+                    /*
+                     * 득점 플레이는 이닝, 초·말, 원문을 포함한다.
+                     */
+                    JsonNode scoringPlay =
+                            json.get("scoringSummary").get(0);
+
+                    softly.assertThat(
+                                    scoringPlay.get("inning").asInt())
+                            .isEqualTo(2);
+
+                    softly.assertThat(
+                                    scoringPlay.get("inningType").asText())
+                            .isEqualTo("Bottom");
+
+                    softly.assertThat(
+                                    scoringPlay.get("text").asText())
+                            .contains("Díaz");
+
+                    /*
+                     * 공개용 경기 흐름은 하프이닝 단위를 허용한다.
+                     */
+                    JsonNode tensionPoint =
+                            json.get("tensionCurve").get(0);
+
+                    softly.assertThat(
+                                    tensionPoint.has("inning"))
+                            .isTrue();
+                    softly.assertThat(
+                                    tensionPoint.has("inningType"))
+                            .isTrue();
+                    softly.assertThat(
+                                    tensionPoint.has("level"))
+                            .isTrue();
+
+                    /*
+                     * 종료 공개 응답에는 진행 경기의 현재 상황이나
+                     * 현재 타석을 포함하지 않는다.
+                     */
+                    softly.assertThat(json.has("score"))
+                            .isFalse();
+                    softly.assertThat(json.has("periodLabel"))
+                            .isFalse();
+                    softly.assertThat(json.has("inning"))
+                            .isFalse();
+                    softly.assertThat(json.has("inningType"))
+                            .isFalse();
+                    softly.assertThat(json.has("situation"))
+                            .isFalse();
+                    softly.assertThat(json.has("currentMatchup"))
+                            .isFalse();
+                    softly.assertThat(
+                                    json.has("favoritePlayersPlaying"))
+                            .isFalse();
+                    softly.assertThat(
+                                    json.has("switchSuggestion"))
+                            .isFalse();
+
+                    softly.assertThat(json.has("summary"))
+                            .isFalse();
+                    softly.assertThat(json.has("recentPlays"))
+                            .isFalse();
+
+                    assertInternalRecommendationFieldsAreAbsent(
+                            softly,
+                            json);
+                });
+    }
+
+    /**
+     * 내부 추천 계산값은 사용자가 공개 모드를 선택했더라도
+     * 외부 경기 상세 API 응답에 포함하지 않는다.
+     */
+    private static void assertInternalRecommendationFieldsAreAbsent(
+            SoftAssertions softly,
+            JsonNode json) {
+
+        softly.assertThat(
+                        json.findValue("scoreSummary"))
+                .isNull();
+
+        softly.assertThat(
+                        json.findValue("baseScore"))
+                .isNull();
+
+        softly.assertThat(
+                        json.findValue("watchScore"))
+                .isNull();
+
+        softly.assertThat(
+                        json.findValue("pregameScore"))
+                .isNull();
+
+        softly.assertThat(
+                        json.findValue("peakBaseScore"))
+                .isNull();
+
+        softly.assertThat(
+                        json.findValue("signals"))
+                .isNull();
+
+        softly.assertThat(
+                        json.findValue("signalContributions"))
+                .isNull();
+
+        softly.assertThat(
+                        json.findValue("reasonTags"))
+                .isNull();
     }
 }
