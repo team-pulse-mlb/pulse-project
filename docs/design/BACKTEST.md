@@ -38,7 +38,7 @@
 - watch_score = clamp(base_score × importance + pregame 보정). importance와 pregame의 contention은 경기 날짜 기준 `standings` 스냅샷으로 판정한다.
 - pregame의 closeness는 `odds_snapshots`(PREGAME_FINAL 우선, 없으면 FIRST_SEEN)의 중앙값 implied probability로 재계산하고, starterMatchup은 라인업·시즌 스탯을 재로드하지 않으므로 `games.pregame_inputs`에 저장된 계산 결과를 재사용한다.
 - `S3_BACKFILL`은 벽시계 시각이 없어 1번 절의 order 윈도 근사를 적용한다(최근 득점 15 plays 선형 감쇠, 리드 변경 25 plays 윈도. `pulse.backtest.*` 설정으로 조정 가능).
-- 알림 빈도는 SurgeDetector 로직(임계·재무장·쿨다운·상승 트리거)을 메모리로 재현한다. 단 `S3_BACKFILL`은 시간 기반 쿨다운·상승 트리거를 생략하고, 전역 발화 한도는 모든 source에서 시뮬레이션하지 않는다.
+- 알림 빈도는 SurgeDetector 로직(임계·재무장·경기별 쿨다운·상승 트리거·전역 발화 한도)을 메모리로 재현한다. 전체 경기 사이클을 시각순으로 합쳐 `alert-global-window-minutes` 동안 `alert-global-limit`까지만 발화한다. 단 `S3_BACKFILL`은 벽시계 시각이 없으므로 시간 기반 쿨다운·상승 트리거·전역 발화 한도를 생략한다.
 
 **리포트 항목**
 
