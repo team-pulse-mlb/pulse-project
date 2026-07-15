@@ -126,6 +126,7 @@ public class LiveScoringService {
         record.setImportanceMultiplier(BigDecimal.valueOf(importance).setScale(2, RoundingMode.HALF_UP));
         record.setPregameBonus(BigDecimal.valueOf(pregameBonus).setScale(2, RoundingMode.HALF_UP));
         record.setWatchScore(watchScoreRounded);
+        record.setScoringVersion(props.version());
         record.setSignalContributions(result.signals());
         record.setTags(tags);
         record.setBackfilled(false);

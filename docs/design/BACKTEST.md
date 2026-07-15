@@ -4,6 +4,7 @@
 
 - 데이터: DB 이전 완료 후 백테스트는 **운영 DB에 적재된 이력**으로 수행한다. 입력은 `plays`·`games`·`watch_scores`·`odds_snapshots`·`standings`이며, S3에서 이전·보존한 과거 데이터를 포함한다. S3 원본을 직접 재생하는 방식은 DB 이전 전까지의 잠정 방식이며, 이전 완료 후에는 사용하지 않는다.
 - 데이터 구분: 이전 데이터는 `source` 컬럼(`S3_LIVE_ARCHIVE`·`S3_BACKFILL`)과 이전 경계 시각으로 운영 수집분(`OPERATIONAL`)과 구분한다. 재생 로직은 `source`에 따라 시간 감쇠 방식을 분기한다.
+- 적용 버전: 신규 저장·재계산한 `watch_scores`는 `scoring_version`으로 적용한 `scoring.yml` 스냅샷을 구분한다. 기존 행의 `null`은 버전 미상으로 다룬다.
 - 재생: 경기별 plays를 order 순으로 점수 함수에 주입한다.
   - `OPERATIONAL`·`S3_LIVE_ARCHIVE`(observed_at 실측 보유): 실제 시간 감쇠로 재생한다. `S3_LIVE_ARCHIVE`는 관측 주기가 운영(약 20초)과 다를 수 있어 감쇠 오차 상한이 커진다.
   - `S3_BACKFILL`(과거 시즌, 벽시계 시각 없음): 시간 감쇠 항을 order 윈도우로 근사한다(최근 득점: 이후 15 plays 선형 감쇠, 리드 변경: 이후 25 plays 선형 감쇠).
@@ -38,7 +39,7 @@
 - watch_score = clamp(base_score × importance + pregame 보정). importance와 pregame의 contention은 경기 날짜 기준 `standings` 스냅샷으로 판정한다.
 - pregame의 closeness는 `odds_snapshots`(PREGAME_FINAL 우선, 없으면 FIRST_SEEN)의 중앙값 implied probability로 재계산하고, starterMatchup은 라인업·시즌 스탯을 재로드하지 않으므로 `games.pregame_inputs`에 저장된 계산 결과를 재사용한다.
 - `S3_BACKFILL`은 벽시계 시각이 없어 1번 절의 order 윈도 근사를 적용한다(최근 득점 15 plays 선형 감쇠, 리드 변경 25 plays 윈도. `pulse.backtest.*` 설정으로 조정 가능).
-- 알림 빈도는 SurgeDetector 로직(임계·재무장·쿨다운·상승 트리거)을 메모리로 재현한다. 단 `S3_BACKFILL`은 시간 기반 쿨다운·상승 트리거를 생략하고, 전역 발화 한도는 모든 source에서 시뮬레이션하지 않는다.
+- 알림 빈도는 SurgeDetector 로직(임계·재무장·경기별 쿨다운·상승 트리거·전역 발화 한도)을 메모리로 재현한다. 전체 경기 사이클을 시각순으로 합쳐 `alert-global-window-minutes` 동안 `alert-global-limit`까지만 발화한다. 단 `S3_BACKFILL`은 벽시계 시각이 없으므로 시간 기반 쿨다운·상승 트리거·전역 발화 한도를 생략한다.
 
 **리포트 항목**
 

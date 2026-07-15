@@ -124,6 +124,7 @@ class HistoricalScoreReplayService {
                 current.inningType(),
                 baseScore,
                 watchScore,
+                scoringProperties.version(),
                 result.signals(),
                 tags,
                 current.backfilledValue(),

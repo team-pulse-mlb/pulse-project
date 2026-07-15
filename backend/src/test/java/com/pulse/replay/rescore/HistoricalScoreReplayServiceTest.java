@@ -41,6 +41,9 @@ class HistoricalScoreReplayServiceTest {
         assertThat(captor.getAllValues())
                 .extracting(RescoreWatchScoreRow::computedAt)
                 .containsExactly(observedAt, observedAt.plusSeconds(1), observedAt.plusSeconds(2));
+        assertThat(captor.getAllValues())
+                .extracting(RescoreWatchScoreRow::scoringVersion)
+                .containsOnly(5);
     }
 
     @Test
