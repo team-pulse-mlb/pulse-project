@@ -6,7 +6,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 6
+  version: 7
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
@@ -27,8 +27,8 @@ scoring:
       gap-2: 1.2
       default: 1.0
   lead-change:
-    bonus: 9
-    window-plays: 12
+    bonus: 14
+    window-plays: 16
   big-inning:
     bonus: 9
     min-scoring-plays: 2
@@ -37,8 +37,8 @@ scoring:
     two-outs: 3
     max: 5
   pressure:
-    bases-loaded: 6
-    scoring-position: 4
+    bases-loaded: 9
+    scoring-position: 6
   early-slugfest:
     bonus: 5
     max-inning: 3
@@ -86,8 +86,8 @@ scoring:
 
   # 판단 기준
   thresholds:
-    alert-score: 85
-    alert-rearm-score: 70
+    alert-score: 50
+    alert-rearm-score: 35
     alert-rise-score: 15
     alert-rise-window-minutes: 5
     alert-cooldown-minutes: 15
