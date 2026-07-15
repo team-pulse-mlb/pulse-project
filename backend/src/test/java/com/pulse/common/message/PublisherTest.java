@@ -1,35 +1,51 @@
 package com.pulse.common.message;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
-import com.pulse.common.config.RabbitMqConfig;
 import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.common.message.NotificationEvent.NotificationType;
 import com.pulse.domain.NotificationEventLog;
 import com.pulse.domain.NotificationEventLogRepository;
 import com.pulse.domain.NotificationOutbox;
 import com.pulse.domain.NotificationOutboxRepository;
+import com.pulse.domain.ScoreTaskOutbox;
+import com.pulse.domain.ScoreTaskOutboxRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 class PublisherTest {
 
-    private final RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
-
     @Test
-    void scoreTaskPublisher_shouldSendToScoreTasksQueue() {
-        ScoreTask task = new ScoreTask(1L, Instant.parse("2026-07-08T00:00:00Z"), null, "LIVE", null);
+    void scoreTaskPublisher_shouldPersistTaskAndPendingStateBeforeDispatch() {
+        Instant now = Instant.parse("2026-07-08T00:00:00Z");
+        ScoreTask task = new ScoreTask(1L, now, null, "LIVE", null);
+        ScoreTaskOutboxRepository outboxRepository = mock(ScoreTaskOutboxRepository.class);
+        ScoreTaskOutboxDispatcher dispatcher = mock(ScoreTaskOutboxDispatcher.class);
+        when(outboxRepository.findByGameIdAndObservedAt(1L, now)).thenReturn(Optional.empty());
+        when(outboxRepository.save(any(ScoreTaskOutbox.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        new ScoreTaskPublisher(rabbitTemplate).publish(task);
+        new ScoreTaskPublisher(
+                outboxRepository,
+                dispatcher,
+                new AfterCommitExecutor(),
+                Clock.fixed(now, ZoneOffset.UTC)
+        ).publish(task);
 
-        verify(rabbitTemplate).convertAndSend(RabbitMqConfig.SCORE_TASKS_QUEUE, task);
+        ArgumentCaptor<ScoreTaskOutbox> outboxCaptor = ArgumentCaptor.forClass(ScoreTaskOutbox.class);
+        verify(outboxRepository).save(outboxCaptor.capture());
+        verify(dispatcher).publishTask(outboxCaptor.getValue().getOutboxId());
+        assertThat(outboxCaptor.getValue().getPayload()).isEqualTo(task);
+        assertThat(outboxCaptor.getValue().getStatus()).isEqualTo(ScoreTaskOutbox.STATUS_PENDING);
+        assertThat(outboxCaptor.getValue().getNextAttemptAt()).isEqualTo(now);
     }
 
     @Test
