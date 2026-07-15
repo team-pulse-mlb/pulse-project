@@ -2,6 +2,8 @@ package com.pulse.api.user;
 
 import com.pulse.api.user.domain.Member;
 import com.pulse.api.user.domain.MemberRepository;
+import com.pulse.api.user.domain.UserFavoritePlayerRepository;
+import com.pulse.domain.PlayerRepository;
 import com.pulse.api.user.domain.UserFavoriteTeam;
 import com.pulse.api.user.domain.UserFavoriteTeamRepository;
 import com.pulse.api.user.domain.UserSetting;
@@ -46,6 +48,23 @@ class UserPreferenceServiceTest {
 
     @Mock
     private TeamRepository teamRepository;
+
+    /*
+     * 관심 선수 기능 추가 후 UserPreferenceService 생성자에 추가된 의존성입니다.
+     *
+     * 이 테스트는 관심팀 저장 순서를 검증하지만,
+     * 서비스가 기존 관심 선수 설정을 유지하기 위해
+     * UserFavoritePlayerRepository도 호출하므로 Mock이 필요합니다.
+     */
+    @Mock
+    private UserFavoritePlayerRepository userFavoritePlayerRepository;
+
+    /*
+     * 현재 테스트 요청에는 selectedPlayerIds가 없어서 직접 호출되지는 않지만,
+     * UserPreferenceService 생성자 의존성을 온전하게 구성하기 위해 Mock으로 등록합니다.
+     */
+    @Mock
+    private PlayerRepository playerRepository;
 
     /**
      * 위에서 선언한 Mock Repository들을 주입해
@@ -120,6 +139,17 @@ class UserPreferenceServiceTest {
          * 빈 목록으로 반환해도 됩니다.
          */
         when(userFavoriteTeamRepository.findByMemberUserId(userId))
+                .thenReturn(List.of());
+
+        /*
+         * 이 테스트는 관심팀 저장 순서만 검증하므로
+         * 기존 관심 선수는 없는 상태로 설정합니다.
+         *
+         * selectedPlayerIds가 null이면 서비스는 관심 선수를 변경하지 않고
+         * 현재 목록을 조회해 그대로 응답에 포함합니다.
+         */
+        when(userFavoritePlayerRepository
+                .findByMemberUserIdOrderByCreatedAtAsc(userId))
                 .thenReturn(List.of());
 
         UserPreferenceUpdateRequest request =
