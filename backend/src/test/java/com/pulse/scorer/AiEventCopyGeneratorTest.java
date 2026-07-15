@@ -256,7 +256,9 @@ class AiEventCopyGeneratorTest {
     }
 
     private static ProtectedEventCopyContext context(String hash) {
-        return new ProtectedEventCopyContext(10L, 20L, "long_at_bat", "긴 승부", 7, hash);
+        return new ProtectedEventCopyContext(
+                10L, 20L, "long_at_bat", "긴 승부", 7,
+                java.util.List.of(), java.util.Map.of(), hash);
     }
 
     private static AiEventCopyRequest request(String hash) {

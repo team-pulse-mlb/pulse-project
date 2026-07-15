@@ -42,6 +42,8 @@ public class AiCopyContextService implements AiCopyContextReader {
     private static final int MAX_KEY_MOMENTS_PER_INNING = 2;
     private static final int MAX_KEY_MOMENTS_PER_LABEL = 2;
 
+    private static final int MAX_CONTRIBUTING_LABELS = 4;
+
     private static final Map<String, Set<String>> EVIDENCE_KEYS = Map.ofEntries(
             Map.entry("pressure_bases_loaded", Set.of("outs", "balls", "strikes")),
             Map.entry("pressure_scoring_position", Set.of("outs", "balls", "strikes")),
@@ -53,6 +55,22 @@ public class AiCopyContextService implements AiCopyContextReader {
             Map.entry("home_run", Set.of("scoreValue")),
             Map.entry("big_inning", Set.of("scoringPlays")),
             Map.entry("lead_change", Set.of())
+    );
+
+    /**
+     * 보호 모드에 넘겨도 안전한 상황 근거만 담은 화이트리스트.
+     * 카운트·아웃·주자·투구수처럼 '진행 상황'만 포함하고, 결과를 암시하는 값
+     * (exitVelocity·isBarrel·scoreValue·velocityDropMph 등)은 제외한다.
+     */
+    private static final Map<String, Set<String>> PROTECTED_EVIDENCE_KEYS = Map.ofEntries(
+            Map.entry("pressure_bases_loaded",
+                    Set.of("outs", "runnerOnFirst", "runnerOnSecond", "runnerOnThird")),
+            Map.entry("pressure_scoring_position",
+                    Set.of("outs", "runnerOnSecond", "runnerOnThird")),
+            Map.entry("full_count_two_out",
+                    Set.of("outs", "balls", "strikes", "runnerOnFirst", "runnerOnSecond", "runnerOnThird")),
+            Map.entry("long_at_bat", Set.of("pitchNumber")),
+            Map.entry("pitcher_instability", Set.of("pitcherPitchCount"))
     );
 
     private final GameRepository gameRepository;
@@ -119,9 +137,19 @@ public class AiCopyContextService implements AiCopyContextReader {
         safeContext.put("label", label);
         safeContext.put("inning", event.getInning());
         if (mode == AiCopyMode.PROTECTED) {
+            List<String> contributingLabels = protectedContributingLabels(gameId, event);
+            Map<String, Object> situation = projectProtectedEvidence(
+                    event.getEventType(), event.getPayload());
+            if (!contributingLabels.isEmpty()) {
+                safeContext.put("contributingLabels", contributingLabels);
+            }
+            if (!situation.isEmpty()) {
+                safeContext.put("situation", situation);
+            }
             String hash = AiContextHashCalculator.calculate("EVENT_COPY", mode, gameId, eventId, safeContext);
             return Optional.of(new ProtectedEventCopyContext(
-                    gameId, eventId, event.getEventType(), label, event.getInning(), hash));
+                    gameId, eventId, event.getEventType(), label, event.getInning(),
+                    contributingLabels, situation, hash));
         }
 
         Map<String, Object> evidence = projectEvidence(event.getEventType(), event.getPayload());
@@ -172,7 +200,15 @@ public class AiCopyContextService implements AiCopyContextReader {
     }
 
     static Map<String, Object> projectEvidence(String eventType, Map<String, Object> payload) {
-        Set<String> allowed = EVIDENCE_KEYS.get(eventType);
+        return projectByKeys(EVIDENCE_KEYS.get(eventType), payload);
+    }
+
+    /** 보호 모드 상황 근거만 추출한다(결과 암시 값 제외). */
+    static Map<String, Object> projectProtectedEvidence(String eventType, Map<String, Object> payload) {
+        return projectByKeys(PROTECTED_EVIDENCE_KEYS.get(eventType), payload);
+    }
+
+    private static Map<String, Object> projectByKeys(Set<String> allowed, Map<String, Object> payload) {
         if (allowed == null || allowed.isEmpty() || payload == null || payload.isEmpty()) {
             return Map.of();
         }
@@ -184,6 +220,28 @@ public class AiCopyContextService implements AiCopyContextReader {
             }
         });
         return Map.copyOf(evidence);
+    }
+
+    /**
+     * 같은 이닝의 서로 다른 보호 라벨을 시간순으로 모은다(anchor 라벨 포함, 최대 {@value #MAX_CONTRIBUTING_LABELS}).
+     * 여러 긴장 요소가 겹친 순간을 문구가 반영할 수 있게 한다.
+     */
+    private List<String> protectedContributingLabels(long gameId, GameEvent anchor) {
+        if (anchor.getInning() == null) {
+            return List.of();
+        }
+        List<String> labels = new ArrayList<>();
+        for (GameEvent event : gameEventRepository.findByGameIdAndInningAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                gameId, anchor.getInning(), GameEvent.SPOILER_PROTECTED_SAFE)) {
+            String label = GameEventLabelPolicy.protectedLabel(event.getSpoilerLevel(), event.getEventType());
+            if (label != null && !labels.contains(label)) {
+                labels.add(label);
+                if (labels.size() >= MAX_CONTRIBUTING_LABELS) {
+                    break;
+                }
+            }
+        }
+        return List.copyOf(labels);
     }
 
     private String playerName(Long playerId) {

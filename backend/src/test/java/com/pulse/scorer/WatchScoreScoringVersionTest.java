@@ -54,6 +54,7 @@ class WatchScoreScoringVersionTest {
                 mock(GameEventExtractor.class),
                 mock(LiveSignalPublisher.class),
                 mock(SurgeDetector.class),
+                mock(TimelineHighlightTrigger.class),
                 mock(NotificationEventPublisher.class),
                 properties);
 
