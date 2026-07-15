@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * AI 생성 트리거 기본 구현. 창현(com.pulse.ai)이 전체 구현 빈을 제공하면 그쪽이 우선한다.
- * 현재 연결 가능한 EVENT_COPY는 AiEventCopyGenerator, FINAL_HEADLINE은 AiFinalHeadlineGenerator에 위임한다.
+ * 보호 모드 EVENT_COPY는 AiEventCopyGenerator, FINAL_HEADLINE은 AiFinalHeadlineGenerator에 위임한다.
  * 트리거를 호출하는 GameEventExtractor·GameFinalizationService가 scorer 역할에서만 등록되므로
  * 이 설정도 같은 조건을 따른다.
  */

@@ -56,6 +56,9 @@ public class WatchScore {
 
     private Integer watchScore;
 
+    /** 이 행을 계산할 때 적용한 scoring.yml version. */
+    private Integer scoringVersion;
+
     /** 신호별 기여 점수 (예: {"late_or_extra": 20.0, "score_gap": 25.0}) */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "signal_contributions")

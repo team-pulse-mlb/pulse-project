@@ -59,6 +59,65 @@ class AiEventCopyGeneratorTest {
     }
 
     @Test
+    void generateSynchronously_shouldRejectRevealedModeWithoutCallingAiService() {
+        AiEventCopyGenerator.GenerationStatus status =
+                generator.generateSynchronously(10L, 20L, AiCopyMode.REVEALED);
+
+        assertThat(status).isEqualTo(AiEventCopyGenerator.GenerationStatus.NOT_ELIGIBLE);
+        verify(contextReader, never()).eventCopyContext(10L, 20L, AiCopyMode.REVEALED);
+        verify(aiServiceClient, never()).generateEventCopy(org.mockito.ArgumentMatchers.any());
+        verify(gameEventRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void regenerateSynchronously_shouldOverwriteExistingProtectedCopy() {
+        ProtectedEventCopyContext context = context("hash-2");
+        AiEventCopyRequest request = request("hash-2");
+        AiCopyResponse response = new AiCopyResponse(
+                true, "hash-2", "새 이벤트 문구", List.of(), false);
+        GameEvent event = event();
+        event.setCopyProtected("기존 이벤트 문구");
+        event.setCopyProtectedContextHash("hash-1");
+
+        when(contextReader.eventCopyContext(10L, 20L, AiCopyMode.PROTECTED))
+                .thenReturn(Optional.of(context));
+        when(contextMapper.toRequest(AiCopyMode.PROTECTED, context)).thenReturn(request);
+        when(aiServiceClient.generateEventCopy(request)).thenReturn(Optional.of(response));
+        when(gameEventRepository.findById(20L)).thenReturn(Optional.of(event));
+
+        AiEventCopyGenerator.GenerationStatus status = generator.regenerateSynchronously(10L, 20L);
+
+        assertThat(status).isEqualTo(AiEventCopyGenerator.GenerationStatus.SAVED);
+        assertThat(event.getCopyProtected()).isEqualTo("새 이벤트 문구");
+        assertThat(event.getCopyProtectedContextHash()).isEqualTo("hash-2");
+        verify(gameEventRepository).save(event);
+    }
+
+    @Test
+    void regenerateSynchronously_shouldPreserveExistingCopyWhenGenerationFails() {
+        ProtectedEventCopyContext context = context("hash-2");
+        AiEventCopyRequest request = request("hash-2");
+        AiCopyResponse response = new AiCopyResponse(
+                false, "hash-2", null, List.of("OPENAI_GENERATION_FAILED"), false);
+        GameEvent event = event();
+        event.setCopyProtected("기존 이벤트 문구");
+        event.setCopyProtectedContextHash("hash-1");
+
+        when(contextReader.eventCopyContext(10L, 20L, AiCopyMode.PROTECTED))
+                .thenReturn(Optional.of(context));
+        when(contextMapper.toRequest(AiCopyMode.PROTECTED, context)).thenReturn(request);
+        when(aiServiceClient.generateEventCopy(request)).thenReturn(Optional.of(response));
+        when(gameEventRepository.findById(20L)).thenReturn(Optional.of(event));
+
+        AiEventCopyGenerator.GenerationStatus status = generator.regenerateSynchronously(10L, 20L);
+
+        assertThat(status).isEqualTo(AiEventCopyGenerator.GenerationStatus.CALL_FAILED);
+        assertThat(event.getCopyProtected()).isEqualTo("기존 이벤트 문구");
+        assertThat(event.getCopyProtectedContextHash()).isEqualTo("hash-1");
+        verify(gameEventRepository).save(event);
+    }
+
+    @Test
     void generateSynchronously_shouldIncreaseAttemptsAndReturnCallFailedWhenResponseIsEmpty() {
         ProtectedEventCopyContext context = context("hash-1");
         AiEventCopyRequest request = request("hash-1");

@@ -1,6 +1,7 @@
 package com.pulse.scorer;
 
 import com.pulse.common.message.RedisSignalChannels;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.ranking.RankingService;
 import java.time.Instant;
@@ -43,6 +44,7 @@ public class LiveSignalPublisher {
     ) {
         afterCommitExecutor.execute(() -> {
             rankingService.updateLive(gameId, watchScore);
+            PulseMetrics.increment("pulse.scorer.ranking.updated");
             cacheGameState(
                     gameId,
                     watchScore,

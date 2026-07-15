@@ -5,6 +5,7 @@ import com.pulse.common.message.NotificationEvent;
 import com.pulse.common.message.NotificationEvent.NotificationType;
 import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
@@ -101,6 +102,7 @@ public class LiveScoringService {
         );
 
         if (surgeDetector.evaluate(gameId, watchScoreRounded, observedAt)) {
+            PulseMetrics.increment("pulse.scorer.surge.fired");
             publishSurge(game, tags, previousTags, observedAt);
         }
         log.debug("라이브 점수 계산 gameId={} watchScore={} observedAt={}", gameId, watchScoreRounded, observedAt);
@@ -126,6 +128,7 @@ public class LiveScoringService {
         record.setImportanceMultiplier(BigDecimal.valueOf(importance).setScale(2, RoundingMode.HALF_UP));
         record.setPregameBonus(BigDecimal.valueOf(pregameBonus).setScale(2, RoundingMode.HALF_UP));
         record.setWatchScore(watchScoreRounded);
+        record.setScoringVersion(props.version());
         record.setSignalContributions(result.signals());
         record.setTags(tags);
         record.setBackfilled(false);

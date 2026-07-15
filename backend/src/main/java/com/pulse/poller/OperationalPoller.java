@@ -10,6 +10,7 @@ import com.pulse.common.message.NotificationEvent;
 import com.pulse.common.message.NotificationEvent.NotificationType;
 import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTaskPublisher;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
@@ -110,6 +111,7 @@ public class OperationalPoller {
 
     @Scheduled(fixedDelayString = "${pulse.poller.tick-delay-ms:20000}")
     public void poll() {
+        PulseMetrics.increment("pulse.poller.ticks", "poller", "operational");
         Instant now = clock.instant();
         List<Game> liveGames = now.isBefore(nextGamesPollAt)
                 ? gameRepository.findByLifecycleState(GameLifecycle.LIVE.name())
@@ -172,6 +174,7 @@ public class OperationalPoller {
                     return;
                 }
                 log.error("plays poll failed: gameId={}", game.getId(), e);
+                PulseMetrics.increment("pulse.poller.game.skips", "reason", "isolated_failure");
             }
         }
         playsBackoff.recordSuccess();
@@ -273,6 +276,7 @@ public class OperationalPoller {
     private void handleFailure(String target, PollerBackoff backoff, Instant now, RuntimeException e) {
         if (PollerExceptionClassifier.shouldBackoff(e)) {
             backoff.recordFailure(now, PollerExceptionClassifier.retryAfter(e));
+            PulseMetrics.increment("pulse.poller.backoff.activations", "target", target);
             log.warn("{} poll failed, backed off until {}", target, backoff.blockedUntil(), e);
             return;
         }

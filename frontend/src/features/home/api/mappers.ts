@@ -1,5 +1,7 @@
 import type { GameCardData } from '../../../shared/components/GameCard';
+import type { TeamResponse } from '../../../shared/api/teamApi';
 import { formatInning, formatStartTime } from '../../../shared/lib/format';
+import { toTeamIdentity } from '../lib/teamIdentity';
 
 import type {
   HomeRankingResponse,
@@ -12,56 +14,71 @@ import type {
 // API 응답 → 화면 표시용 GameCardData 변환.
 // 상태별 보조 문구 규칙: 진행=latestTag 1개, 예정=구장·시각(태그 없음), 종료=headline/keyMoment.
 
-function fromLive(card: RankingLiveGameCard): GameCardData {
+function fromLive(
+  card: RankingLiveGameCard,
+  teams?: readonly TeamResponse[],
+): GameCardData {
   return {
     gameId: card.gameId,
     status: 'live',
-    awayLabel: card.matchup.away,
-    homeLabel: card.matchup.home,
+    awayTeam: toTeamIdentity(card.matchup.away, teams),
+    homeTeam: toTeamIdentity(card.matchup.home, teams),
     inningText: formatInning(card.inning) ?? undefined,
     metaText: card.latestTag ?? undefined,
   };
 }
 
-function fromScheduled(card: RankingScheduledGameCard): GameCardData {
+function fromScheduled(
+  card: RankingScheduledGameCard,
+  teams?: readonly TeamResponse[],
+): GameCardData {
   const parts = [card.venue, probablePitchersText(card.probablePitchers)].filter(Boolean);
 
   return {
     gameId: card.gameId,
     status: 'scheduled',
-    awayLabel: card.matchup.away,
-    homeLabel: card.matchup.home,
+    awayTeam: toTeamIdentity(card.matchup.away, teams),
+    homeTeam: toTeamIdentity(card.matchup.home, teams),
     startTimeText: formatStartTime(card.startTime),
     metaText: parts.join(' · ') || undefined,
   };
 }
 
-function fromFinished(card: RankingFinishedGameCard): GameCardData {
+function fromFinished(
+  card: RankingFinishedGameCard,
+  teams?: readonly TeamResponse[],
+): GameCardData {
   return {
     gameId: card.gameId,
     status: 'final',
-    awayLabel: card.matchup.away,
-    homeLabel: card.matchup.home,
+    awayTeam: toTeamIdentity(card.matchup.away, teams),
+    homeTeam: toTeamIdentity(card.matchup.home, teams),
     metaText: card.headline ?? card.keyMoment ?? undefined,
   };
 }
 
 /** 상단 추천: 진행→종료→예정 순으로 슬롯을 채워 최대 5장 */
-export function toRecommendedCards(response: HomeRankingResponse): GameCardData[] {
+export function toRecommendedCards(
+  response: HomeRankingResponse,
+  teams?: readonly TeamResponse[],
+): GameCardData[] {
   return [
-    ...response.live.map(fromLive),
-    ...response.finished.map(fromFinished),
-    ...response.scheduled.map(fromScheduled),
+    ...response.live.map((card) => fromLive(card, teams)),
+    ...response.finished.map((card) => fromFinished(card, teams)),
+    ...response.scheduled.map((card) => fromScheduled(card, teams)),
   ].slice(0, 5);
 }
 
-export function toSlateCard(card: SlateGameCard): GameCardData {
+export function toSlateCard(
+  card: SlateGameCard,
+  teams?: readonly TeamResponse[],
+): GameCardData {
   if (card.gameState === 'LIVE') {
     return {
       gameId: card.gameId,
       status: 'live',
-      awayLabel: card.matchup.away,
-      homeLabel: card.matchup.home,
+      awayTeam: toTeamIdentity(card.matchup.away, teams),
+      homeTeam: toTeamIdentity(card.matchup.home, teams),
       inningText: formatInning(card.inning) ?? undefined,
       metaText: card.latestTag ?? undefined,
     };
@@ -71,8 +88,8 @@ export function toSlateCard(card: SlateGameCard): GameCardData {
     return {
       gameId: card.gameId,
       status: 'final',
-      awayLabel: card.matchup.away,
-      homeLabel: card.matchup.home,
+      awayTeam: toTeamIdentity(card.matchup.away, teams),
+      homeTeam: toTeamIdentity(card.matchup.home, teams),
       metaText: card.headline ?? card.keyMoment ?? undefined,
     };
   }
@@ -81,8 +98,8 @@ export function toSlateCard(card: SlateGameCard): GameCardData {
     return {
       gameId: card.gameId,
       status: card.gameState === 'POSTPONED' ? 'postponed' : 'canceled',
-      awayLabel: card.matchup.away,
-      homeLabel: card.matchup.home,
+      awayTeam: toTeamIdentity(card.matchup.away, teams),
+      homeTeam: toTeamIdentity(card.matchup.home, teams),
       metaText: card.venue ?? undefined,
     };
   }
@@ -92,8 +109,8 @@ export function toSlateCard(card: SlateGameCard): GameCardData {
   return {
     gameId: card.gameId,
     status: 'scheduled',
-    awayLabel: card.matchup.away,
-    homeLabel: card.matchup.home,
+    awayTeam: toTeamIdentity(card.matchup.away, teams),
+    homeTeam: toTeamIdentity(card.matchup.home, teams),
     startTimeText: card.startTime ? formatStartTime(card.startTime) : undefined,
     metaText: parts.join(' · ') || undefined,
   };
