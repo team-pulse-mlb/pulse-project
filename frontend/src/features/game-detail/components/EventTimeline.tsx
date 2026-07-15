@@ -1,5 +1,4 @@
 import Card from '../../../shared/components/Card';
-import TimelineItem from '../../../shared/components/TimelineItem';
 import type { DisplayMode } from '../lib/displayMode';
 
 export interface TimelineEvent {
@@ -40,7 +39,7 @@ function getGroupKey(
 ) {
   /**
    * 보호 모드에서는 초·말을 기준으로 나누지 않는다.
-   * 초·말은 공격팀을 추측하게 할 수 있으므로 이닝 숫자만 사용한다.
+   * 공격 팀을 유추할 수 있으므로 이닝 숫자만 사용한다.
    */
   if (mode === 'PROTECTED') {
     return String(event.inning);
@@ -53,6 +52,9 @@ function getGroupLabel(
     event: TimelineEvent,
     mode: DisplayMode,
 ) {
+  /**
+   * 보호 모드는 이닝 숫자만 보여준다.
+   */
   if (
       mode === 'PROTECTED' ||
       !event.inningType
@@ -73,7 +75,8 @@ function groupEventsByInning(
 
   /**
    * 서버가 전달한 이벤트 순서를 그대로 유지한다.
-   * 이벤트가 없는 이닝의 빈 그룹은 생성하지 않는다.
+   * 종료 경기는 오래된 순서,
+   * 진행 경기는 GameDetailPage에서 뒤집은 최신순이 들어온다.
    */
   events.forEach((event) => {
     const key = getGroupKey(event, mode);
@@ -94,8 +97,14 @@ function groupEventsByInning(
   return Array.from(groups.values());
 }
 
+/**
+ * 보호 모드 경기 흐름을 이닝별 박스로 묶어 표시한다.
+ *
+ * 보호 모드에서는 초·말과 점수를 드러내지 않고,
+ * 각 문장은 레드 점 + 텍스트의 한 줄 구조로 표시한다.
+ */
 function EventTimeline({
-                         title = '이벤트 타임라인',
+                         title = '경기 흐름',
                          mode,
                          events,
                        }: EventTimelineProps) {
@@ -116,33 +125,54 @@ function EventTimeline({
             </p>
         ) : (
             /**
-             * 카드 제목은 고정하고 목록 부분만 스크롤한다.
-             * 목록이 최대 높이보다 짧으면 스크롤바는 나타나지 않는다.
+             * 카드 전체가 길어지는 것을 막기 위해
+             * 목록 영역만 세로 스크롤한다.
              */
             <div className="max-h-[380px] overflow-y-auto overscroll-contain pr-2 sm:max-h-[430px] [scrollbar-gutter:stable]">
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-4">
                 {groups.map((group) => (
-                    <section key={group.key}>
-                      <div className="flex items-center gap-3">
-                  <span className="shrink-0 rounded-full bg-red-tint px-3 py-1 font-display text-xs font-bold text-mlb-red">
+                    <section
+                        key={group.key}
+                        className="rounded-xl border border-divider px-4 py-3.5"
+                    >
+                      {/*
+                 * 보호 모드 이닝 배지는 MLB 네이비 배경으로 강조한다.
+                 * 보호 모드이므로 초·말 없이 n회만 표시한다.
+                 */}
+                      <div>
+                  <span className="inline-flex rounded-full bg-mlb-navy px-3.5 py-1.5 font-display text-[13px] font-bold text-white">
                     {group.label}
                   </span>
-
-                        <div
-                            aria-hidden="true"
-                            className="h-px flex-1 bg-divider"
-                        />
                       </div>
 
-                      <ul className="mt-3 pl-1">
+                      <ul className="mt-3 space-y-[10px]">
                         {group.events.map((event) => (
-                            <TimelineItem
+                            <li
                                 key={event.eventId}
-                                text={event.text}
-                                highlighted={
-                                    event.highlighted ?? false
-                                }
-                            />
+                                className="flex items-center gap-3"
+                            >
+                              {/*
+                       * 보호 모드 문장 왼쪽 점은 레드로 표시한다.
+                       * 스코어는 보호 정책상 출력하지 않는다.
+                       */}
+                              <span
+                                  aria-hidden="true"
+                                  className="h-2 w-2 shrink-0 rounded-full bg-mlb-red"
+                              />
+
+                              <p className="min-w-0 text-[15px] leading-relaxed text-text-body">
+                                {event.highlighted && (
+                                    <span
+                                        aria-label="관심 선수"
+                                        className="mr-1 text-gold"
+                                    >
+                            ★
+                          </span>
+                                )}
+
+                                {event.text}
+                              </p>
+                            </li>
                         ))}
                       </ul>
                     </section>
