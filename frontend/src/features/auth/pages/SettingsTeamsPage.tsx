@@ -18,6 +18,7 @@ import {
 } from '../../../shared/api/teamApi';
 
 import '../styles/myPage.css';
+import '../styles/settingsTeams.css';
 
 /*
  * 한 사용자가 등록할 수 있는 관심팀 최대 개수입니다.
@@ -251,7 +252,7 @@ function SettingsTeamsPage() {
     }
 
     return (
-        <main className="mypage-shell">
+        <main className="mypage-shell team-settings-page">
             <section className="mypage-single-column">
                 <header className="mypage-content-header">
                     <div>

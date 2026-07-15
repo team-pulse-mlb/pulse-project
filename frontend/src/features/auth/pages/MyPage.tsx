@@ -10,6 +10,7 @@ import {
 import {
     getMyPreferences,
     updateMyPreferences,
+    type FavoritePlayerResponse,
     type FavoriteTeamResponse,
     type NotificationSettings,
 } from '../api/preferenceApi';
@@ -47,6 +48,15 @@ function MyPage() {
      */
     const [favoriteTeams, setFavoriteTeams] =
         useState<FavoriteTeamResponse[]>([]);
+
+    /*
+    * 현재 사용자가 등록한 관심 선수 목록입니다.
+    *
+    * 마이페이지에서는 읽기 전용으로 표시하고,
+    * 실제 추가·삭제는 /settings/players에서 처리합니다.
+    */
+    const [favoritePlayers, setFavoritePlayers] =
+        useState<FavoritePlayerResponse[]>([]);
 
     /*
      * 사용자의 알림 수신 설정입니다.
@@ -91,9 +101,15 @@ function MyPage() {
                 }
 
                 setMe(meResponse);
+
                 setFavoriteTeams(
                     preferenceResponse.favoriteTeams,
                 );
+
+                setFavoritePlayers(
+                    preferenceResponse.favoritePlayers,
+                );
+
                 setNotificationSettings(
                     preferenceResponse.notificationSettings,
                 );
@@ -175,6 +191,10 @@ function MyPage() {
 
             setFavoriteTeams(
                 response.favoriteTeams,
+            );
+
+            setFavoritePlayers(
+                response.favoritePlayers,
             );
 
             setNotificationSettings(
@@ -486,6 +506,63 @@ function MyPage() {
                                             {team.league}
                                             {' · '}
                                             {team.division}
+                                        </span>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                {/* 관심 선수 */}
+                <section className="mypage-card">
+                    <div className="mypage-card-title-row">
+                        <div>
+                            <h2>내 관심 선수</h2>
+
+                            <p>
+                                현재 등록된 관심 선수입니다.
+                                최대 5명까지 설정할 수 있습니다.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="mypage-text-button"
+                            onClick={() =>
+                                navigate('/settings/players')
+                            }
+                        >
+                            관심 선수 관리
+                        </button>
+                    </div>
+
+                    {favoritePlayers.length === 0 ? (
+                        <div className="mypage-empty-box">
+                            아직 등록한 관심 선수가 없습니다.
+                        </div>
+                    ) : (
+                        <div className="mypage-preview-player-grid">
+                            {favoritePlayers.map((player) => (
+                                <article
+                                    key={player.playerId}
+                                    className="mypage-preview-player-card"
+                                >
+                                    <div className="mypage-preview-player-avatar">
+                                        {player.fullName
+                                            ?.charAt(0)
+                                            .toUpperCase() ?? '?'}
+                                    </div>
+
+                                    <div className="mypage-preview-player-text">
+                                        <strong>
+                                            {player.fullName ??
+                                                `선수 #${player.playerId}`}
+                                        </strong>
+
+                                        <span>
+                                            {player.position ??
+                                                '포지션 정보 없음'}
                                         </span>
                                     </div>
                                 </article>
