@@ -44,7 +44,7 @@ export interface TeamResponse {
      * 예:
      * Dodgers
      */
-    shortDisplayName: string;
+    shortDisplayName: string | null;
 
     /*
      * 리그 정보입니다.
@@ -78,5 +78,6 @@ export const getTeams = async (): Promise<TeamResponse[]> => {
         `${ApiUrl}/api/teams`,
     );
 
-    return response.data;
+    // 외부 API의 음수 ID는 실제 선택 가능한 MLB 팀이 아닌 임시 팀이다.
+    return response.data.filter((team) => team.teamId >= 0);
 };
