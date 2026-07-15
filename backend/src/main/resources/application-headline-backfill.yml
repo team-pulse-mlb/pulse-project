@@ -29,3 +29,6 @@ pulse:
   notification-outbox:
     # 백필 프로세스가 운영 알림 outbox를 대신 발행하지 않게 한다.
     scheduler-enabled: false
+  score-task-outbox:
+    # 백필 프로세스가 운영 ScoreTask outbox를 대신 발행하지 않게 한다.
+    scheduler-enabled: false

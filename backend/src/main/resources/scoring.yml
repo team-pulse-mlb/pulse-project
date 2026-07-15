@@ -6,7 +6,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 7
+  version: 8
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
@@ -95,3 +95,13 @@ scoring:
     alert-global-window-minutes: 15
     switch-score: 70
     switch-gap: 20
+
+  # 보호 모드 이벤트 타임라인 하이라이트 트리거
+  # (알림 thresholds와 분리 — 알림은 스팸 방지로 빡세고, 타임라인은 더 촘촘히 허용)
+  # enabled=false면 기존 이벤트별 문구 생성 트리거를 그대로 사용한다.
+  highlight:
+    enabled: true
+    min-score: 40
+    rise-score: 12
+    rise-window-minutes: 6
+    cooldown-minutes: 8

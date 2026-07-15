@@ -24,7 +24,8 @@ public record ScoringProperties(
         Pregame pregame,
         Detail detail,
         TensionCurve tensionCurve,
-        Thresholds thresholds
+        Thresholds thresholds,
+        Highlight highlight
 ) {
     public record LateInning(int inning78, int inning9, int extra) {}
 
@@ -94,6 +95,20 @@ public record ScoringProperties(
             }
         }
     }
+
+    /**
+     * 보호 모드 타임라인 하이라이트 트리거 설정.
+     * 알림용 Thresholds와 분리해, 타임라인은 더 촘촘히 하이라이트를 남길 수 있게 한다.
+     *
+     * enabled=false면 기존 이벤트별 문구 생성 트리거를 그대로 사용한다(안전한 롤아웃 스위치).
+     */
+    public record Highlight(
+            boolean enabled,
+            int minScore,
+            int riseScore,
+            int riseWindowMinutes,
+            int cooldownMinutes
+    ) {}
 
     public record Thresholds(
             int alertScore,

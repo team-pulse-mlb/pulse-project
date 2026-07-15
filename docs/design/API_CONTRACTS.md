@@ -207,7 +207,7 @@
 }
 ```
 
-이벤트 API의 `copy`는 nullable이며, 프론트 폴백은 `label`이다. 공개 모드는 이벤트 타임라인을 사용하지 않으므로 `mode=REVEALED`이면 빈 목록을 반환한다.
+이벤트 API의 `copy`는 nullable이며, 프론트 폴백은 `label`이다. 공개 모드는 이벤트 타임라인을 사용하지 않으므로 `mode=REVEALED`이면 빈 목록을 반환한다. 보호 모드(`mode=PROTECTED`)는 `game_events` 전체가 아니라 `is_timeline_highlight=true`인 하이라이트 이벤트만 반환한다(추천 점수 급변 순간 단위. 상세는 AI_COPY.md §2·§6).
 
 최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 최신 10건을 `play_order DESC`로 반환한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
 
@@ -314,6 +314,8 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 - `plateAppearances`: PA 원본 전체가 아니라 이벤트 추출에 필요한 사실만 전달한다. 결과·설명 원문은 포함하지 않는다. scorer는 이 값으로 긴 타석·투수 흔들림·강한 타구 이벤트를 판정한다.
 - 하위호환: scorer는 `situation`과 `plateAppearances` 유무와 무관하게 동작해야 하며, poller·scorer 배포 순서나 브로커에 남은 구버전 task에 안전하다. `plateAppearances` 누락·null은 빈 목록으로 처리한다.
 - `PREGAME` task: poller가 경기 전 입력이 갱신될 때(선발 확정·변경, `odds_snapshots` 기록, `standings` 일 배치 반영, `PREGAME_NEAR` 진입) 발행한다. scorer는 DB의 `lineups`·`odds_snapshots`·`standings`·`player_season_stats`만 읽어 `pregame_score`를 계산하고 `games.pregame_score`·`pregame_inputs`를 덮어쓴다. 최신 입력 기준 재계산이므로 중복·재전달에 멱등이며, `watch_scores`에는 행을 남기지 않는다. 선발 시즌 스탯의 온디맨드 외부 조회는 poller가 task 발행 전에 수행해 `player_season_stats`에 적재한다(외부 API 호출은 poller로 한정).
+
+발행 보장: poller는 `ScoreTask` 원본 payload와 `PENDING` 상태를 `score_task_outbox` 한 행으로 먼저 커밋한다. 커밋 직후 `score.tasks` 발행을 시도하고, 실패하면 지수 백오프로 PENDING 행을 재발행한다. 애플리케이션 재시작 뒤에도 poller 또는 scorer 역할이 미발행 행을 다시 조회한다. 발행 성공 직후 상태 반영 전에 장애가 나면 중복 전달될 수 있다.
 
 재전달 멱등: `watch_scores`의 UNIQUE(`game_id`, `computed_at`) 충돌 시 scorer는 해당 사이클 저장을 건너뛴다(`computed_at` = `observedAt`).
 

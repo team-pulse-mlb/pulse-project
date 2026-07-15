@@ -153,6 +153,11 @@ pulse:
       region: ${AWS_REGION:ap-northeast-2}
   scorer:
     enabled: ${PULSE_SCORER_ENABLED:true}
+  score-task-outbox:
+    dispatch-delay: ${PULSE_SCORE_TASK_OUTBOX_DISPATCH_DELAY:5s}
+    retry-initial-interval: ${PULSE_SCORE_TASK_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
+    retry-max-interval: ${PULSE_SCORE_TASK_OUTBOX_RETRY_MAX_INTERVAL:5m}
+    batch-size: ${PULSE_SCORE_TASK_OUTBOX_BATCH_SIZE:50}
   notification-outbox:
     dispatch-delay: ${PULSE_NOTIFICATION_OUTBOX_DISPATCH_DELAY:5s}
     retry-initial-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_INITIAL_INTERVAL:5s}

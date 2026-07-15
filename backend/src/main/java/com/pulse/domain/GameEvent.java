@@ -83,6 +83,13 @@ public class GameEvent {
     @Column(name = "copy_revealed_context_hash")
     private String copyRevealedContextHash;
 
+    /**
+     * 보호 모드 타임라인에 하이라이트로 노출할지 여부.
+     * 추천 점수가 급변한 순간의 anchor 이벤트만 true로 표시한다.
+     */
+    @Column(name = "is_timeline_highlight", nullable = false)
+    private boolean timelineHighlight = false;
+
     @Column(name = "copy_protected_attempts", nullable = false)
     private Integer copyProtectedAttempts = 0;
 

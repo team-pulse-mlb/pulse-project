@@ -91,7 +91,7 @@ function TeamMatchup({
 
   return (
     <span
-      className={`grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 ${toneStyle} ${className}`}
+      className={`grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-4 ${toneStyle} ${className}`}
       aria-label={`${awayTeam.name} 대 ${homeTeam.name}`}
     >
       <TeamMark team={awayTeam} size={size} tone={tone} side="away" />
