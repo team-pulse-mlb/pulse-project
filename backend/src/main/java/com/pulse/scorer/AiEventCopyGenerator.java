@@ -51,7 +51,7 @@ class AiEventCopyGenerator {
 
         GameEvent event = gameEventRepository.findById(eventId).orElse(null);
         if (event == null || event.getGameId() == null || event.getGameId() != gameId) {
-            log.debug("AI 이벤트 문구 저장 대상 이벤트 없음: gameId={} eventId={} mode={}",
+            log.warn("AI 이벤트 문구 저장 대상 이벤트 없음/불일치: gameId={} eventId={} mode={}",
                     gameId, eventId, mode);
             return GenerationStatus.NOT_ELIGIBLE;
         }
@@ -100,13 +100,17 @@ class AiEventCopyGenerator {
             return GenerationStatus.CALL_FAILED;
         }
         if (!isStorable(response)) {
-            log.warn("AI 이벤트 문구 검수 반려: gameId={} eventId={} mode={} violations={}",
-                    gameId, eventId, mode, response.violations());
+            logRejectedResponse(gameId, eventId, mode, response);
             return GenerationStatus.REVIEW_REJECTED;
         }
-        if (!hasLatestContextHash(gameId, eventId, mode, response)) {
-            log.info("AI 이벤트 문구 stale 응답 폐기: gameId={} eventId={} mode={}",
-                    gameId, eventId, mode);
+
+        String latestContextHash = contextReader.eventCopyContext(gameId, eventId, mode)
+                .map(EventCopyContext::contextHash)
+                .orElse(null);
+        if (!response.contextHash().equals(latestContextHash)) {
+            log.info("AI 이벤트 문구 stale 응답 폐기: gameId={} eventId={} mode={} "
+                            + "responseContextHash={} latestContextHash={}",
+                    gameId, eventId, mode, response.contextHash(), latestContextHash);
             return GenerationStatus.STALE;
         }
 
@@ -125,6 +129,25 @@ class AiEventCopyGenerator {
         return response.violations() != null && response.violations().contains(expected);
     }
 
+    private static void logRejectedResponse(
+            long gameId,
+            long eventId,
+            AiCopyMode mode,
+            AiCopyResponse response
+    ) {
+        log.warn("AI 이벤트 문구 검수 반려: gameId={} eventId={} mode={} "
+                        + "spoilerSafe={} fallbackUsed={} safeTitleBlank={} "
+                        + "contextHashMissing={} violations={}",
+                gameId,
+                eventId,
+                mode,
+                response.spoilerSafe(),
+                response.fallbackUsed(),
+                isBlank(response.safeTitle()),
+                response.contextHash() == null,
+                response.violations());
+    }
+
     private static AiCopyMode parseMode(String value) {
         try {
             return value == null ? null : AiCopyMode.valueOf(value);
@@ -137,20 +160,11 @@ class AiEventCopyGenerator {
         return response.spoilerSafe()
                 && !response.fallbackUsed()
                 && response.contextHash() != null
-                && response.safeTitle() != null
-                && !response.safeTitle().isBlank();
+                && !isBlank(response.safeTitle());
     }
 
-    private boolean hasLatestContextHash(
-            long gameId,
-            long eventId,
-            AiCopyMode mode,
-            AiCopyResponse response
-    ) {
-        return contextReader.eventCopyContext(gameId, eventId, mode)
-                .map(EventCopyContext::contextHash)
-                .filter(response.contextHash()::equals)
-                .isPresent();
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private static boolean hasCopy(GameEvent event, AiCopyMode mode) {
