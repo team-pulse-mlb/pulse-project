@@ -6,6 +6,7 @@ import com.pulse.common.client.BdlDtos.BdlOdds;
 import com.pulse.common.client.BdlDtos.BdlPlayerSeasonStat;
 import com.pulse.common.client.BdlDtos.BdlStanding;
 import com.pulse.common.message.ScoreTaskPublisher;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Lineup;
@@ -104,6 +105,7 @@ public class PregamePoller {
 
     @Scheduled(fixedDelayString = "${pulse.poller.pregame-tick-delay-ms:60000}")
     public void poll() {
+        PulseMetrics.increment("pulse.poller.ticks", "poller", "pregame");
         Instant now = clock.instant();
         if (!backoff.canCall(now)) {
             return;
@@ -129,6 +131,7 @@ public class PregamePoller {
                 throw e;
             }
             backoff.recordFailure(now, PollerExceptionClassifier.retryAfter(e));
+            PulseMetrics.increment("pulse.poller.backoff.activations", "target", "pregame");
             log.warn("pregame poll failed, backed off until {}", backoff.blockedUntil(), e);
         }
 

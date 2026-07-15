@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 
 import type { GameCardData } from '../../../shared/components/GameCard';
 import StatusBadge from '../../../shared/components/StatusBadge';
+import TeamMatchup from '../../../shared/components/TeamMatchup';
 
 // 상단 추천 1순위 히어로 카드 (bento 그리드에서 가로·세로 2배).
 function HeroGameCard({ game }: { game: GameCardData }) {
@@ -27,11 +28,13 @@ function HeroGameCard({ game }: { game: GameCardData }) {
         <StatusBadge status={game.status} label={badgeLabel} />
       </div>
 
-      <p className="absolute inset-x-7 top-1/2 -translate-y-1/2 font-display text-[44px] font-bold leading-tight text-white">
-        {game.awayLabel}
-        <span className="mx-3 text-[28px] text-white/40">@</span>
-        {game.homeLabel}
-      </p>
+      <TeamMatchup
+        awayTeam={game.awayTeam}
+        homeTeam={game.homeTeam}
+        size="hero"
+        tone="dark"
+        className="absolute inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-7"
+      />
 
       {game.metaText && (
         <span className="absolute bottom-7 left-7 rounded-full bg-white/10 px-3.5 py-1.5 text-sm font-semibold text-white">

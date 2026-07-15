@@ -1,6 +1,7 @@
 package com.pulse.poller;
 
 import com.pulse.common.client.BaseballDataSource;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.common.client.BdlDtos.BdlPlayer;
 import com.pulse.domain.Player;
 import com.pulse.domain.PlayerRepository;
@@ -67,6 +68,7 @@ public class PlayerEnrichmentPoller {
 
     @Scheduled(fixedDelayString = "${pulse.poller.player-enrichment-delay-ms:600000}")
     public void poll() {
+        PulseMetrics.increment("pulse.poller.ticks", "poller", "player_enrichment");
         Instant now = clock.instant();
         if (!backoff.canCall(now)) {
             return;
@@ -99,6 +101,7 @@ public class PlayerEnrichmentPoller {
                 throw e;
             }
             backoff.recordFailure(now, PollerExceptionClassifier.retryAfter(e));
+            PulseMetrics.increment("pulse.poller.backoff.activations", "target", "player_enrichment");
             log.warn("player enrichment poll failed, backed off until {}", backoff.blockedUntil(), e);
             return;
         }

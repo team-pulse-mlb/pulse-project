@@ -48,7 +48,7 @@ function RecommendedGrid({ cards, isLoading }: RecommendedGridProps) {
       {/* 래퍼가 그리드 아이템이 되므로 내부 카드가 셀을 가득 채우도록 grid로 늘린다 */}
       {rest.map((card) => (
         <div key={card.gameId} className="grid" data-flip-id={card.gameId}>
-          <GameCard game={card} variant="tile" />
+          <GameCard game={card} variant="tile" showTeamLogos />
         </div>
       ))}
     </div>

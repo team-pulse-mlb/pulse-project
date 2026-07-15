@@ -21,6 +21,6 @@ export PULSE_SIMULATION_PRESET="${PULSE_SIMULATION_PRESET:-SURGE}"
 echo "속도: x$PULSE_SIMULATION_SPEED / 시작 위치: $PULSE_SIMULATION_PRESET"
 
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" \
-  up -d --build --force-recreate --wait pulse-api frontend
+  up -d --build --force-recreate --wait ai-service pulse-api frontend
 
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs -f pulse-api
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs -f ai-service pulse-api

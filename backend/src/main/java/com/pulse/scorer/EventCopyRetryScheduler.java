@@ -15,10 +15,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** 최근 라이브 경기에서 누락된 AI 이벤트 문구를 제한된 횟수만큼 재시도한다. */
+/** 최근 라이브 경기에서 누락된 보호 모드 AI 이벤트 문구를 제한된 횟수만큼 재시도한다. */
 @Slf4j
 @Component
 @ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(
+        prefix = "pulse.ai.event-copy-retry",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 class EventCopyRetryScheduler {
 
     private final GameEventRepository gameEventRepository;
@@ -51,21 +57,17 @@ class EventCopyRetryScheduler {
     public void retryMissingCopies() {
         Instant since = clock.instant().minus(properties.window());
         PageRequest batch = PageRequest.of(0, properties.batchSize());
-        List<GameEvent> protectedTargets = gameEventRepository.findProtectedCopyRetryTargets(
-                properties.maxAttempts(), since, batch);
-        List<GameEvent> revealedTargets = gameEventRepository.findRevealedCopyRetryTargets(
+        List<GameEvent> targets = gameEventRepository.findProtectedCopyRetryTargets(
                 properties.maxAttempts(), since, batch);
 
         EnumMap<AiEventCopyGenerator.GenerationStatus, Integer> counts =
                 new EnumMap<>(AiEventCopyGenerator.GenerationStatus.class);
-        int exceptions = retry(protectedTargets, AiCopyMode.PROTECTED, counts)
-                + retry(revealedTargets, AiCopyMode.REVEALED, counts);
+        int exceptions = retry(targets, counts);
 
-        log.info("AI 이벤트 문구 재시도 완료: protectedTargets={} revealedTargets={} "
+        log.info("AI 이벤트 문구 재시도 완료: targets={} "
                         + "saved={} alreadyPresent={} notEligible={} callFailed={} "
                         + "reviewRejected={} stale={} exceptions={}",
-                protectedTargets.size(),
-                revealedTargets.size(),
+                targets.size(),
                 count(counts, AiEventCopyGenerator.GenerationStatus.SAVED),
                 count(counts, AiEventCopyGenerator.GenerationStatus.ALREADY_PRESENT),
                 count(counts, AiEventCopyGenerator.GenerationStatus.NOT_ELIGIBLE),
@@ -77,19 +79,18 @@ class EventCopyRetryScheduler {
 
     private int retry(
             List<GameEvent> targets,
-            AiCopyMode mode,
             Map<AiEventCopyGenerator.GenerationStatus, Integer> counts
     ) {
         int exceptions = 0;
         for (GameEvent event : targets) {
             try {
                 AiEventCopyGenerator.GenerationStatus status = generator.generateSynchronously(
-                        event.getGameId(), event.getId(), mode);
+                        event.getGameId(), event.getId(), AiCopyMode.PROTECTED);
                 counts.merge(status, 1, Integer::sum);
             } catch (RuntimeException exception) {
                 exceptions++;
                 log.warn("AI 이벤트 문구 재시도 예외: gameId={} eventId={} mode={}",
-                        event.getGameId(), event.getId(), mode, exception);
+                        event.getGameId(), event.getId(), AiCopyMode.PROTECTED, exception);
             }
         }
         return exceptions;

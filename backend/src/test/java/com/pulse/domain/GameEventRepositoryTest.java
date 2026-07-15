@@ -37,21 +37,19 @@ class GameEventRepositoryTest {
     }
 
     @Test
-    void revealedRetryTargets_shouldIncludeProtectedSafeAndRevealedOnlyEvents() {
-        GameEvent protectedSafe = saveEvent(11L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(60));
-        GameEvent revealedOnly = saveEvent(12L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(120));
-        GameEvent copied = saveEvent(13L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(180));
-        copied.setCopyRevealed("이미 생성된 공개 문구");
-        GameEvent capped = saveEvent(14L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(240));
-        capped.setCopyRevealedAttempts(3);
-        saveEvent(15L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.minusSeconds(1));
+    void protectedAiReprocessTargets_shouldIncludeExistingCopiesAndRespectCursor() {
+        GameEvent first = saveEvent(11L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
+        GameEvent second = saveEvent(12L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(60));
+        second.setCopyProtected("기존 문구");
+        saveEvent(13L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(120));
         gameEventRepository.flush();
 
-        List<GameEvent> result = gameEventRepository.findRevealedCopyRetryTargets(
-                3, SINCE, PageRequest.of(0, 50));
+        long maxId = gameEventRepository.findMaxProtectedEventId();
+        List<GameEvent> result = gameEventRepository.findProtectedAiReprocessTargets(
+                first.getId(), maxId, PageRequest.of(0, 50));
 
-        assertThat(result).extracting(GameEvent::getId)
-                .containsExactly(protectedSafe.getId(), revealedOnly.getId());
+        assertThat(maxId).isEqualTo(second.getId());
+        assertThat(result).extracting(GameEvent::getId).containsExactly(second.getId());
     }
 
     private GameEvent saveEvent(long sourceRef, String spoilerLevel, Instant observedAt) {

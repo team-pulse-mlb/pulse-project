@@ -15,6 +15,8 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     long countByGameIdAndEventType(Long gameId, String eventType);
 
+    long countBySpoilerLevel(String spoilerLevel);
+
     Optional<GameEvent> findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
             Long gameId, String spoilerLevel);
 
@@ -34,15 +36,22 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
             Pageable pageable);
 
     @Query("""
-            SELECT gameEvent FROM GameEvent gameEvent
-            WHERE gameEvent.spoilerLevel IN ('PROTECTED_SAFE', 'REVEALED_ONLY')
-              AND gameEvent.copyRevealed IS NULL
-              AND gameEvent.copyRevealedAttempts < :maxAttempts
-              AND gameEvent.observedAt >= :since
-            ORDER BY gameEvent.observedAt ASC
+            SELECT COALESCE(MAX(gameEvent.id), 0)
+            FROM GameEvent gameEvent
+            WHERE gameEvent.spoilerLevel = 'PROTECTED_SAFE'
             """)
-    List<GameEvent> findRevealedCopyRetryTargets(
-            @Param("maxAttempts") int maxAttempts,
-            @Param("since") Instant since,
+    long findMaxProtectedEventId();
+
+    @Query("""
+            SELECT gameEvent FROM GameEvent gameEvent
+            WHERE gameEvent.spoilerLevel = 'PROTECTED_SAFE'
+              AND gameEvent.id > :afterId
+              AND gameEvent.id <= :maxId
+            ORDER BY gameEvent.id ASC
+            """)
+    List<GameEvent> findProtectedAiReprocessTargets(
+            @Param("afterId") long afterId,
+            @Param("maxId") long maxId,
             Pageable pageable);
+
 }

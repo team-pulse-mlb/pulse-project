@@ -13,6 +13,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pulse.common.client.BdlDtos.ListResponse;
 import com.pulse.common.client.BdlDtos.PlateAppearancesRaw;
+import com.pulse.common.metrics.PulseMetrics;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.core.ParameterizedTypeReference;
@@ -37,6 +39,22 @@ public class BalldontlieClient implements BaseballDataSource {
         this.restClient = RestClient.builder()
                 .baseUrl(props.baseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.apiKey())
+                .requestInterceptor((request, body, execution) -> {
+                    String endpoint = request.getURI().getPath();
+                    try {
+                        var response = execution.execute(request, body);
+                        int status = response.getStatusCode().value();
+                        String outcome = status == 429 ? "rate_limited" : status >= 400 ? "error" : "success";
+                        PulseMetrics.increment("pulse.bdl.requests", "endpoint", endpoint, "outcome", outcome);
+                        if (status == 429) {
+                            PulseMetrics.increment("pulse.bdl.rate.limit", "endpoint", endpoint);
+                        }
+                        return response;
+                    } catch (IOException | RuntimeException exception) {
+                        PulseMetrics.increment("pulse.bdl.requests", "endpoint", endpoint, "outcome", "exception");
+                        throw exception;
+                    }
+                })
                 .build();
         this.objectMapper = objectMapper;
     }

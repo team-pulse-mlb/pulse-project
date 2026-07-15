@@ -12,6 +12,7 @@ record RescoreWatchScoreRow(
         String inningType,
         int baseScore,
         int watchScore,
+        int scoringVersion,
         Map<String, Double> signalContributions,
         List<String> tags,
         boolean backfilled,

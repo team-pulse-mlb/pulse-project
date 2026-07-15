@@ -42,4 +42,12 @@ public interface GameRepository extends JpaRepository<Game, Long> {
             order by game.startTime, game.id
             """)
     List<Long> findFinalGameIdsMissingHeadlines();
+
+    @Query("""
+            select game.id
+            from Game game
+            where game.status like 'STATUS_FINAL%'
+            order by game.startTime, game.id
+            """)
+    List<Long> findAllFinalGameIds();
 }

@@ -53,27 +53,34 @@ class AiFinalHeadlineGenerator {
      * 이미 저장된 모드는 다시 호출하지 않아 재실행 시 비용과 문구 변경을 막습니다.
      */
     GenerationStatus generateSynchronously(long gameId) {
+        return generateSynchronously(gameId, false);
+    }
+
+    /** 기존 문구가 있어도 양쪽 모드를 다시 생성하고 성공한 결과만 덮어씁니다. */
+    GenerationStatus regenerateSynchronously(long gameId) {
+        return generateSynchronously(gameId, true);
+    }
+
+    private GenerationStatus generateSynchronously(long gameId, boolean force) {
         Game current = gameRepository.findById(gameId).orElse(null);
         if (current == null || !current.isFinal()) {
             log.debug("AI 종료 헤드라인 저장 대상 경기 없음/미종료: gameId={}", gameId);
             return GenerationStatus.NOT_ELIGIBLE;
         }
 
-        boolean needsProtected = isBlank(current.getFinalHeadlineProtected());
-        boolean needsRevealed = isBlank(current.getFinalHeadlineRevealed());
+        boolean needsProtected = force || isBlank(current.getFinalHeadlineProtected());
+        boolean needsRevealed = force || isBlank(current.getFinalHeadlineRevealed());
         if (!needsProtected && !needsRevealed) {
             log.debug("AI 종료 헤드라인 이미 저장됨: gameId={}", gameId);
             return GenerationStatus.ALREADY_PRESENT;
         }
 
         Optional<AiCopyResult> protectedResult = needsProtected
-                ? finalHeadlineCopyClient.generateFinalHeadline(gameId, AiCopyMode.PROTECTED)
-                        .filter(this::isStorable)
+                ? requestStorableHeadline(gameId, AiCopyMode.PROTECTED)
                 : Optional.empty();
 
         Optional<AiCopyResult> revealedResult = needsRevealed
-                ? finalHeadlineCopyClient.generateFinalHeadline(gameId, AiCopyMode.REVEALED)
-                        .filter(this::isStorable)
+                ? requestStorableHeadline(gameId, AiCopyMode.REVEALED)
                 : Optional.empty();
 
         if (protectedResult.isEmpty() && revealedResult.isEmpty()) {
@@ -103,12 +110,14 @@ class AiFinalHeadlineGenerator {
             return GenerationStatus.NOT_GENERATED;
         }
 
+        int requestedCount = (needsProtected ? 1 : 0) + (needsRevealed ? 1 : 0);
+        int generatedCount = (protectedResult.isPresent() ? 1 : 0) + (revealedResult.isPresent() ? 1 : 0);
         boolean changed = false;
-        if (isBlank(game.getFinalHeadlineProtected()) && protectedResult.isPresent()) {
+        if ((force || isBlank(game.getFinalHeadlineProtected())) && protectedResult.isPresent()) {
             game.setFinalHeadlineProtected(protectedResult.orElseThrow().safeTitle());
             changed = true;
         }
-        if (isBlank(game.getFinalHeadlineRevealed()) && revealedResult.isPresent()) {
+        if ((force || isBlank(game.getFinalHeadlineRevealed())) && revealedResult.isPresent()) {
             game.setFinalHeadlineRevealed(revealedResult.orElseThrow().safeTitle());
             changed = true;
         }
@@ -120,15 +129,57 @@ class AiFinalHeadlineGenerator {
         gameRepository.save(game);
         liveSignalPublisher.publishGameSignal(gameId);
         liveSignalPublisher.publishRankingSignal();
-        return isBlank(game.getFinalHeadlineProtected()) || isBlank(game.getFinalHeadlineRevealed())
-                ? GenerationStatus.PARTIALLY_SAVED
-                : GenerationStatus.SAVED;
+        return generatedCount == requestedCount
+                ? GenerationStatus.SAVED
+                : GenerationStatus.PARTIALLY_SAVED;
     }
 
-    /**
-     * ai-service 응답이 저장 가능한 형태인지 1차 검증합니다.
-     */
-    private boolean isStorable(AiCopyResult result) {
+    private Optional<AiCopyResult> requestStorableHeadline(long gameId, AiCopyMode mode) {
+        Optional<AiCopyResult> response = finalHeadlineCopyClient.generateFinalHeadline(gameId, mode);
+        if (response.isEmpty()) {
+            log.warn("AI 종료 헤드라인 호출 실패/응답 없음: gameId={} mode={}", gameId, mode);
+            return Optional.empty();
+        }
+
+        AiCopyResult result = response.orElseThrow();
+        if (hasViolation(result, "OPENAI_TIMEOUT")) {
+            log.warn("AI 종료 헤드라인 호출 타임아웃: gameId={} mode={} violations={}",
+                    gameId, mode, result.violations());
+            return Optional.empty();
+        }
+        if (hasOpenAiFailure(result)) {
+            log.warn("AI 종료 헤드라인 생성 실패: gameId={} mode={} violations={}",
+                    gameId, mode, result.violations());
+            return Optional.empty();
+        }
+        if (!isStorable(result)) {
+            log.warn("AI 종료 헤드라인 검수 반려/저장 조건 불충족: gameId={} mode={} "
+                            + "spoilerSafe={} fallbackUsed={} safeTitleBlank={} "
+                            + "contextHashMissing={} violations={}",
+                    gameId,
+                    mode,
+                    result.spoilerSafe(),
+                    result.fallbackUsed(),
+                    isBlank(result.safeTitle()),
+                    result.contextHash() == null,
+                    result.violations());
+            return Optional.empty();
+        }
+        return response;
+    }
+
+    private static boolean hasOpenAiFailure(AiCopyResult result) {
+        return result.violations().stream()
+                .filter(violation -> violation != null)
+                .anyMatch(violation -> violation.startsWith("OPENAI_"));
+    }
+
+    private static boolean hasViolation(AiCopyResult result, String expected) {
+        return result.violations().contains(expected);
+    }
+
+    /** ai-service 응답이 저장 가능한 형태인지 1차 검증합니다. */
+    private static boolean isStorable(AiCopyResult result) {
         return result.spoilerSafe()
                 && !result.fallbackUsed()
                 && result.contextHash() != null
@@ -147,11 +198,22 @@ class AiFinalHeadlineGenerator {
             AiCopyMode mode,
             Optional<AiCopyResult> result
     ) {
-        return result.filter(candidate -> aiCopyContextReader
+        if (result.isEmpty()) {
+            return result;
+        }
+
+        AiCopyResult candidate = result.orElseThrow();
+        String latestContextHash = aiCopyContextReader
                 .finalHeadlineContext(gameId, mode)
                 .map(FinalHeadlineContext::contextHash)
-                .filter(candidate.contextHash()::equals)
-                .isPresent());
+                .orElse(null);
+        if (candidate.contextHash().equals(latestContextHash)) {
+            return result;
+        }
+
+        log.info("AI 종료 헤드라인 stale 응답 폐기: gameId={} mode={} latestContextMissing={}",
+                gameId, mode, latestContextHash == null);
+        return Optional.empty();
     }
 
     private static boolean isBlank(String value) {

@@ -2,7 +2,6 @@ package com.pulse.scorer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,27 +33,20 @@ class EventCopyRetrySchedulerTest {
     );
 
     @Test
-    void retryMissingCopies_shouldGenerateProtectedAndRevealedTargetsSynchronously() {
+    void retryMissingCopies_shouldGenerateProtectedTargetsSynchronously() {
         GameEvent protectedTarget = event(10L, 100L);
-        GameEvent revealedTarget = event(20L, 200L);
         Instant since = NOW.minus(Duration.ofHours(6));
         PageRequest batch = PageRequest.of(0, 50);
 
         when(gameEventRepository.findProtectedCopyRetryTargets(3, since, batch))
                 .thenReturn(List.of(protectedTarget));
-        when(gameEventRepository.findRevealedCopyRetryTargets(3, since, batch))
-                .thenReturn(List.of(revealedTarget));
         when(generator.generateSynchronously(100L, 10L, AiCopyMode.PROTECTED))
                 .thenReturn(AiEventCopyGenerator.GenerationStatus.SAVED);
-        when(generator.generateSynchronously(200L, 20L, AiCopyMode.REVEALED))
-                .thenReturn(AiEventCopyGenerator.GenerationStatus.CALL_FAILED);
 
         scheduler.retryMissingCopies();
 
         verify(gameEventRepository).findProtectedCopyRetryTargets(3, since, batch);
-        verify(gameEventRepository).findRevealedCopyRetryTargets(3, since, batch);
         verify(generator).generateSynchronously(100L, 10L, AiCopyMode.PROTECTED);
-        verify(generator).generateSynchronously(200L, 20L, AiCopyMode.REVEALED);
     }
 
     @Test
@@ -66,8 +58,6 @@ class EventCopyRetrySchedulerTest {
 
         when(gameEventRepository.findProtectedCopyRetryTargets(3, since, batch))
                 .thenReturn(List.of(failedTarget, nextTarget));
-        when(gameEventRepository.findRevealedCopyRetryTargets(3, since, batch))
-                .thenReturn(List.of());
         when(generator.generateSynchronously(100L, 10L, AiCopyMode.PROTECTED))
                 .thenThrow(new IllegalStateException("개별 이벤트 실패"));
         when(generator.generateSynchronously(200L, 20L, AiCopyMode.PROTECTED))
@@ -77,7 +67,6 @@ class EventCopyRetrySchedulerTest {
 
         verify(generator).generateSynchronously(100L, 10L, AiCopyMode.PROTECTED);
         verify(generator).generateSynchronously(200L, 20L, AiCopyMode.PROTECTED);
-        verify(generator, never()).generateSynchronously(200L, 20L, AiCopyMode.REVEALED);
     }
 
     @Test
@@ -89,6 +78,14 @@ class EventCopyRetrySchedulerTest {
     @Test
     void scorer가_비활성화되면_재시도_스케줄러를_등록하지_않는다() {
         contextRunner().withPropertyValues("pulse.scorer.enabled=false")
+                .run(context -> assertThat(context).doesNotHaveBean(EventCopyRetryScheduler.class));
+    }
+
+    @Test
+    void 재시도_설정이_꺼지면_스케줄러를_등록하지_않는다() {
+        contextRunner().withPropertyValues(
+                        "pulse.scorer.enabled=true",
+                        "pulse.ai.event-copy-retry.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(EventCopyRetryScheduler.class));
     }
 
