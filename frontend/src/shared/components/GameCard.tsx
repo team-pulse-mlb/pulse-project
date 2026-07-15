@@ -22,14 +22,14 @@ interface GameCardProps {
   game: GameCardData;
   /** tile=벤토 그리드·사이드바용 세로 카드, row=하단 목록용 가로 행 */
   variant: 'tile' | 'row';
-  /** 홈 화면에서는 팀 로고와 약어를 함께 표시한다. */
+  /** 팀 로고를 숨겨야 하는 예외 화면에서만 false로 지정한다. */
   showTeamLogos?: boolean;
 }
 
 const hoverStyle =
   'transition-all hover:-translate-y-0.5 hover:border-mlb-navy hover:shadow-hover';
 
-function GameCard({ game, variant, showTeamLogos = false }: GameCardProps) {
+function GameCard({ game, variant, showTeamLogos = true }: GameCardProps) {
   const badgeLabel =
     game.status === 'live' && game.inningText
       ? `LIVE · ${game.inningText}`
@@ -76,11 +76,7 @@ function GameCard({ game, variant, showTeamLogos = false }: GameCardProps) {
         <StatusBadge status={game.status} label={badgeLabel} />
       </div>
       {showTeamLogos ? (
-        <TeamMatchup
-          awayTeam={game.awayTeam}
-          homeTeam={game.homeTeam}
-          align="start"
-        />
+        <TeamMatchup awayTeam={game.awayTeam} homeTeam={game.homeTeam} />
       ) : (
         <span className="font-display text-[17px] font-semibold text-text-strong">
           {game.awayTeam.abbreviation}
