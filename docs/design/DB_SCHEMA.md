@@ -184,6 +184,7 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 | `inning_type` | `TEXT` | 초/말 | [내부] 보호 DTO에서 제거 |
 | `batter_id` · `pitcher_id` | `BIGINT` | 관련 선수 | FK → `players`, nullable. 이벤트 판정 추적용 |
 | `payload` | `JSONB` | 근거 수치(투구 수·구속 추이·exit_velocity 등) | [내부] 이벤트 판정 추적용 |
+| `is_timeline_highlight` | `BOOLEAN` | 보호 타임라인 하이라이트 표시 | 기본 `false`. 추천 점수 급변 순간의 anchor 이벤트만 `true`. 보호 타임라인은 이 값이 `true`인 행만 노출 |
 | `copy_protected` | `TEXT` | 이벤트 AI 문구 · 보호 모드용(검수 통과본) | nullable. `copy_protected_context_hash` 일치 시에만 갱신 |
 | `copy_revealed` | `TEXT` | 기존 공개 이벤트 AI 문구 | **폐기 예정**. 신규 생성·조회 금지 |
 | `copy_protected_context_hash` | `TEXT` | 보호 모드 문구 생성 컨텍스트 해시 | nullable. 모드별 컨텍스트가 달라 해시를 분리 저장 |
@@ -193,7 +194,7 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 | `backfilled` | `BOOLEAN` | 백필 여부 | 기본 `false` |
 | `source` | `TEXT` | 데이터 출처 | 기본 `OPERATIONAL` |
 
-**키·인덱스** — PK `id` · **UNIQUE(`game_id`, `event_type`, `source_type`, `source_ref`)** (재관측 dedupe) · idx(`game_id`, `observed_at`)
+**키·인덱스** — PK `id` · **UNIQUE(`game_id`, `event_type`, `source_type`, `source_ref`)** (재관측 dedupe) · idx(`game_id`, `observed_at`) · idx(`game_id`, `is_timeline_highlight`, `observed_at`)
 
 > `copy_revealed`·`copy_revealed_context_hash`는 공개 `경기 흐름` 전환 후 사용 여부를 확인한 다음 별도 Flyway 마이그레이션으로 제거한다. 제거 전에도 신규 쓰기와 API 조회에는 사용하지 않는다.
 

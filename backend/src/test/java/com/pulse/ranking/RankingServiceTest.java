@@ -61,7 +61,8 @@ class RankingServiceTest {
         return new ScoringProperties(
                 5, null, null, null, null, null, null, null, null, null,
                 10, new ScoringProperties.Personalization(10, 5, 15), null, null, null,
-                new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 3, 15, 70, 20)
+                new ScoringProperties.Thresholds(85, 70, 15, 5, 15, 3, 15, 70, 20),
+                null
         );
     }
 }

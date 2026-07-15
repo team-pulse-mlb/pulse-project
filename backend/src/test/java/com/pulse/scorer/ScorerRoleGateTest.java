@@ -30,6 +30,7 @@ class ScorerRoleGateTest {
                     GameFinalizationService.class,
                     SurgeDetector.class,
                     GameEventExtractor.class,
+                    TimelineHighlightTrigger.class,
                     LiveSignalPublisher.class,
                     ImportanceCalculator.class)
             .withBean(GameRepository.class, () -> mock(GameRepository.class))
