@@ -83,6 +83,12 @@ public class GameEvent {
     @Column(name = "copy_revealed_context_hash")
     private String copyRevealedContextHash;
 
+    @Column(name = "copy_protected_attempts", nullable = false)
+    private Integer copyProtectedAttempts = 0;
+
+    @Column(name = "copy_revealed_attempts", nullable = false)
+    private Integer copyRevealedAttempts = 0;
+
     @Column(name = "ruleset_version")
     private String rulesetVersion;
 

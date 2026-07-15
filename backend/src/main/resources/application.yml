@@ -122,6 +122,11 @@ pulse:
     api-key: ${BDL_API_KEY:}
   ai:
     base-url: ${PULSE_AI_BASE_URL:http://localhost:8000}
+    event-copy-retry:
+      delay: ${PULSE_AI_EVENT_COPY_RETRY_DELAY:180s}
+      window: ${PULSE_AI_EVENT_COPY_RETRY_WINDOW:6h}
+      max-attempts: ${PULSE_AI_EVENT_COPY_RETRY_MAX_ATTEMPTS:3}
+      batch-size: ${PULSE_AI_EVENT_COPY_RETRY_BATCH_SIZE:50}
   replay:
     s3:
       bucket: ${PULSE_REPLAY_S3_BUCKET:}
