@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { getTeams } from '../../../shared/api/teamApi';
 import { queryKeys } from '../../../shared/lib/queryKeys';
 import { fetchGames, fetchLiveRankings } from '../api/homeApi';
 import type { SlateSort, SlateStatusFilter } from '../api/types';
@@ -9,6 +10,15 @@ export function useLiveRankings() {
   return useQuery({
     queryKey: queryKeys.rankings.live,
     queryFn: fetchLiveRankings,
+  });
+}
+
+/** 홈 경기 카드에서 사용할 팀 약어와 로고 목록 */
+export function useTeamCatalog() {
+  return useQuery({
+    queryKey: queryKeys.teams,
+    queryFn: getTeams,
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 

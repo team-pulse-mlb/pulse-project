@@ -12,7 +12,7 @@ import { toRecommendedCards, toSlateCard } from '../api/mappers';
 import type { SlateSort, SlateStatusFilter } from '../api/types';
 import DateNavigator from '../components/DateNavigator';
 import RecommendedGrid from '../components/RecommendedGrid';
-import { useGames, useLiveRankings } from '../hooks/useHomeQueries';
+import { useGames, useLiveRankings, useTeamCatalog } from '../hooks/useHomeQueries';
 
 const statusOptions: { value: SlateStatusFilter; label: string }[] = [
   { value: 'all', label: '전체' },
@@ -50,10 +50,11 @@ function HomePage() {
   const effectiveDate = showDateNavigator ? date : undefined;
 
   const rankingsQuery = useLiveRankings();
+  const teamsQuery = useTeamCatalog();
   const gamesQuery = useGames({ date: effectiveDate, status, sort: effectiveSort });
 
   const recommendedCards = rankingsQuery.data
-    ? toRecommendedCards(rankingsQuery.data)
+    ? toRecommendedCards(rankingsQuery.data, teamsQuery.data)
     : undefined;
 
   const slateDate = gamesQuery.data?.slateDate ?? effectiveDate;
@@ -126,7 +127,11 @@ function HomePage() {
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {games.map((game) => (
               <li key={game.gameId} className="grid">
-                <GameCard game={toSlateCard(game)} variant="tile" />
+                <GameCard
+                  game={toSlateCard(game, teamsQuery.data)}
+                  variant="tile"
+                  showTeamLogos
+                />
               </li>
             ))}
           </ul>
