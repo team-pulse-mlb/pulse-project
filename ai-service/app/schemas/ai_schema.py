@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -200,6 +200,54 @@ class EventCopyRequest(ApiBaseModel):
     safe_context: SafeContext = Field(...)
 
 
+class PlayTranslationRequest(ApiBaseModel):
+    """
+    POST /ai/play-translation 요청 형식입니다.
+
+    공개 모드 최근 플레이에 표시할 단일 Play Result 원문만 번역합니다.
+
+    주의:
+    - PLAY_TRANSLATION은 REVEALED 모드만 허용합니다.
+    - sourceText 외에 점수, 팀, 추천 점수, 다른 play 문맥은 받지 않습니다.
+    - targetLanguage는 현재 한국어 ko만 허용합니다.
+    """
+
+    game_id: int = Field(
+        ...,
+        gt=0,
+        description="번역 대상 플레이가 속한 경기 ID",
+        examples=[5059041],
+    )
+    play_id: int = Field(
+        ...,
+        gt=0,
+        description="번역 대상 Play Result의 내부 play ID",
+        examples=[312],
+    )
+    mode: Literal[AiCopyMode.REVEALED] = Field(
+        ...,
+        description="PLAY_TRANSLATION은 공개 모드 REVEALED만 허용",
+        examples=["REVEALED"],
+    )
+    context_hash: str = Field(
+        ...,
+        min_length=1,
+        description="Spring Boot가 최신 원문 여부를 검증하기 위해 전달하는 필수 해시값",
+        examples=["play-312-v1"],
+    )
+    source_text: str = Field(
+        ...,
+        min_length=1,
+        description="번역할 단일 MLB Play Result 원문",
+        examples=["Marsh struck out looking."],
+    )
+    target_language: Literal["ko"] = Field(
+        ...,
+        description="현재 지원하는 번역 대상 언어. 한국어 ko만 허용",
+        examples=["ko"],
+    )
+
+
 class AiCopyResponse(ApiBaseModel):
     """
     FINAL_HEADLINE / EVENT_COPY 공통 응답 형식입니다.
@@ -240,3 +288,31 @@ class EventCopyResponse(AiCopyResponse):
     """
     POST /ai/event-copy 응답 형식입니다.
     """
+
+
+class PlayTranslationResponse(ApiBaseModel):
+    """
+    POST /ai/play-translation 응답 형식입니다.
+
+    생성 또는 검수 실패 시 translated_text는 null이거나 응답에서 생략할 수 있습니다.
+    ai-service는 대체 번역을 만들지 않으므로 fallback_used는 항상 false입니다.
+    """
+
+    translated_text: str | None = Field(
+        default=None,
+        description="원문의 선수명, 숫자, 야구 결과를 보존한 한국어 번역",
+        examples=["Marsh, 루킹 삼진"],
+    )
+    violations: list[str] = Field(
+        default_factory=list,
+        description="번역 생성 실패 또는 번역 검수 위반 코드 목록",
+    )
+    fallback_used: bool = Field(
+        default=False,
+        description="ai-service는 대체 번역을 만들지 않으므로 항상 false",
+    )
+    context_hash: str = Field(
+        ...,
+        description="요청에서 받은 contextHash를 그대로 반환한 값",
+        examples=["play-312-v1"],
+    )
