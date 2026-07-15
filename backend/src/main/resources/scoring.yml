@@ -100,7 +100,7 @@ scoring:
   # (알림 thresholds와 분리 — 알림은 스팸 방지로 빡세고, 타임라인은 더 촘촘히 허용)
   # enabled=false면 기존 이벤트별 문구 생성 트리거를 그대로 사용한다.
   highlight:
-    enabled: false
+    enabled: true
     min-score: 40
     rise-score: 12
     rise-window-minutes: 6

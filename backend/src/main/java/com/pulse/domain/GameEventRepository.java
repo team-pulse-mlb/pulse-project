@@ -36,6 +36,10 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     List<GameEvent> findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(Long gameId, String spoilerLevel);
 
+    /** 보호 문구의 '기여 라벨' 산출용. 같은 이닝의 보호 이벤트를 시간순으로 조회한다. */
+    List<GameEvent> findByGameIdAndInningAndSpoilerLevelOrderByObservedAtAscIdAsc(
+            Long gameId, Integer inning, String spoilerLevel);
+
     @Query("""
             SELECT gameEvent FROM GameEvent gameEvent
             WHERE gameEvent.spoilerLevel = 'PROTECTED_SAFE'
