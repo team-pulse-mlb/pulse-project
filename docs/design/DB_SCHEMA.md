@@ -33,6 +33,7 @@ erDiagram
     games ||--o{ lineups : "라인업"
     games ||--o{ odds_snapshots : "배당 스냅샷"
     games ||--o{ notification_events : "알림 발화"
+    games ||--o{ score_task_outbox : "점수 작업 발행"
     users ||--o| user_settings : "설정"
     users ||--o{ user_favorite_teams : "관심 팀"
     teams ||--o{ user_favorite_teams : "관심 팀"
@@ -40,6 +41,7 @@ erDiagram
     players ||--o{ user_favorite_players : "관심 선수"
     users ||--o{ refresh_tokens : "토큰"
     users ||--o{ user_notifications : "수신함"
+    notification_events ||--|| notification_outbox : "발행 상태"
     notification_events ||--o{ user_notifications : "fan-out"
 ```
 
@@ -59,6 +61,8 @@ erDiagram
 | 사용자 | `user_favorite_teams` | 관심 팀 조인 | P0 |
 | 사용자 | `user_favorite_players` | 관심 선수 조인 | P0 |
 | 알림 | `notification_events` | 전역 이벤트 원본 | P0 |
+| 메시징 | `notification_outbox` | 알림 발행 상태 | P0 |
+| 메시징 | `score_task_outbox` | 점수 작업 원본·발행 상태 | P0 |
 | 알림 | `user_notifications` | 사용자별 수신함 | P0 |
 | 마스터 | `teams` | 정적 마스터 | P1 |
 | 마스터 | `players` | 정적 마스터 | P1 |
@@ -301,7 +305,25 @@ scorer(급상승)·poller(경기 시작)가 판정해 발행한 이벤트의 원
 
 **키·인덱스** — PK `outbox_id` · UNIQUE(`event_id`) · partial idx(`next_attempt_at`, `created_at`) WHERE `status='PENDING'`
 
-### B-8. `user_notifications` — 사용자별 수신함
+### B-8. `score_task_outbox` — 점수 계산 작업 발행 대기열
+
+`ScoreTask` 원본 payload와 발행 상태를 한 트랜잭션에서 생성한다. RabbitMQ 발행 실패 시 동일 `observed_at` 작업을 보존·재시도하며, 발행 성공 후에도 운영 추적을 위해 행을 유지한다.
+
+| 컬럼 | 타입 | 설명 | 제약·비고 |
+|---|---|---|---|
+| `outbox_id` | `UUID` | outbox id | **PK** |
+| `game_id` | `BIGINT` | 경기 id | FK → `games` |
+| `observed_at` | `TIMESTAMPTZ` | 폴링 사이클 시각 | 소비 측 `computed_at` 멱등 키 |
+| `payload` | `JSONB` | 원본 `ScoreTask` | 상황·PA 스냅샷 포함 |
+| `status` | `VARCHAR(20)` | `PENDING`/`PUBLISHED` | |
+| `attempt_count` | `INTEGER` | 실패 횟수 | 기본값 0 |
+| `next_attempt_at` | `TIMESTAMPTZ` | 다음 발행 시각 | PENDING 조회 기준 |
+| `created_at` · `published_at` | `TIMESTAMPTZ` | 생성·발행 완료 시각 | `published_at` nullable |
+| `last_error` | `TEXT` | 최근 실패 내용 | nullable |
+
+**키·인덱스** — PK `outbox_id` · UNIQUE(`game_id`, `observed_at`) · partial idx(`next_attempt_at`, `created_at`) WHERE `status='PENDING'`
+
+### B-9. `user_notifications` — 사용자별 수신함
 
 api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한다. 알림 센터의 최신순 목록·미읽음 배지·읽음 처리·7일 보관을 지원한다.
 
