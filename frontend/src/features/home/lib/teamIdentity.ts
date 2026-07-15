@@ -40,7 +40,10 @@ export function toTeamIdentity(
   const normalizedLabel = trimmedLabel.toLowerCase();
   const team = teams?.find((candidate) =>
     [candidate.abbreviation, candidate.displayName, candidate.shortDisplayName]
-      .some((value) => value.trim().toLowerCase() === normalizedLabel),
+      .some((value) =>
+        typeof value === 'string'
+        && value.trim().toLowerCase() === normalizedLabel
+      ),
   );
 
   if (!team) {
