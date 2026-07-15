@@ -27,4 +27,4 @@ Prometheus는 Compose 내부 네트워크에서 각 backend 역할의 관리 포
 - scorer: 초당 소비량, p95 처리 시간, SURGE·랭킹 갱신 증가량
 - 공통: 알림 발행 실패와 outbox 재발행 증가량
 
-ScoreTask 발행 실패 경보는 `increase(pulse_score_task_publish_failures_total[5m]) > 0`을 경고 기준으로 사용한다. 발행 실패는 영속 outbox에 PENDING으로 남아 같은 `observedAt` payload가 재발행되므로 즉시 유실을 뜻하지 않는다. 경보 발생 시 같은 기간의 `pulse_score_task_outbox_republish_runs_total` 증가와 scorer 소비 회복 여부를 함께 확인한다.
+ScoreTask 발행 실패 경보는 `increase(pulse_score_task_publish_failures_total[5m]) > 0`을 경고 기준으로 사용한다. poller와 scorer는 실패 카운터를 시작 시 0으로 등록해 첫 발행 실패도 증가량으로 감지한다. 발행 실패는 영속 outbox에 PENDING으로 남아 같은 `observedAt` payload가 재발행되므로 즉시 유실을 뜻하지 않는다. 경보 발생 시 같은 기간의 `pulse_score_task_outbox_republish_runs_total` 증가와 scorer 소비 회복 여부를 함께 확인한다.
