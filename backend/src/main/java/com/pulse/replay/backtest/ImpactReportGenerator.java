@@ -124,17 +124,30 @@ public class ImpactReportGenerator {
                 && baselineAuc - candidateAuc > options.guardAucDropMax()) {
             guards.add("AUC 하락 임계 초과");
         }
-        double ratio = baselineAlerts.dailyAverage() == 0
-                ? candidateAlerts.dailyAverage() > 0 ? Double.POSITIVE_INFINITY : 1
-                : candidateAlerts.dailyAverage() / baselineAlerts.dailyAverage();
-        if (candidateAlerts.dailyAverage() > options.guardDailyAlertMax()
-                || ratio > options.guardDailyAlertRatioMax()) {
+        if (exceedsDailyAlertLimit(
+                baselineAlerts.dailyAverage(),
+                candidateAlerts.dailyAverage(),
+                options.guardDailyAlertMax(),
+                options.guardDailyAlertRatioMax())) {
             guards.add("일평균 알림 임계 초과");
         }
         if (baselineQuality != null && candidateQuality != null && baselineQuality - candidateQuality > 0.05) {
             guards.add("정렬 품질 하락 임계 초과");
         }
         return guards;
+    }
+
+    static boolean exceedsDailyAlertLimit(
+            double baselineDailyAverage,
+            double candidateDailyAverage,
+            double dailyAlertMax,
+            double dailyAlertRatioMax
+    ) {
+        if (candidateDailyAverage > dailyAlertMax) {
+            return true;
+        }
+        return baselineDailyAverage > 0
+                && candidateDailyAverage / baselineDailyAverage > dailyAlertRatioMax;
     }
 
     private Map<String, Object> reportMap(
