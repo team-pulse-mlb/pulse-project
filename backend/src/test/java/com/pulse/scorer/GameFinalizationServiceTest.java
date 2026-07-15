@@ -51,14 +51,18 @@ class GameFinalizationServiceTest {
     }
 
     @Test
-    void handle_shouldSkipDuplicateTerminalTask() {
+    void handle_shouldRetryLiveStateCleanupForDuplicateTerminalTask() {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game()));
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent("score:finalized:100", observedAt.toString())).thenReturn(false);
 
         service.handle(task(GameLifecycle.FINAL.name()));
 
-        verifyNoInteractions(liveSignalPublisher, aiGenerationTrigger);
+        verify(liveSignalPublisher).removeLiveGame(100L);
+        verify(liveSignalPublisher).evictGameCache(100L);
+        verify(liveSignalPublisher).publishGameSignal(100L);
+        verify(liveSignalPublisher).publishRankingSignal();
+        verifyNoInteractions(aiGenerationTrigger);
     }
 
     @Test
