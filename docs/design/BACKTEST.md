@@ -4,6 +4,7 @@
 
 - 데이터: DB 이전 완료 후 백테스트는 **운영 DB에 적재된 이력**으로 수행한다. 입력은 `plays`·`games`·`watch_scores`·`odds_snapshots`·`standings`이며, S3에서 이전·보존한 과거 데이터를 포함한다. S3 원본을 직접 재생하는 방식은 DB 이전 전까지의 잠정 방식이며, 이전 완료 후에는 사용하지 않는다.
 - 데이터 구분: 이전 데이터는 `source` 컬럼(`S3_LIVE_ARCHIVE`·`S3_BACKFILL`)과 이전 경계 시각으로 운영 수집분(`OPERATIONAL`)과 구분한다. 재생 로직은 `source`에 따라 시간 감쇠 방식을 분기한다.
+- 적용 버전: 신규 저장·재계산한 `watch_scores`는 `scoring_version`으로 적용한 `scoring.yml` 스냅샷을 구분한다. 기존 행의 `null`은 버전 미상으로 다룬다.
 - 재생: 경기별 plays를 order 순으로 점수 함수에 주입한다.
   - `OPERATIONAL`·`S3_LIVE_ARCHIVE`(observed_at 실측 보유): 실제 시간 감쇠로 재생한다. `S3_LIVE_ARCHIVE`는 관측 주기가 운영(약 20초)과 다를 수 있어 감쇠 오차 상한이 커진다.
   - `S3_BACKFILL`(과거 시즌, 벽시계 시각 없음): 시간 감쇠 항을 order 윈도우로 근사한다(최근 득점: 이후 15 plays 선형 감쇠, 리드 변경: 이후 25 plays 선형 감쇠).
