@@ -5,6 +5,7 @@ import com.pulse.common.ai.AiCopyMode;
 import com.pulse.common.ai.AiCopyResult;
 import com.pulse.common.ai.FinalHeadlineCopyClient;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -28,6 +29,7 @@ import java.util.Optional;
  *     <li>이 구현체는 DB 저장이나 fallback 문구 생성을 하지 않습니다.</li>
  * </ul>
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AiFinalHeadlineCopyClient implements FinalHeadlineCopyClient {
@@ -52,10 +54,48 @@ public class AiFinalHeadlineCopyClient implements FinalHeadlineCopyClient {
                 // FinalHeadlineContext는 이미 검증된 safeContext이므로,
                 // mapper에서는 HTTP 요청 DTO 형태로만 변환합니다.
                 .map(aiFinalHeadlineContextMapper::toRequest)
-                // ai-service 호출 실패는 AiServiceClient에서 Optional.empty()로 처리됩니다.
-                .flatMap(aiServiceClient::generateFinalHeadline)
+                // ai-service 호출 성공 후에도 저장 불가 응답일 수 있으므로,
+                // spoilerSafe/fallbackUsed/safeTitle/violations를 진단 로그로 남깁니다.
+                .flatMap(request -> aiServiceClient.generateFinalHeadline(request)
+                        .map(response -> {
+                            logAiFinalHeadlineResponse(request, response);
+                            return response;
+                        }))
                 // ai-service 응답 DTO를 Spring Boot 내부 공통 결과 모델로 변환합니다.
                 .map(this::toAiCopyResult);
+    }
+
+    /**
+     * ai-service HTTP 응답 중 저장 조건을 만족하지 못하는 케이스만 로그로 남깁니다.
+     *
+     * <p>HTTP 200이어도 {@code spoilerSafe=false}, {@code fallbackUsed=true},
+     * {@code safeTitle} 누락/blank면 Spring Boot 저장 조건을 통과하지 못해
+     * NOT_GENERATED가 될 수 있습니다.</p>
+     *
+     * <p>{@code safeTitle} 본문은 스포일러 가능성이 있으므로 로그에 남기지 않고,
+     * 원인 분석에 필요한 상태값과 violations만 기록합니다.</p>
+     */
+    private void logAiFinalHeadlineResponse(
+            AiFinalHeadlineRequest request,
+            AiCopyResponse response
+    ) {
+        if (response.spoilerSafe()
+                && !response.fallbackUsed()
+                && response.safeTitle() != null
+                && !response.safeTitle().isBlank()) {
+            return;
+        }
+
+        log.warn(
+                "ai-service final headline not storable. gameId={} mode={} spoilerSafe={} fallbackUsed={} safeTitleBlank={} contextHash={} violations={}",
+                request.gameId(),
+                request.mode(),
+                response.spoilerSafe(),
+                response.fallbackUsed(),
+                response.safeTitle() == null || response.safeTitle().isBlank(),
+                response.contextHash(),
+                response.violations()
+        );
     }
 
     /**

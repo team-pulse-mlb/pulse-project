@@ -9,12 +9,13 @@ import com.pulse.common.ai.AiCopyMode;
 import com.pulse.common.ai.EventCopyContext;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+
+import java.util.Optional;
 
 /** 현재 구현된 AI 이벤트 문구 클라이언트를 scorer 생성 트리거에 연결한다. */
 @Slf4j
@@ -47,27 +48,35 @@ class AiEventCopyGenerator {
 
         AiEventCopyRequest request = contextMapper.toRequest(mode, context.get());
         Optional<AiCopyResponse> response = aiServiceClient.generateEventCopy(request);
-        if (response.isEmpty() || !isStorable(response.get())) {
-            log.debug("AI 이벤트 문구 저장 조건 불충족: gameId={} eventId={} mode={}",
+        if (response.isEmpty()) {
+            log.warn("AI 이벤트 문구 응답 없음: gameId={} eventId={} mode={}",
                     gameId, eventId, mode);
+            return;
+        }
+
+        AiCopyResponse copyResponse = response.orElseThrow();
+        if (!isStorable(copyResponse)) {
+            logRejectedResponse(gameId, eventId, mode, copyResponse);
             return;
         }
 
         String latestContextHash = contextReader.eventCopyContext(gameId, eventId, mode)
                 .map(EventCopyContext::contextHash)
                 .orElse(null);
-        if (!response.get().contextHash().equals(latestContextHash)) {
-            log.info("AI 이벤트 문구 stale 응답 폐기: gameId={} eventId={} mode={}",
-                    gameId, eventId, mode);
+        if (!copyResponse.contextHash().equals(latestContextHash)) {
+            log.info("AI 이벤트 문구 stale 응답 폐기: gameId={} eventId={} mode={} responseContextHash={} latestContextHash={}",
+                    gameId, eventId, mode, copyResponse.contextHash(), latestContextHash);
             return;
         }
 
         GameEvent event = gameEventRepository.findById(eventId).orElse(null);
         if (event == null || event.getGameId() == null || event.getGameId() != gameId) {
+            log.warn("AI 이벤트 문구 저장 대상 이벤트 없음/불일치: gameId={} eventId={} mode={}",
+                    gameId, eventId, mode);
             return;
         }
 
-        saveCopy(event, mode, response.get());
+        saveCopy(event, mode, copyResponse);
         gameEventRepository.save(event);
         liveSignalPublisher.publishGameSignal(gameId);
     }
@@ -84,8 +93,30 @@ class AiEventCopyGenerator {
         return response.spoilerSafe()
                 && !response.fallbackUsed()
                 && response.contextHash() != null
-                && response.safeTitle() != null
-                && !response.safeTitle().isBlank();
+                && !isBlank(response.safeTitle());
+    }
+
+    private static void logRejectedResponse(
+            long gameId,
+            long eventId,
+            AiCopyMode mode,
+            AiCopyResponse response
+    ) {
+        log.warn(
+                "AI 이벤트 문구 검수 반려/저장 조건 불충족: gameId={} eventId={} mode={} spoilerSafe={} fallbackUsed={} safeTitleBlank={} contextHashMissing={} violations={}",
+                gameId,
+                eventId,
+                mode,
+                response.spoilerSafe(),
+                response.fallbackUsed(),
+                isBlank(response.safeTitle()),
+                response.contextHash() == null,
+                response.violations()
+        );
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private static void saveCopy(GameEvent event, AiCopyMode mode, AiCopyResponse response) {
@@ -99,3 +130,4 @@ class AiEventCopyGenerator {
         event.setCopyRevealedContextHash(response.contextHash());
     }
 }
+
