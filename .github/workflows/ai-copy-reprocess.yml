@@ -1,0 +1,86 @@
+name: ai-copy-reprocess
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "전체 AI 문구 재생성을 승인하려면 REGENERATE_ALL_AI_COPY 입력"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ai-copy-reprocess
+  cancel-in-progress: false
+
+jobs:
+  reprocess:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      AWS_REGION: ap-northeast-2
+      INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+    steps:
+      - name: Validate confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: test "$CONFIRM" = "REGENERATE_ALL_AI_COPY"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Reprocess all AI copy through SSM
+        run: |
+          jq -n \
+            --arg instance "$INSTANCE_ID" \
+            '{
+              DocumentName: "AWS-RunShellScript",
+              InstanceIds: [$instance],
+              Comment: "PULSE all AI copy reprocess",
+              TimeoutSeconds: 21600,
+              Parameters: {commands: [
+                "set -euo pipefail",
+                "cd /home/ubuntu/pulse-runtime",
+                "mkdir -p logs",
+                "log=logs/ai-copy-reprocess-$(date -u +%Y%m%dT%H%M%SZ).log",
+                "status=0",
+                "docker compose -f docker-compose.prod.yml run --rm pulse-ai-copy-reprocess >\"$log\" 2>&1 || status=$?",
+                "echo AI_COPY_REPROCESS_LOG=$log",
+                "tail -n 200 \"$log\"",
+                "exit $status"
+              ]}
+            }' > /tmp/ai-copy-reprocess.json
+
+          command_id=$(aws ssm send-command \
+            --region "$AWS_REGION" \
+            --cli-input-json file:///tmp/ai-copy-reprocess.json \
+            --query 'Command.CommandId' \
+            --output text)
+
+          status="InProgress"
+          for _ in $(seq 1 1440); do
+            status=$(aws ssm get-command-invocation \
+              --region "$AWS_REGION" \
+              --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" \
+              --query 'Status' \
+              --output text)
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut) break ;;
+            esac
+            sleep 15
+          done
+
+          aws ssm get-command-invocation \
+            --region "$AWS_REGION" \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' \
+            --output json
+          test "$status" = "Success"

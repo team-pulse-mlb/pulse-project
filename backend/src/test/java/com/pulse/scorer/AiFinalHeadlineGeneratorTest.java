@@ -156,6 +156,47 @@ class AiFinalHeadlineGeneratorTest {
     }
 
     @Test
+    void regenerateSynchronously_shouldOverwriteBothExistingHeadlines() {
+        Game game = finalGame();
+        game.setFinalHeadlineProtected("기존 보호 헤드라인");
+        game.setFinalHeadlineRevealed("기존 공개 헤드라인");
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(game));
+        when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.PROTECTED))
+                .thenReturn(Optional.of(result("새 보호 헤드라인")));
+        when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.REVEALED))
+                .thenReturn(Optional.of(result("새 공개 헤드라인")));
+        latestContextHash(AiCopyMode.PROTECTED, "hash-final");
+        latestContextHash(AiCopyMode.REVEALED, "hash-final");
+
+        AiFinalHeadlineGenerator.GenerationStatus status = generator.regenerateSynchronously(100L);
+
+        assertThat(status).isEqualTo(AiFinalHeadlineGenerator.GenerationStatus.SAVED);
+        assertThat(game.getFinalHeadlineProtected()).isEqualTo("새 보호 헤드라인");
+        assertThat(game.getFinalHeadlineRevealed()).isEqualTo("새 공개 헤드라인");
+        verify(gameRepository).save(game);
+    }
+
+    @Test
+    void regenerateSynchronously_shouldPreserveExistingHeadlineWhenOneModeFails() {
+        Game game = finalGame();
+        game.setFinalHeadlineProtected("기존 보호 헤드라인");
+        game.setFinalHeadlineRevealed("기존 공개 헤드라인");
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(game));
+        when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.PROTECTED))
+                .thenReturn(Optional.of(result("새 보호 헤드라인")));
+        when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.REVEALED))
+                .thenReturn(Optional.of(openAiFailureResult()));
+        latestContextHash(AiCopyMode.PROTECTED, "hash-final");
+
+        AiFinalHeadlineGenerator.GenerationStatus status = generator.regenerateSynchronously(100L);
+
+        assertThat(status).isEqualTo(AiFinalHeadlineGenerator.GenerationStatus.PARTIALLY_SAVED);
+        assertThat(game.getFinalHeadlineProtected()).isEqualTo("새 보호 헤드라인");
+        assertThat(game.getFinalHeadlineRevealed()).isEqualTo("기존 공개 헤드라인");
+        verify(gameRepository).save(game);
+    }
+
+    @Test
     void generate_shouldSkipFallbackUsedResult() {
         Game game = finalGame();
         when(finalHeadlineCopyClient.generateFinalHeadline(100L, AiCopyMode.PROTECTED))

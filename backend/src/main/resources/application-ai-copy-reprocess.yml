@@ -1,0 +1,27 @@
+spring:
+  main:
+    web-application-type: none
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: false
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+
+pulse:
+  poller:
+    enabled: false
+  scorer:
+    enabled: true
+  sse:
+    enabled: false
+  ai:
+    event-copy-retry:
+      enabled: false
+  ai-copy-reprocess:
+    event-batch-size: 100
+  notification-outbox:
+    scheduler-enabled: false

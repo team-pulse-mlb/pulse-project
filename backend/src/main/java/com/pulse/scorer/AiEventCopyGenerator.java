@@ -42,6 +42,20 @@ class AiEventCopyGenerator {
     }
 
     GenerationStatus generateSynchronously(long gameId, long eventId, AiCopyMode mode) {
+        return generateSynchronously(gameId, eventId, mode, false);
+    }
+
+    /** 기존 보호 문구가 있어도 다시 생성하고 성공한 결과만 덮어씁니다. */
+    GenerationStatus regenerateSynchronously(long gameId, long eventId) {
+        return generateSynchronously(gameId, eventId, AiCopyMode.PROTECTED, true);
+    }
+
+    private GenerationStatus generateSynchronously(
+            long gameId,
+            long eventId,
+            AiCopyMode mode,
+            boolean force
+    ) {
         if (mode != AiCopyMode.PROTECTED) {
             log.warn("지원하지 않는 AI 이벤트 문구 모드: gameId={} eventId={} mode={}",
                     gameId, eventId, mode);
@@ -61,7 +75,7 @@ class AiEventCopyGenerator {
                     gameId, eventId, mode);
             return GenerationStatus.NOT_ELIGIBLE;
         }
-        if (hasCopy(event)) {
+        if (!force && hasCopy(event)) {
             log.debug("AI 이벤트 문구 이미 저장됨: gameId={} eventId={} mode={}",
                     gameId, eventId, mode);
             return GenerationStatus.ALREADY_PRESENT;

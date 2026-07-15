@@ -36,6 +36,22 @@ class GameEventRepositoryTest {
         assertThat(result).extracting(GameEvent::getId).containsExactly(target.getId());
     }
 
+    @Test
+    void protectedAiReprocessTargets_shouldIncludeExistingCopiesAndRespectCursor() {
+        GameEvent first = saveEvent(11L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
+        GameEvent second = saveEvent(12L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(60));
+        second.setCopyProtected("기존 문구");
+        saveEvent(13L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(120));
+        gameEventRepository.flush();
+
+        long maxId = gameEventRepository.findMaxProtectedEventId();
+        List<GameEvent> result = gameEventRepository.findProtectedAiReprocessTargets(
+                first.getId(), maxId, PageRequest.of(0, 50));
+
+        assertThat(maxId).isEqualTo(second.getId());
+        assertThat(result).extracting(GameEvent::getId).containsExactly(second.getId());
+    }
+
     private GameEvent saveEvent(long sourceRef, String spoilerLevel, Instant observedAt) {
         GameEvent event = new GameEvent();
         event.setGameId(100L);

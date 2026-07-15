@@ -53,14 +53,23 @@ class AiFinalHeadlineGenerator {
      * 이미 저장된 모드는 다시 호출하지 않아 재실행 시 비용과 문구 변경을 막습니다.
      */
     GenerationStatus generateSynchronously(long gameId) {
+        return generateSynchronously(gameId, false);
+    }
+
+    /** 기존 문구가 있어도 양쪽 모드를 다시 생성하고 성공한 결과만 덮어씁니다. */
+    GenerationStatus regenerateSynchronously(long gameId) {
+        return generateSynchronously(gameId, true);
+    }
+
+    private GenerationStatus generateSynchronously(long gameId, boolean force) {
         Game current = gameRepository.findById(gameId).orElse(null);
         if (current == null || !current.isFinal()) {
             log.debug("AI 종료 헤드라인 저장 대상 경기 없음/미종료: gameId={}", gameId);
             return GenerationStatus.NOT_ELIGIBLE;
         }
 
-        boolean needsProtected = isBlank(current.getFinalHeadlineProtected());
-        boolean needsRevealed = isBlank(current.getFinalHeadlineRevealed());
+        boolean needsProtected = force || isBlank(current.getFinalHeadlineProtected());
+        boolean needsRevealed = force || isBlank(current.getFinalHeadlineRevealed());
         if (!needsProtected && !needsRevealed) {
             log.debug("AI 종료 헤드라인 이미 저장됨: gameId={}", gameId);
             return GenerationStatus.ALREADY_PRESENT;
@@ -101,12 +110,14 @@ class AiFinalHeadlineGenerator {
             return GenerationStatus.NOT_GENERATED;
         }
 
+        int requestedCount = (needsProtected ? 1 : 0) + (needsRevealed ? 1 : 0);
+        int generatedCount = (protectedResult.isPresent() ? 1 : 0) + (revealedResult.isPresent() ? 1 : 0);
         boolean changed = false;
-        if (isBlank(game.getFinalHeadlineProtected()) && protectedResult.isPresent()) {
+        if ((force || isBlank(game.getFinalHeadlineProtected())) && protectedResult.isPresent()) {
             game.setFinalHeadlineProtected(protectedResult.orElseThrow().safeTitle());
             changed = true;
         }
-        if (isBlank(game.getFinalHeadlineRevealed()) && revealedResult.isPresent()) {
+        if ((force || isBlank(game.getFinalHeadlineRevealed())) && revealedResult.isPresent()) {
             game.setFinalHeadlineRevealed(revealedResult.orElseThrow().safeTitle());
             changed = true;
         }
@@ -118,9 +129,9 @@ class AiFinalHeadlineGenerator {
         gameRepository.save(game);
         liveSignalPublisher.publishGameSignal(gameId);
         liveSignalPublisher.publishRankingSignal();
-        return isBlank(game.getFinalHeadlineProtected()) || isBlank(game.getFinalHeadlineRevealed())
-                ? GenerationStatus.PARTIALLY_SAVED
-                : GenerationStatus.SAVED;
+        return generatedCount == requestedCount
+                ? GenerationStatus.SAVED
+                : GenerationStatus.PARTIALLY_SAVED;
     }
 
     private Optional<AiCopyResult> requestStorableHeadline(long gameId, AiCopyMode mode) {
