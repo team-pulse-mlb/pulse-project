@@ -170,6 +170,71 @@ public class BalldontlieClient implements BaseballDataSource {
         return response == null || response.data() == null ? List.of() : response.data();
     }
 
+
+    /**
+     * 관심 선수 설정 화면에서 선수 영문 이름을 검색합니다.
+     *
+     * 기존 getPlayers()는 이미 알고 있는 선수 ID로 상세 정보를
+     * 보강할 때 사용하고, 이 메서드는 사용자가 입력한 이름으로
+     * 선수를 찾을 때 사용합니다.
+     *
+     * @param search  선수 영문 이름 검색어
+     * @param perPage 한 번에 받을 최대 검색 결과 수
+     * @return balldontlie에서 조회한 선수 목록
+     */
+    @Override
+    public List<BdlPlayer> searchPlayers(
+            String search,
+            int perPage
+    ) {
+        /*
+         * null을 그대로 외부 API에 전달하지 않도록
+         * 빈 문자열로 변환하고 앞뒤 공백을 제거합니다.
+         */
+        String keyword = search == null
+                ? ""
+                : search.trim();
+
+        /*
+         * 빈 검색어로 외부 API 전체 선수를 조회하는 것을 방지합니다.
+         */
+        if (keyword.isBlank()) {
+            return List.of();
+        }
+
+        /*
+         * balldontlie API의 기존 프로젝트 상한인 100건을 넘지 않게 합니다.
+         *
+         * 0 이하가 넘어오면 최소 1건,
+         * 100을 넘으면 최대 100건으로 제한합니다.
+         */
+        int normalizedPerPage = Math.max(
+                1,
+                Math.min(perPage, PER_PAGE)
+        );
+
+        ListResponse<BdlPlayer> response = restClient.get()
+                .uri(uri -> uri
+                        .path("/mlb/v1/players")
+                        .queryParam("search", keyword)
+                        .queryParam(
+                                "per_page",
+                                normalizedPerPage
+                        )
+                        .build()
+                )
+                .retrieve()
+                .body(
+                        new ParameterizedTypeReference<>() {
+                        }
+                );
+
+        return response == null || response.data() == null
+                ? List.of()
+                : response.data();
+    }
+
+
     /** 경기의 plate appearance 전체 목록. 이 endpoint는 증분 cursor가 없다. */
     public List<BdlPlateAppearance> getPlateAppearances(long gameId) {
         return getPlateAppearancesRaw(gameId).data();
