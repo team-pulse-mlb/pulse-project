@@ -179,9 +179,6 @@ function GameDetailPage() {
 
     /**
      * 보호 모드의 경기 흐름은 스포일러 안전 이벤트를 사용한다.
-     *
-     * 이벤트 API 응답 순서를 유지한 채
-     * EventTimeline 화면 모델로 변환한다.
      */
     const timelineEvents =
         gameEventsQuery.data
@@ -189,6 +186,11 @@ function GameDetailPage() {
                 gameEventsQuery.data,
             )
             : [];
+
+    const orderedTimelineEvents =
+        detail.kind === 'FINAL'
+            ? timelineEvents
+            : [...timelineEvents].reverse();
 
     const protectedGameFlowContent =
         gameEventsQuery.isPending ? (
@@ -213,7 +215,7 @@ function GameDetailPage() {
             <EventTimeline
                 title="경기 흐름"
                 mode={detail.displayMode}
-                events={timelineEvents}
+                events={orderedTimelineEvents}
             />
         );
 
