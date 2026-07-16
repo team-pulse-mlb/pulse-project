@@ -36,6 +36,60 @@ class AiContextHashCalculatorTest {
                 .isEqualTo(hash(AiCopyMode.REVEALED, Map.of("label", "강한 타구")));
     }
 
+    @Test
+    void 동일한_플레이_원문은_동일한_번역_해시를_만든다() {
+        String first =
+                AiContextHashCalculator.calculatePlayTranslation(
+                        100L,
+                        200L,
+                        "Marsh struck out looking.");
+
+        String second =
+                AiContextHashCalculator.calculatePlayTranslation(
+                        100L,
+                        200L,
+                        "Marsh struck out looking.");
+
+        assertThat(first)
+                .isEqualTo(second);
+    }
+
+    @Test
+    void 플레이_원문이_바뀌면_번역_해시도_바뀐다() {
+        String original =
+                AiContextHashCalculator.calculatePlayTranslation(
+                        100L,
+                        200L,
+                        "Marsh struck out looking.");
+
+        String changed =
+                AiContextHashCalculator.calculatePlayTranslation(
+                        100L,
+                        200L,
+                        "Marsh singled to center field.");
+
+        assertThat(original)
+                .isNotEqualTo(changed);
+    }
+
+    @Test
+    void 플레이_ID가_바뀌면_번역_해시도_바뀐다() {
+        String first =
+                AiContextHashCalculator.calculatePlayTranslation(
+                        100L,
+                        200L,
+                        "Marsh struck out looking.");
+
+        String second =
+                AiContextHashCalculator.calculatePlayTranslation(
+                        100L,
+                        201L,
+                        "Marsh struck out looking.");
+
+        assertThat(first)
+                .isNotEqualTo(second);
+    }
+
     private static String hash(AiCopyMode mode, Map<String, Object> context) {
         return AiContextHashCalculator.calculate("EVENT_COPY", mode, 10L, 20L, context);
     }

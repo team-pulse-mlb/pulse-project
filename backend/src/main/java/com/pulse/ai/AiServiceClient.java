@@ -35,6 +35,7 @@ public class AiServiceClient {
 
     private static final String EVENT_COPY_PATH = "/ai/event-copy";
     private static final String FINAL_HEADLINE_PATH = "/ai/final-headline";
+    private static final String PLAY_TRANSLATION_PATH = "/ai/play-translation";
 
     private final RestClient aiServiceRestClient;
 
@@ -70,6 +71,43 @@ public class AiServiceClient {
             return Optional.empty();
         }
     }
+
+    /**
+     * 공개 모드 최근 플레이 번역을 ai-service에 요청합니다.
+     *
+     * 호출 실패나 응답 파싱 실패는 scorer 흐름을 중단하지 않고
+     * 번역 미생성 상태로 처리한다.
+     *
+     * @param request /ai/play-translation 요청 DTO
+     * @return ai-service 응답. 호출 실패 시 Optional.empty()
+     */
+    public Optional<AiPlayTranslationResponse> generatePlayTranslation(
+            AiPlayTranslationRequest request
+    ) {
+        try {
+            AiPlayTranslationResponse response = aiServiceRestClient.post()
+                    .uri(PLAY_TRANSLATION_PATH)
+                    .body(request)
+                    .retrieve()
+                    .body(AiPlayTranslationResponse.class);
+
+            return Optional.ofNullable(response);
+        } catch (RestClientException exception) {
+            /*
+             * 원문은 최근 플레이 API의 폴백으로 계속 제공되므로
+             * 번역 장애가 전체 경기 처리 흐름을 중단하지 않게 한다.
+             */
+            log.warn(
+                    "ai-service play translation request failed. gameId={} playId={}",
+                    request.gameId(),
+                    request.playId(),
+                    exception
+            );
+
+            return Optional.empty();
+        }
+    }
+
 
     /**
      * FINAL_HEADLINE 문구 생성을 ai-service에 요청합니다.

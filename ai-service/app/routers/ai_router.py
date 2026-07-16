@@ -17,6 +17,7 @@ from app.services.openai_service import (
 )
 from app.services.play_translation_service import (
     PlayTranslationGenerationError,
+    find_play_translation_violations,
     generate_play_translation,
 )
 from app.services.spoiler_guard import check_spoiler_text
@@ -422,6 +423,25 @@ def play_translation(request: PlayTranslationRequest):
 
         _log_play_translation_failure(
             event_name="PLAY_TRANSLATION_GENERATION_FAILED",
+            request=request,
+            violations=violations,
+        )
+
+        return _build_play_translation_failed_response(
+            request=request,
+            violations=violations,
+        )
+
+    # 모델의 프롬프트 준수 여부와 별개로 선수명·숫자 보존을
+    # 코드에서 다시 검수해 불완전한 번역이 DB에 저장되지 않게 한다.
+    violations = find_play_translation_violations(
+        source_text=request.source_text,
+        translated_text=translated_text,
+    )
+
+    if violations:
+        _log_play_translation_failure(
+            event_name="PLAY_TRANSLATION_REVIEW_REJECTED",
             request=request,
             violations=violations,
         )

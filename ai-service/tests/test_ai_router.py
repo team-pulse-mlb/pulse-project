@@ -386,6 +386,68 @@ class AiRouterTestCase(unittest.TestCase):
         )
         self.assertEqual(generated_request.target_language, "ko")
 
+    def test_play_translation_rejects_missing_player_name(self):
+        generated_translation = {
+            "translated_text": "중견수 방면 안타",
+        }
+
+        with patch(
+            "app.routers.ai_router.generate_play_translation",
+            return_value=generated_translation,
+        ):
+            response = self.client.post(
+                "/ai/play-translation",
+                json=self.play_translation_payload,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertEqual(
+            data["violations"],
+            ["PLAYER_NAME_NOT_PRESERVED"],
+        )
+        self.assertFalse(data["fallbackUsed"])
+        self.assertEqual(
+            data["contextHash"],
+            "play-312-v1",
+        )
+        self.assertNotIn("translatedText", data)
+
+    def test_play_translation_rejects_missing_number(self):
+        payload = {
+            **self.play_translation_payload,
+            "sourceText": (
+                "Tawa homered to center (414 feet)."
+            ),
+        }
+        generated_translation = {
+            "translated_text": "Tawa, 중견수 방면 홈런",
+        }
+
+        with patch(
+            "app.routers.ai_router.generate_play_translation",
+            return_value=generated_translation,
+        ):
+            response = self.client.post(
+                "/ai/play-translation",
+                json=payload,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertEqual(
+            data["violations"],
+            ["NUMBER_NOT_PRESERVED"],
+        )
+        self.assertFalse(data["fallbackUsed"])
+        self.assertEqual(
+            data["contextHash"],
+            "play-312-v1",
+        )
+        self.assertNotIn("translatedText", data)
+
     def test_play_translation_returns_failure_state_when_generation_fails(self):
         with patch(
             "app.routers.ai_router.generate_play_translation",
