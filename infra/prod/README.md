@@ -56,6 +56,8 @@ Prometheus·Grafana 접근과 지표 조회 방법은 [`docs/design/OBSERVABILIT
 
 GitHub에는 장기 AWS 액세스 키를 저장하지 않는다. `main` 브랜치만 `pulse-github-actions-deploy` 역할을 위임받으며, CI에는 운영 시크릿이 전달되지 않는다.
 
+추천 점수 백테스트는 별도 `pulse-github-actions-backtest` 역할을 사용한다. 이 역할은 PR별 임시 S3 경로와 `PulseBacktestImpact` SSM 문서만 사용할 수 있으며 Secrets Manager 권한은 없다. RDS 자격 증명은 EC2 역할만 읽는다.
+
 ### 확인
 
 ```bash
@@ -153,6 +155,60 @@ docker compose -f docker-compose.prod.yml run --rm \
 기존 값을 유지하면서 전체 종료 헤드라인과 보호 이벤트 문구를 재생성할 때는 GitHub Actions의
 `ai-copy-reprocess` 워크플로를 열고 확인값 `REGENERATE_ALL_AI_COPY`를 입력해 실행한다.
 
+## 백테스트 자동화 준비
+
+### 1. 읽기 전용 DB 계정
+
+운영 DB 백업 상태를 확인한 뒤 `pulse_admin`으로 다음 스크립트를 실행한다. 스크립트의 `\password` 프롬프트에 새 비밀번호를 입력하며 값을 명령 이력이나 저장소에 기록하지 않는다.
+
+```bash
+psql -h <RDS_ENDPOINT> -U pulse_admin -d pulse \
+  -f infra/prod/backtest/create-readonly-role.sql
+```
+
+접속 후 `SHOW transaction_read_only`가 `on`인지 확인하고 `SELECT`는 성공하지만 임시 검증용 `CREATE TABLE`·`INSERT`가 거부되는지 확인한다. 확인용 쓰기 명령은 운영 테이블을 대상으로 실행하지 않는다.
+
+Secrets Manager에 `pulse/backtest/readonly`를 만들고 아래 JSON 키를 저장한다.
+
+```json
+{
+  "host": "<RDS_ENDPOINT>",
+  "port": "5432",
+  "dbname": "pulse",
+  "username": "pulse_backtest_ro",
+  "password": "<READONLY_PASSWORD>"
+}
+```
+
+### 2. IAM과 SSM
+
+1. `github-backtest-oidc-trust.json`으로 `pulse-github-actions-backtest` 역할을 만든다.
+2. 역할에 `github-backtest-policy.json`을 연결한다.
+3. EC2 역할의 정책을 `ec2-deploy-policy.json` 내용으로 갱신한다.
+4. `backtest-impact-document.yml`을 `PulseBacktestImpact` 이름의 Command 문서로 생성한다.
+5. `application-deploy`를 실행해 `/usr/local/bin/pulse-backtest-impact`를 EC2에 배포한다.
+
+```bash
+aws ssm create-document \
+  --name PulseBacktestImpact \
+  --document-type Command \
+  --document-format YAML \
+  --content file://infra/prod/ssm/backtest-impact-document.yml
+```
+
+문서가 이미 있으면 새 버전을 만들고 기본 버전으로 지정한다. 정책 파일의 계정·리전·버킷·인스턴스 값은 현재 운영 리소스와 대조한 뒤 적용한다.
+
+### 3. GitHub Variables
+
+| 변수 | 역할 |
+|---|---|
+| `BACKTEST_AWS_ROLE_ARN` | PR 전용 GitHub OIDC 역할 |
+| `BACKTEST_DB_SECRET_ARN` | EC2가 읽는 백테스트 전용 DB 시크릿 |
+
+백테스트 임시 입출력은 기존 `DEPLOY_S3_BUCKET`의 `backtest/pr/` prefix를 사용한다. `BACKTEST_DB_SECRET_ARN`은 배포 워크플로가 EC2의 `/etc/pulse/secrets.conf`에 식별자만 기록한다. 시크릿 값은 GitHub에 전달하지 않는다. 기존 `EC2_INSTANCE_ID`도 백테스트 워크플로가 함께 사용한다.
+
+준비가 끝나면 `tune:` 제목의 내부 PR에서 `scoring.yml`만 변경해 실행한다. 결과는 PR 코멘트와 GitHub Actions 아티팩트에만 남고 저장소 파일은 추가로 변경하지 않는다. 자세한 실행 조건과 판독 기준은 [`docs/design/BACKTEST.md`](../../docs/design/BACKTEST.md)를 따른다.
+
 ## 프론트엔드·API HTTPS
 
 프론트엔드는 S3 + CloudFront(OAC)로 서빙한다. 리소스·배포 절차는 [`FRONTEND.md`](FRONTEND.md), API를 `api.pulsemlb.com`으로 HTTPS화하는 절차는 [`API_HTTPS.md`](API_HTTPS.md) 참고.
@@ -188,6 +244,8 @@ journalctl -u pulse-secret-sync.service --since today
 | `DEPLOY_S3_BUCKET` | Compose·배포 스크립트 전달 버킷 |
 | `EC2_INSTANCE_ID` | SSM 배포 대상 |
 | `RDS_SECRET_ARN`, `RUNTIME_SECRET_ARN` | EC2가 동기화할 시크릿 식별자 |
+| `BACKTEST_AWS_ROLE_ARN` | 백테스트 PR 전용 OIDC 역할 |
+| `BACKTEST_DB_SECRET_ARN` | EC2 전용 읽기 DB 시크릿 식별자 |
 
 ## AWS 콘솔 확인
 
