@@ -1,5 +1,11 @@
 import re
 from dataclasses import dataclass
+from typing import Any
+
+from app.prompts.play_translation_prompt import (
+    find_matching_event_terms,
+    load_baseball_terms,
+)
 
 
 @dataclass(frozen=True)
@@ -31,86 +37,11 @@ FORBIDDEN_ADDITIONS = {
 }
 
 
-# 원문 이벤트 표현과 번역문에 반드시 남아야 하는 한국어 핵심 표현입니다.
-EVENT_PRESERVATION_RULES = [
-    (
-        re.compile(r"\bstruck out swinging\b", re.IGNORECASE),
-        ["헛스윙", "삼진"],
-        "MISSING_EVENT:STRIKEOUT_SWINGING",
-    ),
-    (
-        re.compile(r"\bstruck out looking\b", re.IGNORECASE),
-        ["루킹", "삼진"],
-        "MISSING_EVENT:STRIKEOUT_LOOKING",
-    ),
-    (
-        re.compile(r"\bstruck out\b", re.IGNORECASE),
-        ["삼진"],
-        "MISSING_EVENT:STRIKEOUT",
-    ),
-    (
-        re.compile(r"\bwalked\b", re.IGNORECASE),
-        ["볼넷"],
-        "MISSING_EVENT:WALK",
-    ),
-    (
-        re.compile(r"\bsingled\b", re.IGNORECASE),
-        ["안타"],
-        "MISSING_EVENT:SINGLE",
-    ),
-    (
-        re.compile(r"\bdoubled\b", re.IGNORECASE),
-        ["2루타"],
-        "MISSING_EVENT:DOUBLE",
-    ),
-    (
-        re.compile(r"\btripled\b", re.IGNORECASE),
-        ["3루타"],
-        "MISSING_EVENT:TRIPLE",
-    ),
-    (
-        re.compile(r"\bhomered\b|\bhome run\b", re.IGNORECASE),
-        ["홈런"],
-        "MISSING_EVENT:HOME_RUN",
-    ),
-    (
-        re.compile(r"\bgrounded out\b", re.IGNORECASE),
-        ["땅볼", "아웃"],
-        "MISSING_EVENT:GROUNDOUT",
-    ),
-    (
-        re.compile(r"\bflied out\b", re.IGNORECASE),
-        ["뜬공", "아웃"],
-        "MISSING_EVENT:FLYOUT",
-    ),
-    (
-        re.compile(r"\blined out\b", re.IGNORECASE),
-        ["직선타", "아웃"],
-        "MISSING_EVENT:LINEOUT",
-    ),
-    (
-        re.compile(r"\bpopped out\b", re.IGNORECASE),
-        ["뜬공", "아웃"],
-        "MISSING_EVENT:POPOUT",
-    ),
-    (
-        re.compile(r"\bsacrifice fly\b", re.IGNORECASE),
-        ["희생플라이"],
-        "MISSING_EVENT:SACRIFICE_FLY",
-    ),
-    (
-        re.compile(r"\bhit by pitch\b", re.IGNORECASE),
-        ["몸에 맞는 공"],
-        "MISSING_EVENT:HIT_BY_PITCH",
-    ),
-    (
-        re.compile(r"\bstole\b", re.IGNORECASE),
-        ["도루"],
-        "MISSING_EVENT:STOLEN_BASE",
-    ),
-]
-
-
+# 원문의 타구 방향이 번역문에도 보존됐는지 검사하는 규칙입니다.
+#
+# 이번 작업에서는 기존 동작과의 호환성을 위해 유지합니다.
+# left-center, right-center, 선상 타구 등 세부 방향 검증은
+# 후속 작업에서 YAML direction_patterns 기준으로 확장합니다.
 DIRECTION_PRESERVATION_RULES = [
     (
         re.compile(r"\bto left\b", re.IGNORECASE),
@@ -137,14 +68,24 @@ def check_play_translation(
     """
     단일 MLB Play Result 번역문이 원문 사실을 보존했는지 검사합니다.
 
-    이 guard는 완전한 의미론 검증기가 아니라,
-    MVP에서 반드시 막아야 하는 명확한 위반을 규칙 기반으로 차단합니다.
+    프롬프트와 동일한 YAML 용어집을 사용해 원문 이벤트와
+    번역문 결과가 일치하는지 검증합니다.
+
+    이 guard는 완전한 자연어 의미 분석기가 아니라,
+    MVP에서 명확하게 확인 가능한 사실 보존 위반을
+    결정론적 규칙으로 차단합니다.
     """
 
     violations: list[str] = []
 
     normalized_source = _normalize_text(source_text)
-    normalized_translation = _normalize_text(translated_text or "")
+    normalized_translation = _normalize_text(
+        translated_text or ""
+    )
+
+    # 프롬프트와 guard가 동일한 이벤트·금지 표현 규칙을
+    # 사용하도록 YAML 용어집을 한 번 로드합니다.
+    glossary = load_baseball_terms()
 
     if not normalized_source:
         violations.append("SOURCE_TEXT_EMPTY")
@@ -169,9 +110,10 @@ def check_play_translation(
         )
     )
     violations.extend(
-        _check_event_preserved(
+        _check_glossary_event_preserved(
             source_text=source_text,
             translated_text=translated_text or "",
+            glossary=glossary,
         )
     )
     violations.extend(
@@ -186,6 +128,12 @@ def check_play_translation(
             translated_text=translated_text or "",
         )
     )
+    violations.extend(
+        _check_forbidden_commentary(
+            translated_text=translated_text or "",
+            glossary=glossary,
+        )
+    )
 
     return _build_result(violations)
 
@@ -195,11 +143,16 @@ def _build_result(
 ) -> PlayTranslationGuardResult:
     """
     위반 목록으로 guard 결과 객체를 생성합니다.
+
+    여러 검증 규칙이 동일한 violation을 반환할 수 있으므로,
+    최초 발견 순서를 유지하면서 중복을 제거합니다.
     """
 
+    unique_violations = list(dict.fromkeys(violations))
+
     return PlayTranslationGuardResult(
-        spoiler_safe=not violations,
-        violations=violations,
+        spoiler_safe=not unique_violations,
+        violations=unique_violations,
     )
 
 
@@ -239,8 +192,11 @@ def _check_player_names_preserved(
     """
     원문에 등장한 선수명 후보가 번역문에도 남아 있는지 검사합니다.
 
-    MLB play result는 보통 문장 첫 토큰이 선수 성(last name)인 경우가 많으므로,
-    대문자로 시작하는 영문 토큰을 선수명 후보로 본다.
+    MLB Play Result는 보통 대문자로 시작하는 영문 토큰으로
+    선수명을 표기하므로 해당 토큰을 선수명 후보로 사용합니다.
+
+    이번 단계에서는 원문 선수명의 누락만 검사합니다.
+    원문에 없는 추가 선수명 검사는 후속 작업에서 추가합니다.
     """
 
     source_names = _extract_name_candidates(source_text)
@@ -292,6 +248,9 @@ def _check_numbers_preserved(
 ) -> list[str]:
     """
     원문에 등장한 숫자가 번역문에도 유지되는지 검사합니다.
+
+    이번 단계에서는 원문 숫자의 누락만 검사합니다.
+    원문에 없는 추가 숫자 검사는 후속 작업에서 추가합니다.
     """
 
     source_numbers = re.findall(r"\d+", source_text)
@@ -311,25 +270,57 @@ def _check_numbers_preserved(
     return []
 
 
-def _check_event_preserved(
+def _check_glossary_event_preserved(
     source_text: str,
     translated_text: str,
+    glossary: dict[str, Any],
 ) -> list[str]:
     """
-    원문 야구 결과 표현이 번역문에 보존됐는지 검사합니다.
+    YAML 용어집에서 원문과 매칭된 이벤트의 필수 한국어 표현이
+    번역문에 보존됐는지 검사합니다.
+
+    프롬프트와 guard가 같은 event_terms를 사용하도록 하여
+    이벤트 규칙이 서로 어긋나는 문제를 방지합니다.
+
+    예:
+    - wild pitch → requiredKo=["폭투"]
+    - passed ball → requiredKo=["포일"]
+    - grounded into double play → requiredKo=["병살"]
     """
 
     violations: list[str] = []
 
-    for pattern, required_terms, violation_code in EVENT_PRESERVATION_RULES:
-        if not pattern.search(source_text):
-            continue
+    matched_event_terms = find_matching_event_terms(
+        source_text=source_text,
+        glossary=glossary,
+    )
 
-        if not all(
+    for matched_term in matched_event_terms:
+        required_terms = [
+            str(required_term).strip()
+            for required_term in matched_term.get(
+                "requiredKo",
+                [],
+            )
+            if str(required_term).strip()
+        ]
+
+        # requiredKo가 모두 보존된 경우 정상입니다.
+        if all(
             required_term in translated_text
             for required_term in required_terms
         ):
-            violations.append(violation_code)
+            continue
+
+        outcome_code = str(
+            matched_term.get("outcomeCode")
+            or matched_term.get("id")
+            or "UNKNOWN"
+        ).upper()
+
+        violations.append(
+            f"MISSING_EVENT:{outcome_code}"
+        )
 
     return violations
 
@@ -344,7 +335,11 @@ def _check_direction_preserved(
 
     violations: list[str] = []
 
-    for pattern, allowed_terms, violation_code in DIRECTION_PRESERVATION_RULES:
+    for (
+        pattern,
+        allowed_terms,
+        violation_code,
+    ) in DIRECTION_PRESERVATION_RULES:
         if not pattern.search(source_text):
             continue
 
@@ -363,11 +358,17 @@ def _check_forbidden_additions(
 ) -> list[str]:
     """
     원문에 없는 위험 결과 표현이 번역문에 추가됐는지 검사합니다.
+
+    예:
+    - single 원문에 홈런 추가
+    - 일반 플레이 원문에 끝내기·득점·승패 추가
     """
 
     violations: list[str] = []
 
-    for forbidden_word, violation_code in FORBIDDEN_ADDITIONS.items():
+    for forbidden_word, violation_code in (
+        FORBIDDEN_ADDITIONS.items()
+    ):
         if forbidden_word not in translated_text:
             continue
 
@@ -378,6 +379,44 @@ def _check_forbidden_additions(
             continue
 
         violations.append(violation_code)
+
+    return violations
+
+
+def _check_forbidden_commentary(
+    translated_text: str,
+    glossary: dict[str, Any],
+) -> list[str]:
+    """
+    YAML global_forbidden_expressions에 등록된 감정·평가·해설 표현이
+    번역문에 추가됐는지 검사합니다.
+
+    예:
+    - 결정적인
+    - 극적인
+    - 승리를 이끈
+    - 분위기를 바꾼
+    """
+
+    violations: list[str] = []
+
+    forbidden_expressions = glossary.get(
+        "global_forbidden_expressions",
+        [],
+    )
+
+    for expression in forbidden_expressions:
+        normalized_expression = str(expression).strip()
+
+        if not normalized_expression:
+            continue
+
+        if normalized_expression not in translated_text:
+            continue
+
+        violations.append(
+            f"ADDED_COMMENTARY:{normalized_expression}"
+        )
 
     return violations
 
@@ -399,7 +438,10 @@ def _source_allows_forbidden_word(
         )
 
     if forbidden_word == "끝내기":
-        return "walk-off" in source_text_lower
+        return (
+            "walk-off" in source_text_lower
+            or "walk off" in source_text_lower
+        )
 
     if forbidden_word == "득점":
         return (
