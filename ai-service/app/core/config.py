@@ -31,6 +31,27 @@ class Settings(BaseSettings):
     # ai-service -> OpenAI 호출은 그보다 짧은 6초 안에 끝나도록 제한한다.
     openai_timeout_seconds: float = 6.0
 
+    # FINAL_HEADLINE/EVENT_COPY는 사용자 응답 경로와 저장 경로에서
+    # 호출될 수 있으므로 SDK 내부 재시도 대신 서비스 레이어에서
+    # 짧은 1회 재시도만 수행한다.
+    # 기본값 기준 총 예상 시간은 3초 * 2회 + 짧은 backoff로
+    # Spring Boot 호출 제한 8초 안에 들어오도록 잡는다.
+    openai_ai_copy_timeout_seconds: float = 3.0
+    openai_ai_copy_max_attempts: int = 2
+    openai_ai_copy_retry_base_delay_seconds: float = 0.2
+    openai_ai_copy_retry_max_delay_seconds: float = 0.5
+    openai_ai_copy_retry_jitter_seconds: float = 0.05
+
+    # PLAY_TRANSLATION은 배치에서 연속 호출될 수 있으므로
+    # SDK 내부 재시도 대신 서비스 레이어에서 짧은 1회 재시도만 수행한다.
+    # 기본값 기준 총 예상 시간은 3초 * 2회 + 짧은 backoff로
+    # Spring Boot 호출 제한 8초 안에 들어오도록 잡는다.
+    openai_play_translation_timeout_seconds: float = 3.0
+    openai_play_translation_max_attempts: int = 2
+    openai_play_translation_retry_base_delay_seconds: float = 0.2
+    openai_play_translation_retry_max_delay_seconds: float = 0.5
+    openai_play_translation_retry_jitter_seconds: float = 0.05
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

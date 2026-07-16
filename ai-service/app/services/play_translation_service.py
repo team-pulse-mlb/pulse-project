@@ -1,7 +1,15 @@
 import json
 import logging
+import random
+import time
+from typing import Callable
 
-from openai import APITimeoutError, OpenAI
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    OpenAI,
+    RateLimitError,
+)
 
 from app.core.config import settings
 from app.prompts.play_translation_prompt import (
@@ -11,6 +19,19 @@ from app.schemas.ai_schema import PlayTranslationRequest
 
 
 logger = logging.getLogger(__name__)
+
+
+# OpenAI 호출 자체는 성공했지만 응답 본문이 불안정한 경우입니다.
+# 이 경우 같은 요청을 한 번 더 보내면 정상 JSON이 돌아올 수 있으므로
+# PLAY_TRANSLATION에 한해 짧게 재시도합니다.
+RETRYABLE_GENERATION_ERROR_CODES = frozenset(
+    {
+        "OPENAI_EMPTY_RESPONSE",
+        "OPENAI_INVALID_JSON",
+        "OPENAI_INVALID_RESPONSE_TYPE",
+        "OPENAI_RESPONSE_MISSING_FIELD:translated_text",
+    }
+)
 
 
 class PlayTranslationGenerationError(RuntimeError):
@@ -63,22 +84,86 @@ def _generate_openai_translation(
     """
     OpenAI Responses API를 호출해
     PLAY_TRANSLATION 후보를 생성합니다.
+
+    SDK 자동 재시도는 꺼두고, 서비스 레이어에서
+    PLAY_TRANSLATION에 필요한 오류만 짧게 재시도합니다.
     """
 
     client = OpenAI(
         api_key=settings.openai_api_key,
-        timeout=settings.openai_timeout_seconds,
+        timeout=_openai_play_translation_timeout_seconds(),
         # Spring Boot의 8초 제한을 넘지 않도록
-        # SDK 자동 재시도를 사용하지 않습니다.
+        # SDK 자동 재시도 대신 아래 retry loop만 사용합니다.
         max_retries=0,
     )
 
-    response = client.responses.create(
-        **_build_response_create_options(request)
+    options = _build_response_create_options(request)
+
+    return _generate_openai_translation_with_retry(
+        client=client,
+        request=request,
+        options=options,
+        sleep_func=_sleep_before_retry,
     )
 
-    return _parse_openai_translation(
-        response.output_text
+
+def _generate_openai_translation_with_retry(
+    client: OpenAI,
+    request: PlayTranslationRequest,
+    options: dict[str, object],
+    sleep_func: Callable[[float], None],
+) -> dict[str, str]:
+    """
+    OpenAI 호출과 응답 파싱을 최대 N회 시도합니다.
+
+    재시도 대상:
+    - APITimeoutError
+    - APIConnectionError
+    - RateLimitError
+    - 빈 응답
+    - JSON 파싱 실패
+    - translated_text 누락 또는 공백
+    """
+
+    max_attempts = _openai_play_translation_max_attempts()
+
+    for attempt_number in range(1, max_attempts + 1):
+        try:
+            response = client.responses.create(**options)
+
+            return _parse_openai_translation(
+                response.output_text
+            )
+        except PlayTranslationGenerationError as exc:
+            if not _should_retry_generation_error(
+                error=exc,
+                attempt_number=attempt_number,
+                max_attempts=max_attempts,
+            ):
+                raise
+
+            _log_play_translation_retry(
+                request=request,
+                attempt_number=attempt_number,
+                max_attempts=max_attempts,
+                reason=str(exc),
+            )
+            sleep_func(_retry_delay_seconds(attempt_number))
+        except _retryable_openai_exceptions() as exc:
+            if attempt_number >= max_attempts:
+                raise
+
+            _log_play_translation_retry(
+                request=request,
+                attempt_number=attempt_number,
+                max_attempts=max_attempts,
+                reason=exc.__class__.__name__,
+            )
+            sleep_func(_retry_delay_seconds(attempt_number))
+
+    # 정상적으로는 for loop 안에서 return 또는 raise 된다.
+    raise PlayTranslationGenerationError(
+        "OPENAI_GENERATION_FAILED"
     )
 
 
@@ -98,7 +183,25 @@ def _build_response_create_options(
         ),
         "text": {
             "format": {
-                "type": "json_object",
+                "type": "json_schema",
+                "name": "play_translation_response",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "translated_text": {
+                            "type": "string",
+                            "description": (
+                                "MLB Play Result를 한국 야구 중계·기록 "
+                                "용어로 번역한 한 문장"
+                            ),
+                        },
+                    },
+                    "required": [
+                        "translated_text",
+                    ],
+                    "additionalProperties": False,
+                },
             },
         },
     }
@@ -118,6 +221,158 @@ def _supports_temperature(model: str) -> bool:
     """
 
     return not model.startswith("gpt-5.6-luna")
+
+
+def _openai_play_translation_timeout_seconds() -> float:
+    """
+    PLAY_TRANSLATION 1회 OpenAI 호출 timeout을 반환합니다.
+
+    별도 설정값이 없거나 잘못된 경우 기존 openai_timeout_seconds를 사용합니다.
+    """
+
+    configured_timeout = getattr(
+        settings,
+        "openai_play_translation_timeout_seconds",
+        None,
+    )
+
+    if (
+        isinstance(configured_timeout, (int, float))
+        and configured_timeout > 0
+    ):
+        return float(configured_timeout)
+
+    return float(settings.openai_timeout_seconds)
+
+
+def _openai_play_translation_max_attempts() -> int:
+    """
+    PLAY_TRANSLATION 최대 시도 횟수를 반환합니다.
+    """
+
+    configured_attempts = getattr(
+        settings,
+        "openai_play_translation_max_attempts",
+        1,
+    )
+
+    if not isinstance(configured_attempts, int):
+        return 1
+
+    return max(1, configured_attempts)
+
+
+def _should_retry_generation_error(
+    error: PlayTranslationGenerationError,
+    attempt_number: int,
+    max_attempts: int,
+) -> bool:
+    """
+    응답 파싱 계열 업무 오류를 재시도할지 판단합니다.
+    """
+
+    if attempt_number >= max_attempts:
+        return False
+
+    return str(error) in RETRYABLE_GENERATION_ERROR_CODES
+
+
+def _retryable_openai_exceptions() -> tuple[type[BaseException], ...]:
+    """
+    네트워크·timeout·rate limit 계열 재시도 대상 예외입니다.
+    """
+
+    return (
+        APITimeoutError,
+        APIConnectionError,
+        RateLimitError,
+    )
+
+
+def _retry_delay_seconds(
+    attempt_number: int,
+) -> float:
+    """
+    짧은 exponential backoff + jitter 시간을 계산합니다.
+    """
+
+    base_delay = max(
+        0.0,
+        float(
+            getattr(
+                settings,
+                "openai_play_translation_retry_base_delay_seconds",
+                0.0,
+            )
+        ),
+    )
+    max_delay = max(
+        base_delay,
+        float(
+            getattr(
+                settings,
+                "openai_play_translation_retry_max_delay_seconds",
+                base_delay,
+            )
+        ),
+    )
+    jitter = max(
+        0.0,
+        float(
+            getattr(
+                settings,
+                "openai_play_translation_retry_jitter_seconds",
+                0.0,
+            )
+        ),
+    )
+
+    exponential_delay = base_delay * (2 ** (attempt_number - 1))
+    delay = min(max_delay, exponential_delay)
+
+    if jitter:
+        delay += random.uniform(0, jitter)
+
+    return delay
+
+
+def _sleep_before_retry(
+    delay_seconds: float,
+) -> None:
+    """
+    재시도 전 짧게 대기합니다.
+    """
+
+    if delay_seconds <= 0:
+        return
+
+    time.sleep(delay_seconds)
+
+
+def _log_play_translation_retry(
+    request: PlayTranslationRequest,
+    attempt_number: int,
+    max_attempts: int,
+    reason: str,
+) -> None:
+    """
+    PLAY_TRANSLATION 재시도 로그를 남깁니다.
+
+    sourceText, translatedText, contextHash는 로그에 남기지 않습니다.
+    """
+
+    logger.warning(
+        "OpenAI PLAY_TRANSLATION retrying. "
+        "gameId=%s playId=%s mode=%s model=%s "
+        "attempt=%s maxAttempts=%s reason=%s",
+        request.game_id,
+        request.play_id,
+        request.mode.value,
+        settings.openai_model,
+        attempt_number,
+        max_attempts,
+        reason,
+    )
 
 
 def _parse_openai_translation(

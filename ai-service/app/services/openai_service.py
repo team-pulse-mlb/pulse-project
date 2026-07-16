@@ -1,7 +1,15 @@
 import json
 import logging
+import random
+import time
+from typing import Callable
 
-from openai import APITimeoutError, OpenAI
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    OpenAI,
+    RateLimitError,
+)
 
 from app.core.config import settings
 from app.prompts.spoiler_free_prompt import build_spoiler_free_prompt
@@ -13,6 +21,19 @@ logger = logging.getLogger(__name__)
 # 종료 경기 헤드라인과 이벤트 타임라인 문구가
 # 같은 OpenAI 호출·파싱 로직을 재사용할 수 있도록 요청 타입을 묶는다.
 AiCopyRequest = FinalHeadlineRequest | EventCopyRequest
+
+
+# OpenAI 호출 자체는 성공했지만 응답 본문이 불안정한 경우입니다.
+# 같은 요청을 짧게 한 번 더 보내면 정상 JSON이 돌아올 수 있으므로
+# FINAL_HEADLINE/EVENT_COPY에 한해 서비스 레이어에서 재시도합니다.
+RETRYABLE_GENERATION_ERROR_CODES = frozenset(
+    {
+        "OPENAI_EMPTY_RESPONSE",
+        "OPENAI_INVALID_JSON",
+        "OPENAI_INVALID_RESPONSE_TYPE",
+        "OPENAI_RESPONSE_MISSING_FIELD:safe_title",
+    }
+)
 
 
 class SpoilerFreeSummaryGenerationError(RuntimeError):
@@ -45,6 +66,11 @@ def generate_spoiler_free_summary(
     except APITimeoutError as exc:
         logger.exception("OpenAI AI-copy generation timed out.")
         raise SpoilerFreeSummaryGenerationError("OPENAI_TIMEOUT") from exc
+    except (APIConnectionError, RateLimitError) as exc:
+        logger.exception("OpenAI AI-copy generation failed.")
+        raise SpoilerFreeSummaryGenerationError(
+            "OPENAI_GENERATION_FAILED"
+        ) from exc
     except Exception as exc:
         logger.exception("OpenAI AI-copy generation failed.")
         raise SpoilerFreeSummaryGenerationError(
@@ -60,21 +86,85 @@ def _generate_openai_copy(
 
     FINAL_HEADLINE과 EVENT_COPY 모두 같은 호출 구조를 사용하고,
     endpoint별 세부 지시는 prompt builder가 담당합니다.
+
+    SDK 자동 재시도는 꺼두고, 서비스 레이어에서
+    AI-copy에 필요한 오류만 짧게 재시도합니다.
     """
 
     client = OpenAI(
         api_key=settings.openai_api_key,
-        timeout=settings.openai_timeout_seconds,
+        timeout=_openai_ai_copy_timeout_seconds(),
         # OpenAI SDK의 기본 재시도로 인해 Spring Boot의 8초 제한을 넘지 않도록
-        # ai-service 내부 자동 재시도는 사용하지 않습니다.
+        # SDK 자동 재시도 대신 아래 retry loop만 사용합니다.
         max_retries=0,
     )
 
-    response = client.responses.create(
-        **_build_response_create_options(request)
+    options = _build_response_create_options(request)
+
+    return _generate_openai_copy_with_retry(
+        client=client,
+        request=request,
+        options=options,
+        sleep_func=_sleep_before_retry,
     )
 
-    return _parse_openai_response(response)
+
+def _generate_openai_copy_with_retry(
+    client: OpenAI,
+    request: AiCopyRequest,
+    options: dict[str, object],
+    sleep_func: Callable[[float], None],
+) -> dict[str, str]:
+    """
+    OpenAI 호출과 응답 파싱을 최대 N회 시도합니다.
+
+    재시도 대상:
+    - APITimeoutError
+    - APIConnectionError
+    - RateLimitError
+    - 빈 응답
+    - JSON 파싱 실패
+    - safe_title 누락 또는 공백
+    """
+
+    max_attempts = _openai_ai_copy_max_attempts()
+
+    for attempt_number in range(1, max_attempts + 1):
+        try:
+            response = client.responses.create(**options)
+
+            return _parse_openai_response(response)
+        except SpoilerFreeSummaryGenerationError as exc:
+            if not _should_retry_generation_error(
+                error=exc,
+                attempt_number=attempt_number,
+                max_attempts=max_attempts,
+            ):
+                raise
+
+            _log_ai_copy_retry(
+                request=request,
+                attempt_number=attempt_number,
+                max_attempts=max_attempts,
+                reason=str(exc),
+            )
+            sleep_func(_retry_delay_seconds(attempt_number))
+        except _retryable_openai_exceptions() as exc:
+            if attempt_number >= max_attempts:
+                raise
+
+            _log_ai_copy_retry(
+                request=request,
+                attempt_number=attempt_number,
+                max_attempts=max_attempts,
+                reason=exc.__class__.__name__,
+            )
+            sleep_func(_retry_delay_seconds(attempt_number))
+
+    # 정상적으로는 for loop 안에서 return 또는 raise 된다.
+    raise SpoilerFreeSummaryGenerationError(
+        "OPENAI_GENERATION_FAILED"
+    )
 
 
 def _build_response_create_options(
@@ -93,7 +183,25 @@ def _build_response_create_options(
         "max_output_tokens": settings.openai_max_output_tokens,
         "text": {
             "format": {
-                "type": "json_object",
+                "type": "json_schema",
+                "name": "ai_copy_response",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "safe_title": {
+                            "type": "string",
+                            "description": (
+                                "스포일러 정책을 적용한 "
+                                "FINAL_HEADLINE 또는 EVENT_COPY 한 문장"
+                            ),
+                        },
+                    },
+                    "required": [
+                        "safe_title",
+                    ],
+                    "additionalProperties": False,
+                },
             },
         },
     }
@@ -168,6 +276,178 @@ def _parse_openai_response(
         )
 
     return _parse_openai_copy(raw_text)
+
+
+def _openai_ai_copy_timeout_seconds() -> float:
+    """
+    AI-copy 1회 OpenAI 호출 timeout을 반환합니다.
+
+    별도 설정값이 없거나 잘못된 경우 기존 openai_timeout_seconds를 사용합니다.
+    """
+
+    configured_timeout = getattr(
+        settings,
+        "openai_ai_copy_timeout_seconds",
+        None,
+    )
+
+    if (
+        isinstance(configured_timeout, (int, float))
+        and configured_timeout > 0
+    ):
+        return float(configured_timeout)
+
+    return float(settings.openai_timeout_seconds)
+
+
+def _openai_ai_copy_max_attempts() -> int:
+    """
+    AI-copy 최대 시도 횟수를 반환합니다.
+    """
+
+    configured_attempts = getattr(
+        settings,
+        "openai_ai_copy_max_attempts",
+        1,
+    )
+
+    if not isinstance(configured_attempts, int):
+        return 1
+
+    return max(1, configured_attempts)
+
+
+def _should_retry_generation_error(
+    error: SpoilerFreeSummaryGenerationError,
+    attempt_number: int,
+    max_attempts: int,
+) -> bool:
+    """
+    응답 파싱 계열 업무 오류를 재시도할지 판단합니다.
+    """
+
+    if attempt_number >= max_attempts:
+        return False
+
+    return str(error) in RETRYABLE_GENERATION_ERROR_CODES
+
+
+def _retryable_openai_exceptions() -> tuple[type[BaseException], ...]:
+    """
+    네트워크·timeout·rate limit 계열 재시도 대상 예외입니다.
+    """
+
+    return (
+        APITimeoutError,
+        APIConnectionError,
+        RateLimitError,
+    )
+
+
+def _retry_delay_seconds(
+    attempt_number: int,
+) -> float:
+    """
+    짧은 exponential backoff + jitter 시간을 계산합니다.
+    """
+
+    base_delay = max(
+        0.0,
+        float(
+            getattr(
+                settings,
+                "openai_ai_copy_retry_base_delay_seconds",
+                0.0,
+            )
+        ),
+    )
+    max_delay = max(
+        base_delay,
+        float(
+            getattr(
+                settings,
+                "openai_ai_copy_retry_max_delay_seconds",
+                base_delay,
+            )
+        ),
+    )
+    jitter = max(
+        0.0,
+        float(
+            getattr(
+                settings,
+                "openai_ai_copy_retry_jitter_seconds",
+                0.0,
+            )
+        ),
+    )
+
+    exponential_delay = base_delay * (2 ** (attempt_number - 1))
+    delay = min(max_delay, exponential_delay)
+
+    if jitter:
+        delay += random.uniform(0, jitter)
+
+    return delay
+
+
+def _sleep_before_retry(
+    delay_seconds: float,
+) -> None:
+    """
+    재시도 전 짧게 대기합니다.
+    """
+
+    if delay_seconds <= 0:
+        return
+
+    time.sleep(delay_seconds)
+
+
+
+def _ai_copy_purpose(
+    request: AiCopyRequest,
+) -> str:
+    """
+    요청 schema 타입으로 AI-copy 목적을 구분합니다.
+
+    FinalHeadlineRequest와 EventCopyRequest에는 purpose 필드가 없으므로
+    retry 로그에서는 request 타입으로 목적을 계산합니다.
+    """
+
+    if isinstance(request, FinalHeadlineRequest):
+        return "FINAL_HEADLINE"
+
+    if isinstance(request, EventCopyRequest):
+        return "EVENT_COPY"
+
+    return request.__class__.__name__
+
+
+def _log_ai_copy_retry(
+    request: AiCopyRequest,
+    attempt_number: int,
+    max_attempts: int,
+    reason: str,
+) -> None:
+    """
+    AI-copy 재시도 로그를 남깁니다.
+
+    prompt 본문, safe_title, contextHash는 로그에 남기지 않습니다.
+    """
+
+    logger.warning(
+        "OpenAI AI-copy retrying. "
+        "gameId=%s purpose=%s mode=%s model=%s "
+        "attempt=%s maxAttempts=%s reason=%s",
+        request.game_id,
+        _ai_copy_purpose(request),
+        request.mode.value,
+        settings.openai_model,
+        attempt_number,
+        max_attempts,
+        reason,
+    )
 
 
 def _parse_openai_copy(raw_text: str) -> dict[str, str]:
