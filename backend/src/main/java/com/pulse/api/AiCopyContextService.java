@@ -25,6 +25,7 @@ public class AiCopyContextService implements AiCopyContextReader {
 
     private static final int MAX_CONTRIBUTING_LABELS = 4;
     private static final int MAX_REVEALED_MOMENTS = 4;
+    private static final int MAX_REVEALED_EVENTS = 8;
     private static final List<String> REVEALED_MOMENT_EVENT_TYPES = List.of(
             "scoring_play", "home_run", "lead_change", "big_inning");
     private static final Comparator<RevealedMomentCandidate> REVEALED_MOMENT_ORDER =
@@ -123,6 +124,7 @@ public class AiCopyContextService implements AiCopyContextReader {
         List<Integer> awayInningScores = safeInningScores(game.getAwayInningScores());
         FinalHeadlineContext.SummaryFacts summaryFacts =
                 summaryFacts(game, winner, inningsPlayed, extraInnings);
+        List<FinalHeadlineContext.RevealedEvent> revealedEvents = revealedEvents(game);
         List<FinalHeadlineContext.RevealedMoment> revealedMoments = revealedMoments(game);
 
         Map<String, Object> safeContext = new LinkedHashMap<>();
@@ -141,6 +143,7 @@ public class AiCopyContextService implements AiCopyContextReader {
         safeContext.put("homeInningScores", homeInningScores);
         safeContext.put("awayInningScores", awayInningScores);
         safeContext.put("summaryFacts", summaryFacts);
+        safeContext.put("revealedEvents", revealedEvents);
         safeContext.put("revealedMoments", revealedMoments);
 
         String hash = AiContextHashCalculator.calculate(
@@ -166,7 +169,7 @@ public class AiCopyContextService implements AiCopyContextReader {
                 homeInningScores,
                 awayInningScores,
                 summaryFacts,
-                List.of(),
+                revealedEvents,
                 List.of(),
                 hash
         );
@@ -268,6 +271,54 @@ public class AiCopyContextService implements AiCopyContextReader {
             Instant startTime
     ) {
         return startTime == null ? null : startTime.toString();
+    }
+
+    private List<FinalHeadlineContext.RevealedEvent> revealedEvents(Game game) {
+        List<GameEvent> events = gameEventRepository
+                .findByGameIdAndSpoilerLevelAndEventTypeInOrderByInningAscSourceRefAscIdAsc(
+                        game.getId(), GameEvent.SPOILER_REVEALED_ONLY, REVEALED_MOMENT_EVENT_TYPES);
+        if (events.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> playerIds = events.stream()
+                .flatMap(event -> java.util.stream.Stream.of(event.getBatterId(), event.getPitcherId()))
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, FinalHeadlineContext.PlayerInfo> playersById = playerInfosById(playerIds);
+
+        return events.stream()
+                .limit(MAX_REVEALED_EVENTS)
+                .map(event -> new FinalHeadlineContext.RevealedEvent(
+                        event.getId(),
+                        event.getEventType(),
+                        event.getInning(),
+                        event.getInningType(),
+                        playersById.get(event.getBatterId()),
+                        playersById.get(event.getPitcherId()),
+                        projectEvidence(event.getEventType(), event.getPayload())
+                ))
+                .toList();
+    }
+
+    private Map<Long, FinalHeadlineContext.PlayerInfo> playerInfosById(
+            List<Long> playerIds
+    ) {
+        if (playerIds == null || playerIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return playerRepository.findAllById(playerIds).stream()
+                .filter(player -> player.getFullName() != null && !player.getFullName().isBlank())
+                .collect(Collectors.toMap(
+                        Player::getId,
+                        player -> new FinalHeadlineContext.PlayerInfo(
+                                player.getId(),
+                                player.getFullName()
+                        ),
+                        (first, ignored) -> first
+                ));
     }
 
     private List<FinalHeadlineContext.RevealedMoment> revealedMoments(Game game) {
