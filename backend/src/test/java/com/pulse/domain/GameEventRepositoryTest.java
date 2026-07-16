@@ -37,10 +37,11 @@ class GameEventRepositoryTest {
     }
 
     @Test
-    void protectedAiReprocessTargets_shouldIncludeExistingCopiesAndRespectCursor() {
+    void protectedAiReprocessTargets_shouldSelectOnlyHighlightsAndRespectCursor() {
         GameEvent first = saveEvent(100L, 11L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
         GameEvent second = saveEvent(100L, 12L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(60));
         second.setCopyProtected("기존 문구");
+        second.setTimelineHighlight(true);
         saveEvent(100L, 13L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(120));
         gameEventRepository.flush();
 
@@ -65,6 +66,24 @@ class GameEventRepositoryTest {
 
         assertThat(result).extracting(GameEvent::getId)
                 .containsExactly(targetEarlier.getId(), targetLater.getId());
+    }
+
+    @Test
+    void highlightedBySpoilerLevelAndGameIdIn_shouldSelectOnlyHighlights() {
+        GameEvent target = saveEvent(100L, 31L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
+        target.setTimelineHighlight(true);
+        saveEvent(100L, 32L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(60));
+        GameEvent otherGame = saveEvent(200L, 33L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
+        otherGame.setTimelineHighlight(true);
+        gameEventRepository.flush();
+
+        List<GameEvent> result = gameEventRepository
+                .findBySpoilerLevelAndTimelineHighlightTrueAndGameIdInOrderByGameIdAscObservedAtAsc(
+                        GameEvent.SPOILER_PROTECTED_SAFE, List.of(100L));
+
+        assertThat(result).extracting(GameEvent::getId).containsExactly(target.getId());
+        assertThat(gameEventRepository.countBySpoilerLevelAndTimelineHighlightTrue(
+                GameEvent.SPOILER_PROTECTED_SAFE)).isEqualTo(2L);
     }
 
     private GameEvent saveEvent(long gameId, long sourceRef, String spoilerLevel, Instant observedAt) {

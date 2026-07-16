@@ -31,6 +31,7 @@ class ScorerRoleGateTest {
                     SurgeDetector.class,
                     GameEventExtractor.class,
                     TimelineHighlightTrigger.class,
+                    TimelineHighlightBackfill.class,
                     LiveSignalPublisher.class,
                     ImportanceCalculator.class)
             .withBean(GameRepository.class, () -> mock(GameRepository.class))
@@ -60,6 +61,7 @@ class ScorerRoleGateTest {
                     assertThat(context).hasSingleBean(GameFinalizationService.class);
                     assertThat(context).hasSingleBean(SurgeDetector.class);
                     assertThat(context).hasSingleBean(GameEventExtractor.class);
+                    assertThat(context).hasSingleBean(TimelineHighlightBackfill.class);
                     assertThat(context).hasSingleBean(LiveSignalPublisher.class);
                     assertThat(context).hasSingleBean(ImportanceCalculator.class);
                 });
@@ -76,6 +78,7 @@ class ScorerRoleGateTest {
                     assertThat(context).doesNotHaveBean(GameFinalizationService.class);
                     assertThat(context).doesNotHaveBean(SurgeDetector.class);
                     assertThat(context).doesNotHaveBean(GameEventExtractor.class);
+                    assertThat(context).doesNotHaveBean(TimelineHighlightBackfill.class);
                     assertThat(context).doesNotHaveBean(LiveSignalPublisher.class);
                     assertThat(context).doesNotHaveBean(ImportanceCalculator.class);
                 });
