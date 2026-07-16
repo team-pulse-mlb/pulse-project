@@ -211,6 +211,92 @@
 
 최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 최신 10건을 `play_order DESC`로 반환한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
 
+### POST `/ai/play-translation`
+
+단일 MLB play result 원문을 한국어로 번역한다.
+
+이 API는 공개 모드 최근 플레이 표시용이며, 현재는 `REVEALED` 모드와 `targetLanguage=ko`만 허용한다.
+
+#### Request
+
+```json
+{
+  "gameId": 5059041,
+  "playId": 312,
+  "mode": "REVEALED",
+  "contextHash": "play-312-v1",
+  "sourceText": "Soto singled to center.",
+  "targetLanguage": "ko"
+}
+```
+
+#### Success Response
+
+번역 생성과 번역 검수 guard를 모두 통과한 경우 `translatedText`를 반환한다.
+
+```json
+{
+  "translatedText": "Soto, 중견수 방면 안타",
+  "violations": [],
+  "fallbackUsed": false,
+  "contextHash": "play-312-v1"
+}
+```
+
+#### Guard Failure Response
+
+번역문이 원문 `sourceText`의 핵심 사실을 보존하지 못한 경우 `translatedText`를 반환하지 않는다.
+
+예를 들어 원문이 `single`인데 AI 번역문이 `홈런`으로 생성된 경우 guard 실패로 처리한다.
+
+```json
+{
+  "violations": [
+    "MISSING_EVENT:SINGLE",
+    "ADDED_RESULT:HOME_RUN"
+  ],
+  "fallbackUsed": false,
+  "contextHash": "play-312-v1"
+}
+```
+
+`response_model_exclude_none=true` 정책으로 인해 실패 응답에서는 `translatedText` 필드가 제외된다.
+
+#### Failure Policy
+
+- ai-service는 fallback 번역을 생성하지 않는다.
+- 생성 실패, 응답 필드 누락, guard 실패 모두 `fallbackUsed=false`를 반환한다.
+- 실패 응답에서는 `contextHash`를 그대로 반환한다.
+- 실패 응답에서는 저장 가능한 번역문이 없으므로 `translatedText`를 반환하지 않는다.
+
+#### Main Violations
+
+| Code | Meaning |
+| --- | --- |
+| `TRANSLATED_TEXT_EMPTY` | 번역문이 비어 있음 |
+| `SOURCE_TEXT_EMPTY` | 원문이 비어 있음 |
+| `MULTIPLE_SENTENCES` | 번역문이 여러 문장으로 생성됨 |
+| `MISSING_PLAYER_NAME:{name}` | 원문 선수명이 번역문에서 누락됨 |
+| `MISSING_NUMBER:{number}` | 원문 숫자가 번역문에서 누락됨 |
+| `MISSING_EVENT:SINGLE` | 원문 single 이벤트가 안타로 보존되지 않음 |
+| `MISSING_EVENT:DOUBLE` | 원문 double 이벤트가 2루타로 보존되지 않음 |
+| `MISSING_EVENT:TRIPLE` | 원문 triple 이벤트가 3루타로 보존되지 않음 |
+| `MISSING_EVENT:HOME_RUN` | 원문 home run 이벤트가 홈런으로 보존되지 않음 |
+| `MISSING_EVENT:STRIKEOUT` | 원문 strikeout 이벤트가 삼진으로 보존되지 않음 |
+| `MISSING_EVENT:STRIKEOUT_SWINGING` | 원문 swinging strikeout 세부 정보가 보존되지 않음 |
+| `MISSING_EVENT:STRIKEOUT_LOOKING` | 원문 looking strikeout 세부 정보가 보존되지 않음 |
+| `MISSING_DIRECTION:LEFT` | 좌측 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:CENTER` | 중앙 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:RIGHT` | 우측 방향 표현이 보존되지 않음 |
+| `ADDED_RESULT:HOME_RUN` | 원문에 없는 홈런 결과가 추가됨 |
+| `ADDED_RESULT:COME_BACK` | 원문에 없는 역전 표현이 추가됨 |
+| `ADDED_RESULT:WALK_OFF` | 원문에 없는 끝내기 표현이 추가됨 |
+| `ADDED_RESULT:WIN` | 원문에 없는 승리 표현이 추가됨 |
+| `ADDED_RESULT:LOSS` | 원문에 없는 패배 표현이 추가됨 |
+| `ADDED_RESULT:SCORE` | 원문에 없는 득점 표현이 추가됨 |
+| `ADDED_RESULT:RUN_ALLOWED` | 원문에 없는 실점 표현이 추가됨 |
+| `ADDED_RESULT:LEAD` | 원문에 없는 리드 표현이 추가됨 |
+
 ### 1.3 관심 선수 검색·등록 계약
 
 `players` 테이블은 지금까지 poller 파이프라인(추적 경기의 라인업·plays)에서만 채웠다. 관심 선수 기능은 추적 경기에 없던 선수도 등록 대상이므로, `players`는 "추적 경기에 등장한 선수만 존재한다"는 불변식을 버리고 **선수 신원 마스터 겸 관심 선수 FK 대상**으로 확장한다. 소비처(홈·경기 상세·AI 문구)는 특정 `player_id`로만 조인하므로 여분 행이 있어도 영향이 없다.
