@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 
 import EmptyState from '../../../shared/components/EmptyState';
 import GameCard from '../../../shared/components/GameCard';
@@ -37,9 +38,18 @@ function HomePage() {
   // SSE 신호 수신 → 랭킹·목록 재조회 (홈이 열려 있는 동안 구독)
   useSse();
 
-  const [date, setDate] = useState<string | undefined>(undefined);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const date = searchParams.get('date') ?? undefined;
   const [status, setStatus] = useState<SlateStatusFilter>('all');
   const [sort, setSort] = useState<SlateSort>('startTime');
+
+  const changeDate = (nextDate: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('date', nextDate);
+      return next;
+    });
+  };
 
   // 전체 탭은 시작 시각순 고정 (진행 중 상단 고정은 서버가 처리)
   const effectiveSort: SlateSort = status === 'all' ? 'startTime' : sort;
@@ -84,7 +94,7 @@ function HomePage() {
             <DateNavigator
               slateDate={slateDate}
               maxDate={today}
-              onChange={(next) => setDate(next)}
+              onChange={changeDate}
             />
           ) : (
             <div />
