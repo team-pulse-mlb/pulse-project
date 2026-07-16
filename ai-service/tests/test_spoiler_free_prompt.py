@@ -118,6 +118,140 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
         self.assertIn('"away": 3', prompt)
         self.assertIn('"winner": "home"', prompt)
 
+    def test_final_headline_revealed_prompt_contains_v2_context_values(self):
+        request = FinalHeadlineRequest(
+            game_id=5059082,
+            mode=AiCopyMode.REVEALED,
+            context_hash="game-5059082-final-revealed-v2",
+            safe_context=SafeContext(
+                status="STATUS_FINAL",
+                period_label="경기 종료",
+                teams={
+                    "home": {
+                        "name": "Los Angeles Dodgers",
+                        "abbr": "LAD",
+                    },
+                    "away": {
+                        "name": "San Francisco Giants",
+                        "abbr": "SF",
+                    },
+                },
+                final_score=FinalScore(
+                    home=5,
+                    away=3,
+                ),
+                winner="home",
+                innings_played=10,
+                extra_innings=True,
+                postseason=False,
+                venue="Dodger Stadium",
+                start_time="2026-07-03T00:05:00Z",
+                home_inning_scores=[0, 0, 1, 0, 0, 0, 0, 2, 0, 2],
+                away_inning_scores=[0, 0, 0, 1, 0, 0, 2, 0, 0, 0],
+                summary_facts={
+                    "winnerSide": "home",
+                    "winnerName": "Los Angeles Dodgers",
+                    "loserName": "San Francisco Giants",
+                    "winnerScore": 5,
+                    "loserScore": 3,
+                    "extraInnings": True,
+                    "finalInning": 10,
+                    "scoreGap": 2,
+                    "totalRuns": 8,
+                },
+                revealed_events=[
+                    {
+                        "eventId": 91,
+                        "eventType": "home_run",
+                        "inning": 8,
+                        "inningType": "Bottom",
+                        "batter": {
+                            "id": 660271,
+                            "name": "Shohei Ohtani",
+                        },
+                        "pitcher": {
+                            "id": 592789,
+                            "name": "Logan Webb",
+                        },
+                        "evidence": {
+                            "scoreValue": 2,
+                        },
+                    }
+                ],
+                revealed_moments=[
+                    {
+                        "inning": 8,
+                        "inningHalf": "Bottom",
+                        "battingTeam": "LAD",
+                        "eventTypes": ["home_run"],
+                        "batter": "Shohei Ohtani",
+                        "runsScored": 2,
+                        "scoreAfter": {
+                            "home": 5,
+                            "away": 3,
+                        },
+                        "scoringPlays": 1,
+                    }
+                ],
+                verified_plays=[
+                    {
+                        "playId": 312,
+                        "playOrder": 4250312,
+                        "inning": 8,
+                        "inningType": "bottom",
+                        "sourceText": "Ohtani homered to right center.",
+                        "translatedText": "Ohtani, 우중간 홈런",
+                        "homeScoreAfter": 5,
+                        "awayScoreAfter": 3,
+                        "scoringPlay": True,
+                        "scoreValue": 2,
+                        "outs": 1,
+                        "balls": 2,
+                        "strikes": 1,
+                        "batter": {
+                            "id": 660271,
+                            "name": "Shohei Ohtani",
+                        },
+                        "pitcher": {
+                            "id": 592789,
+                            "name": "Logan Webb",
+                        },
+                        "runnerOnFirst": False,
+                        "runnerOnSecond": True,
+                        "runnerOnThird": False,
+                        "factTags": ["SCORING_PLAY", "TRANSLATED"],
+                    }
+                ],
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn('"purpose": "FINAL_HEADLINE"', prompt)
+        self.assertIn('"mode": "REVEALED"', prompt)
+        self.assertIn('"status": "STATUS_FINAL"', prompt)
+        self.assertIn('"periodLabel": "경기 종료"', prompt)
+        self.assertIn('"teams"', prompt)
+        self.assertIn('"name": "Los Angeles Dodgers"', prompt)
+        self.assertIn('"abbr": "LAD"', prompt)
+        self.assertIn('"venue": "Dodger Stadium"', prompt)
+        self.assertIn('"summaryFacts"', prompt)
+        self.assertIn('"winnerName": "Los Angeles Dodgers"', prompt)
+        self.assertIn('"scoreGap": 2', prompt)
+        self.assertIn('"revealedEvents"', prompt)
+        self.assertIn('"eventType": "home_run"', prompt)
+        self.assertIn('"scoreValue": 2', prompt)
+        self.assertIn('"revealedMoments"', prompt)
+        self.assertIn('"verifiedPlays"', prompt)
+        self.assertIn('"sourceText": "Ohtani homered to right center."', prompt)
+        self.assertIn('"translatedText": "Ohtani, 우중간 홈런"', prompt)
+        self.assertIn('"factTags": [', prompt)
+        self.assertIn('"TRANSLATED"', prompt)
+        self.assertIn("summaryFacts", prompt)
+        self.assertIn("verifiedPlays", prompt)
+        self.assertIn("translatedText가 있으면 sourceText보다 translatedText를 우선", prompt)
+
+
     def test_final_headline_revealed_prompt_contains_score_format_rules(self):
         request = FinalHeadlineRequest(
             game_id=5059082,
