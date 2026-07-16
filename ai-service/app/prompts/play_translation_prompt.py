@@ -444,6 +444,11 @@ def build_play_translation_prompt(
 - 선수명은 철자와 표기를 바꾸지 말고 원문 그대로 유지하세요.
 - 숫자, 거리, 베이스 번호, 아웃·출루·타구 결과와 사건 순서를 바꾸지 마세요.
 - matchedRules에 있는 canonicalKo를 우선 사용하세요.
+- matchedRules.eventTerms[].canonicalKo는 의미가 같은 다른 표현으로 바꾸지 말고 그대로 사용하세요.
+- matchedRules.eventTerms[].requiredKo 항목은 모두 translated_text에 포함하세요.
+- matchedRules.positions가 비어 있지 않으면 각 positions[].canonicalKo를 translated_text에 반드시 포함하세요.
+- 수비 아웃 문맥에서 "to first", "to second", "to third", "to shortstop", "to left", "to center", "to right"는 방향이 아니라 수비 처리 위치입니다.
+- 예: "lined out to second"는 "2루수 직선타 아웃"입니다. "라인드라이브 아웃"으로 바꾸지 마세요.
 - matchedRules에 없는 야구 결과를 추측하거나 새로 만들지 마세요.
 - 원문에 없는 점수, 이닝, 선수, 승패, 타점, 감정, 평가, 해설을 추가하지 마세요.
 - 출력은 한국어 한 문장만 사용하세요.

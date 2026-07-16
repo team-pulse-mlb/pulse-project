@@ -147,6 +147,23 @@ class PlayTranslationPromptTestCase(unittest.TestCase):
             ["third_baseman"],
         )
 
+    def test_lineout_to_second_matches_position_not_direction(self):
+        source_text = "Trout lined out to second."
+
+        events = find_matching_event_terms(source_text)
+        directions = find_matching_directions(source_text)
+        positions = find_matching_positions(source_text)
+
+        self.assertEqual(
+            [item["id"] for item in events],
+            ["lineout"],
+        )
+        self.assertEqual(directions, [])
+        self.assertEqual(
+            [item["id"] for item in positions],
+            ["second_baseman"],
+        )
+
     def test_base_number_is_not_misclassified_as_position(self):
         positions = find_matching_positions(
             "Runner advanced to second."
@@ -236,6 +253,48 @@ class PlayTranslationPromptTestCase(unittest.TestCase):
             prompt,
         )
         self.assertIn("결정적인", prompt)
+
+    def test_prompt_contains_canonical_term_and_position_preservation_rules(self):
+        prompt = build_play_translation_prompt(
+            self._request("Trout lined out to second.")
+        )
+
+        self.assertIn(
+            "matchedRules.eventTerms[].canonicalKo",
+            prompt,
+        )
+        self.assertIn(
+            "matchedRules.eventTerms[].requiredKo",
+            prompt,
+        )
+        self.assertIn(
+            "matchedRules.positions가 비어 있지 않으면",
+            prompt,
+        )
+        self.assertIn(
+            '"lined out to second"는 "2루수 직선타 아웃"',
+            prompt,
+        )
+        self.assertIn(
+            '"라인드라이브 아웃"으로 바꾸지 마세요',
+            prompt,
+        )
+
+    def test_lineout_to_second_prompt_requires_position_and_canonical_event_term(self):
+        prompt = build_play_translation_prompt(
+            self._request("Trout lined out to second.")
+        )
+
+        self.assertIn('"id": "lineout"', prompt)
+        self.assertIn(
+            '"canonicalKo": "직선타 아웃"',
+            prompt,
+        )
+        self.assertIn('"requiredKo"', prompt)
+        self.assertIn('"직선타"', prompt)
+        self.assertIn('"아웃"', prompt)
+        self.assertIn('"id": "second_baseman"', prompt)
+        self.assertIn('"canonicalKo": "2루수"', prompt)
 
     def test_same_request_produces_same_prompt(self):
         request = self._request(
