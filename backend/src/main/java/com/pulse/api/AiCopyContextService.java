@@ -14,6 +14,8 @@ import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Player;
 import com.pulse.domain.PlayerRepository;
+import com.pulse.domain.Play;
+import com.pulse.domain.PlayRepository;
 import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Instant;
@@ -22,10 +24,13 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +48,17 @@ public class AiCopyContextService implements AiCopyContextReader {
     private static final int MAX_KEY_MOMENTS_PER_LABEL = 2;
 
     private static final int MAX_CONTRIBUTING_LABELS = 4;
+    private static final int MAX_REVEALED_MOMENTS = 4;
+    private static final List<String> REVEALED_MOMENT_EVENT_TYPES = List.of(
+            "scoring_play", "home_run", "lead_change", "big_inning");
+    private static final Comparator<RevealedMomentCandidate> REVEALED_MOMENT_ORDER =
+            Comparator.comparing(RevealedMomentCandidate::inning,
+                            Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparingInt(candidate -> inningHalfOrder(candidate.inningType()))
+                    .thenComparing(candidate -> candidate.source().sourceRef(),
+                            Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(RevealedMomentCandidate::id,
+                            Comparator.nullsLast(Comparator.naturalOrder()));
 
     private static final Map<String, Set<String>> EVIDENCE_KEYS = Map.ofEntries(
             Map.entry("pressure_bases_loaded", Set.of("outs", "balls", "strikes")),
@@ -77,6 +93,7 @@ public class AiCopyContextService implements AiCopyContextReader {
     private final GameEventRepository gameEventRepository;
     private final WatchScoreRepository watchScoreRepository;
     private final PlayerRepository playerRepository;
+    private final PlayRepository playRepository;
 
     @Override
     public Optional<FinalHeadlineContext> finalHeadlineContext(long gameId, AiCopyMode mode) {
@@ -87,6 +104,13 @@ public class AiCopyContextService implements AiCopyContextReader {
         if (game == null) {
             return Optional.empty();
         }
+        return mode == AiCopyMode.PROTECTED
+                ? Optional.of(protectedFinalHeadlineContext(game))
+                : Optional.of(revealedFinalHeadlineContext(game));
+    }
+
+    private FinalHeadlineContext protectedFinalHeadlineContext(Game game) {
+        long gameId = game.getId();
         WatchScore latestScore = watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(gameId).orElse(null);
         List<String> reasonTags = latestScore == null || latestScore.getTags() == null
                 ? List.of() : List.copyOf(latestScore.getTags());
@@ -95,23 +119,128 @@ public class AiCopyContextService implements AiCopyContextReader {
         List<FinalHeadlineContext.KeyMoment> keyMoments = selectKeyMoments(
                 gameEventRepository.findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
                         gameId, GameEvent.SPOILER_PROTECTED_SAFE));
-        FinalHeadlineContext.FinalScore finalScore = mode == AiCopyMode.REVEALED
-                ? new FinalHeadlineContext.FinalScore(game.getHomeRuns(), game.getAwayRuns()) : null;
-        String winner = mode == AiCopyMode.REVEALED ? winner(game) : null;
-
         Map<String, Object> safeContext = new LinkedHashMap<>();
         safeContext.put("gameId", gameId);
-        safeContext.put("mode", mode);
+        safeContext.put("mode", AiCopyMode.PROTECTED);
         safeContext.put("status", game.getStatus());
         safeContext.put("periodLabel", "경기 종료");
         safeContext.put("reasonTags", reasonTags);
         safeContext.put("spoilerSafeSignals", signals);
         safeContext.put("keyMoments", keyMoments);
+        String hash = AiContextHashCalculator.calculate(
+                "FINAL_HEADLINE", AiCopyMode.PROTECTED, gameId, null, safeContext);
+        return new FinalHeadlineContext(gameId, AiCopyMode.PROTECTED, game.getStatus(), "경기 종료",
+                reasonTags, signals, keyMoments, null, null, null, null, null, null, List.of(), hash);
+    }
+
+    private FinalHeadlineContext revealedFinalHeadlineContext(Game game) {
+        long gameId = game.getId();
+        FinalHeadlineContext.Teams teams = new FinalHeadlineContext.Teams(
+                new FinalHeadlineContext.Team(game.getHomeTeamName(), game.getHomeTeamAbbr()),
+                new FinalHeadlineContext.Team(game.getAwayTeamName(), game.getAwayTeamAbbr()));
+        FinalHeadlineContext.FinalScore finalScore =
+                new FinalHeadlineContext.FinalScore(game.getHomeRuns(), game.getAwayRuns());
+        Integer inningsPlayed = game.getPeriod();
+        Boolean extraInnings = inningsPlayed == null ? null : inningsPlayed > 9;
+        List<FinalHeadlineContext.RevealedMoment> revealedMoments = revealedMoments(game);
+
+        Map<String, Object> safeContext = new LinkedHashMap<>();
+        safeContext.put("gameId", gameId);
+        safeContext.put("mode", AiCopyMode.REVEALED);
+        safeContext.put("status", game.getStatus());
+        safeContext.put("periodLabel", "경기 종료");
+        safeContext.put("teams", teams);
         safeContext.put("finalScore", finalScore);
-        safeContext.put("winner", winner);
-        String hash = AiContextHashCalculator.calculate("FINAL_HEADLINE", mode, gameId, null, safeContext);
-        return Optional.of(new FinalHeadlineContext(gameId, mode, game.getStatus(), "경기 종료", reasonTags,
-                signals, keyMoments, finalScore, winner, hash));
+        safeContext.put("winner", winner(game));
+        safeContext.put("inningsPlayed", inningsPlayed);
+        safeContext.put("extraInnings", extraInnings);
+        safeContext.put("postseason", game.getPostseason());
+        safeContext.put("revealedMoments", revealedMoments);
+        String hash = AiContextHashCalculator.calculate(
+                "FINAL_HEADLINE", AiCopyMode.REVEALED, gameId, null, safeContext);
+        return new FinalHeadlineContext(gameId, AiCopyMode.REVEALED, game.getStatus(), "경기 종료",
+                List.of(), List.of(), List.of(), teams, finalScore, winner(game), inningsPlayed,
+                extraInnings, game.getPostseason(), revealedMoments, hash);
+    }
+
+    private List<FinalHeadlineContext.RevealedMoment> revealedMoments(Game game) {
+        List<GameEvent> events = gameEventRepository
+                .findByGameIdAndSpoilerLevelAndEventTypeInOrderByInningAscSourceRefAscIdAsc(
+                        game.getId(), GameEvent.SPOILER_REVEALED_ONLY, REVEALED_MOMENT_EVENT_TYPES);
+        Map<SourceKey, RevealedMomentAccumulator> grouped = new LinkedHashMap<>();
+        for (GameEvent event : events) {
+            if (!GameEvent.SOURCE_TYPE_PLAY.equals(event.getSourceType())
+                    || event.getSourceRef() == null
+                    || !REVEALED_MOMENT_EVENT_TYPES.contains(event.getEventType())) {
+                continue;
+            }
+            grouped.computeIfAbsent(
+                            new SourceKey(event.getSourceType(), event.getSourceRef()),
+                            ignored -> new RevealedMomentAccumulator(event))
+                    .add(event);
+        }
+        if (grouped.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> playOrders = grouped.keySet().stream().map(SourceKey::sourceRef).distinct().toList();
+        Map<Long, Play> playsByOrder = playRepository.findByGameIdAndPlayOrderIn(game.getId(), playOrders)
+                .stream()
+                .collect(Collectors.toMap(Play::getPlayOrder, Function.identity(), (first, ignored) -> first));
+        List<Long> batterIds = grouped.values().stream()
+                .map(RevealedMomentAccumulator::batterId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, String> playerNames = playerRepository.findAllById(batterIds).stream()
+                .filter(player -> player.getFullName() != null && !player.getFullName().isBlank())
+                .collect(Collectors.toMap(Player::getId, Player::getFullName, (first, ignored) -> first));
+
+        List<RevealedMomentCandidate> candidates = grouped.entrySet().stream()
+                .map(entry -> entry.getValue().toCandidate(
+                        playsByOrder.get(entry.getKey().sourceRef()), playerNames))
+                .toList();
+        return selectRevealedMoments(candidates).stream()
+                .map(candidate -> candidate.toContext(game))
+                .toList();
+    }
+
+    private static List<RevealedMomentCandidate> selectRevealedMoments(
+            List<RevealedMomentCandidate> candidates
+    ) {
+        Map<SourceKey, RevealedMomentCandidate> selected = new LinkedHashMap<>();
+        latestWithType(candidates, "lead_change").ifPresent(candidate -> selected.put(candidate.source(), candidate));
+        largestWithType(candidates, "home_run", RevealedMomentCandidate::runsScored)
+                .ifPresent(candidate -> selected.put(candidate.source(), candidate));
+        largestWithType(candidates, "big_inning", candidate -> candidate.scoringPlays() == null
+                ? null : Math.toIntExact(candidate.scoringPlays()))
+                .ifPresent(candidate -> selected.put(candidate.source(), candidate));
+        latestWithType(candidates, "scoring_play").ifPresent(candidate -> selected.put(candidate.source(), candidate));
+        return selected.values().stream()
+                .sorted(REVEALED_MOMENT_ORDER)
+                .limit(MAX_REVEALED_MOMENTS)
+                .toList();
+    }
+
+    private static Optional<RevealedMomentCandidate> latestWithType(
+            List<RevealedMomentCandidate> candidates,
+            String eventType
+    ) {
+        return candidates.stream()
+                .filter(candidate -> candidate.eventTypes().contains(eventType))
+                .max(REVEALED_MOMENT_ORDER);
+    }
+
+    private static Optional<RevealedMomentCandidate> largestWithType(
+            List<RevealedMomentCandidate> candidates,
+            String eventType,
+            Function<RevealedMomentCandidate, Integer> size
+    ) {
+        return candidates.stream()
+                .filter(candidate -> candidate.eventTypes().contains(eventType))
+                .max(Comparator.comparingInt((RevealedMomentCandidate candidate) ->
+                                Optional.ofNullable(size.apply(candidate)).orElse(-1))
+                        .thenComparing(REVEALED_MOMENT_ORDER));
     }
 
     @Override
@@ -270,6 +399,124 @@ public class AiCopyContextService implements AiCopyContextReader {
             return null;
         }
         return game.getHomeRuns() > game.getAwayRuns() ? "home" : "away";
+    }
+
+    private static int inningHalfOrder(String inningType) {
+        if ("top".equalsIgnoreCase(inningType)) {
+            return 0;
+        }
+        if ("bottom".equalsIgnoreCase(inningType)) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private static String normalizedInningHalf(String inningType) {
+        if ("top".equalsIgnoreCase(inningType)) {
+            return "Top";
+        }
+        if ("bottom".equalsIgnoreCase(inningType)) {
+            return "Bottom";
+        }
+        return null;
+    }
+
+    private static Integer integerPayload(GameEvent event, String key) {
+        Object value = event.getPayload() == null ? null : event.getPayload().get(key);
+        return value instanceof Number number ? number.intValue() : null;
+    }
+
+    private static Long longPayload(GameEvent event, String key) {
+        Object value = event.getPayload() == null ? null : event.getPayload().get(key);
+        return value instanceof Number number ? number.longValue() : null;
+    }
+
+    private static <T extends Comparable<? super T>> T larger(T first, T second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first.compareTo(second) >= 0 ? first : second;
+    }
+
+    private record SourceKey(String sourceType, Long sourceRef) {
+    }
+
+    private static final class RevealedMomentAccumulator {
+        private final SourceKey source;
+        private final Set<String> eventTypes = new LinkedHashSet<>();
+        private Long id;
+        private Integer inning;
+        private String inningType;
+        private Long batterId;
+        private Integer runsScored;
+        private Long scoringPlays;
+
+        private RevealedMomentAccumulator(GameEvent event) {
+            source = new SourceKey(event.getSourceType(), event.getSourceRef());
+            id = event.getId();
+            inning = event.getInning();
+            inningType = event.getInningType();
+            batterId = event.getBatterId();
+        }
+
+        private void add(GameEvent event) {
+            eventTypes.add(event.getEventType());
+            if (id == null || event.getId() != null && event.getId() < id) {
+                id = event.getId();
+            }
+            if (inning == null) {
+                inning = event.getInning();
+            }
+            if (inningType == null) {
+                inningType = event.getInningType();
+            }
+            if (batterId == null) {
+                batterId = event.getBatterId();
+            }
+            runsScored = larger(runsScored, integerPayload(event, "scoreValue"));
+            scoringPlays = larger(scoringPlays, longPayload(event, "scoringPlays"));
+        }
+
+        private Long batterId() {
+            return batterId;
+        }
+
+        private RevealedMomentCandidate toCandidate(Play play, Map<Long, String> playerNames) {
+            List<String> orderedTypes = eventTypes.stream()
+                    .sorted(Comparator.comparingInt(REVEALED_MOMENT_EVENT_TYPES::indexOf))
+                    .toList();
+            return new RevealedMomentCandidate(source, id, inning, inningType, orderedTypes,
+                    playerNames.get(batterId), runsScored, scoringPlays, play);
+        }
+    }
+
+    private record RevealedMomentCandidate(
+            SourceKey source,
+            Long id,
+            Integer inning,
+            String inningType,
+            List<String> eventTypes,
+            String batter,
+            Integer runsScored,
+            Long scoringPlays,
+            Play play
+    ) {
+        private FinalHeadlineContext.RevealedMoment toContext(Game game) {
+            String inningHalf = normalizedInningHalf(inningType);
+            String battingTeam = "Top".equals(inningHalf)
+                    ? game.getAwayTeamAbbr()
+                    : "Bottom".equals(inningHalf) ? game.getHomeTeamAbbr() : null;
+            FinalHeadlineContext.ScoreAfter scoreAfter = play == null
+                    || play.getHomeScore() == null && play.getAwayScore() == null
+                    ? null
+                    : new FinalHeadlineContext.ScoreAfter(play.getHomeScore(), play.getAwayScore());
+            return new FinalHeadlineContext.RevealedMoment(
+                    inning, inningHalf, battingTeam, eventTypes, batter,
+                    runsScored, scoreAfter, scoringPlays);
+        }
     }
 
     private record MomentKey(Integer inning, String label) {

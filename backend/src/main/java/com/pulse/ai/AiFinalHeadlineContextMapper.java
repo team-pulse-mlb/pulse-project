@@ -47,8 +47,7 @@ public class AiFinalHeadlineContextMapper {
      *     <li>reasonTags → safeTags</li>
      *     <li>spoilerSafeSignals → reasonCodes</li>
      *     <li>keyMoments → keyMoments</li>
-     *     <li>finalScore → finalScore, REVEALED 전용</li>
-     *     <li>winner → winner, REVEALED 전용</li>
+     *     <li>teams·finalScore·winner·inningsPlayed·extraInnings·postseason·revealedMoments → REVEALED 전용</li>
      * </ul>
      */
     private AiFinalHeadlineRequest.SafeContext toSafeContext(
@@ -58,13 +57,13 @@ public class AiFinalHeadlineContextMapper {
             return new AiFinalHeadlineRequest.RevealedSafeContext(
                     context.status(),
                     context.periodLabel(),
-                    // AI_COPY 계약 기준: reasonTags는 사용자에게 노출 가능한 보호형 태그입니다.
-                    copyList(context.reasonTags()),
-                    // AI_COPY 계약 기준: spoilerSafeSignals는 reasonCodes로 전달합니다.
-                    copyList(context.spoilerSafeSignals()),
-                    toKeyMoments(context.keyMoments()),
+                    toTeams(context.teams()),
                     toFinalScore(context.finalScore()),
-                    context.winner()
+                    context.winner(),
+                    context.inningsPlayed(),
+                    context.extraInnings(),
+                    context.postseason(),
+                    toRevealedMoments(context.revealedMoments())
             );
         }
 
@@ -111,6 +110,42 @@ public class AiFinalHeadlineContextMapper {
                 finalScore.home(),
                 finalScore.away()
         );
+    }
+
+    private AiFinalHeadlineRequest.Teams toTeams(FinalHeadlineContext.Teams teams) {
+        if (teams == null) {
+            return null;
+        }
+        return new AiFinalHeadlineRequest.Teams(toTeam(teams.home()), toTeam(teams.away()));
+    }
+
+    private AiFinalHeadlineRequest.Team toTeam(FinalHeadlineContext.Team team) {
+        return team == null ? null : new AiFinalHeadlineRequest.Team(team.name(), team.abbr());
+    }
+
+    private List<AiFinalHeadlineRequest.RevealedMoment> toRevealedMoments(
+            List<FinalHeadlineContext.RevealedMoment> moments
+    ) {
+        if (moments == null || moments.isEmpty()) {
+            return List.of();
+        }
+        return moments.stream()
+                .map(moment -> new AiFinalHeadlineRequest.RevealedMoment(
+                        moment.inning(),
+                        moment.inningHalf(),
+                        moment.battingTeam(),
+                        copyList(moment.eventTypes()),
+                        moment.batter(),
+                        moment.runsScored(),
+                        toScoreAfter(moment.scoreAfter()),
+                        moment.scoringPlays()))
+                .toList();
+    }
+
+    private AiFinalHeadlineRequest.ScoreAfter toScoreAfter(FinalHeadlineContext.ScoreAfter scoreAfter) {
+        return scoreAfter == null
+                ? null
+                : new AiFinalHeadlineRequest.ScoreAfter(scoreAfter.home(), scoreAfter.away());
     }
 
     /**

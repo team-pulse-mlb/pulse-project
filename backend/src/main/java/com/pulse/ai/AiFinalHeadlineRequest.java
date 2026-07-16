@@ -1,5 +1,6 @@
 package com.pulse.ai;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /**
@@ -58,26 +59,23 @@ public record AiFinalHeadlineRequest(
     /**
      * REVEALED 모드 전용 safeContext입니다.
      *
-     * <p>공개 모드에서는 Spring Boot가 검증해 전달한 finalScore, winner만 포함합니다.
+     * <p>공개 모드에서는 Spring Boot가 검증해 전달한 실제 경기 결과만 포함합니다.
      * winner는 무승부 등 상황에서 null일 수 있으므로 class 전체 NON_NULL 전략으로 숨기지 않습니다.</p>
      */
     public record RevealedSafeContext(
             String gameStatus,
             String inningPhase,
-            List<String> safeTags,
-            List<String> reasonCodes,
-            List<KeyMoment> keyMoments,
+            Teams teams,
             FinalScore finalScore,
-            String winner
+            String winner,
+            Integer inningsPlayed,
+            Boolean extraInnings,
+            Boolean postseason,
+            List<RevealedMoment> revealedMoments
     ) implements SafeContext {
 
-        /**
-         * 리스트 필드는 null 대신 빈 리스트로 정규화합니다.
-         */
         public RevealedSafeContext {
-            safeTags = safeTags == null ? List.of() : List.copyOf(safeTags);
-            reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
-            keyMoments = keyMoments == null ? List.of() : List.copyOf(keyMoments);
+            revealedMoments = revealedMoments == null ? List.of() : List.copyOf(revealedMoments);
         }
     }
 
@@ -99,5 +97,32 @@ public record AiFinalHeadlineRequest(
             Integer home,
             Integer away
     ) {
+    }
+
+    public record Teams(Team home, Team away) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Team(String name, String abbr) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record RevealedMoment(
+            Integer inning,
+            String inningHalf,
+            String battingTeam,
+            List<String> eventTypes,
+            String batter,
+            Integer runsScored,
+            ScoreAfter scoreAfter,
+            Long scoringPlays
+    ) {
+        public RevealedMoment {
+            eventTypes = eventTypes == null ? List.of() : List.copyOf(eventTypes);
+        }
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ScoreAfter(Integer home, Integer away) {
     }
 }

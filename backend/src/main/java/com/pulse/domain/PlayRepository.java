@@ -16,6 +16,9 @@ public interface PlayRepository extends JpaRepository<Play, Long> {
 
     List<Play> findByGameIdOrderByPlayOrderAsc(Long gameId);
 
+    /** 공개 헤드라인의 선별된 이벤트에 대응하는 play를 일괄 조회한다. */
+    List<Play> findByGameIdAndPlayOrderIn(Long gameId, List<Long> playOrders);
+
     /**
      * scorer가 마지막으로 관측한 play 순서까지의 미번역 타석 결과를 최신순으로 조회한다.
      *
