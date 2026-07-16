@@ -6,7 +6,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 8
+  version: 9
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
