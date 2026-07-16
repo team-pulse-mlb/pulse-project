@@ -145,6 +145,25 @@ class SafeContext(ApiBaseModel):
         description="이벤트 발생 이닝",
         examples=[7],
     )
+    contributing_labels: list[str] | None = Field(
+        default=None,
+        description="EVENT_COPY 보호 모드에서 같은 하이라이트 순간에 함께 감지된 보호 라벨 목록",
+        examples=[["만루 승부", "승부처 카운트"]],
+    )
+    situation: dict[str, Any] | None = Field(
+        default=None,
+        description="EVENT_COPY 보호 모드에서 사용할 수 있는 카운트·아웃·주자·투구수 기반 상황 근거",
+        examples=[
+            {
+                "outs": 2,
+                "balls": 3,
+                "strikes": 2,
+                "runnerOnFirst": True,
+                "runnerOnSecond": True,
+                "runnerOnThird": True,
+            }
+        ],
+    )
 
     # EVENT_COPY mode=REVEALED 전용 필드
     inning_type: str | None = Field(
