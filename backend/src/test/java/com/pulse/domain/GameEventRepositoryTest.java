@@ -21,13 +21,13 @@ class GameEventRepositoryTest {
 
     @Test
     void protectedRetryTargets_shouldSelectOnlyMissingCopyBelowCapInsideWindow() {
-        GameEvent target = saveEvent(1L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
-        GameEvent copied = saveEvent(2L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(120));
+        GameEvent target = saveEvent(100L, 1L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
+        GameEvent copied = saveEvent(100L, 2L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(120));
         copied.setCopyProtected("이미 생성된 문구");
-        GameEvent capped = saveEvent(3L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(180));
+        GameEvent capped = saveEvent(100L, 3L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(180));
         capped.setCopyProtectedAttempts(3);
-        saveEvent(4L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.minusSeconds(1));
-        saveEvent(5L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(240));
+        saveEvent(100L, 4L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.minusSeconds(1));
+        saveEvent(100L, 5L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(240));
         gameEventRepository.flush();
 
         List<GameEvent> result = gameEventRepository.findProtectedCopyRetryTargets(
@@ -38,10 +38,10 @@ class GameEventRepositoryTest {
 
     @Test
     void protectedAiReprocessTargets_shouldIncludeExistingCopiesAndRespectCursor() {
-        GameEvent first = saveEvent(11L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
-        GameEvent second = saveEvent(12L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(60));
+        GameEvent first = saveEvent(100L, 11L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
+        GameEvent second = saveEvent(100L, 12L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(60));
         second.setCopyProtected("기존 문구");
-        saveEvent(13L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(120));
+        saveEvent(100L, 13L, GameEvent.SPOILER_REVEALED_ONLY, SINCE.plusSeconds(120));
         gameEventRepository.flush();
 
         long maxId = gameEventRepository.findMaxProtectedEventId();
@@ -52,9 +52,24 @@ class GameEventRepositoryTest {
         assertThat(result).extracting(GameEvent::getId).containsExactly(second.getId());
     }
 
-    private GameEvent saveEvent(long sourceRef, String spoilerLevel, Instant observedAt) {
+    @Test
+    void bySpoilerLevelAndGameIdIn_shouldSelectOnlyRequestedGamesOrderedByGameThenTime() {
+        GameEvent targetLater = saveEvent(100L, 21L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE.plusSeconds(60));
+        GameEvent targetEarlier = saveEvent(100L, 22L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
+        saveEvent(200L, 23L, GameEvent.SPOILER_PROTECTED_SAFE, SINCE);
+        saveEvent(100L, 24L, GameEvent.SPOILER_REVEALED_ONLY, SINCE);
+        gameEventRepository.flush();
+
+        List<GameEvent> result = gameEventRepository.findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(
+                GameEvent.SPOILER_PROTECTED_SAFE, List.of(100L));
+
+        assertThat(result).extracting(GameEvent::getId)
+                .containsExactly(targetEarlier.getId(), targetLater.getId());
+    }
+
+    private GameEvent saveEvent(long gameId, long sourceRef, String spoilerLevel, Instant observedAt) {
         GameEvent event = new GameEvent();
-        event.setGameId(100L);
+        event.setGameId(gameId);
         event.setEventType("long_at_bat");
         event.setSpoilerLevel(spoilerLevel);
         event.setSourceType(GameEvent.SOURCE_TYPE_PA);

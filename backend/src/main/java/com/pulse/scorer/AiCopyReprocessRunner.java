@@ -3,6 +3,9 @@ package com.pulse.scorer;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +25,8 @@ import org.springframework.stereotype.Component;
 @Slf4j
 class AiCopyReprocessRunner implements ApplicationRunner {
 
+    private static final ZoneId WINDOW_ZONE = ZoneId.of("Asia/Seoul");
+
     private final AiCopyReprocessProperties properties;
     private final GameRepository gameRepository;
     private final GameEventRepository gameEventRepository;
@@ -32,8 +37,13 @@ class AiCopyReprocessRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         try {
-            int headlineFailures = reprocessHeadlines();
-            int eventFailures = reprocessEventCopies();
+            List<Long> windowedGameIds = properties.hasWindow() ? resolveWindowedGameIds() : null;
+            if (windowedGameIds != null) {
+                log.info("AI 문구 재처리 기간 한정: start={} end={}(포함) 대상 경기={}건",
+                        properties.windowStartDate(), properties.windowEndDate(), windowedGameIds.size());
+            }
+            int headlineFailures = reprocessHeadlines(windowedGameIds);
+            int eventFailures = reprocessEventCopies(windowedGameIds);
             int failures = headlineFailures + eventFailures;
             if (failures > 0) {
                 throw new IllegalStateException("AI 문구 전체 재처리 실패: " + failures + "건");
@@ -43,8 +53,19 @@ class AiCopyReprocessRunner implements ApplicationRunner {
         }
     }
 
-    private int reprocessHeadlines() {
-        List<Long> gameIds = gameRepository.findAllFinalGameIds();
+    private List<Long> resolveWindowedGameIds() {
+        Instant startInclusive = LocalDate.parse(properties.windowStartDate())
+                .atStartOfDay(WINDOW_ZONE)
+                .toInstant();
+        Instant endExclusive = LocalDate.parse(properties.windowEndDate())
+                .plusDays(1)
+                .atStartOfDay(WINDOW_ZONE)
+                .toInstant();
+        return gameRepository.findFinalGameIdsByStartTimeBetween(startInclusive, endExclusive);
+    }
+
+    private int reprocessHeadlines(List<Long> windowedGameIds) {
+        List<Long> gameIds = windowedGameIds != null ? windowedGameIds : gameRepository.findAllFinalGameIds();
         EnumMap<AiFinalHeadlineGenerator.GenerationStatus, Integer> counts =
                 new EnumMap<>(AiFinalHeadlineGenerator.GenerationStatus.class);
         int exceptions = 0;
@@ -77,42 +98,64 @@ class AiCopyReprocessRunner implements ApplicationRunner {
         return failures;
     }
 
-    private int reprocessEventCopies() {
-        long totalTargets = gameEventRepository.countBySpoilerLevel(GameEvent.SPOILER_PROTECTED_SAFE);
-        long maxId = gameEventRepository.findMaxProtectedEventId();
-        long afterId = 0;
-        int targets = 0;
+    private int reprocessEventCopies(List<Long> windowedGameIds) {
+        int targets;
         int exceptions = 0;
         EnumMap<AiEventCopyGenerator.GenerationStatus, Integer> counts =
                 new EnumMap<>(AiEventCopyGenerator.GenerationStatus.class);
 
-        log.info("AI 보호 이벤트 문구 전체 재처리 시작: 대상={}건 maxEventId={} batchSize={}",
-                totalTargets, maxId, properties.eventBatchSize());
-        while (afterId < maxId) {
-            List<GameEvent> batch = gameEventRepository.findProtectedAiReprocessTargets(
-                    afterId,
-                    maxId,
-                    PageRequest.of(0, properties.eventBatchSize())
-            );
-            if (batch.isEmpty()) {
-                break;
-            }
-
-            for (GameEvent event : batch) {
+        if (windowedGameIds != null) {
+            List<GameEvent> events = windowedGameIds.isEmpty()
+                    ? List.of()
+                    : gameEventRepository.findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(
+                            GameEvent.SPOILER_PROTECTED_SAFE, windowedGameIds);
+            log.info("AI 보호 이벤트 문구 기간 한정 재처리 시작: 대상={}건", events.size());
+            for (GameEvent event : events) {
                 try {
                     AiEventCopyGenerator.GenerationStatus status =
                             eventCopyGenerator.regenerateSynchronously(event.getGameId(), event.getId());
                     counts.merge(status, 1, Integer::sum);
                 } catch (RuntimeException exception) {
                     exceptions++;
-                    log.warn("AI 보호 이벤트 문구 전체 재처리 예외: gameId={} eventId={}",
+                    log.warn("AI 보호 이벤트 문구 기간 한정 재처리 예외: gameId={} eventId={}",
                             event.getGameId(), event.getId(), exception);
                 }
             }
-            targets += batch.size();
-            afterId = batch.get(batch.size() - 1).getId();
-            log.info("AI 보호 이벤트 문구 전체 재처리 진행: processed={} lastEventId={}",
-                    targets, afterId);
+            targets = events.size();
+        } else {
+            long totalTargets = gameEventRepository.countBySpoilerLevel(GameEvent.SPOILER_PROTECTED_SAFE);
+            long maxId = gameEventRepository.findMaxProtectedEventId();
+            long afterId = 0;
+            targets = 0;
+
+            log.info("AI 보호 이벤트 문구 전체 재처리 시작: 대상={}건 maxEventId={} batchSize={}",
+                    totalTargets, maxId, properties.eventBatchSize());
+            while (afterId < maxId) {
+                List<GameEvent> batch = gameEventRepository.findProtectedAiReprocessTargets(
+                        afterId,
+                        maxId,
+                        PageRequest.of(0, properties.eventBatchSize())
+                );
+                if (batch.isEmpty()) {
+                    break;
+                }
+
+                for (GameEvent event : batch) {
+                    try {
+                        AiEventCopyGenerator.GenerationStatus status =
+                                eventCopyGenerator.regenerateSynchronously(event.getGameId(), event.getId());
+                        counts.merge(status, 1, Integer::sum);
+                    } catch (RuntimeException exception) {
+                        exceptions++;
+                        log.warn("AI 보호 이벤트 문구 전체 재처리 예외: gameId={} eventId={}",
+                                event.getGameId(), event.getId(), exception);
+                    }
+                }
+                targets += batch.size();
+                afterId = batch.get(batch.size() - 1).getId();
+                log.info("AI 보호 이벤트 문구 전체 재처리 진행: processed={} lastEventId={}",
+                        targets, afterId);
+            }
         }
 
         int failures = count(counts, AiEventCopyGenerator.GenerationStatus.CALL_FAILED)
