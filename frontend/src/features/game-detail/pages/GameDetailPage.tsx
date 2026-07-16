@@ -445,9 +445,10 @@ function GameDetailPage() {
                         detail.situation
                     }
                     matchup={
-                        isRevealed
-                            ? detail.currentMatchup
-                            : null
+                        detail.currentMatchup
+                    }
+                    favoritePlayerNames={
+                        detail.favoritePlayersPlaying
                     }
                 />
 
