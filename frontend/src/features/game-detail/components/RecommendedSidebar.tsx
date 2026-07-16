@@ -8,8 +8,9 @@ interface RecommendedSidebarProps {
   currentGameId: number;
 }
 
-// 상세 화면 우측 추천 사이드바 (USER_FLOW §3.5).
-// 홈 상단 추천과 같은 데이터를 쓰고, 현재 경기만 제외한다. 데스크톱 전용.
+// 상세 화면 추천 목록 (USER_FLOW §3.5).
+// 홈 상단 추천과 같은 데이터를 쓰고, 현재 경기만 제외한다.
+// 데스크톱에서는 우측 컬럼에 배치되고, 작은 화면에서는 상세 본문 아래로 내려간다.
 function RecommendedSidebar({ currentGameId }: RecommendedSidebarProps) {
   const rankingsQuery = useLiveRankings();
 
@@ -24,14 +25,14 @@ function RecommendedSidebar({ currentGameId }: RecommendedSidebarProps) {
   }
 
   return (
-    <aside className="sticky top-[86px] hidden lg:block">
+    <section>
       <SectionHeader title="다른 볼 만한 경기" />
       <div className="flex flex-col gap-3">
         {cards.slice(0, 5).map((card) => (
           <GameCard key={card.gameId} game={card} variant="tile" />
         ))}
       </div>
-    </aside>
+    </section>
   );
 }
 

@@ -58,18 +58,13 @@ function TeamSymbol({
     }
 
     /**
-     * 로고가 없거나 로딩 실패한 경우에는
-     * 기존처럼 원형 테두리 + 약어 fallback을 유지한다.
+     * 로고가 없거나 로딩에 실패한 경우에는
+     * 약어가 들어간 원형 fallback도 노출하지 않는다.
+     *
+     * 팀 약어는 이름 아래 보조 텍스트로 이미 표시되므로,
+     * 로고 영역에서 중복 심볼을 만들지 않는다.
      */
-    return (
-        <div
-            className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white/10 ${symbolSizeClass}`}
-        >
-            <span className="font-display text-sm font-bold text-white/90 sm:text-base">
-                {team.abbr}
-            </span>
-        </div>
-    );
+    return null;
 }
 
 /**
