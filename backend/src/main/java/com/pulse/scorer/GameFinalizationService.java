@@ -35,6 +35,12 @@ public class GameFinalizationService {
             return;
         }
 
+        // Redis 정리는 멱등이므로 종료 task가 재전달될 때마다 재시도한다.
+        liveSignalPublisher.removeLiveGame(task.gameId());
+        liveSignalPublisher.evictGameCache(task.gameId());
+        liveSignalPublisher.publishGameSignal(task.gameId());
+        liveSignalPublisher.publishRankingSignal();
+
         Instant observedAt = task.observedAt() == null ? Instant.now() : task.observedAt();
         Boolean firstProcessing = redisTemplate.opsForValue()
                 .setIfAbsent(finalizedKey(task.gameId()), observedAt.toString());
@@ -42,11 +48,6 @@ public class GameFinalizationService {
             log.debug("이미 종료 정리된 경기 skip: {}", task.gameId());
             return;
         }
-
-        liveSignalPublisher.removeLiveGame(task.gameId());
-        liveSignalPublisher.evictGameCache(task.gameId());
-        liveSignalPublisher.publishGameSignal(task.gameId());
-        liveSignalPublisher.publishRankingSignal();
 
         if (isFinal(task.lifecycleState(), game)) {
             afterCommitExecutor.execute(() -> aiGenerationTrigger.onGameFinalized(task.gameId(), observedAt));

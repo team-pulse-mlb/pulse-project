@@ -11,6 +11,12 @@
       ]
     },
     {
+      "Sid": "WriteBacktestResults",
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::pulse-deploy-027903150609/backtest/pr/*"
+    },
+    {
       "Sid": "EcrLogin",
       "Effect": "Allow",
       "Action": "ecr:GetAuthorizationToken",
@@ -35,7 +41,8 @@
       "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
       "Resource": [
         "arn:aws:secretsmanager:ap-northeast-2:027903150609:secret:pulse/prod/runtime-*",
-        "arn:aws:secretsmanager:ap-northeast-2:027903150609:secret:rds!db-b48f4a6f-e24f-4634-b7f2-7d90f09afbd9-w3FsLQ"
+        "arn:aws:secretsmanager:ap-northeast-2:027903150609:secret:rds!db-b48f4a6f-e24f-4634-b7f2-7d90f09afbd9-w3FsLQ",
+        "arn:aws:secretsmanager:ap-northeast-2:027903150609:secret:pulse/backtest/readonly-*"
       ]
     }
   ]

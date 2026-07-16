@@ -259,6 +259,6 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
 
 `AiCopyReader.getCopy(gameId, purpose, mode)`는 `FINAL_HEADLINE` 전용이다. 종료 경기의 검수 통과 헤드라인이 있으면 해당 문구를 반환하고, 저장된 문구가 없거나 미생성이면 `null`을 반환한다. 소비자(홈·상세)는 `null`을 조건부 렌더링 기준으로 사용한다.
 
-이벤트 문구는 `AiCopyReader`를 거치지 않는다. `GET /api/games/{id}/events?mode=PROTECTED`가 `game_events` 중 **`is_timeline_highlight=true`인 하이라이트 이벤트만** 조회해 `copy`(=`copy_protected`)로 반환한다. `copy=null`이면 프론트는 같은 이벤트의 `label`을 폴백으로 표시한다(하이라이트 표시는 유지되고 문구만 폴백). 공개 모드는 하이라이트 필터 없이 기존과 동일하게 조회한다.
+이벤트 문구는 `AiCopyReader`를 거치지 않는다. `GET /api/games/{id}/events?mode=PROTECTED`가 `game_events` 중 **`is_timeline_highlight=true`인 하이라이트 이벤트만** 조회해 `copy`(=`copy_protected`)로 반환한다. `copy=null`이면 프론트는 같은 이벤트의 `label`을 폴백으로 표시한다(하이라이트 표시는 유지되고 문구만 폴백). 공개 모드(`mode=REVEALED`)는 이벤트 타임라인을 사용하지 않으므로 빈 목록을 반환하고, 경기 흐름은 `GET /api/games/{id}/recent-plays`로 대체한다.
 
 플레이 번역도 `AiCopyReader`를 거치지 않는다. `GET /api/games/{id}/recent-plays?mode=REVEALED`가 `plays.text_ko`를 우선 조회해 응답 `text`로 반환한다. 번역이 없으면 `plays.text`와 `translated=false`를 반환하며, 프론트는 `text`를 그대로 표시한다.
