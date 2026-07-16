@@ -11,11 +11,11 @@ import { useNavigate } from 'react-router';
 
 import '../styles/signup.css';
 
-import { 
-    signupMember, 
+import {
+    signupMember,
     checkEmailDuplicate,
-    sendEmailCode, 
-    verifyEmailCode 
+    sendEmailCode,
+    verifyEmailCode
 } from '../api/memberApi';
 
 import {
@@ -112,13 +112,13 @@ function SignupPage() {
         useState<NotificationSettings>({
             // 기본값은 전체 ON
             all: true,
-            
+
             // 유저가 따로 끄지 않으면 기본 알림을 받는 방향
             gameStart: true,
             surge: true,
             gameSwitch: true,
         });
-    
+
     const [formData, setFormData] =
         useState<SignupFormData>(initialFormData);
 
@@ -544,7 +544,7 @@ function SignupPage() {
                 all: nextAll,
             };
         });
-};
+    };
 
     const handleFinalSignup = async () => {
         const email = formData.email.trim();
@@ -602,16 +602,20 @@ function SignupPage() {
             alert('알 수 없는 오류가 발생했습니다.');
         }
     };
-    
+
     const emailMessage =
         errors.email || emailCheckMessage;
 
     return (
-        <main className="signup-page">
-            <section className="signup-container">
+        <main
+            className={`signup-page signup-page-step-${signupStep}`}
+        >
+            <section
+                className={`signup-container signup-container-step-${signupStep}`}
+            >
                 <header className="signup-header">
                     <h1 className="signup-logo">PULSE</h1>
-                    
+
                     {/* 현재 회원가입 단계 표시 */}
                     <div className="signup-step-indicator">
                         <span>{signupStep}/3</span>
@@ -623,15 +627,21 @@ function SignupPage() {
                         </strong>
                     </div>
 
-                    <h2>회원가입</h2>
+                    <h2>
+                        {signupStep === 1 && '회원가입'}
+                        {signupStep === 2 && '관심 있는 팀을 선택해주세요'}
+                        {signupStep === 3 && '원하는 알림을 설정해주세요'}
+                    </h2>
 
                     <p>
                         {signupStep === 1 &&
                             '이메일 인증과 비밀번호 설정을 완료해 주세요.'}
+
                         {signupStep === 2 &&
-                            '관심 있는 팀을 선택하면 개인화 추천에 활용할 수 있어요.'}
+                            '선택한 팀의 경기가 홈 화면과 추천에 우선 반영됩니다.'}
+
                         {signupStep === 3 &&
-                            '알림 수신 여부를 설정하고 가입을 완료해 주세요.'}
+                            '관심 있는 경기 알림만 선택해서 받을 수 있습니다.'}
                     </p>
                 </header>
 
@@ -680,17 +690,16 @@ function SignupPage() {
                             <div className="signup-email-message-area">
                                 {emailMessage && (
                                     <p
-                                        className={`signup-email-message ${
-                                            errors.email || emailAvailable === false
-                                                ? 'error'
-                                                : 'success'
-                                        }`}
+                                        className={`signup-email-message ${errors.email || emailAvailable === false
+                                            ? 'error'
+                                            : 'success'
+                                            }`}
                                     >
                                         {emailMessage}
                                     </p>
                                 )}
                             </div>
-                            
+
                         </div>
 
                         {isCodeSent && (
@@ -734,17 +743,16 @@ function SignupPage() {
                                 <div className="signup-email-message-area">
                                     {(errors.verificationCode ||
                                         verificationMessage) && (
-                                        <p
-                                            className={`signup-email-message ${
-                                                errors.verificationCode
+                                            <p
+                                                className={`signup-email-message ${errors.verificationCode
                                                     ? 'error'
                                                     : 'success'
-                                            }`}
-                                        >
-                                            {errors.verificationCode ||
-                                                verificationMessage}
-                                        </p>
-                                    )}
+                                                    }`}
+                                            >
+                                                {errors.verificationCode ||
+                                                    verificationMessage}
+                                            </p>
+                                        )}
                                 </div>
                             </div>
                         )}
@@ -818,7 +826,7 @@ function SignupPage() {
                             </button>
                         </div>
 
-                                                <div className="signup-team-board">
+                        <div className="signup-team-board">
                             {isTeamsLoading && (
                                 <p className="signup-step-help">
                                     팀 목록을 불러오는 중입니다.
@@ -841,9 +849,8 @@ function SignupPage() {
                                         <button
                                             key={team.teamId}
                                             type="button"
-                                            className={`signup-team-row ${
-                                                isSelected ? 'selected' : ''
-                                            }`}
+                                            className={`signup-team-row ${isSelected ? 'selected' : ''
+                                                }`}
                                             onClick={() =>
                                                 handleToggleTeam(team.teamId)
                                             }
@@ -934,9 +941,8 @@ function SignupPage() {
                         <div className="signup-notification-list">
                             <button
                                 type="button"
-                                className={`signup-notification-card main ${
-                                    notificationSettings.all ? 'active' : ''
-                                }`}
+                                className={`signup-notification-card main ${notificationSettings.all ? 'active' : ''
+                                    }`}
                                 onClick={handleToggleAllNotifications}
                             >
                                 <div>
@@ -949,9 +955,8 @@ function SignupPage() {
 
                             <button
                                 type="button"
-                                className={`signup-notification-card ${
-                                    notificationSettings.gameStart ? 'active' : ''
-                                }`}
+                                className={`signup-notification-card ${notificationSettings.gameStart ? 'active' : ''
+                                    }`}
                                 onClick={() => handleToggleNotification('gameStart')}
                             >
                                 <div>
@@ -964,9 +969,8 @@ function SignupPage() {
 
                             <button
                                 type="button"
-                                className={`signup-notification-card ${
-                                    notificationSettings.surge ? 'active' : ''
-                                }`}
+                                className={`signup-notification-card ${notificationSettings.surge ? 'active' : ''
+                                    }`}
                                 onClick={() => handleToggleNotification('surge')}
                             >
                                 <div>
@@ -979,9 +983,8 @@ function SignupPage() {
 
                             <button
                                 type="button"
-                                className={`signup-notification-card ${
-                                    notificationSettings.gameSwitch ? 'active' : ''
-                                }`}
+                                className={`signup-notification-card ${notificationSettings.gameSwitch ? 'active' : ''
+                                    }`}
                                 onClick={() => handleToggleNotification('gameSwitch')}
                             >
                                 <div>
