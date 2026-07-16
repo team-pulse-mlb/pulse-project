@@ -8,7 +8,7 @@
 | `GET /api/games?date=&status=&sort=` | 홈 하단 전체 경기 목록. `status=scheduled`는 현재 이후 모든 예정 경기를 조회하고, 나머지 상태는 슬레이트 단위로 조회한다. `date` 미지정 시 오늘 슬레이트, `status` in `all\|scheduled\|live\|finished`(기본 `all`), `sort` in `recommended\|startTime`(기본 `startTime`) | 선택 |
 | `GET /api/games/{id}?mode=PROTECTED\|REVEALED` | 경기 상세. `mode` 기본값 `PROTECTED`. 진행 중이면 `switchSuggestion` 포함 | 선택 |
 | `GET /api/games/{id}/events?mode=` | 보호 모드 `경기 흐름`용 흥미 순간 이벤트. 공개 모드는 빈 목록 | 선택 |
-| `GET /api/games/{id}/recent-plays?mode=` | 공개 모드 `경기 흐름`용 최근 타석 결과 10건. 보호 모드는 빈 목록 | 선택 |
+| `GET /api/games/{id}/recent-plays?mode=` | 공개 모드 `경기 흐름`용 전체 타석 결과(최신순, 건수 제한 없음). 보호 모드는 빈 목록 | 선택 |
 | `GET /api/teams` | 회원가입 Step 2 관심 팀 선택용 팀 목록 | 선택 |
 | `GET /api/sse` | SSE 구독(이벤트 3종) | 선택 |
 | `POST /api/sse/token` | SSE 연결용 1회용 단기 토큰 발급(§2.1) | 필요 |
@@ -209,7 +209,7 @@
 
 이벤트 API의 `copy`는 nullable이며, 프론트 폴백은 `label`이다. 공개 모드는 이벤트 타임라인을 사용하지 않으므로 `mode=REVEALED`이면 빈 목록을 반환한다. 보호 모드(`mode=PROTECTED`)는 `game_events` 전체가 아니라 `is_timeline_highlight=true`인 하이라이트 이벤트만 반환한다(추천 점수 급변 순간 단위. 상세는 AI_COPY.md §2·§6).
 
-최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 최신 10건을 `play_order DESC`로 반환한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
+최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 전체 건을 `play_order DESC`로 반환한다. 진행 중·종료 경기 모두 건수 제한을 두지 않으며, 타석 결과 필터는 메모리 필터가 아니라 DB 조회 조건으로 적용한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
 
 ### POST `/ai/play-translation`
 
