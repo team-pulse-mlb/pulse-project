@@ -19,7 +19,8 @@ scoring:
     gap-3: 3
   recent-score:
     per-run: 6
-    max: 15
+    # multiplier 적용 전 예산. 실제 신호는 closeness-multiplier(최대 2.0)에 따라 최대 2배까지 커진다.
+    base-budget: 15
     tau-seconds: 180
     closeness-multiplier:
       gap-0: 2.0
