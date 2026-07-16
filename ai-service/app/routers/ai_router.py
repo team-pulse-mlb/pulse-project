@@ -15,6 +15,7 @@ from app.services.openai_service import (
     SpoilerFreeSummaryGenerationError,
     generate_spoiler_free_summary,
 )
+from app.services.play_translation_guard import check_play_translation
 from app.services.play_translation_service import (
     PlayTranslationGenerationError,
     generate_play_translation,
@@ -422,6 +423,25 @@ def play_translation(request: PlayTranslationRequest):
 
         _log_play_translation_failure(
             event_name="PLAY_TRANSLATION_GENERATION_FAILED",
+            request=request,
+            violations=violations,
+        )
+
+        return _build_play_translation_failed_response(
+            request=request,
+            violations=violations,
+        )
+
+    guard_result = check_play_translation(
+        source_text=request.source_text,
+        translated_text=translated_text,
+    )
+
+    if not guard_result.spoiler_safe:
+        violations = guard_result.violations
+
+        _log_play_translation_failure(
+            event_name="PLAY_TRANSLATION_GUARD_REJECTED",
             request=request,
             violations=violations,
         )
