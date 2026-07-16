@@ -15,6 +15,7 @@ import com.pulse.domain.WatchScoreRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -73,8 +74,12 @@ public class LiveScoringService {
             return;
         }
 
-        List<Play> recentPlays = playRepository.findByGameIdOrderByPlayOrderDesc(
-                gameId, PageRequest.of(0, props.leadChange().windowPlays() + 1));
+        List<Play> recentPlays = task.lastPlayOrder() == null
+                ? new ArrayList<>()
+                : playRepository.findByGameIdAndPlayOrderLessThanEqualOrderByPlayOrderDesc(
+                        gameId,
+                        task.lastPlayOrder(),
+                        PageRequest.of(0, props.leadChange().windowPlays() + 1));
         Collections.reverse(recentPlays);
         int seedLeader = 0;
         if (recentPlays.size() > props.leadChange().windowPlays()) {
