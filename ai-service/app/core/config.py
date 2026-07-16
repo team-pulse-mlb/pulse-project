@@ -18,7 +18,14 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.6-luna"
     openai_temperature: float = 0.2
-    openai_max_output_tokens: int = 200
+
+    # 짧은 AI 문구 생성은 복잡한 추론이 필요하지 않으므로
+    # reasoning token 사용량과 지연시간을 줄이기 위해 low로 제한합니다.
+    openai_reasoning_effort: str = "low"
+
+    # reasoning 모델은 내부 reasoning token도 max_output_tokens를 사용합니다.
+    # 200에서는 visible output 전에 한도가 끝날 수 있어 여유를 확보합니다.
+    openai_max_output_tokens: int = 1024
 
     # Spring Boot -> ai-service timeout은 8초이므로,
     # ai-service -> OpenAI 호출은 그보다 짧은 6초 안에 끝나도록 제한한다.

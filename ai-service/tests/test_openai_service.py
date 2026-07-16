@@ -150,6 +150,7 @@ class OpenAiServiceTestCase(unittest.TestCase):
             request_options["temperature"],
             openai_service.settings.openai_temperature,
         )
+        self.assertNotIn("reasoning", request_options)
         self.assertEqual(
             result,
             {"safe_title": "후반 긴장감이 이어진 경기"},
@@ -173,6 +174,12 @@ class OpenAiServiceTestCase(unittest.TestCase):
 
         self.assertEqual(request_options["model"], "gpt-5.6-luna")
         self.assertNotIn("temperature", request_options)
+        self.assertEqual(
+            request_options["reasoning"],
+            {
+                "effort": openai_service.settings.openai_reasoning_effort,
+            },
+        )
         self.assertEqual(
             request_options["max_output_tokens"],
             openai_service.settings.openai_max_output_tokens,
@@ -221,6 +228,44 @@ class OpenAiServiceTestCase(unittest.TestCase):
         self.assertEqual(
             mock_client.responses.create.call_count,
             2,
+        )
+
+    def test_parse_openai_response_rejects_max_output_tokens(self):
+        response = SimpleNamespace(
+            status="incomplete",
+            incomplete_details=SimpleNamespace(
+                reason="max_output_tokens",
+            ),
+            output_text="",
+        )
+
+        with self.assertRaises(
+            openai_service.SpoilerFreeSummaryGenerationError
+        ) as context:
+            openai_service._parse_openai_response(response)
+
+        self.assertEqual(
+            str(context.exception),
+            "OPENAI_MAX_OUTPUT_TOKENS",
+        )
+
+    def test_parse_openai_response_rejects_content_filter(self):
+        response = SimpleNamespace(
+            status="incomplete",
+            incomplete_details=SimpleNamespace(
+                reason="content_filter",
+            ),
+            output_text="",
+        )
+
+        with self.assertRaises(
+            openai_service.SpoilerFreeSummaryGenerationError
+        ) as context:
+            openai_service._parse_openai_response(response)
+
+        self.assertEqual(
+            str(context.exception),
+            "OPENAI_CONTENT_FILTER",
         )
 
     def test_generate_openai_copy_retries_invalid_json_once(self):

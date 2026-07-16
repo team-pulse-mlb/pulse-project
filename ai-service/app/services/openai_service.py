@@ -133,7 +133,7 @@ def _generate_openai_copy_with_retry(
         try:
             response = client.responses.create(**options)
 
-            return _parse_openai_copy(response.output_text)
+            return _parse_openai_response(response)
         except SpoilerFreeSummaryGenerationError as exc:
             if not _should_retry_generation_error(
                 error=exc,
@@ -206,10 +206,23 @@ def _build_response_create_options(
         },
     }
 
+    if _supports_reasoning(settings.openai_model):
+        options["reasoning"] = {
+            "effort": settings.openai_reasoning_effort,
+        }
+
     if _supports_temperature(settings.openai_model):
         options["temperature"] = settings.openai_temperature
 
     return options
+
+
+def _supports_reasoning(model: str) -> bool:
+    """
+    현재 사용 중인 GPT-5.6 계열 모델의 reasoning 옵션 지원 여부를 반환합니다.
+    """
+
+    return model.startswith("gpt-5.6")
 
 
 def _supports_temperature(model: str) -> bool:
@@ -218,6 +231,51 @@ def _supports_temperature(model: str) -> bool:
     """
 
     return not model.startswith("gpt-5.6-luna")
+
+
+def _parse_openai_response(
+    response: object,
+) -> dict[str, str]:
+    """
+    Responses API 상태를 먼저 검사한 뒤 visible output을 파싱합니다.
+
+    reasoning 중 max_output_tokens 한도에 도달하면 output_text가 비어 있을 수
+    있으므로 단순 EMPTY_RESPONSE와 구분해서 업무 오류 코드로 변환합니다.
+    """
+
+    status = getattr(response, "status", None)
+    incomplete_details = getattr(response, "incomplete_details", None)
+    incomplete_reason = getattr(incomplete_details, "reason", None)
+
+    if status == "incomplete":
+        error_code_by_reason = {
+            "max_output_tokens": "OPENAI_MAX_OUTPUT_TOKENS",
+            "content_filter": "OPENAI_CONTENT_FILTER",
+        }
+
+        error_code = error_code_by_reason.get(
+            incomplete_reason,
+            "OPENAI_INCOMPLETE_RESPONSE",
+        )
+
+        logger.warning(
+            "OpenAI response incomplete. model=%s reason=%s",
+            settings.openai_model,
+            incomplete_reason,
+        )
+
+        raise SpoilerFreeSummaryGenerationError(error_code)
+
+    raw_text = getattr(response, "output_text", "")
+
+    if not isinstance(raw_text, str) or not raw_text.strip():
+        logger.warning(
+            "OpenAI response has no visible output. model=%s status=%s",
+            settings.openai_model,
+            status,
+        )
+
+    return _parse_openai_copy(raw_text)
 
 
 def _openai_ai_copy_timeout_seconds() -> float:
