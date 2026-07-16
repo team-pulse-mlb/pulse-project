@@ -426,9 +426,9 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
-        self.assertCountEqual(
+        self.assertEqual(
             data["violations"],
-            ["MISSING_PLAYER_NAME:Soto", "PLAYER_NAME_NOT_PRESERVED"],
+            ["MISSING_PLAYER_NAME:Soto"],
         )
         self.assertFalse(data["fallbackUsed"])
         self.assertEqual(
@@ -460,9 +460,9 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
-        self.assertCountEqual(
+        self.assertEqual(
             data["violations"],
-            ["MISSING_NUMBER:414", "NUMBER_NOT_PRESERVED"],
+            ["MISSING_NUMBER:414"],
         )
         self.assertFalse(data["fallbackUsed"])
         self.assertEqual(
