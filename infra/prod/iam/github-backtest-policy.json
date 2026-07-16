@@ -1,0 +1,37 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListBacktestArtifacts",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::pulse-deploy-027903150609",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": "backtest/pr/*"
+        }
+      }
+    },
+    {
+      "Sid": "ManageBacktestArtifacts",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::pulse-deploy-027903150609/backtest/pr/*"
+    },
+    {
+      "Sid": "RunBacktestDocument",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ssm:ap-northeast-2:027903150609:document/PulseBacktestImpact",
+        "arn:aws:ec2:ap-northeast-2:027903150609:instance/i-08eec3a0a7d90c8fe"
+      ]
+    },
+    {
+      "Sid": "ReadBacktestCommand",
+      "Effect": "Allow",
+      "Action": "ssm:GetCommandInvocation",
+      "Resource": "*"
+    }
+  ]
+}
