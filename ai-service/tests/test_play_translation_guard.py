@@ -199,6 +199,37 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
             ],
         )
 
+    def test_safe_player_name_trailing_punctuation_is_normalized(self):
+        # 문장 끝의 Harper.는 Harper와 같은 선수명으로 비교되어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled off Harper.",
+            translated_text="Soto, Harper 상대 안타",
+        )
+
+    def test_safe_team_name_and_city_entities_are_not_player_names(self):
+        # Philadelphia Phillies는 팀명이며, 한국어 팀명 번역은 선수명 누락이 아닙니다.
+        self.assert_safe_translation(
+            source_text="Harper singled for the Philadelphia Phillies.",
+            translated_text="Harper, 필라델피아 필리스의 안타",
+        )
+
+    def test_safe_decimal_and_initial_periods_do_not_count_as_multiple_sentences(self):
+        # B. 이니셜과 0.300 소수점은 문장 종결로 세면 안 됩니다.
+        self.assert_safe_translation(
+            source_text="B. Harper, batting 0.300, singled to center.",
+            translated_text=(
+                "B. Harper, 타율 0.300으로 "
+                "중견수 방면 안타"
+            ),
+        )
+
+    def test_safe_name_suffix_period_does_not_count_as_multiple_sentences(self):
+        # Jr. 접미사의 마침표는 문장 종결로 세면 안 됩니다.
+        self.assert_safe_translation(
+            source_text="Tatis Jr. singled to center.",
+            translated_text="Tatis Jr., 중견수 방면 안타",
+        )
+
     def test_rejects_missing_player_name(self):
         self.assert_translation_violations_include(
             source_text="Soto singled to center.",
