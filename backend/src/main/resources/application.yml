@@ -22,7 +22,9 @@ spring:
     password: ${POSTGRES_PASSWORD:pulse}
   jpa:
     hibernate:
-      ddl-auto: update    # 3주 프로젝트 기준. 스키마 확정 후 validate 전환 검토
+      # 기본값은 스키마를 건드리지 않는다. 프로파일 없이 운영 DB에 붙어도 안전하도록 none을 유지하고,
+      # 로컬 개발에서 스키마 자동 반영이 필요하면 local 프로파일을 켠다(application-local.yml).
+      ddl-auto: none
     open-in-view: false
     properties:
       hibernate:

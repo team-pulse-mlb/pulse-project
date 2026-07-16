@@ -1,0 +1,8 @@
+# 로컬 개발 전용 프로파일.
+# 기본 프로파일의 ddl-auto는 안전을 위해 none이므로,
+# 로컬에서 엔티티 변경을 스키마에 자동 반영하려면 이 프로파일을 켠다.
+# 예: SPRING_PROFILES_ACTIVE=local 또는 IntelliJ 실행 설정의 Active profiles에 local 지정.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
