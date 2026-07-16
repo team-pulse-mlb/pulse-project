@@ -120,6 +120,8 @@ pulse:
   bdl:
     base-url: https://api.balldontlie.io
     api-key: ${BDL_API_KEY:}
+    connect-timeout: ${PULSE_BDL_CONNECT_TIMEOUT:2s}
+    read-timeout: ${PULSE_BDL_READ_TIMEOUT:10s}
   ai:
     base-url: ${PULSE_AI_BASE_URL:http://localhost:8000}
     event-copy-retry:

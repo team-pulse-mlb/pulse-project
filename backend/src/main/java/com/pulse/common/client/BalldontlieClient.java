@@ -20,6 +20,7 @@ import java.util.List;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -39,6 +40,7 @@ public class BalldontlieClient implements BaseballDataSource {
         this.restClient = RestClient.builder()
                 .baseUrl(props.baseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.apiKey())
+                .requestFactory(createRequestFactory(props))
                 .requestInterceptor((request, body, execution) -> {
                     String endpoint = request.getURI().getPath();
                     try {
@@ -57,6 +59,13 @@ public class BalldontlieClient implements BaseballDataSource {
                 })
                 .build();
         this.objectMapper = objectMapper;
+    }
+
+    private SimpleClientHttpRequestFactory createRequestFactory(BdlProperties props) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(props.connectTimeout());
+        requestFactory.setReadTimeout(props.readTimeout());
+        return requestFactory;
     }
 
     /** 특정 날짜의 경기 목록 */

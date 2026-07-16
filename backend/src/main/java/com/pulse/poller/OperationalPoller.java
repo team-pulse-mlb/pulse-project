@@ -169,6 +169,9 @@ public class OperationalPoller {
                             scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now, plateAppearances)));
                 }
             } catch (RuntimeException e) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw e;
+                }
                 if (PollerExceptionClassifier.shouldBackoff(e)) {
                     handleFailure("plays", playsBackoff, now, e);
                     return;
