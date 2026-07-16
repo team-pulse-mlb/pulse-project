@@ -2,10 +2,13 @@ package com.pulse.replay.rescore;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pulse.domain.Game;
+import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.Types;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -34,7 +37,9 @@ class RescoreJdbcRepository {
     List<RescorePlayRow> playsForGame(Long gameId) {
         String sql = """
                 SELECT game_id, play_order, type, inning, inning_type, home_score, away_score,
-                       scoring_play, score_value, outs, balls, strikes, observed_at, backfilled, source
+                       scoring_play, score_value, outs, balls, strikes,
+                       runner_on_first, runner_on_second, runner_on_third,
+                       observed_at, backfilled, source
                 FROM plays
                 WHERE game_id = ?
                   AND %s
@@ -53,9 +58,55 @@ class RescoreJdbcRepository {
                 nullableInt(rs, "outs"),
                 nullableInt(rs, "balls"),
                 nullableInt(rs, "strikes"),
+                nullableBoolean(rs, "runner_on_first"),
+                nullableBoolean(rs, "runner_on_second"),
+                nullableBoolean(rs, "runner_on_third"),
                 instant(rs.getObject("observed_at", OffsetDateTime.class)),
                 nullableBoolean(rs, "backfilled"),
                 rs.getString("source")), gameId);
+    }
+
+    Game gameForScoring(Long gameId) {
+        return jdbcTemplate.query("""
+                SELECT game_id, start_time, status, postseason, home_team_id, away_team_id, pregame_score
+                FROM games
+                WHERE game_id = ?
+                """, rs -> {
+            if (!rs.next()) {
+                return null;
+            }
+            Game game = new Game();
+            game.setId(rs.getLong("game_id"));
+            game.setStartTime(instant(rs.getObject("start_time", OffsetDateTime.class)));
+            game.setStatus(rs.getString("status"));
+            game.setPostseason(nullableBoolean(rs, "postseason"));
+            game.setHomeTeamId(rs.getObject("home_team_id", Long.class));
+            game.setAwayTeamId(rs.getObject("away_team_id", Long.class));
+            game.setPregameScore(nullableInt(rs, "pregame_score"));
+            return game;
+        }, gameId);
+    }
+
+    BigDecimal playoffPercentAt(Long teamId, LocalDate gameDate) {
+        if (teamId == null) {
+            return null;
+        }
+        if (gameDate == null) {
+            return jdbcTemplate.query("""
+                    SELECT playoff_percent
+                    FROM standings
+                    WHERE team_id = ?
+                    ORDER BY snapshot_date DESC
+                    LIMIT 1
+                    """, rs -> rs.next() ? rs.getBigDecimal("playoff_percent") : null, teamId);
+        }
+        return jdbcTemplate.query("""
+                SELECT playoff_percent
+                FROM standings
+                WHERE team_id = ? AND snapshot_date <= ?
+                ORDER BY snapshot_date DESC
+                LIMIT 1
+                """, rs -> rs.next() ? rs.getBigDecimal("playoff_percent") : null, teamId, gameDate);
     }
 
     int insertWatchScore(RescoreWatchScoreRow row) {
@@ -65,7 +116,7 @@ class RescoreJdbcRepository {
                     importance_multiplier, pregame_bonus, watch_score, scoring_version, signal_contributions,
                     tags, backfilled, source
                 )
-                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?::jsonb, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)
                 ON CONFLICT (game_id, computed_at) DO NOTHING
                 """;
         return jdbcTemplate.update(connection -> {
@@ -76,12 +127,14 @@ class RescoreJdbcRepository {
             ps.setObject(4, row.inning(), Types.SMALLINT);
             ps.setString(5, row.inningType());
             ps.setObject(6, row.baseScore(), Types.SMALLINT);
-            ps.setObject(7, row.watchScore(), Types.SMALLINT);
-            ps.setInt(8, row.scoringVersion());
-            ps.setString(9, json(row));
-            setTextArray(ps, 10, row.tags());
-            ps.setBoolean(11, row.backfilled());
-            ps.setString(12, row.source());
+            ps.setBigDecimal(7, row.importanceMultiplier());
+            ps.setBigDecimal(8, row.pregameBonus());
+            ps.setObject(9, row.watchScore(), Types.SMALLINT);
+            ps.setInt(10, row.scoringVersion());
+            ps.setString(11, json(row));
+            setTextArray(ps, 12, row.tags());
+            ps.setBoolean(13, row.backfilled());
+            ps.setString(14, row.source());
             return ps;
         });
     }

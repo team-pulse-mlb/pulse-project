@@ -23,7 +23,17 @@ public class ScoreCalculator {
         this.props = props;
     }
 
-    public record Result(Map<String, Double> signals, double baseScore, boolean fullCountIncluded) {
+    public record Result(
+            Map<String, Double> signals,
+            double baseScore,
+            boolean fullCountIncluded,
+            double importanceMultiplier,
+            double pregameBonus,
+            double watchScore
+    ) {
+        public Result(Map<String, Double> signals, double baseScore, boolean fullCountIncluded) {
+            this(signals, baseScore, fullCountIncluded, 1.0, 0, baseScore);
+        }
     }
 
     /**
@@ -48,18 +58,35 @@ public class ScoreCalculator {
             int seedLeader,
             Instant now
     ) {
+        return calculate(new ScoringInput(game, recentPlays, situation, seedLeader, now, 1.0, 0));
+    }
+
+    /** 모든 점수 경로가 사용하는 단일 계산 파이프라인. */
+    public Result calculate(ScoringInput input) {
+        Game game = input.game();
+        List<Play> recentPlays = input.recentPlays();
+        ScoreTask.Situation situation = input.situation();
+        Instant now = input.computedAt();
         Map<String, Double> signals = new LinkedHashMap<>();
         signals.put("late_or_extra", lateOrExtra(game));
         signals.put("score_gap", scoreGap(game));
         signals.put("recent_score", recentScore(recentPlays, now));
-        signals.put("lead_change", leadChange(recentPlays, seedLeader));
+        signals.put("lead_change", leadChange(recentPlays, input.seedLeader()));
         signals.put("big_inning", bigInning(recentPlays));
         signals.put("pressure", pressure(situation));
         signals.put("count_pressure", countPressure(situation));
         signals.put("early_slugfest", earlySlugfest(game));
 
         double baseScore = signals.values().stream().mapToDouble(Double::doubleValue).sum();
-        return new Result(signals, baseScore, isFullCount(situation));
+        double pregameBonus = pregameBonus(input.pregameScore());
+        double watchScore = calculateWatchScore(baseScore, input.importanceMultiplier(), pregameBonus);
+        return new Result(
+                signals,
+                baseScore,
+                isFullCount(situation),
+                input.importanceMultiplier(),
+                pregameBonus,
+                watchScore);
     }
 
     private static ScoreTask.Situation situationFrom(List<Play> recentPlays) {
@@ -92,6 +119,14 @@ public class ScoreCalculator {
 
     public double clampWatchScore(double value) {
         return Math.max(0, Math.min(100, value));
+    }
+
+    public double calculateWatchScore(double baseScore, double importanceMultiplier, double pregameBonus) {
+        return clampWatchScore(baseScore * importanceMultiplier + pregameBonus);
+    }
+
+    private double pregameBonus(double pregameScore) {
+        return Math.min(pregameScore / 10.0, props.pregameCarryoverMax());
     }
 
     private double lateOrExtra(Game game) {
