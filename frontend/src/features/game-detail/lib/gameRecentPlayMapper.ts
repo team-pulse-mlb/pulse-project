@@ -66,13 +66,13 @@ export function toRecentPlayViewModels(
                         play.inningType,
                     );
 
-                const text =
-                    play.text.trim();
+                const hasDisplayableText =
+                    play.text.trim().length > 0;
 
                 if (
                     inningType === null
                     || play.inning <= 0
-                    || text.length === 0
+                    || !hasDisplayableText
                 ) {
                     return null;
                 }
@@ -81,7 +81,7 @@ export function toRecentPlayViewModels(
                     playId: play.playId,
                     inning: play.inning,
                     inningType,
-                    text,
+                    text: play.text,
                     scoreLabel:
                         createScoreLabel(
                             play,

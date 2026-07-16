@@ -315,6 +315,8 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 - 하위호환: scorer는 `situation`과 `plateAppearances` 유무와 무관하게 동작해야 하며, poller·scorer 배포 순서나 브로커에 남은 구버전 task에 안전하다. `plateAppearances` 누락·null은 빈 목록으로 처리한다.
 - `PREGAME` task: poller가 경기 전 입력이 갱신될 때(선발 확정·변경, `odds_snapshots` 기록, `standings` 일 배치 반영, `PREGAME_NEAR` 진입) 발행한다. scorer는 DB의 `lineups`·`odds_snapshots`·`standings`·`player_season_stats`만 읽어 `pregame_score`를 계산하고 `games.pregame_score`·`pregame_inputs`를 덮어쓴다. 최신 입력 기준 재계산이므로 중복·재전달에 멱등이며, `watch_scores`에는 행을 남기지 않는다. 선발 시즌 스탯의 온디맨드 외부 조회는 poller가 task 발행 전에 수행해 `player_season_stats`에 적재한다(외부 API 호출은 poller로 한정).
 
+발행 보장: poller는 `ScoreTask` 원본 payload와 `PENDING` 상태를 `score_task_outbox` 한 행으로 먼저 커밋한다. 커밋 직후 `score.tasks` 발행을 시도하고, 실패하면 지수 백오프로 PENDING 행을 재발행한다. 애플리케이션 재시작 뒤에도 poller 또는 scorer 역할이 미발행 행을 다시 조회한다. 발행 성공 직후 상태 반영 전에 장애가 나면 중복 전달될 수 있다.
+
 재전달 멱등: `watch_scores`의 UNIQUE(`game_id`, `computed_at`) 충돌 시 scorer는 해당 사이클 저장을 건너뛴다(`computed_at` = `observedAt`).
 
 종료 task 멱등: `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 task는 scorer가 종료 정리(`score:rank:live` 제거·`signal:ranking` 발행)를 경기 상태 전이 기준으로 1회만 수행한다. 이미 정리된 경기의 종료 task가 중복·역순·재전달로 도착해도 재실행하지 않는다. 종료 task 유실 대비로 poller는 상시 감시를 통해 상태 전이가 확정될 때까지 종료 task를 재발행할 수 있다.

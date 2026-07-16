@@ -63,6 +63,15 @@ public class LiveScoringService {
             return;
         }
 
+        if (!game.isLive()) {
+            liveSignalPublisher.removeLiveGame(gameId);
+            liveSignalPublisher.evictGameCache(gameId);
+            liveSignalPublisher.publishGameSignal(gameId);
+            liveSignalPublisher.publishRankingSignal();
+            log.debug("지연된 라이브 task의 종료 경기 정리: gameId={} status={}", gameId, game.getStatus());
+            return;
+        }
+
         List<Play> recentPlays = playRepository.findByGameIdOrderByPlayOrderDesc(
                 gameId, PageRequest.of(0, props.leadChange().windowPlays() + 1));
         Collections.reverse(recentPlays);

@@ -3,6 +3,8 @@ package com.pulse.api.user.dto;
 import com.pulse.domain.Team;
 import com.pulse.api.user.domain.UserFavoriteTeam;
 import com.pulse.api.user.domain.UserSetting;
+import com.pulse.api.user.domain.UserFavoritePlayer;
+import com.pulse.domain.Player;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -18,22 +20,59 @@ public class UserPreferenceResponse {
     private List<FavoriteTeamResponse> favoriteTeams;
 
     /*
+     * 로그인한 사용자가 선택한 관심 선수 목록입니다.
+     */
+    private List<FavoritePlayerResponse> favoritePlayers;
+
+    /*
      * 로그인한 사용자의 알림 설정.
      */
     private NotificationSettingsResponse notificationSettings;
 
+    /**
+     * 기존 호출 코드와의 호환성을 유지하기 위한 메서드입니다.
+     *
+     * 아직 관심 선수 조회가 연결되지 않은 호출에서는
+     * favoritePlayers를 빈 목록으로 응답합니다.
+     */
     public static UserPreferenceResponse of(
             UserSetting userSetting,
             List<UserFavoriteTeam> favoriteTeams
     ) {
+        return of(
+                userSetting,
+                favoriteTeams,
+                List.of()
+        );
+    }
+
+    /**
+     * 관심팀, 관심 선수, 알림 설정을 모두 포함한 응답을 생성합니다.
+     */
+    public static UserPreferenceResponse of(
+            UserSetting userSetting,
+            List<UserFavoriteTeam> favoriteTeams,
+            List<UserFavoritePlayer> favoritePlayers
+    ) {
         return UserPreferenceResponse.builder()
                 .favoriteTeams(
-                        favoriteTeams.stream()
+                        favoriteTeams == null
+                                ? List.of()
+                                : favoriteTeams.stream()
                                 .map(FavoriteTeamResponse::from)
                                 .toList()
                 )
+                .favoritePlayers(
+                        favoritePlayers == null
+                                ? List.of()
+                                : favoritePlayers.stream()
+                                .map(FavoritePlayerResponse::from)
+                                .toList()
+                )
                 .notificationSettings(
-                        NotificationSettingsResponse.from(userSetting)
+                        NotificationSettingsResponse.from(
+                                userSetting
+                        )
                 )
                 .build();
     }
@@ -89,6 +128,55 @@ public class UserPreferenceResponse {
             return "https://www.mlbstatic.com/team-logos/"
                     + logoTeamId
                     + ".svg";
+        }
+    }
+
+    /**
+     * 마이페이지에 표시할 관심 선수 응답입니다.
+     */
+    @Getter
+    @Builder
+    public static class FavoritePlayerResponse {
+
+        /*
+         * balldontlie 선수 ID입니다.
+         */
+        private Long playerId;
+
+        /*
+         * 선수 전체 영문 이름입니다.
+         */
+        private String fullName;
+
+        /*
+         * 선수 포지션입니다.
+         *
+         * 예:
+         * DH, P, SS
+         */
+        private String position;
+
+        /*
+         * 선수의 현재 소속팀 ID입니다.
+         *
+         * 팀 정보가 없으면 null일 수 있습니다.
+         */
+        private Long teamId;
+
+        /**
+         * 관심 선수 엔티티에서 프론트 응답을 생성합니다.
+         */
+        public static FavoritePlayerResponse from(
+                UserFavoritePlayer favoritePlayer
+        ) {
+            Player player = favoritePlayer.getPlayer();
+
+            return FavoritePlayerResponse.builder()
+                    .playerId(player.getId())
+                    .fullName(player.getFullName())
+                    .position(player.getPosition())
+                    .teamId(player.getTeamId())
+                    .build();
         }
     }
 

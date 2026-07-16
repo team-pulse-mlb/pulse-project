@@ -145,4 +145,61 @@ public class GlobalExceptionHandler {
     }
 
 
+    /**
+     * 관심 선수 ID가 올바르지 않거나,
+     * players 테이블에 존재하지 않는 선수가 포함된 경우 처리합니다.
+     */
+    @ExceptionHandler(InvalidFavoritePlayerException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidFavoritePlayer(
+            InvalidFavoritePlayerException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "INVALID_FAVORITE_PLAYER",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
+
+
+    /**
+     * 외부 선수 API 장애로 관심 선수 정보를
+     * 일시적으로 확인할 수 없는 경우 처리합니다.
+     *
+     * 사용자가 잘못된 선수 ID를 입력한 상황과 다르므로
+     * 400 Bad Request가 아니라 503 Service Unavailable을 반환합니다.
+     */
+    @ExceptionHandler(PlayerLookupUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handlePlayerLookupUnavailable(
+            PlayerLookupUnavailableException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "PLAYER_LOOKUP_UNAVAILABLE",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(response);
+    }
+
+
+    /**
+     * 관심 선수 선택 개수가 최대 허용 개수인 5명을 초과한 경우 처리합니다.
+     */
+    @ExceptionHandler(FavoritePlayerLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleFavoritePlayerLimitExceeded(
+            FavoritePlayerLimitExceededException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "TOO_MANY_FAVORITE_PLAYERS",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
 }
