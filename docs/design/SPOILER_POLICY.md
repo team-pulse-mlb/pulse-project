@@ -136,7 +136,8 @@
 
 ### 이벤트 AI 문구 생성·저장 규칙
 
-- scorer는 보호 안전 이벤트를 `game_events`에 영속한 직후 `POST /ai/event-copy`를 `mode=PROTECTED`로 비동기 요청한다. 공개 모드 이벤트 문구는 생성하지 않는다.
+- scorer는 이벤트 영속 직후가 아니라 추천 점수 급변 순간의 anchor 보호 이벤트에만 `is_timeline_highlight=true`를 표시하고 `POST /ai/event-copy`를 `mode=PROTECTED`로 비동기 요청한다(상세는 `AI_COPY.md` §2). 공개 모드 이벤트 문구는 생성하지 않는다.
+- 경기 종료 시점에 하이라이트가 0건이면 절대 점수 조건만 완화한 백필로 급변 anchor를 최대 2건 소급 표시한다. 완화 후에도 급변이 없거나 급변 윈도에 보호 이벤트가 없으면 타임라인은 비워 둔다(결과성 사건만으로 급변한 순간은 노출하지 않는다).
 - `spoilerSafe=true`, `fallbackUsed=false`, `contextHash` 일치 응답만 저장한다. 타임아웃, 검수 실패, `contextHash` 불일치 시 저장하지 않는다.
 - 저장 컬럼은 `game_events.copy_protected`, `copy_protected_context_hash`다. 모두 nullable이다. 기존 공개 이벤트 문구 컬럼은 더 이상 생성·조회하지 않는다.
 - 저장 성공 시 scorer는 `game_updated`를 재발행한다. 클라이언트는 기존 재조회 흐름으로 정적 라벨이 AI 문구로 교체되는 경험을 제공한다.
@@ -144,7 +145,7 @@
 
 ### 보호 모드 `경기 흐름` 노출 규칙
 
-- 노출 판정은 서버 DTO 단계에서 `spoiler_level`로 강제한다. 보호 모드는 `PROTECTED_SAFE`만 노출하며, **미분류·알 수 없는 값은 차단한다**(기본 차단).
+- 노출 판정은 서버 DTO 단계에서 `spoiler_level`로 강제한다. 보호 모드는 `PROTECTED_SAFE`이면서 `is_timeline_highlight=true`인 이벤트만 노출하며, **미분류·알 수 없는 값은 차단한다**(기본 차단).
 - 보호 모드 응답: `{ eventId, eventType, inning, label, copy, observedAt }`. `label`은 §8의 보호 표기 문자열이고 `copy`는 AI 문구(nullable)다. 초/말·근거 수치·선수명·결과는 포함하지 않는다.
 - 보호 모드 본문은 `copy`를 우선 표시하고, `copy=null`이면 `label`을 폴백으로 표시한다. `label`은 이 폴백 외의 용도로 쓰지 않는다(펄스 그래프 노드 미사용).
 - 목록은 이닝별로 그룹화해 표시한다. 그룹 헤더에는 이닝 숫자만 표시하고, 이벤트가 없는 이닝의 빈 그룹은 만들지 않는다.

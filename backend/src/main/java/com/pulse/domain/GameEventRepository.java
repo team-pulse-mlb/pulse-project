@@ -17,6 +17,10 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     long countBySpoilerLevel(String spoilerLevel);
 
+    long countBySpoilerLevelAndTimelineHighlightTrue(String spoilerLevel);
+
+    boolean existsByGameIdAndTimelineHighlightTrue(Long gameId);
+
     Optional<GameEvent> findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
             Long gameId, String spoilerLevel);
 
@@ -78,6 +82,7 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
     @Query("""
             SELECT gameEvent FROM GameEvent gameEvent
             WHERE gameEvent.spoilerLevel = 'PROTECTED_SAFE'
+              AND gameEvent.timelineHighlight = true
               AND gameEvent.id > :afterId
               AND gameEvent.id <= :maxId
             ORDER BY gameEvent.id ASC
@@ -89,6 +94,9 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     /** 기간 한정 재처리용: 대상 경기 목록이 작아 커서 배치 없이 한 번에 조회한다. */
     List<GameEvent> findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(
+            String spoilerLevel, List<Long> gameIds);
+
+    List<GameEvent> findBySpoilerLevelAndTimelineHighlightTrueAndGameIdInOrderByGameIdAscObservedAtAsc(
             String spoilerLevel, List<Long> gameIds);
 
 }

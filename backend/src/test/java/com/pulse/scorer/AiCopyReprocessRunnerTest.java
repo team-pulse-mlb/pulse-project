@@ -2,6 +2,9 @@ package com.pulse.scorer;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,6 +18,7 @@ import com.pulse.domain.PlayRepository;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +32,8 @@ class AiCopyReprocessRunnerTest {
     private final AiEventCopyGenerator eventCopyGenerator = mock(AiEventCopyGenerator.class);
     private final AiPlayTranslationGenerator playTranslationGenerator =
             mock(AiPlayTranslationGenerator.class);
+    private final TimelineHighlightBackfill timelineHighlightBackfill =
+            mock(TimelineHighlightBackfill.class);
     private final ConfigurableApplicationContext applicationContext =
             mock(ConfigurableApplicationContext.class);
 
@@ -40,6 +46,7 @@ class AiCopyReprocessRunnerTest {
                 finalHeadlineGenerator,
                 eventCopyGenerator,
                 playTranslationGenerator,
+                timelineHighlightBackfill,
                 applicationContext
         );
     }
@@ -54,7 +61,8 @@ class AiCopyReprocessRunnerTest {
         when(gameRepository.findAllFinalGameIds()).thenReturn(List.of(100L));
         when(finalHeadlineGenerator.regenerateSynchronously(100L))
                 .thenReturn(AiFinalHeadlineGenerator.GenerationStatus.SAVED);
-        when(gameEventRepository.countBySpoilerLevel(GameEvent.SPOILER_PROTECTED_SAFE))
+        when(gameEventRepository.countBySpoilerLevelAndTimelineHighlightTrue(
+                GameEvent.SPOILER_PROTECTED_SAFE))
                 .thenReturn(1L);
         when(gameEventRepository.findMaxProtectedEventId()).thenReturn(20L);
         when(gameEventRepository.findProtectedAiReprocessTargets(
@@ -70,6 +78,10 @@ class AiCopyReprocessRunnerTest {
         runner(new AiCopyReprocessProperties(50, null, null))
                 .run(new DefaultApplicationArguments());
 
+        InOrder processingOrder = inOrder(timelineHighlightBackfill, finalHeadlineGenerator);
+        processingOrder.verify(timelineHighlightBackfill)
+                .backfillIfEmpty(eq(100L), any(Instant.class), eq(false));
+        processingOrder.verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(eventCopyGenerator).regenerateSynchronously(200L, 20L);
         verify(playTranslationGenerator).regenerateSynchronously(100L, 30L);
@@ -89,8 +101,9 @@ class AiCopyReprocessRunnerTest {
                 .thenReturn(List.of(100L));
         when(finalHeadlineGenerator.regenerateSynchronously(100L))
                 .thenReturn(AiFinalHeadlineGenerator.GenerationStatus.SAVED);
-        when(gameEventRepository.findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(
-                GameEvent.SPOILER_PROTECTED_SAFE, List.of(100L)))
+        when(gameEventRepository
+                .findBySpoilerLevelAndTimelineHighlightTrueAndGameIdInOrderByGameIdAscObservedAtAsc(
+                        GameEvent.SPOILER_PROTECTED_SAFE, List.of(100L)))
                 .thenReturn(List.of(event));
         when(eventCopyGenerator.regenerateSynchronously(100L, 20L))
                 .thenReturn(AiEventCopyGenerator.GenerationStatus.SAVED);
@@ -105,6 +118,9 @@ class AiCopyReprocessRunnerTest {
         verify(gameRepository, never()).findAllFinalGameIds();
         verify(gameEventRepository, never())
                 .findProtectedAiReprocessTargets(anyLong(), anyLong(), any());
+        verify(gameEventRepository, never())
+                .findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(anyString(), any());
+        verify(timelineHighlightBackfill).backfillIfEmpty(eq(100L), any(Instant.class), eq(false));
         verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(eventCopyGenerator).regenerateSynchronously(100L, 20L);
         verify(playTranslationGenerator).regenerateSynchronously(100L, 30L);

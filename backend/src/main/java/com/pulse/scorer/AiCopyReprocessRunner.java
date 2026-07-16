@@ -36,6 +36,7 @@ class AiCopyReprocessRunner implements ApplicationRunner {
     private final AiFinalHeadlineGenerator finalHeadlineGenerator;
     private final AiEventCopyGenerator eventCopyGenerator;
     private final AiPlayTranslationGenerator playTranslationGenerator;
+    private final TimelineHighlightBackfill timelineHighlightBackfill;
     private final ConfigurableApplicationContext applicationContext;
 
     @Override
@@ -48,16 +49,35 @@ class AiCopyReprocessRunner implements ApplicationRunner {
             }
             List<Long> targetGameIds =
                     windowedGameIds != null ? windowedGameIds : gameRepository.findAllFinalGameIds();
+            int backfillFailures = backfillTimelineHighlights(targetGameIds);
             int headlineFailures = reprocessHeadlines(targetGameIds);
             int eventFailures = reprocessEventCopies(windowedGameIds);
             int playTranslationFailures = reprocessPlayTranslations(targetGameIds);
-            int failures = headlineFailures + eventFailures + playTranslationFailures;
+            int failures = backfillFailures + headlineFailures + eventFailures + playTranslationFailures;
             if (failures > 0) {
                 throw new IllegalStateException("AI 문구 전체 재처리 실패: " + failures + "건");
             }
         } finally {
             applicationContext.close();
         }
+    }
+
+    private int backfillTimelineHighlights(List<Long> gameIds) {
+        int marked = 0;
+        int exceptions = 0;
+
+        log.info("타임라인 하이라이트 백필 시작: 대상 경기={}건", gameIds.size());
+        for (Long gameId : gameIds) {
+            try {
+                marked += timelineHighlightBackfill.backfillIfEmpty(gameId, Instant.now(), false);
+            } catch (RuntimeException exception) {
+                exceptions++;
+                log.warn("타임라인 하이라이트 백필 예외: gameId={}", gameId, exception);
+            }
+        }
+        log.info("타임라인 하이라이트 백필 완료: 대상 경기={}건 표시={}건 exceptions={}",
+                gameIds.size(), marked, exceptions);
+        return exceptions;
     }
 
     private List<Long> resolveWindowedGameIds() {
@@ -113,7 +133,8 @@ class AiCopyReprocessRunner implements ApplicationRunner {
         if (windowedGameIds != null) {
             List<GameEvent> events = windowedGameIds.isEmpty()
                     ? List.of()
-                    : gameEventRepository.findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(
+                    : gameEventRepository
+                            .findBySpoilerLevelAndTimelineHighlightTrueAndGameIdInOrderByGameIdAscObservedAtAsc(
                             GameEvent.SPOILER_PROTECTED_SAFE, windowedGameIds);
             log.info("AI 보호 이벤트 문구 기간 한정 재처리 시작: 대상={}건", events.size());
             for (GameEvent event : events) {
@@ -129,7 +150,8 @@ class AiCopyReprocessRunner implements ApplicationRunner {
             }
             targets = events.size();
         } else {
-            long totalTargets = gameEventRepository.countBySpoilerLevel(GameEvent.SPOILER_PROTECTED_SAFE);
+            long totalTargets = gameEventRepository.countBySpoilerLevelAndTimelineHighlightTrue(
+                    GameEvent.SPOILER_PROTECTED_SAFE);
             long maxId = gameEventRepository.findMaxProtectedEventId();
             long afterId = 0;
             targets = 0;
