@@ -36,6 +36,10 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     List<GameEvent> findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(Long gameId, String spoilerLevel);
 
+    /** 공개 헤드라인 컨텍스트용 결과 이벤트를 한 번에 조회한다. */
+    List<GameEvent> findByGameIdAndSpoilerLevelAndEventTypeInOrderByInningAscSourceRefAscIdAsc(
+            Long gameId, String spoilerLevel, List<String> eventTypes);
+
     /**
      * 보호 모드 경기 흐름에 노출할 급변 하이라이트만 시간순으로 조회한다.
      *

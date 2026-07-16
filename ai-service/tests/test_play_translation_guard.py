@@ -67,9 +67,11 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
         )
 
     def test_safe_groundout_translation_passes(self):
+        # grounded out to third의 third는 수비 처리 위치이므로
+        # 3루수 정보가 번역문에 보존되어야 합니다.
         self.assert_safe_translation(
             source_text="Trout grounded out to third.",
-            translated_text="Trout, 땅볼 아웃",
+            translated_text="Trout, 3루수 땅볼 아웃",
         )
 
     def test_safe_hit_by_pitch_translation_passes(self):
@@ -83,6 +85,37 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
         self.assert_safe_translation(
             source_text="Soto stole second.",
             translated_text="Soto, 2루 도루",
+        )
+
+    def test_safe_left_center_direction_translation_passes(self):
+        # left-center는 YAML direction_patterns 기준으로 좌중간이어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled to left-center.",
+            translated_text="Soto, 좌중간 안타",
+        )
+
+    def test_rejects_missing_left_center_direction(self):
+        # left-center를 단순 좌익수 방면으로 번역하면 세부 방향 누락입니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to left-center.",
+            translated_text="Soto, 좌익수 방면 안타",
+            expected_violations=[
+                "MISSING_DIRECTION:LEFT_CENTER",
+            ],
+        )
+
+    def test_safe_left_field_line_direction_translation_passes(self):
+        # down the left-field line은 좌익선상으로 보존되어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled down the left-field line.",
+            translated_text="Soto, 좌익선상 안타",
+        )
+
+    def test_safe_up_the_middle_direction_translation_passes(self):
+        # up the middle은 중앙 방향으로 보존되어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled up the middle.",
+            translated_text="Soto, 중앙 안타",
         )
 
     def test_safe_double_allows_semantic_number(self):
@@ -297,6 +330,16 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
             translated_text="Soto, 안타",
             expected_violations=[
                 "MISSING_DIRECTION:RIGHT",
+            ],
+        )
+
+    def test_rejects_missing_fielding_position(self):
+        # grounded out to third의 third는 3루수 수비 위치입니다.
+        self.assert_translation_violations_include(
+            source_text="Trout grounded out to third.",
+            translated_text="Trout, 땅볼 아웃",
+            expected_violations=[
+                "MISSING_POSITION:THIRD_BASEMAN",
             ],
         )
 

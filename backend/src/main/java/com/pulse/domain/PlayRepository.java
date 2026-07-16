@@ -3,13 +3,16 @@ package com.pulse.domain;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PlayRepository extends JpaRepository<Play, Long> {
 
     List<Play> findByGameIdOrderByPlayOrderDesc(Long gameId, Pageable pageable);
+
+    List<Play> findByGameIdAndPlayOrderLessThanEqualOrderByPlayOrderDesc(
+            Long gameId, Long playOrder, Pageable pageable);
 
     /**
      * 특정 타입의 경기 플레이를 최신순으로 개수 제한 없이 조회한다.
@@ -19,6 +22,9 @@ public interface PlayRepository extends JpaRepository<Play, Long> {
             String type);
 
     List<Play> findByGameIdOrderByPlayOrderAsc(Long gameId);
+
+    /** 공개 헤드라인의 선별된 이벤트에 대응하는 play를 일괄 조회한다. */
+    List<Play> findByGameIdAndPlayOrderIn(Long gameId, List<Long> playOrders);
 
     /**
      * scorer가 마지막으로 관측한 play 순서까지의 미번역 타석 결과를 최신순으로 조회한다.

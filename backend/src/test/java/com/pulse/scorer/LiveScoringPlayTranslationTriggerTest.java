@@ -67,8 +67,9 @@ class LiveScoringPlayTranslationTriggerTest {
 
         when(
                 playRepository
-                        .findByGameIdOrderByPlayOrderDesc(
+                        .findByGameIdAndPlayOrderLessThanEqualOrderByPlayOrderDesc(
                                 eq(GAME_ID),
+                                eq(LAST_PLAY_ORDER),
                                 any(Pageable.class)))
                 .thenReturn(List.of());
 
