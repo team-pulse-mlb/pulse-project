@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from app.schemas.ai_schema import (
     AiCopyMode,
@@ -32,6 +33,34 @@ def _resolve_prompt_purpose(request: AiCopyRequest) -> str:
     )
 
 
+def _dump_context_model(value: Any) -> dict | None:
+    """
+    Pydantic 모델을 Spring/프롬프트 계약의 camelCase dict로 변환합니다.
+    """
+
+    if value is None:
+        return None
+
+    return value.model_dump(
+        by_alias=True,
+        exclude_none=True,
+    )
+
+
+def _dump_context_model_list(values: list[Any]) -> list[dict]:
+    """
+    Pydantic 모델 리스트를 camelCase dict 리스트로 변환합니다.
+    """
+
+    return [
+        value.model_dump(
+            by_alias=True,
+            exclude_none=True,
+        )
+        for value in values
+    ]
+
+
 def _build_final_headline_context(
     request: FinalHeadlineRequest,
 ) -> dict:
@@ -39,14 +68,16 @@ def _build_final_headline_context(
     종료 경기 헤드라인 생성에 필요한 필드만 추출합니다.
 
     PROTECTED에서는 점수와 승패를 제외하고,
-    REVEALED에서만 finalScore와 winner를 포함합니다.
+    REVEALED에서만 Spring Boot가 검증해 전달한 결과/이벤트/play 근거를 포함합니다.
     """
 
     safe_context = request.safe_context
 
     prompt_context = {
         "gameStatus": safe_context.game_status,
+        "status": safe_context.status,
         "inningPhase": safe_context.inning_phase,
+        "periodLabel": safe_context.period_label,
         "tensionLevel": safe_context.tension_level,
         "scoreBand": safe_context.score_band,
         "safeTags": safe_context.safe_tags,
@@ -61,17 +92,31 @@ def _build_final_headline_context(
     }
 
     if request.mode == AiCopyMode.REVEALED:
-        # 공개 모드에서도 Spring Boot가 실제로 전달한 결과만 프롬프트에 포함합니다.
-        if safe_context.final_score is not None:
-            prompt_context["finalScore"] = (
-                safe_context.final_score.model_dump(
-                    by_alias=True,
-                    exclude_none=True,
-                )
-            )
-
-        if safe_context.winner is not None:
-            prompt_context["winner"] = safe_context.winner
+        # 공개 모드에서도 Spring Boot가 실제로 전달한 검증 근거만 프롬프트에 포함합니다.
+        prompt_context.update(
+            {
+                "finalScore": _dump_context_model(safe_context.final_score),
+                "winner": safe_context.winner,
+                "teams": _dump_context_model(safe_context.teams),
+                "inningsPlayed": safe_context.innings_played,
+                "extraInnings": safe_context.extra_innings,
+                "postseason": safe_context.postseason,
+                "venue": safe_context.venue,
+                "startTime": safe_context.start_time,
+                "homeInningScores": safe_context.home_inning_scores,
+                "awayInningScores": safe_context.away_inning_scores,
+                "summaryFacts": _dump_context_model(safe_context.summary_facts),
+                "revealedEvents": _dump_context_model_list(
+                    safe_context.revealed_events
+                ),
+                "revealedMoments": _dump_context_model_list(
+                    safe_context.revealed_moments
+                ),
+                "verifiedPlays": _dump_context_model_list(
+                    safe_context.verified_plays
+                ),
+            }
+        )
 
     # 값이 없는 선택 필드는 프롬프트에서 제외해 모델이 null의 의미를 추측하지 않게 합니다.
     return {
@@ -79,7 +124,6 @@ def _build_final_headline_context(
         for key, value in prompt_context.items()
         if value is not None
     }
-
 
 def _build_event_copy_context(
     request: EventCopyRequest,
@@ -154,7 +198,8 @@ def _build_purpose_instruction(purpose: str) -> str:
         "FINAL_HEADLINE": (
             "종료된 경기의 카드와 상세 화면에 표시할 "
             "한 문장의 짧은 헤드라인을 생성하세요. "
-            "safeContext의 경기 흐름과 keyMoments만 사용하세요."
+            "safeContext의 경기 흐름, keyMoments, summaryFacts, "
+            "revealedEvents, revealedMoments, verifiedPlays만 사용하세요."
         ),
         "EVENT_COPY": (
             "경기 이벤트 타임라인에 표시할 "
@@ -216,8 +261,12 @@ EVENT_COPY PROTECTED 예시:
 
     if mode == AiCopyMode.REVEALED:
         return """
-- safeContext에 실제로 포함된 점수, 승패, 선수명, 이벤트 근거만 사용할 수 있습니다.
-- safeContext에 없는 팀명, 선수명, 점수, 경기 결과를 추측하지 마세요.
+- safeContext에 실제로 포함된 점수, 승패, 팀명, 선수명, 이벤트 근거, play 근거만 사용할 수 있습니다.
+- safeContext에 없는 팀명, 선수명, 점수, 경기 결과, 타석 결과를 추측하지 마세요.
+- FINAL_HEADLINE REVEALED에서는 teams, summaryFacts, revealedEvents, revealedMoments, verifiedPlays에 있는 사실을 우선 사용하세요.
+- summaryFacts의 winnerName, loserName, winnerScore, loserScore는 최종 결과 문장의 기준입니다.
+- verifiedPlays의 translatedText가 있으면 sourceText보다 translatedText를 우선 사용하세요.
+- verifiedPlays와 revealedEvents에 없는 홈런, 역전, 끝내기, 득점 결과는 만들어내지 마세요.
 - finalScore나 winner가 없으면 점수 또는 승패를 언급하지 마세요.
 - FINAL_HEADLINE에서 점수를 언급할 때는 반드시 finalScore.home-finalScore.away 형식만 사용하세요.
 - 점수 순서는 승자와 관계없이 항상 홈팀 점수-원정팀 점수 순서입니다.

@@ -68,6 +68,134 @@ class KeyMoment(ApiBaseModel):
     )
 
 
+class Team(ApiBaseModel):
+    """
+    FINAL_HEADLINE v2에서 사용하는 팀 기본 정보입니다.
+    """
+
+    name: str | None = Field(default=None, examples=["Los Angeles Dodgers"])
+    abbr: str | None = Field(default=None, examples=["LAD"])
+
+
+class Teams(ApiBaseModel):
+    """
+    홈팀/원정팀 정보를 담는 FINAL_HEADLINE v2 팀 컨텍스트입니다.
+    """
+
+    home: Team | None = Field(default=None)
+    away: Team | None = Field(default=None)
+
+
+class PlayerInfo(ApiBaseModel):
+    """
+    FINAL_HEADLINE v2에서 플레이/이벤트 근거에 연결된 선수 정보입니다.
+    """
+
+    id: int | None = Field(default=None, examples=[660271])
+    name: str | None = Field(default=None, examples=["Shohei Ohtani"])
+
+
+class ScoreAfter(ApiBaseModel):
+    """
+    특정 공개 순간 이후의 홈/원정 점수입니다.
+    """
+
+    home: int | None = Field(default=None, examples=[5])
+    away: int | None = Field(default=None, examples=[3])
+
+
+class SummaryFacts(ApiBaseModel):
+    """
+    Spring Boot가 계산해서 전달하는 FINAL_HEADLINE v2 경기 요약 사실입니다.
+    """
+
+    winner_side: str | None = Field(default=None, examples=["home"])
+    winner_name: str | None = Field(default=None, examples=["Los Angeles Dodgers"])
+    loser_name: str | None = Field(default=None, examples=["San Francisco Giants"])
+    winner_score: int | None = Field(default=None, examples=[5])
+    loser_score: int | None = Field(default=None, examples=[3])
+
+    first_scoring_side: str | None = Field(default=None, examples=["home"])
+    first_scoring_inning: int | None = Field(default=None, examples=[2])
+
+    tying_inning: int | None = Field(default=None, examples=[7])
+    decisive_inning: int | None = Field(default=None, examples=[8])
+    decisive_runs: int | None = Field(default=None, examples=[2])
+
+    lead_change_count: int | None = Field(default=None, examples=[2])
+    comeback_win: bool | None = Field(default=None, examples=[True])
+    walk_off: bool | None = Field(default=None, examples=[False])
+    shutout: bool | None = Field(default=None, examples=[False])
+    extra_innings: bool | None = Field(default=None, examples=[True])
+    final_inning: int | None = Field(default=None, examples=[10])
+
+    score_gap: int | None = Field(default=None, examples=[2])
+    total_runs: int | None = Field(default=None, examples=[8])
+
+
+class RevealedEvent(ApiBaseModel):
+    """
+    FINAL_HEADLINE v2 공개 모드 헤드라인에 사용할 수 있는 공개 이벤트 근거입니다.
+    """
+
+    event_id: int | None = Field(default=None, examples=[91])
+    event_type: str | None = Field(default=None, examples=["home_run"])
+    inning: int | None = Field(default=None, examples=[8])
+    inning_type: str | None = Field(default=None, examples=["Bottom"])
+    batter: PlayerInfo | None = Field(default=None)
+    pitcher: PlayerInfo | None = Field(default=None)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class RevealedMoment(ApiBaseModel):
+    """
+    기존 backend 공개 순간 요약 구조를 ai-service에서 수신하기 위한 모델입니다.
+    """
+
+    inning: int | None = Field(default=None, examples=[8])
+    inning_half: str | None = Field(default=None, examples=["Bottom"])
+    batting_team: str | None = Field(default=None, examples=["LAD"])
+    event_types: list[str] = Field(default_factory=list)
+    batter: str | None = Field(default=None, examples=["Shohei Ohtani"])
+    runs_scored: int | None = Field(default=None, examples=[2])
+    score_after: ScoreAfter | None = Field(default=None)
+    scoring_plays: int | None = Field(default=None, examples=[1])
+
+
+class VerifiedPlay(ApiBaseModel):
+    """
+    FINAL_HEADLINE v2 공개 모드 헤드라인에 사용할 수 있는 검증된 play 근거입니다.
+    """
+
+    play_id: int | None = Field(default=None, examples=[312])
+    play_order: int | None = Field(default=None, examples=[4250312])
+
+    inning: int | None = Field(default=None, examples=[8])
+    inning_type: str | None = Field(default=None, examples=["bottom"])
+
+    source_text: str | None = Field(default=None, examples=["Ohtani homered to right center."])
+    translated_text: str | None = Field(default=None, examples=["Ohtani, 우중간 홈런"])
+
+    home_score_after: int | None = Field(default=None, examples=[5])
+    away_score_after: int | None = Field(default=None, examples=[3])
+
+    scoring_play: bool | None = Field(default=None, examples=[True])
+    score_value: int | None = Field(default=None, examples=[2])
+
+    outs: int | None = Field(default=None, examples=[1])
+    balls: int | None = Field(default=None, examples=[2])
+    strikes: int | None = Field(default=None, examples=[1])
+
+    batter: PlayerInfo | None = Field(default=None)
+    pitcher: PlayerInfo | None = Field(default=None)
+
+    runner_on_first: bool | None = Field(default=None, examples=[False])
+    runner_on_second: bool | None = Field(default=None, examples=[True])
+    runner_on_third: bool | None = Field(default=None, examples=[False])
+
+    fact_tags: list[str] = Field(default_factory=list)
+
+
 class SafeContext(ApiBaseModel):
     """
     Spring Boot가 ai-service로 넘겨주는 스포일러 안전 context입니다.
@@ -128,6 +256,22 @@ class SafeContext(ApiBaseModel):
         description="공개 모드에서만 사용할 수 있는 승자 정보. 예: home, away, draw",
         examples=["home"],
     )
+
+    # FINAL_HEADLINE v2 mode=REVEALED 전용 필드
+    status: str | None = Field(default=None, examples=["STATUS_FINAL"])
+    period_label: str | None = Field(default=None, examples=["경기 종료"])
+    teams: Teams | None = Field(default=None)
+    innings_played: int | None = Field(default=None, examples=[9])
+    extra_innings: bool | None = Field(default=None, examples=[False])
+    postseason: bool | None = Field(default=None, examples=[False])
+    venue: str | None = Field(default=None, examples=["Dodger Stadium"])
+    start_time: str | None = Field(default=None, examples=["2026-07-03T00:05:00Z"])
+    home_inning_scores: list[int] = Field(default_factory=list)
+    away_inning_scores: list[int] = Field(default_factory=list)
+    summary_facts: SummaryFacts | None = Field(default=None)
+    revealed_events: list[RevealedEvent] = Field(default_factory=list)
+    revealed_moments: list[RevealedMoment] = Field(default_factory=list)
+    verified_plays: list[VerifiedPlay] = Field(default_factory=list)
 
     # EVENT_COPY 공통 필드
     event_type: str | None = Field(
