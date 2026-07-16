@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
     Link,
+    useLocation,
     useParams,
 } from 'react-router';
 
@@ -32,6 +33,9 @@ function GameDetailPage() {
     const { gameId } =
         useParams<{ gameId: string }>();
 
+    const location =
+        useLocation();
+
     const parsedGameId =
         Number(gameId);
 
@@ -43,8 +47,23 @@ function GameDetailPage() {
             : null;
 
     /**
-     * 같은 GameDetailPage 안에서 URL의 gameId가 바뀌어도
-     * 경기별 선택 모드를 독립적으로 유지한다.
+     * React Router의 location.key는 같은 URL이라도 새 Link/navigate 진입마다 바뀌고,
+     * 새로고침 때는 같은 history entry의 key가 유지된다.
+     *
+     * 명세는 "새로고침은 현재 모드 유지, 카드 재진입은 보호 모드"를 요구하므로
+     * 경기 ID만으로 공개 상태를 복원하지 않고 현재 상세 진입 key까지 함께 사용한다.
+     */
+    const detailEntryKey =
+        location.key;
+
+    const selectedModeKey =
+        gameId
+            ? `${gameId}:${detailEntryKey}`
+            : null;
+
+    /**
+     * 같은 GameDetailPage 안에서 URL의 gameId나 진입 key가 바뀌어도
+     * 상세 진입별 선택 모드를 독립적으로 유지한다.
      *
      * useEffect 안에서 setState를 호출하지 않아
      * 불필요한 연쇄 렌더링을 방지한다.
@@ -53,9 +72,12 @@ function GameDetailPage() {
         useState<Record<string, DisplayMode>>({});
 
     const mode =
-        gameId
-            ? selectedModes[gameId]
-            ?? getStoredMode(gameId)
+        gameId && selectedModeKey
+            ? selectedModes[selectedModeKey]
+            ?? getStoredMode(
+                gameId,
+                detailEntryKey,
+            )
             : 'PROTECTED';
 
     /**
@@ -114,19 +136,23 @@ function GameDetailPage() {
     const handleModeChange = (
         nextMode: DisplayMode,
     ) => {
-        if (!gameId) {
+        if (
+            !gameId
+            || !selectedModeKey
+        ) {
             return;
         }
 
         setSelectedModes(
             (previousModes) => ({
                 ...previousModes,
-                [gameId]: nextMode,
+                [selectedModeKey]: nextMode,
             }),
         );
 
         storeMode(
             gameId,
+            detailEntryKey,
             nextMode,
         );
     };
