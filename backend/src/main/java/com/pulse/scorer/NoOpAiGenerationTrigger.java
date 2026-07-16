@@ -21,8 +21,12 @@ class NoOpAiGenerationTriggerConfiguration {
     @ConditionalOnMissingBean(AiGenerationTrigger.class)
     AiGenerationTrigger noOpAiGenerationTrigger(
             AiEventCopyGenerator eventCopyGenerator,
-            AiFinalHeadlineGenerator finalHeadlineGenerator) {
-        return new NoOp(eventCopyGenerator, finalHeadlineGenerator);
+            AiFinalHeadlineGenerator finalHeadlineGenerator,
+            AiPlayTranslationGenerator playTranslationGenerator) {
+        return new NoOp(
+                eventCopyGenerator,
+                finalHeadlineGenerator,
+                playTranslationGenerator);
     }
 
     @Slf4j
@@ -30,10 +34,16 @@ class NoOpAiGenerationTriggerConfiguration {
 
         private final AiEventCopyGenerator eventCopyGenerator;
         private final AiFinalHeadlineGenerator finalHeadlineGenerator;
+        private final AiPlayTranslationGenerator playTranslationGenerator;
 
-        NoOp(AiEventCopyGenerator eventCopyGenerator, AiFinalHeadlineGenerator finalHeadlineGenerator) {
+        NoOp(
+                AiEventCopyGenerator eventCopyGenerator,
+                AiFinalHeadlineGenerator finalHeadlineGenerator,
+                AiPlayTranslationGenerator playTranslationGenerator
+        ) {
             this.eventCopyGenerator = eventCopyGenerator;
             this.finalHeadlineGenerator = finalHeadlineGenerator;
+            this.playTranslationGenerator = playTranslationGenerator;
         }
 
         @Override
@@ -44,6 +54,21 @@ class NoOpAiGenerationTriggerConfiguration {
         @Override
         public void onGameEventPersisted(long gameId, long eventId, String mode, Instant occurredAt) {
             eventCopyGenerator.generate(gameId, eventId, mode);
+        }
+
+        @Override
+        public void onPlayTranslationsPending(
+                long gameId,
+                Long lastPlayOrder,
+                Instant occurredAt
+        ) {
+            /*
+             * 번역 HTTP 호출은 전용 @Async 실행기에서 처리되므로
+             * scorer 메시지 소비 스레드를 차단하지 않는다.
+             */
+            playTranslationGenerator.generatePending(
+                    gameId,
+                    lastPlayOrder);
         }
     }
 }

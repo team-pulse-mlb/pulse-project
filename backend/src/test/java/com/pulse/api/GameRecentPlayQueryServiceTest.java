@@ -183,7 +183,7 @@ class GameRecentPlayQueryServiceTest {
     }
 
     @Test
-    void revealedMode_shouldPreferStoredTranslationWhenTextKoBecomesAvailable() {
+    void revealedMode_shouldPreferStoredTranslation() {
         // given
         long gameId = 400L;
 
@@ -217,7 +217,7 @@ class GameRecentPlayQueryServiceTest {
                 .satisfies(
                         play -> {
                             /*
-                             * 데이터 파이프라인에서 getTextKo가 제공되면
+                             * Play에 한국어 번역문이 저장되어 있으면
                              * 원문 대신 저장된 번역문을 그대로 반환한다.
                              */
                             assertThat(play.text())
@@ -255,8 +255,8 @@ class GameRecentPlayQueryServiceTest {
             long gameId,
             long playOrder) {
 
-        TranslatedPlay play =
-                new TranslatedPlay();
+        Play play =
+                new Play();
 
         play.setId(id);
         play.setGameId(gameId);
@@ -381,24 +381,4 @@ class GameRecentPlayQueryServiceTest {
 
         return play;
     }
-
-    /**
-     * 데이터 파이프라인의 Play.getTextKo()가 병합된 이후 상태를
-     * 현재 브랜치에서 미리 검증하기 위한 테스트 전용 타입이다.
-     */
-    static final class TranslatedPlay extends Play {
-
-        private String textKo;
-
-        public String getTextKo() {
-            return textKo;
-        }
-
-        void setTextKo(
-                String textKo) {
-
-            this.textKo = textKo;
-        }
-    }
-
 }

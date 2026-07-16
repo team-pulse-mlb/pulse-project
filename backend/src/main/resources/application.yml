@@ -127,6 +127,9 @@ pulse:
       window: ${PULSE_AI_EVENT_COPY_RETRY_WINDOW:6h}
       max-attempts: ${PULSE_AI_EVENT_COPY_RETRY_MAX_ATTEMPTS:3}
       batch-size: ${PULSE_AI_EVENT_COPY_RETRY_BATCH_SIZE:50}
+    play-translation:
+      max-attempts: ${PULSE_AI_PLAY_TRANSLATION_MAX_ATTEMPTS:3}
+      batch-size: ${PULSE_AI_PLAY_TRANSLATION_BATCH_SIZE:10}
   replay:
     s3:
       bucket: ${PULSE_REPLAY_S3_BUCKET:}

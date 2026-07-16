@@ -47,6 +47,27 @@ public class Play {
     @Column(columnDefinition = "text")
     private String text;
 
+    /**
+     * 공개 모드 최근 플레이에 그대로 표시할 한국어 번역문이다.
+     * 번역이 생성되지 않았거나 검수에 실패하면 null로 유지한다.
+     */
+    @Column(name = "text_ko", columnDefinition = "text")
+    private String textKo;
+
+    /**
+     * 번역 요청에 사용한 원문과 목적의 context hash다.
+     * AI 응답 저장 직전에 최신 원문과 일치하는지 검증한다.
+     */
+    @Column(name = "text_ko_context_hash", columnDefinition = "text")
+    private String textKoContextHash;
+
+    /**
+     * 현재 play 원문에 대해 PLAY_TRANSLATION을 호출한 횟수다.
+     * 성공·호출 실패·검수 반려 모두 실제 호출했다면 1회로 계산한다.
+     */
+    @Column(name = "text_ko_attempts", nullable = false)
+    private Integer textKoAttempts = 0;
+
     private Integer homeScore;
     private Integer awayScore;
 

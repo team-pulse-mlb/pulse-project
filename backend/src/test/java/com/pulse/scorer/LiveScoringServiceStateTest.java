@@ -43,6 +43,7 @@ class LiveScoringServiceStateTest {
                 liveSignalPublisher,
                 mock(SurgeDetector.class),
                 mock(TimelineHighlightTrigger.class),
+                mock(AiGenerationTrigger.class),
                 mock(NotificationEventPublisher.class),
                 mock(ScoringProperties.class));
 
