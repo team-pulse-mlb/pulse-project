@@ -15,6 +15,26 @@ on:
         description: "기간 한정 재처리 종료일(KST, yyyy-MM-dd, 포함). 비우면 전체 종료 경기 대상"
         required: false
         type: string
+      run_backfill:
+        description: "타임라인 하이라이트 삭제 후 재생성 실행"
+        default: true
+        required: false
+        type: boolean
+      run_headline:
+        description: "AI 종료 헤드라인 재처리 실행"
+        default: true
+        required: false
+        type: boolean
+      run_event_copy:
+        description: "AI 보호 이벤트 문구 재처리 실행"
+        default: true
+        required: false
+        type: boolean
+      run_play_translation:
+        description: "AI 플레이 번역 재처리 실행"
+        default: true
+        required: false
+        type: boolean
 
 permissions:
   contents: read
@@ -67,11 +87,19 @@ jobs:
         env:
           FROM_DATE: ${{ inputs.from_date }}
           TO_DATE: ${{ inputs.to_date }}
+          RUN_BACKFILL: ${{ inputs.run_backfill }}
+          RUN_HEADLINE: ${{ inputs.run_headline }}
+          RUN_EVENT_COPY: ${{ inputs.run_event_copy }}
+          RUN_PLAY_TRANSLATION: ${{ inputs.run_play_translation }}
         run: |
           jq -n \
             --arg instance "$INSTANCE_ID" \
             --arg fromDate "$FROM_DATE" \
             --arg toDate "$TO_DATE" \
+            --arg runBackfill "$RUN_BACKFILL" \
+            --arg runHeadline "$RUN_HEADLINE" \
+            --arg runEventCopy "$RUN_EVENT_COPY" \
+            --arg runPlayTranslation "$RUN_PLAY_TRANSLATION" \
             '{
               DocumentName: "AWS-RunShellScript",
               InstanceIds: [$instance],
@@ -86,6 +114,10 @@ jobs:
                 ("docker compose -f docker-compose.prod.yml run --rm"
                   + " -e PULSE_AI_COPY_REPROCESS_WINDOW_START_DATE=" + ($fromDate | @sh)
                   + " -e PULSE_AI_COPY_REPROCESS_WINDOW_END_DATE=" + ($toDate | @sh)
+                  + " -e PULSE_AI_COPY_REPROCESS_RUN_BACKFILL=" + ($runBackfill | @sh)
+                  + " -e PULSE_AI_COPY_REPROCESS_RUN_HEADLINE=" + ($runHeadline | @sh)
+                  + " -e PULSE_AI_COPY_REPROCESS_RUN_EVENT_COPY=" + ($runEventCopy | @sh)
+                  + " -e PULSE_AI_COPY_REPROCESS_RUN_PLAY_TRANSLATION=" + ($runPlayTranslation | @sh)
                   + " pulse-ai-copy-reprocess >\"$log\" 2>&1 || status=$?"),
                 "echo AI_COPY_REPROCESS_LOG=$log",
                 "tail -n 200 \"$log\"",
