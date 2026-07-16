@@ -132,15 +132,65 @@ public class GameRecentPlayQueryService {
     private static RecentPlayResponse toResponse(
             Play play) {
 
+        /*
+         * textKo는 데이터 파이프라인 담당 영역에서 추가될 필드다.
+         * 현재 엔티티에 필드가 없어도 원문으로 동작하고,
+         * 필드가 추가되면 저장된 번역문을 자동으로 우선 사용한다.
+         */
+        String translatedText =
+                readOptionalTextKo(
+                        play);
+
+        boolean translated =
+                hasText(
+                        translatedText);
+
+        String displayText =
+                translated
+                        ? translatedText.trim()
+                        : play.getText().trim();
+
         return new RecentPlayResponse(
                 play.getId(),
                 play.getInning(),
                 play.getInningType(),
-                play.getText().trim(),
+                displayText,
+                translated,
                 new RecentPlayScoreResponse(
                         play.getHomeScore(),
                         play.getAwayScore()),
                 play.getFetchedAt());
+    }
+
+    /**
+     * textKo 필드가 아직 병합되지 않은 상태에서도
+     * 최근 플레이 API를 독립적으로 빌드할 수 있도록 선택적으로 읽는다.
+     */
+    private static String readOptionalTextKo(
+            Play play) {
+
+        try {
+            Object value =
+                    play.getClass()
+                            .getMethod(
+                                    "getTextKo")
+                            .invoke(
+                                    play);
+
+            return value instanceof String text
+                    ? text
+                    : null;
+        } catch (NoSuchMethodException exception) {
+            /*
+             * textKo 저장 구현이 아직 병합되지 않았으면
+             * 기존 원문 폴백 계약을 유지한다.
+             */
+            return null;
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException(
+                    "최근 플레이 번역문을 읽을 수 없습니다.",
+                    exception);
+        }
     }
 
     /**
@@ -194,6 +244,7 @@ public class GameRecentPlayQueryService {
             Integer inning,
             String inningType,
             String text,
+            boolean translated,
             RecentPlayScoreResponse score,
             Instant observedAt) {
     }

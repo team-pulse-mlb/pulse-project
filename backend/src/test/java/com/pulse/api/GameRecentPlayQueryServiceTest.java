@@ -158,6 +158,12 @@ class GameRecentPlayQueryServiceTest {
                                             "Bottom");
                             assertThat(play.score())
                                     .isNotNull();
+                            /*
+                             * 번역이 저장되지 않은 기존 play는
+                             * 원문과 translated=false를 반환한다.
+                             */
+                            assertThat(play.translated())
+                                    .isFalse();
                         });
 
         ArgumentCaptor<Pageable> pageableCaptor =
@@ -174,6 +180,51 @@ class GameRecentPlayQueryServiceTest {
          */
         assertThat(pageableCaptor.getValue().getPageSize())
                 .isEqualTo(200);
+    }
+
+    @Test
+    void revealedMode_shouldPreferStoredTranslationWhenTextKoBecomesAvailable() {
+        // given
+        long gameId = 400L;
+
+        Play translatedPlay =
+                translatedResult(
+                        2000L,
+                        gameId,
+                        3000L);
+
+        when(gameRepository.existsById(gameId))
+                .thenReturn(true);
+
+        when(
+                playRepository
+                        .findByGameIdOrderByPlayOrderDesc(
+                                eq(gameId),
+                                any(Pageable.class)))
+                .thenReturn(
+                        List.of(
+                                translatedPlay));
+
+        // when
+        RecentPlaysResponse response =
+                service.getRecentPlays(
+                        gameId,
+                        "REVEALED");
+
+        // then
+        assertThat(response.plays())
+                .singleElement()
+                .satisfies(
+                        play -> {
+                            /*
+                             * 데이터 파이프라인에서 getTextKo가 제공되면
+                             * 원문 대신 저장된 번역문을 그대로 반환한다.
+                             */
+                            assertThat(play.text())
+                                    .isEqualTo("타자가 안타를 기록했습니다.");
+                            assertThat(play.translated())
+                                    .isTrue();
+                        });
     }
 
     @Test
@@ -197,6 +248,32 @@ class GameRecentPlayQueryServiceTest {
                                         .isEqualTo(HttpStatus.NOT_FOUND));
 
         verifyNoInteractions(playRepository);
+    }
+
+    private static Play translatedResult(
+            Long id,
+            long gameId,
+            long playOrder) {
+
+        TranslatedPlay play =
+                new TranslatedPlay();
+
+        play.setId(id);
+        play.setGameId(gameId);
+        play.setPlayOrder(playOrder);
+        play.setType("Play Result");
+        play.setInning(7);
+        play.setInningType("Bottom");
+        play.setText(" Batter singles to center field. ");
+        play.setTextKo(" 타자가 안타를 기록했습니다. ");
+        play.setBatterId(100L);
+        play.setPitcherId(200L);
+        play.setHomeScore(2);
+        play.setAwayScore(1);
+        play.setFetchedAt(
+                Instant.parse("2026-07-16T09:00:00Z"));
+
+        return play;
     }
 
     private static Play pitchLog(
@@ -304,4 +381,24 @@ class GameRecentPlayQueryServiceTest {
 
         return play;
     }
+
+    /**
+     * 데이터 파이프라인의 Play.getTextKo()가 병합된 이후 상태를
+     * 현재 브랜치에서 미리 검증하기 위한 테스트 전용 타입이다.
+     */
+    static final class TranslatedPlay extends Play {
+
+        private String textKo;
+
+        public String getTextKo() {
+            return textKo;
+        }
+
+        void setTextKo(
+                String textKo) {
+
+            this.textKo = textKo;
+        }
+    }
+
 }
