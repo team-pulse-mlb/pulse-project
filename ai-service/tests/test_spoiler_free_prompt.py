@@ -250,6 +250,22 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
         self.assertIn("summaryFacts", prompt)
         self.assertIn("verifiedPlays", prompt)
         self.assertIn("translatedText가 있으면 sourceText보다 translatedText를 우선", prompt)
+        self.assertIn(
+            '승자 주어는 반드시 "홈팀", "원정팀", teams.home.name',
+            prompt,
+        )
+        self.assertIn(
+            "영문 팀명을 한국어로 번역·음역·축약하거나 별칭으로 바꾸지 마세요",
+            prompt,
+        )
+        self.assertIn(
+            'teams.home.name이 "Los Angeles Dodgers"여도 "다저스"를 새로 만들어 사용하지 마세요',
+            prompt,
+        )
+        self.assertIn(
+            '팀 주어 없이 "5-3 승리", "홈런으로 승리"처럼 작성하지 마세요',
+            prompt,
+        )
 
 
     def test_final_headline_revealed_prompt_contains_score_format_rules(self):
