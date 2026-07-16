@@ -1,11 +1,5 @@
 package com.pulse.scorer;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import com.pulse.ai.AiCopyResponse;
 import com.pulse.ai.AiEventCopyContextMapper;
 import com.pulse.ai.AiEventCopyRequest;
@@ -15,9 +9,13 @@ import com.pulse.common.ai.AiCopyMode;
 import com.pulse.common.ai.ProtectedEventCopyContext;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Optional;
-import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
 
 class AiEventCopyGeneratorTest {
 
@@ -267,7 +265,7 @@ class AiEventCopyGeneratorTest {
                 20L,
                 "PROTECTED",
                 hash,
-                new AiEventCopyRequest.SafeContext("long_at_bat", "긴 승부", 7, null, null, null, null)
+                new AiEventCopyRequest.SafeContext("long_at_bat", "긴 승부", 7, null, null, null, null, null, null)
         );
     }
 
