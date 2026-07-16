@@ -1,0 +1,68 @@
+{
+  "gameId": 5059082,
+  "mode": "REVEALED",
+  "contextHash": "game-5059082-final-revealed-v2-smoke",
+  "safeContext": {
+    "status": "STATUS_FINAL",
+    "periodLabel": "경기 종료",
+    "teams": {
+      "home": {
+        "name": "Los Angeles Dodgers",
+        "abbr": "LAD"
+      },
+      "away": {
+        "name": "San Francisco Giants",
+        "abbr": "SF"
+      }
+    },
+    "finalScore": {
+      "home": 5,
+      "away": 3
+    },
+    "winner": "home",
+    "inningsPlayed": 10,
+    "extraInnings": true,
+    "postseason": false,
+    "summaryFacts": {
+      "winnerSide": "home",
+      "winnerName": "Los Angeles Dodgers",
+      "loserName": "San Francisco Giants",
+      "winnerScore": 5,
+      "loserScore": 3,
+      "extraInnings": true,
+      "finalInning": 10,
+      "scoreGap": 2,
+      "totalRuns": 8
+    },
+    "revealedEvents": [
+      {
+        "eventId": 91,
+        "eventType": "home_run",
+        "inning": 8,
+        "inningType": "Bottom",
+        "batter": {
+          "id": 660271,
+          "name": "Shohei Ohtani"
+        },
+        "evidence": {
+          "scoreValue": 2
+        }
+      }
+    ],
+    "verifiedPlays": [
+      {
+        "playId": 312,
+        "playOrder": 4250312,
+        "inning": 8,
+        "inningType": "bottom",
+        "sourceText": "Ohtani homered to right center.",
+        "translatedText": "Ohtani, 우중간 홈런",
+        "homeScoreAfter": 5,
+        "awayScoreAfter": 3,
+        "scoringPlay": true,
+        "scoreValue": 2,
+        "factTags": ["SCORING_PLAY", "TRANSLATED"]
+      }
+    ]
+  }
+}
