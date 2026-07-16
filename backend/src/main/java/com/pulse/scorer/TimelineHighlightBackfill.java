@@ -37,8 +37,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 class TimelineHighlightBackfill {
 
-    private static final int MAX_HIGHLIGHTS_PER_GAME = 2;
-
     private final GameEventRepository gameEventRepository;
     private final WatchScoreRepository watchScoreRepository;
     private final AiGenerationTrigger aiGenerationTrigger;
@@ -87,7 +85,7 @@ class TimelineHighlightBackfill {
         Duration cooldown = Duration.ofMinutes(config.cooldownMinutes());
 
         for (RiseCandidate riseCandidate : riseCandidates) {
-            if (selectedAnchors.size() >= MAX_HIGHLIGHTS_PER_GAME) {
+            if (selectedAnchors.size() >= config.backfillMaxPerGame()) {
                 break;
             }
             boolean inCooldown = selectedTimes.stream()

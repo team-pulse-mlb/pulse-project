@@ -101,13 +101,15 @@ public record ScoringProperties(
      * 알림용 Thresholds와 분리해, 타임라인은 더 촘촘히 하이라이트를 남길 수 있게 한다.
      *
      * enabled=false면 기존 이벤트별 문구 생성 트리거를 그대로 사용한다(안전한 롤아웃 스위치).
+     * backfillMaxPerGame은 종료 백필에서 경기당 생성할 하이라이트의 상한이다.
      */
     public record Highlight(
             boolean enabled,
             int minScore,
             int riseScore,
             int riseWindowMinutes,
-            int cooldownMinutes
+            int cooldownMinutes,
+            int backfillMaxPerGame
     ) {}
 
     public record Thresholds(
