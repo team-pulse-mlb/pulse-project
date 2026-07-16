@@ -9,7 +9,7 @@
 | `GET /api/games/{id}?mode=PROTECTED\|REVEALED` | 경기 상세. `mode` 기본값 `PROTECTED`. 진행 중이면 `switchSuggestion` 포함 | 선택 |
 | `GET /api/games/{id}/events?mode=` | 보호 모드 `경기 흐름`용 흥미 순간 이벤트. 공개 모드는 빈 목록 | 선택 |
 | `GET /api/games/{id}/recent-plays?mode=` | 공개 모드 `경기 흐름`용 최근 타석 결과 10건. 보호 모드는 빈 목록 | 선택 |
-| `GET /api/teams` | 온보딩 관심 팀 선택용 팀 목록 | 선택 |
+| `GET /api/teams` | 회원가입 Step 2 관심 팀 선택용 팀 목록 | 선택 |
 | `GET /api/sse` | SSE 구독(이벤트 3종) | 선택 |
 | `POST /api/sse/token` | SSE 연결용 1회용 단기 토큰 발급(§2.1) | 필요 |
 | `POST /api/members/signup` · `/login` · `/refresh` · `/logout` | 이메일+비밀번호 인증, JWT 발급·재발급·로그아웃 | — |
@@ -17,7 +17,7 @@
 | `POST /api/members/email/**` | 이메일 인증 요청·확인 | — |
 | `GET·PUT /api/me/preferences` | 관심 팀/선수, 알림 설정 | 필요 |
 | `GET /api/me/notifications` · `POST /api/me/notifications/read` | 알림 센터 목록·읽음 처리 | 필요 |
-| `GET /api/players?search=` | 관심 선수 등록용 이름 검색(§1.3). 외부 우선 read-only, DB 쓰기 없음 | 필요 |
+| `GET /api/players?search=` | 최초 로그인 온보딩과 설정의 관심 선수 등록용 이름 검색(§1.3). 외부 우선 read-only, DB 쓰기 없음 | 필요 |
 
 공통 에러 응답: `{ "code": "GAME_NOT_FOUND", "message": "..." }` 형식, HTTP 상태 코드와 함께.
 
