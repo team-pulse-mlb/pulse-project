@@ -11,6 +11,13 @@ public interface PlayRepository extends JpaRepository<Play, Long> {
 
     List<Play> findByGameIdOrderByPlayOrderDesc(Long gameId, Pageable pageable);
 
+    /**
+     * 특정 타입의 경기 플레이를 최신순으로 개수 제한 없이 조회한다.
+     */
+    List<Play> findByGameIdAndTypeIgnoreCaseOrderByPlayOrderDesc(
+            Long gameId,
+            String type);
+
     List<Play> findByGameIdOrderByPlayOrderAsc(Long gameId);
 
     /**
