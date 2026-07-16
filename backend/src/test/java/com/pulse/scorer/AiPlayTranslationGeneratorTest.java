@@ -345,6 +345,107 @@ class AiPlayTranslationGeneratorTest {
                 .save(any(Play.class));
     }
 
+    @Test
+    void regenerateSynchronously_shouldOverwriteExistingTranslation() {
+        Play play =
+                play(
+                        "Soto singled to center.");
+
+        play.setTextKo("기존 번역");
+        play.setTextKoAttempts(3);
+
+        String contextHash =
+                AiContextHashCalculator
+                        .calculatePlayTranslation(
+                                GAME_ID,
+                                PLAY_ID,
+                                play.getText());
+
+        AiPlayTranslationResponse response =
+                new AiPlayTranslationResponse(
+                        "Soto, 중견수 방면 안타",
+                        List.of(),
+                        false,
+                        contextHash);
+
+        when(playRepository.findById(PLAY_ID))
+                .thenReturn(
+                        Optional.of(play),
+                        Optional.of(play));
+
+        when(aiServiceClient.generatePlayTranslation(any()))
+                .thenReturn(
+                        Optional.of(response));
+
+        AiPlayTranslationGenerator.GenerationStatus status =
+                generator.regenerateSynchronously(
+                        GAME_ID,
+                        PLAY_ID);
+
+        assertThat(status)
+                .isEqualTo(
+                        AiPlayTranslationGenerator
+                                .GenerationStatus
+                                .SAVED);
+
+        assertThat(play.getTextKo())
+                .isEqualTo(
+                        "Soto, 중견수 방면 안타");
+
+        verify(liveSignalPublisher)
+                .publishGameSignal(GAME_ID);
+    }
+
+    @Test
+    void regenerateSynchronously_shouldPreserveExistingTranslationWhenRejected() {
+        Play play =
+                play(
+                        "Soto singled to center.");
+
+        play.setTextKo("기존 번역");
+
+        String contextHash =
+                AiContextHashCalculator
+                        .calculatePlayTranslation(
+                                GAME_ID,
+                                PLAY_ID,
+                                play.getText());
+
+        AiPlayTranslationResponse response =
+                new AiPlayTranslationResponse(
+                        null,
+                        List.of(
+                                "PLAYER_NAME_MISSING"),
+                        false,
+                        contextHash);
+
+        when(playRepository.findById(PLAY_ID))
+                .thenReturn(
+                        Optional.of(play));
+
+        when(aiServiceClient.generatePlayTranslation(any()))
+                .thenReturn(
+                        Optional.of(response));
+
+        AiPlayTranslationGenerator.GenerationStatus status =
+                generator.regenerateSynchronously(
+                        GAME_ID,
+                        PLAY_ID);
+
+        assertThat(status)
+                .isEqualTo(
+                        AiPlayTranslationGenerator
+                                .GenerationStatus
+                                .REVIEW_REJECTED);
+
+        assertThat(play.getTextKo())
+                .isEqualTo(
+                        "기존 번역");
+
+        verify(liveSignalPublisher, never())
+                .publishGameSignal(GAME_ID);
+    }
+
     private static Play play(
             String sourceText) {
 

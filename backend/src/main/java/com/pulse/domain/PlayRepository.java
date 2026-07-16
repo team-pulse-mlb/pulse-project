@@ -41,6 +41,24 @@ public interface PlayRepository extends JpaRepository<Play, Long> {
             @Param("maxAttempts") int maxAttempts,
             Pageable pageable);
 
+    /**
+     * 전체 재처리용: 번역·시도 횟수 유무와 관계없이 번역 표시 가능한 타석 결과를 모두 조회한다.
+     */
+    @Query("""
+            select play
+            from Play play
+            where play.gameId = :gameId
+              and lower(trim(play.type)) = 'play result'
+              and play.text is not null
+              and trim(play.text) <> ''
+              and play.batterId is not null
+              and play.inning is not null
+              and play.inning > 0
+              and lower(trim(play.inningType)) in ('top', 'bottom')
+            order by play.playOrder asc
+            """)
+    List<Play> findPlayTranslationReprocessTargets(@Param("gameId") Long gameId);
+
     Optional<Play> findFirstByGameIdAndInningAndInningTypeAndScoringPlayTrueOrderByPlayOrderAsc(
             Long gameId, Integer inning, String inningType);
 

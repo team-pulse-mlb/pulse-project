@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
+import com.pulse.domain.Play;
+import com.pulse.domain.PlayRepository;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -21,24 +23,34 @@ class AiCopyReprocessRunnerTest {
 
     private final GameRepository gameRepository = mock(GameRepository.class);
     private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
+    private final PlayRepository playRepository = mock(PlayRepository.class);
     private final AiFinalHeadlineGenerator finalHeadlineGenerator = mock(AiFinalHeadlineGenerator.class);
     private final AiEventCopyGenerator eventCopyGenerator = mock(AiEventCopyGenerator.class);
+    private final AiPlayTranslationGenerator playTranslationGenerator =
+            mock(AiPlayTranslationGenerator.class);
     private final ConfigurableApplicationContext applicationContext =
             mock(ConfigurableApplicationContext.class);
 
-    @Test
-    void 전체_종료_헤드라인과_보호_이벤트_문구를_강제_재생성한다() throws Exception {
-        AiCopyReprocessRunner runner = new AiCopyReprocessRunner(
-                new AiCopyReprocessProperties(50, null, null),
+    private AiCopyReprocessRunner runner(AiCopyReprocessProperties properties) {
+        return new AiCopyReprocessRunner(
+                properties,
                 gameRepository,
                 gameEventRepository,
+                playRepository,
                 finalHeadlineGenerator,
                 eventCopyGenerator,
+                playTranslationGenerator,
                 applicationContext
         );
+    }
+
+    @Test
+    void 전체_종료_헤드라인과_보호_이벤트_문구와_플레이_번역을_강제_재생성한다() throws Exception {
         GameEvent event = new GameEvent();
         event.setId(20L);
         event.setGameId(200L);
+        Play play = new Play();
+        play.setId(30L);
         when(gameRepository.findAllFinalGameIds()).thenReturn(List.of(100L));
         when(finalHeadlineGenerator.regenerateSynchronously(100L))
                 .thenReturn(AiFinalHeadlineGenerator.GenerationStatus.SAVED);
@@ -50,27 +62,27 @@ class AiCopyReprocessRunnerTest {
                 .thenReturn(List.of(event));
         when(eventCopyGenerator.regenerateSynchronously(200L, 20L))
                 .thenReturn(AiEventCopyGenerator.GenerationStatus.SAVED);
+        when(playRepository.findPlayTranslationReprocessTargets(100L))
+                .thenReturn(List.of(play));
+        when(playTranslationGenerator.regenerateSynchronously(100L, 30L))
+                .thenReturn(AiPlayTranslationGenerator.GenerationStatus.SAVED);
 
-        runner.run(new DefaultApplicationArguments());
+        runner(new AiCopyReprocessProperties(50, null, null))
+                .run(new DefaultApplicationArguments());
 
         verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(eventCopyGenerator).regenerateSynchronously(200L, 20L);
+        verify(playTranslationGenerator).regenerateSynchronously(100L, 30L);
         verify(applicationContext).close();
     }
 
     @Test
     void 기간이_지정되면_해당_기간_종료_경기만_재생성한다() throws Exception {
-        AiCopyReprocessRunner runner = new AiCopyReprocessRunner(
-                new AiCopyReprocessProperties(50, "2026-07-13", "2026-07-16"),
-                gameRepository,
-                gameEventRepository,
-                finalHeadlineGenerator,
-                eventCopyGenerator,
-                applicationContext
-        );
         GameEvent event = new GameEvent();
         event.setId(20L);
         event.setGameId(100L);
+        Play play = new Play();
+        play.setId(30L);
         Instant startInclusive = Instant.parse("2026-07-12T15:00:00Z");
         Instant endExclusive = Instant.parse("2026-07-16T15:00:00Z");
         when(gameRepository.findFinalGameIdsByStartTimeBetween(startInclusive, endExclusive))
@@ -82,14 +94,20 @@ class AiCopyReprocessRunnerTest {
                 .thenReturn(List.of(event));
         when(eventCopyGenerator.regenerateSynchronously(100L, 20L))
                 .thenReturn(AiEventCopyGenerator.GenerationStatus.SAVED);
+        when(playRepository.findPlayTranslationReprocessTargets(100L))
+                .thenReturn(List.of(play));
+        when(playTranslationGenerator.regenerateSynchronously(100L, 30L))
+                .thenReturn(AiPlayTranslationGenerator.GenerationStatus.SAVED);
 
-        runner.run(new DefaultApplicationArguments());
+        runner(new AiCopyReprocessProperties(50, "2026-07-13", "2026-07-16"))
+                .run(new DefaultApplicationArguments());
 
         verify(gameRepository, never()).findAllFinalGameIds();
         verify(gameEventRepository, never())
                 .findProtectedAiReprocessTargets(anyLong(), anyLong(), any());
         verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(eventCopyGenerator).regenerateSynchronously(100L, 20L);
+        verify(playTranslationGenerator).regenerateSynchronously(100L, 30L);
         verify(applicationContext).close();
     }
 }

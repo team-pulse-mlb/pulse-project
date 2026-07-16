@@ -92,6 +92,28 @@ class AiPlayTranslationGenerator {
             long gameId,
             long playId) {
 
+        return generateSynchronously(
+                gameId,
+                playId,
+                false);
+    }
+
+    /** 기존 번역이 있어도 다시 생성하고 검수 통과 결과만 덮어씁니다. */
+    GenerationStatus regenerateSynchronously(
+            long gameId,
+            long playId) {
+
+        return generateSynchronously(
+                gameId,
+                playId,
+                true);
+    }
+
+    private GenerationStatus generateSynchronously(
+            long gameId,
+            long playId,
+            boolean force) {
+
         Play play =
                 playRepository.findById(playId)
                         .orElse(null);
@@ -100,11 +122,13 @@ class AiPlayTranslationGenerator {
             return GenerationStatus.NOT_ELIGIBLE;
         }
 
-        if (hasText(play.getTextKo())) {
+        if (!force
+                && hasText(play.getTextKo())) {
             return GenerationStatus.ALREADY_PRESENT;
         }
 
-        if (attempts(play.getTextKoAttempts())
+        if (!force
+                && attempts(play.getTextKoAttempts())
                 >= properties.maxAttempts()) {
             return GenerationStatus.ATTEMPTS_EXHAUSTED;
         }
@@ -179,11 +203,13 @@ class AiPlayTranslationGenerator {
                 playRepository.findById(playId)
                         .orElse(null);
 
-        if (!isEligible(latest, gameId)
-                || hasText(latest.getTextKo())) {
-            return latest != null && hasText(latest.getTextKo())
-                    ? GenerationStatus.ALREADY_PRESENT
-                    : GenerationStatus.STALE;
+        if (!isEligible(latest, gameId)) {
+            return GenerationStatus.STALE;
+        }
+
+        if (!force
+                && hasText(latest.getTextKo())) {
+            return GenerationStatus.ALREADY_PRESENT;
         }
 
         String latestContextHash =
