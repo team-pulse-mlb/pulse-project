@@ -50,4 +50,14 @@ public interface GameRepository extends JpaRepository<Game, Long> {
             order by game.startTime, game.id
             """)
     List<Long> findAllFinalGameIds();
+
+    @Query("""
+            select game.id
+            from Game game
+            where game.status like 'STATUS_FINAL%'
+              and game.startTime >= :startInclusive
+              and game.startTime < :endExclusive
+            order by game.startTime, game.id
+            """)
+    List<Long> findFinalGameIdsByStartTimeBetween(Instant startInclusive, Instant endExclusive);
 }

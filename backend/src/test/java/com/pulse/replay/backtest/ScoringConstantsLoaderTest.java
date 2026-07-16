@@ -16,7 +16,10 @@ class ScoringConstantsLoaderTest {
     }
     @Test void 임시_yml을_로드한다() throws Exception {
         Path target = directory.resolve("candidate.yml");
-        Files.copy(Path.of("src/main/resources/scoring.yml"), target);
-        assertThat(new ScoringConstantsLoader().loadCandidate(target.toString()).version()).isEqualTo(8);
+        String candidate = Files.readString(Path.of("src/main/resources/scoring.yml"))
+                .replaceFirst("(?m)^(\\s*version:)\\s*\\d+\\s*$", "$1 123");
+        Files.writeString(target, candidate);
+
+        assertThat(new ScoringConstantsLoader().loadCandidate(target.toString()).version()).isEqualTo(123);
     }
 }

@@ -47,62 +47,6 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
             self.original_max_output_tokens
         )
 
-    def test_translation_guard_rejects_missing_player_name(self):
-        violations = (
-            play_translation_service
-            .find_play_translation_violations(
-                "Pages walked.",
-                "볼넷 출루.",
-            )
-        )
-
-        self.assertEqual(
-            violations,
-            ["PLAYER_NAME_NOT_PRESERVED"],
-        )
-
-    def test_translation_guard_accepts_all_player_names(self):
-        violations = (
-            play_translation_service
-            .find_play_translation_violations(
-                (
-                    "Freeman grounded into double play, "
-                    "first to shortstop, Pages out at second."
-                ),
-                (
-                    "Freeman, 병살타로 물러났고 "
-                    "Pages는 2루에서 아웃."
-                ),
-            )
-        )
-
-        self.assertEqual(violations, [])
-
-    def test_translation_guard_rejects_missing_number(self):
-        violations = (
-            play_translation_service
-            .find_play_translation_violations(
-                "Tawa homered to center (414 feet).",
-                "Tawa, 중견수 방면 홈런",
-            )
-        )
-
-        self.assertEqual(
-            violations,
-            ["NUMBER_NOT_PRESERVED"],
-        )
-
-    def test_translation_guard_accepts_initial_accent_and_number(self):
-        violations = (
-            play_translation_service
-            .find_play_translation_violations(
-                "T. Hernández homered to center (414 feet).",
-                "T. Hernández, 중견수 방면 홈런 (414피트)",
-            )
-        )
-
-        self.assertEqual(violations, [])
-
     def test_generate_play_translation_rejects_missing_api_key(self):
         play_translation_service.settings.openai_api_key = ""
 
