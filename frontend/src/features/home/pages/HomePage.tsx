@@ -25,6 +25,7 @@ const statusOptions: { value: SlateStatusFilter; label: string }[] = [
 // 날짜 네비게이터는 과거 슬레이트 탐색이 의미 있는 전체·종료 탭에서만 노출한다.
 // 예정은 현재 이후 전체 경기, 진행은 오늘 슬레이트를 조회하므로 날짜 선택이 필요 없다.
 const DATE_NAVIGABLE: SlateStatusFilter[] = ['all', 'finished'];
+const HOME_DATE_STORAGE_KEY = 'pulse.home.slate-date';
 
 // 빈 목록 안내는 탭 성격에 맞춘다(종료 탭인데 "예정" 안내가 뜨는 오해 방지).
 const emptyMessages: Record<SlateStatusFilter, string> = {
@@ -34,16 +35,33 @@ const emptyMessages: Record<SlateStatusFilter, string> = {
   finished: '이 날짜에는 종료된 경기가 없어요.',
 };
 
+function getStoredHomeDate(): string | undefined {
+  try {
+    return sessionStorage.getItem(HOME_DATE_STORAGE_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function storeHomeDate(date: string) {
+  try {
+    sessionStorage.setItem(HOME_DATE_STORAGE_KEY, date);
+  } catch {
+    // 저장소를 사용할 수 없는 환경에서도 URL 기반 날짜 이동은 유지한다.
+  }
+}
+
 function HomePage() {
   // SSE 신호 수신 → 랭킹·목록 재조회 (홈이 열려 있는 동안 구독)
   useSse();
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const date = searchParams.get('date') ?? undefined;
+  const date = searchParams.get('date') ?? getStoredHomeDate();
   const [status, setStatus] = useState<SlateStatusFilter>('all');
   const [sort, setSort] = useState<SlateSort>('startTime');
 
   const changeDate = (nextDate: string) => {
+    storeHomeDate(nextDate);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('date', nextDate);
