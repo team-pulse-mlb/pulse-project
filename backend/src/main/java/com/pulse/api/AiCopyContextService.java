@@ -1,38 +1,14 @@
 package com.pulse.api;
 
-import com.pulse.common.ai.AiContextHashCalculator;
-import com.pulse.common.ai.AiCopyContextReader;
-import com.pulse.common.ai.AiCopyMode;
-import com.pulse.common.ai.EventCopyContext;
-import com.pulse.common.ai.FinalHeadlineContext;
-import com.pulse.common.ai.ProtectedEventCopyContext;
-import com.pulse.common.ai.RevealedEventCopyContext;
-import com.pulse.domain.Game;
-import com.pulse.domain.GameEvent;
-import com.pulse.domain.GameEventLabelPolicy;
-import com.pulse.domain.GameEventRepository;
-import com.pulse.domain.GameRepository;
-import com.pulse.domain.Player;
-import com.pulse.domain.PlayerRepository;
-import com.pulse.domain.Play;
-import com.pulse.domain.PlayRepository;
-import com.pulse.domain.WatchScore;
-import com.pulse.domain.WatchScoreRepository;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import com.pulse.common.ai.*;
+import com.pulse.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * AiCopyContextReader 구현. AI 문구 생성에 노출 가능한 값만 조립하고
@@ -142,6 +118,9 @@ public class AiCopyContextService implements AiCopyContextReader {
                 new FinalHeadlineContext.FinalScore(game.getHomeRuns(), game.getAwayRuns());
         Integer inningsPlayed = game.getPeriod();
         Boolean extraInnings = inningsPlayed == null ? null : inningsPlayed > 9;
+        String winner = winner(game);
+        List<Integer> homeInningScores = safeInningScores(game.getHomeInningScores());
+        List<Integer> awayInningScores = safeInningScores(game.getAwayInningScores());
         List<FinalHeadlineContext.RevealedMoment> revealedMoments = revealedMoments(game);
 
         Map<String, Object> safeContext = new LinkedHashMap<>();
@@ -151,16 +130,59 @@ public class AiCopyContextService implements AiCopyContextReader {
         safeContext.put("periodLabel", "경기 종료");
         safeContext.put("teams", teams);
         safeContext.put("finalScore", finalScore);
-        safeContext.put("winner", winner(game));
+        safeContext.put("winner", winner);
         safeContext.put("inningsPlayed", inningsPlayed);
         safeContext.put("extraInnings", extraInnings);
         safeContext.put("postseason", game.getPostseason());
+        safeContext.put("venue", game.getVenue());
+        safeContext.put("startTime", safeStartTime(game.getStartTime()));
+        safeContext.put("homeInningScores", homeInningScores);
+        safeContext.put("awayInningScores", awayInningScores);
         safeContext.put("revealedMoments", revealedMoments);
+
         String hash = AiContextHashCalculator.calculate(
                 "FINAL_HEADLINE", AiCopyMode.REVEALED, gameId, null, safeContext);
-        return new FinalHeadlineContext(gameId, AiCopyMode.REVEALED, game.getStatus(), "경기 종료",
-                List.of(), List.of(), List.of(), teams, finalScore, winner(game), inningsPlayed,
-                extraInnings, game.getPostseason(), revealedMoments, hash);
+
+        return new FinalHeadlineContext(
+                gameId,
+                AiCopyMode.REVEALED,
+                game.getStatus(),
+                "경기 종료",
+                List.of(),
+                List.of(),
+                List.of(),
+                teams,
+                finalScore,
+                winner,
+                inningsPlayed,
+                extraInnings,
+                game.getPostseason(),
+                revealedMoments,
+                game.getVenue(),
+                game.getStartTime(),
+                homeInningScores,
+                awayInningScores,
+                null,
+                List.of(),
+                List.of(),
+                hash
+        );
+    }
+
+    private static List<Integer> safeInningScores(
+            List<Integer> inningScores
+    ) {
+        if (inningScores == null || inningScores.isEmpty()) {
+            return List.of();
+        }
+
+        return List.copyOf(inningScores);
+    }
+
+    private static String safeStartTime(
+            Instant startTime
+    ) {
+        return startTime == null ? null : startTime.toString();
     }
 
     private List<FinalHeadlineContext.RevealedMoment> revealedMoments(Game game) {
