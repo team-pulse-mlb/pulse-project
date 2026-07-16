@@ -10,11 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -83,23 +79,6 @@ public class PlayerRegistrationWriter {
         }
 
         /*
-         * 기존 선수들을 한 번에 조회합니다.
-         *
-         * 선수마다 findById()를 실행하면 N번의 SELECT가 발생하므로
-         * findAllById()로 한 번에 가져옵니다.
-         */
-        Map<Long, Player> existingPlayersById =
-                playerRepository
-                        .findAllById(dtoByPlayerId.keySet())
-                        .stream()
-                        .collect(
-                                Collectors.toMap(
-                                        Player::getId,
-                                        Function.identity()
-                                )
-                        );
-
-        /*
          * 검색 결과에 포함된 팀 ID를 모읍니다.
          */
         Set<Long> requestedTeamIds =
@@ -127,89 +106,91 @@ public class PlayerRegistrationWriter {
                         .map(Team::getTeamId)
                         .collect(Collectors.toSet());
 
-        List<Player> playersToSave = new ArrayList<>();
-
+        /*
+         * 선수마다 PostgreSQL 원자적 upsert를 실행합니다.
+         *
+         * 관심 선수는 최대 5명이므로 개별 쿼리 실행 부담이 작고,
+         * 서로 다른 사용자가 같은 선수를 동시에 등록하더라도
+         * ON CONFLICT가 player_id 충돌을 안전하게 처리합니다.
+         */
         for (BdlPlayer dto : dtoByPlayerId.values()) {
-            Player player = existingPlayersById.get(
-                    dto.id()
-            );
 
             /*
-             * DB에 없는 검색 결과라면 새 Player를 만듭니다.
-             */
-            if (player == null) {
-                player = new Player();
-                player.setId(dto.id());
-                player.setCreatedAt(observedAt);
-            }
-
-            /*
-             * 외부 API의 null 또는 빈 값이
-             * 기존 정상 값을 덮어쓰지 않도록 검사합니다.
-             */
-            if (hasText(dto.fullName())) {
-                player.setFullName(
-                        dto.fullName().trim()
-                );
-            }
-
-            if (hasText(dto.firstName())) {
-                player.setFirstName(
-                        dto.firstName().trim()
-                );
-            }
-
-            if (hasText(dto.lastName())) {
-                player.setLastName(
-                        dto.lastName().trim()
-                );
-            }
-
-            if (hasText(dto.position())) {
-                player.setPosition(
-                        dto.position().trim()
-                );
-            }
-
-            /*
-             * 외부 응답에 팀 정보 자체가 없는 경우에는
-             * 기존의 정상적인 teamId를 유지합니다.
+             * 외부 응답에 team 객체 자체가 있는지 나타냅니다.
              *
-             * 반면 외부 응답에는 팀 ID가 있지만
-             * 로컬 teams 테이블에 존재하지 않는 팀이라면,
-             * 외래 키로 연결할 수 없으므로 teamId를 null로 둡니다.
+             * false:
+             * - 외부 응답에서 팀 정보가 제공되지 않음
+             * - 기존 players.team_id 유지
+             *
+             * true:
+             * - 외부 응답에서 팀 정보를 제공함
+             * - 정상 팀이면 해당 ID로 갱신
+             * - 알 수 없는 팀이면 null로 연결 해제
              */
-            if (dto.team() != null) {
-                Long externalTeamId = dto.team().id();
+            boolean replaceTeam =
+                    dto.team() != null;
 
+            Long resolvedTeamId = null;
+
+            if (replaceTeam) {
+                Long externalTeamId =
+                        dto.team().id();
+
+                /*
+                 * 외부 팀 ID가 로컬 teams 테이블에도 존재할 때만
+                 * 외래 키 값으로 사용합니다.
+                 *
+                 * 로컬에 없는 팀이면 resolvedTeamId는 null로 유지됩니다.
+                 */
                 if (externalTeamId != null
                         && knownTeamIds.contains(externalTeamId)) {
 
-                    /*
-                     * 로컬에서 알고 있는 정상 팀이면
-                     * 해당 팀 ID로 갱신합니다.
-                     */
-                    player.setTeamId(externalTeamId);
-
-                } else {
-                    /*
-                     * 외부에는 팀 정보가 있지만 로컬에 없는 팀이면
-                     * 잘못된 외래 키를 남기지 않도록 연결을 해제합니다.
-                     *
-                     * 팀을 알 수 없다는 이유로 선수 등록 자체를
-                     * 실패시키지는 않습니다.
-                     */
-                    player.setTeamId(null);
+                    resolvedTeamId =
+                            externalTeamId;
                 }
             }
 
-            player.setUpdatedAt(observedAt);
-            playersToSave.add(player);
+            /*
+             * null 또는 공백 문자열은 normalizeText()에서 null로 바꿉니다.
+             *
+             * Repository의 upsert SQL은 null 값에 대해
+             * 기존 정상 값을 유지하도록 구성돼 있습니다.
+             */
+            playerRepository.upsertPlayer(
+                    dto.id(),
+                    normalizeText(dto.fullName()),
+                    normalizeText(dto.firstName()),
+                    normalizeText(dto.lastName()),
+                    normalizeText(dto.position()),
+                    resolvedTeamId,
+                    replaceTeam,
+                    observedAt
+            );
         }
 
-        return playerRepository.saveAll(
-                playersToSave
-        );
+        /*
+         * native upsert가 끝난 뒤 실제 DB 상태를 다시 읽습니다.
+         *
+         * Repository의 findAllById() 반환 순서는 보장되지 않으므로
+         * ID 기준 Map으로 변환한 뒤 원래 외부 응답 순서에 맞춰 반환합니다.
+         */
+        Map<Long, Player> savedPlayersById =
+                playerRepository
+                        .findAllById(dtoByPlayerId.keySet())
+                        .stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Player::getId,
+                                        Function.identity()
+                                )
+                        );
+
+        return dtoByPlayerId
+                .keySet()
+                .stream()
+                .map(savedPlayersById::get)
+                .filter(player -> player != null)
+                .toList();
     }
 
     /**
@@ -223,6 +204,26 @@ public class PlayerRegistrationWriter {
                 player.id() > 0 &&
                 hasText(player.fullName());
     }
+
+
+    /**
+     * 외부 문자열을 DB 저장에 적합한 값으로 정리합니다.
+     *
+     * - null: null 반환
+     * - 공백만 있는 문자열: null 반환
+     * - 정상 문자열: 앞뒤 공백 제거
+     *
+     * null로 전달된 값은 upsert SQL에서
+     * 기존 정상 값을 덮어쓰지 않습니다.
+     */
+    private String normalizeText(
+            String value
+    ) {
+        return hasText(value)
+                ? value.trim()
+                : null;
+    }
+
 
     /**
      * 문자열이 null 또는 공백만 있는 값인지 검사합니다.

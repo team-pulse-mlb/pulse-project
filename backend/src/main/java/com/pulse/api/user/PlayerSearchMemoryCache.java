@@ -11,10 +11,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -50,6 +52,59 @@ public class PlayerSearchMemoryCache {
      */
     private static final Duration EMPTY_RESULT_TTL =
             Duration.ofSeconds(30);
+
+    /**
+     * 검색어 단위 캐시가 보관할 수 있는 최대 개수입니다.
+     *
+     * 검색어가 계속 달라져도 searchEntries가
+     * 제한 없이 증가하지 않도록 상한을 둡니다.
+     */
+    private static final int MAX_SEARCH_ENTRY_COUNT = 500;
+
+    /**
+     * 선수 ID 단위 보조 캐시가 보관할 수 있는 최대 개수입니다.
+     *
+     * 한 검색 결과에 여러 선수가 들어갈 수 있으므로
+     * 검색어 캐시보다 넉넉한 크기로 제한합니다.
+     */
+    private static final int MAX_PLAYER_ENTRY_COUNT = 5_000;
+
+    /**
+     * 만료 삭제와 최대 개수 제한을 한 번에 처리하기 위한 잠금입니다.
+     *
+     * 캐시 조회 자체는 ConcurrentHashMap으로 동시에 처리하지만,
+     * 여러 요청이 동시에 오래된 항목을 제거할 때
+     * 최대 개수 제한이 크게 어긋나지 않도록 정리 작업만 묶습니다.
+     */
+    private final Object maintenanceLock = new Object();
+
+    /**
+     * 현재 단조 증가 시간을 나노초로 제공합니다.
+     *
+     * 운영 환경에서는 System.nanoTime()을 사용하고,
+     * 테스트에서는 시간을 직접 움직일 수 있는 가짜 공급자를 넣습니다.
+     */
+    private final LongSupplier nanoTimeSource;
+
+    /**
+     * Spring이 운영 환경에서 사용하는 기본 생성자입니다.
+     */
+    public PlayerSearchMemoryCache() {
+        this(System::nanoTime);
+    }
+
+    /**
+     * 테스트에서 가짜 시간을 주입하기 위한 생성자입니다.
+     *
+     * 같은 패키지의 테스트에서만 직접 사용할 수 있도록
+     * package-private 접근 범위로 둡니다.
+     */
+    PlayerSearchMemoryCache(
+            LongSupplier nanoTimeSource
+    ) {
+        this.nanoTimeSource =
+                Objects.requireNonNull(nanoTimeSource);
+    }
 
     /**
      * 정규화된 검색어 → 검색 결과 캐시입니다.
@@ -147,6 +202,16 @@ public class PlayerSearchMemoryCache {
             String keyword
     ) {
         String cacheKey = normalizeKey(keyword);
+        long nowNanos = nowNanos();
+
+        /*
+         * 현재 검색어만 확인하는 것이 아니라
+         * 다른 검색어의 만료 항목도 함께 정리합니다.
+         *
+         * 따라서 만료된 검색어가 다시 요청되지 않아도
+         * 새로운 캐시 요청이 들어오면 제거됩니다.
+         */
+        removeExpiredEntries(nowNanos);
 
         SearchCacheEntry entry =
                 searchEntries.get(cacheKey);
@@ -155,7 +220,11 @@ public class PlayerSearchMemoryCache {
             return Optional.empty();
         }
 
-        if (entry.isExpired()) {
+        /*
+         * 정리 직후 다른 스레드 또는 시간이 변한 상황까지
+         * 안전하게 처리하기 위한 추가 확인입니다.
+         */
+        if (entry.isExpired(nowNanos)) {
             searchEntries.remove(
                     cacheKey,
                     entry
@@ -180,6 +249,13 @@ public class PlayerSearchMemoryCache {
             return Map.of();
         }
 
+        long nowNanos = nowNanos();
+
+        /*
+         * 요청한 선수 ID뿐 아니라 전체 캐시의 만료 항목을 정리합니다.
+         */
+        removeExpiredEntries(nowNanos);
+
         Map<Long, BdlPlayer> result =
                 new LinkedHashMap<>();
 
@@ -195,7 +271,7 @@ public class PlayerSearchMemoryCache {
                 continue;
             }
 
-            if (entry.isExpired()) {
+            if (entry.isExpired(nowNanos)) {
                 playerEntries.remove(
                         playerId,
                         entry
@@ -216,42 +292,206 @@ public class PlayerSearchMemoryCache {
     /**
      * 검색 결과와 playerId 인덱스를 함께 저장합니다.
      */
-    private void putSearchResults(
-            String cacheKey,
-            List<BdlPlayer> players
+        private void putSearchResults(
+                String cacheKey,
+                List<BdlPlayer> players
+) {
+            Duration ttl = players.isEmpty()
+                    ? EMPTY_RESULT_TTL
+                    : RESULT_TTL;
+
+            /*
+             * 캐시에 저장하는 현재 시각입니다.
+             *
+             * 테스트에서는 nanoTimeSource에 가짜 시간을 넣을 수 있고,
+             * 실제 운영에서는 System.nanoTime()이 사용됩니다.
+             */
+            long cachedAtNanos = nowNanos();
+
+            /*
+             * 캐시 만료 시각입니다.
+             *
+             * 현재 시각 + TTL로 계산합니다.
+             */
+            long expiresAtNanos =
+                    cachedAtNanos + ttl.toNanos();
+
+            List<BdlPlayer> immutablePlayers =
+                    List.copyOf(players);
+
+            /*
+             * 만료 데이터 정리, 신규 저장, 최대 개수 제한을
+             * 동시에 여러 스레드가 실행하지 않도록 묶습니다.
+             */
+            synchronized (maintenanceLock) {
+
+                /*
+                 * 새로운 데이터를 저장하기 전에
+                 * 이미 만료된 항목부터 전체 정리합니다.
+                 */
+                removeExpiredEntriesWithoutLock(
+                        cachedAtNanos
+                );
+
+                /*
+                 * 검색어 기준 결과 캐시에 저장합니다.
+                 *
+                 * record의 인자는 다음 순서입니다.
+                 * 1. 검색 결과
+                 * 2. 저장 시각
+                 * 3. 만료 시각
+                 */
+                searchEntries.put(
+                        cacheKey,
+                        new SearchCacheEntry(
+                                immutablePlayers,
+                                cachedAtNanos,
+                                expiresAtNanos
+                        )
+                );
+
+                /*
+                 * 검색 결과에 포함된 선수들을
+                 * playerId 기준 보조 캐시에도 저장합니다.
+                 */
+                for (BdlPlayer player : immutablePlayers) {
+                    playerEntries.put(
+                            player.id(),
+                            new PlayerCacheEntry(
+                                    player,
+                                    cachedAtNanos,
+                                    expiresAtNanos
+                            )
+                    );
+                }
+
+                /*
+                 * 최대 보관 개수를 초과하면
+                 * 가장 오래된 캐시부터 제거합니다.
+                 */
+                removeOldestSearchEntriesIfNeeded();
+                removeOldestPlayerEntriesIfNeeded();
+            }
+        }
+
+
+    /**
+     * 검색어 캐시와 선수 ID 캐시에서
+     * 만료된 모든 항목을 정리합니다.
+     */
+    private void removeExpiredEntries(
+            long nowNanos
     ) {
-        Duration ttl = players.isEmpty()
-                ? EMPTY_RESULT_TTL
-                : RESULT_TTL;
-
-        long expiresAtNanos =
-                System.nanoTime() + ttl.toNanos();
-
-        List<BdlPlayer> immutablePlayers =
-                List.copyOf(players);
-
-        searchEntries.put(
-                cacheKey,
-                new SearchCacheEntry(
-                        immutablePlayers,
-                        expiresAtNanos
-                )
-        );
-
-        /*
-         * 검색된 선수는 등록 API에서 playerId로 재사용할 수 있도록
-         * 별도 인덱스에도 같은 만료 시간으로 보관합니다.
-         */
-        for (BdlPlayer player : immutablePlayers) {
-            playerEntries.put(
-                    player.id(),
-                    new PlayerCacheEntry(
-                            player,
-                            expiresAtNanos
-                    )
+        synchronized (maintenanceLock) {
+            removeExpiredEntriesWithoutLock(
+                    nowNanos
             );
         }
     }
+
+    /**
+     * maintenanceLock을 이미 획득한 상태에서
+     * 만료 항목을 실제로 제거합니다.
+     */
+    private void removeExpiredEntriesWithoutLock(
+            long nowNanos
+    ) {
+        searchEntries.forEach((key, entry) -> {
+            if (entry.isExpired(nowNanos)) {
+                searchEntries.remove(
+                        key,
+                        entry
+                );
+            }
+        });
+
+        playerEntries.forEach((playerId, entry) -> {
+            if (entry.isExpired(nowNanos)) {
+                playerEntries.remove(
+                        playerId,
+                        entry
+                );
+            }
+        });
+    }
+
+    /**
+     * 검색어 캐시가 최대 개수를 초과하면
+     * 가장 먼저 저장된 항목부터 제거합니다.
+     */
+    private void removeOldestSearchEntriesIfNeeded() {
+        while (searchEntries.size()
+                > MAX_SEARCH_ENTRY_COUNT) {
+
+            Map.Entry<String, SearchCacheEntry> oldestEntry =
+                    null;
+
+            for (Map.Entry<String, SearchCacheEntry> candidate
+                    : searchEntries.entrySet()) {
+
+                if (oldestEntry == null
+                        || candidate.getValue()
+                        .cachedAtNanos()
+                        < oldestEntry.getValue()
+                        .cachedAtNanos()) {
+
+                    oldestEntry = candidate;
+                }
+            }
+
+            if (oldestEntry == null) {
+                return;
+            }
+
+            searchEntries.remove(
+                    oldestEntry.getKey(),
+                    oldestEntry.getValue()
+            );
+        }
+    }
+
+    /**
+     * 선수 ID 보조 캐시가 최대 개수를 초과하면
+     * 가장 먼저 저장된 항목부터 제거합니다.
+     */
+    private void removeOldestPlayerEntriesIfNeeded() {
+        while (playerEntries.size()
+                > MAX_PLAYER_ENTRY_COUNT) {
+
+            Map.Entry<Long, PlayerCacheEntry> oldestEntry =
+                    null;
+
+            for (Map.Entry<Long, PlayerCacheEntry> candidate
+                    : playerEntries.entrySet()) {
+
+                if (oldestEntry == null
+                        || candidate.getValue()
+                        .cachedAtNanos()
+                        < oldestEntry.getValue()
+                        .cachedAtNanos()) {
+
+                    oldestEntry = candidate;
+                }
+            }
+
+            if (oldestEntry == null) {
+                return;
+            }
+
+            playerEntries.remove(
+                    oldestEntry.getKey(),
+                    oldestEntry.getValue()
+            );
+        }
+    }
+
+    /**
+     * 현재 캐시 시간 값을 반환합니다.
+     */
+    private long nowNanos() {
+        return nanoTimeSource.getAsLong();
+    }
+
 
     /**
      * 외부 응답에서 사용할 수 없는 값과 중복 ID를 제거합니다.
@@ -333,11 +573,14 @@ public class PlayerSearchMemoryCache {
      */
     private record SearchCacheEntry(
             List<BdlPlayer> players,
+            long cachedAtNanos,
             long expiresAtNanos
     ) {
 
-        private boolean isExpired() {
-            return System.nanoTime() >= expiresAtNanos;
+        private boolean isExpired(
+                long nowNanos
+        ) {
+            return nowNanos >= expiresAtNanos;
         }
     }
 
@@ -346,11 +589,14 @@ public class PlayerSearchMemoryCache {
      */
     private record PlayerCacheEntry(
             BdlPlayer player,
+            long cachedAtNanos,
             long expiresAtNanos
     ) {
 
-        private boolean isExpired() {
-            return System.nanoTime() >= expiresAtNanos;
+        private boolean isExpired(
+                long nowNanos
+        ) {
+            return nowNanos >= expiresAtNanos;
         }
     }
 }

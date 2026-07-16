@@ -47,6 +47,18 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // Testcontainers와 Spring Boot 테스트 환경을 연결합니다.
+    // 이후 @ServiceConnection으로 PostgreSQL 접속 정보를 자동 설정할 때 사용합니다.
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+
+    // JUnit 5에서 @Testcontainers, @Container를 사용할 수 있게 합니다.
+    testImplementation 'org.testcontainers:junit-jupiter'
+
+    // 실제 PostgreSQL 컨테이너를 테스트 중 실행할 수 있게 합니다.
+    testImplementation 'org.testcontainers:postgresql'
+
+    // 기존 @DataJpaTest 등이 H2를 사용할 수 있으므로 유지합니다.
     testRuntimeOnly 'com.h2database:h2'
 }
 

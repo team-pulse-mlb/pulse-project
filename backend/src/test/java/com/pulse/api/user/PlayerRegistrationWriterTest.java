@@ -18,7 +18,6 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -60,20 +59,31 @@ class PlayerRegistrationWriterTest {
     void upsertPlayers_shouldClearExistingTeamWhenExternalTeamIsUnknownLocally() {
         // given
         Long playerId = 208L;
-        Long existingTeamId = 14L;
         Long unknownExternalTeamId = 999L;
 
         Instant observedAt =
                 Instant.parse("2026-07-15T08:00:00Z");
 
         /*
-         * players 테이블에 이미 존재하는 선수라고 가정합니다.
+         * native upsert가 끝난 뒤 DB에서 다시 조회된 결과를 가정합니다.
+         *
+         * Mockito 테스트에서는 실제 SQL이 실행되지 않으므로,
+         * 최종 저장 상태의 Player 객체를 직접 준비합니다.
          */
-        Player existingPlayer = new Player();
+        Player savedPlayer = new Player();
 
-        existingPlayer.setId(playerId);
-        existingPlayer.setFullName("Shohei Ohtani");
-        existingPlayer.setTeamId(existingTeamId);
+        savedPlayer.setId(playerId);
+        savedPlayer.setFullName("Shohei Ohtani");
+        savedPlayer.setFirstName("Shohei");
+        savedPlayer.setLastName("Ohtani");
+        savedPlayer.setPosition("DH");
+
+        /*
+         * 외부 팀은 존재하지만 로컬 teams에는 없으므로
+         * 최종 DB의 team_id는 null이어야 합니다.
+         */
+        savedPlayer.setTeamId(null);
+        savedPlayer.setUpdatedAt(observedAt);
 
         /*
          * 외부 API에는 팀 ID 999가 포함되어 있지만,
@@ -95,7 +105,7 @@ class PlayerRegistrationWriterTest {
         when(playerRepository.findAllById(
                 Set.of(playerId)
         )).thenReturn(
-                List.of(existingPlayer)
+                List.of(savedPlayer)
         );
 
         /*
@@ -106,14 +116,6 @@ class PlayerRegistrationWriterTest {
         )).thenReturn(
                 List.of()
         );
-
-        /*
-         * Writer가 변경한 Player 객체를 정상 저장했다고 가정합니다.
-         */
-        when(playerRepository.saveAll(anyList()))
-                .thenReturn(
-                        List.of(existingPlayer)
-                );
 
         // when
         List<Player> savedPlayers =
@@ -127,19 +129,19 @@ class PlayerRegistrationWriterTest {
          * 로컬 teams에 없는 팀은 외래 키로 연결할 수 없으므로
          * 기존 teamId가 그대로 남지 않고 null이 되어야 합니다.
          */
-        assertNull(existingPlayer.getTeamId());
+        assertNull(savedPlayer.getTeamId());
 
         /*
          * 외부에서 정상적으로 받은 선수 이름과 포지션은 반영됩니다.
          */
         assertEquals(
                 "Shohei Ohtani",
-                existingPlayer.getFullName()
+                savedPlayer.getFullName()
         );
 
         assertEquals(
                 "DH",
-                existingPlayer.getPosition()
+                savedPlayer.getPosition()
         );
 
         /*
@@ -147,24 +149,34 @@ class PlayerRegistrationWriterTest {
          */
         assertEquals(
                 observedAt,
-                existingPlayer.getUpdatedAt()
+                savedPlayer.getUpdatedAt()
         );
 
         assertEquals(
-                List.of(existingPlayer),
+                List.of(savedPlayer),
                 savedPlayers
         );
 
+        /*
+         * 팀 객체는 전달됐지만 로컬에 없는 팀이므로
+         * teamId=null, replaceTeam=true로 upsert해야 합니다.
+         */
+        verify(playerRepository).upsertPlayer(
+                playerId,
+                "Shohei Ohtani",
+                "Shohei",
+                "Ohtani",
+                "DH",
+                null,
+                true,
+                observedAt
+        );
+
+        /*
+         * upsert 이후 실제 DB 결과를 다시 조회해야 합니다.
+         */
         verify(playerRepository).findAllById(
                 Set.of(playerId)
-        );
-
-        verify(teamRepository).findAllById(
-                Set.of(unknownExternalTeamId)
-        );
-
-        verify(playerRepository).saveAll(
-                List.of(existingPlayer)
         );
     }
 
@@ -194,14 +206,15 @@ class PlayerRegistrationWriterTest {
          * players 테이블에 이미 정상적인 선수 정보가
          * 저장돼 있다고 가정합니다.
          */
-        Player existingPlayer = new Player();
+        Player savedPlayer = new Player();
 
-        existingPlayer.setId(playerId);
-        existingPlayer.setFullName("Shohei Ohtani");
-        existingPlayer.setFirstName("Shohei");
-        existingPlayer.setLastName("Ohtani");
-        existingPlayer.setPosition("DH");
-        existingPlayer.setTeamId(existingTeamId);
+        savedPlayer.setId(playerId);
+        savedPlayer.setFullName("Shohei Ohtani");
+        savedPlayer.setFirstName("Shohei");
+        savedPlayer.setLastName("Ohtani");
+        savedPlayer.setPosition("DH");
+        savedPlayer.setTeamId(existingTeamId);
+        savedPlayer.setUpdatedAt(observedAt);
 
         /*
          * 외부 응답에는 선수 식별에 필요한 fullName만 있고,
@@ -223,7 +236,7 @@ class PlayerRegistrationWriterTest {
         when(playerRepository.findAllById(
                 Set.of(playerId)
         )).thenReturn(
-                List.of(existingPlayer)
+                List.of(savedPlayer)
         );
 
         /*
@@ -235,11 +248,6 @@ class PlayerRegistrationWriterTest {
         )).thenReturn(
                 List.of()
         );
-
-        when(playerRepository.saveAll(anyList()))
-                .thenReturn(
-                        List.of(existingPlayer)
-                );
 
         // when
         List<Player> savedPlayers =
@@ -255,7 +263,7 @@ class PlayerRegistrationWriterTest {
          */
         assertEquals(
                 existingTeamId,
-                existingPlayer.getTeamId()
+                savedPlayer.getTeamId()
         );
 
         /*
@@ -264,17 +272,17 @@ class PlayerRegistrationWriterTest {
          */
         assertEquals(
                 "Shohei",
-                existingPlayer.getFirstName()
+                savedPlayer.getFirstName()
         );
 
         assertEquals(
                 "Ohtani",
-                existingPlayer.getLastName()
+                savedPlayer.getLastName()
         );
 
         assertEquals(
                 "DH",
-                existingPlayer.getPosition()
+                savedPlayer.getPosition()
         );
 
         /*
@@ -282,11 +290,11 @@ class PlayerRegistrationWriterTest {
          */
         assertEquals(
                 observedAt,
-                existingPlayer.getUpdatedAt()
+                savedPlayer.getUpdatedAt()
         );
 
         assertEquals(
-                List.of(existingPlayer),
+                List.of(savedPlayer),
                 savedPlayers
         );
 
@@ -298,8 +306,21 @@ class PlayerRegistrationWriterTest {
                 Set.<Long>of()
         );
 
-        verify(playerRepository).saveAll(
-                List.of(existingPlayer)
+        /*
+         * 외부 응답에 team 객체 자체가 없으므로
+         * 기존 team_id를 유지하도록 replaceTeam=false를 전달해야 합니다.
+         *
+         * null 또는 공백인 값은 normalizeText()에서 null로 변환됩니다.
+         */
+        verify(playerRepository).upsertPlayer(
+                playerId,
+                "Shohei Ohtani",
+                null,
+                null,
+                null,
+                null,
+                false,
+                observedAt
         );
     }
 
@@ -324,13 +345,18 @@ class PlayerRegistrationWriterTest {
                 Instant.parse("2026-07-15T10:00:00Z");
 
         /*
-         * 기존 Player에는 아직 팀 연결이 없다고 가정합니다.
+         * native upsert가 끝난 뒤 DB에서 다시 조회된
+         * 최종 선수 상태를 가정합니다.
          */
-        Player existingPlayer = new Player();
+        Player savedPlayer = new Player();
 
-        existingPlayer.setId(playerId);
-        existingPlayer.setFullName("Shohei Ohtani");
-        existingPlayer.setTeamId(null);
+        savedPlayer.setId(playerId);
+        savedPlayer.setFullName("Shohei Ohtani");
+        savedPlayer.setFirstName("Shohei");
+        savedPlayer.setLastName("Ohtani");
+        savedPlayer.setPosition("DH");
+        savedPlayer.setTeamId(knownTeamId);
+        savedPlayer.setUpdatedAt(observedAt);
 
         /*
          * 외부 API에서 teamId=14를 받은 상황입니다.
@@ -354,10 +380,13 @@ class PlayerRegistrationWriterTest {
         when(knownTeam.getTeamId())
                 .thenReturn(knownTeamId);
 
+        /*
+         * native upsert 실행 후 최종 DB 상태를 다시 조회하는 상황입니다.
+         */
         when(playerRepository.findAllById(
                 Set.of(playerId)
         )).thenReturn(
-                List.of(existingPlayer)
+                List.of(savedPlayer)
         );
 
         when(teamRepository.findAllById(
@@ -365,11 +394,6 @@ class PlayerRegistrationWriterTest {
         )).thenReturn(
                 List.of(knownTeam)
         );
-
-        when(playerRepository.saveAll(anyList()))
-                .thenReturn(
-                        List.of(existingPlayer)
-                );
 
         // when
         List<Player> savedPlayers =
@@ -385,26 +409,26 @@ class PlayerRegistrationWriterTest {
          */
         assertEquals(
                 knownTeamId,
-                existingPlayer.getTeamId()
+                savedPlayer.getTeamId()
         );
 
         assertEquals(
                 "Shohei Ohtani",
-                existingPlayer.getFullName()
+                savedPlayer.getFullName()
         );
 
         assertEquals(
                 "DH",
-                existingPlayer.getPosition()
+                savedPlayer.getPosition()
         );
 
         assertEquals(
                 observedAt,
-                existingPlayer.getUpdatedAt()
+                savedPlayer.getUpdatedAt()
         );
 
         assertEquals(
-                List.of(existingPlayer),
+                List.of(savedPlayer),
                 savedPlayers
         );
 
@@ -416,8 +440,19 @@ class PlayerRegistrationWriterTest {
                 Set.of(knownTeamId)
         );
 
-        verify(playerRepository).saveAll(
-                List.of(existingPlayer)
+        /*
+         * 외부 팀 ID가 로컬 teams 테이블에도 존재하므로
+         * teamId=14, replaceTeam=true로 upsert해야 합니다.
+         */
+        verify(playerRepository).upsertPlayer(
+                playerId,
+                "Shohei Ohtani",
+                "Shohei",
+                "Ohtani",
+                "DH",
+                knownTeamId,
+                true,
+                observedAt
         );
     }
 }
