@@ -25,7 +25,7 @@ class TimelineHighlightTriggerTest {
     private static final long GAME_ID = 5059041L;
     private static final Instant NOW = Instant.parse("2026-07-10T05:00:00Z");
     private static final ScoringProperties.Highlight ENABLED =
-            new ScoringProperties.Highlight(true, 40, 12, 6, 8);
+            new ScoringProperties.Highlight(true, 40, 12, 6, 8, 8);
 
     private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
     private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
@@ -60,7 +60,7 @@ class TimelineHighlightTriggerTest {
     @Test
     @DisplayName("비활성화면 아무 것도 하지 않는다")
     void disabledIsNoOp() {
-        trigger(new ScoringProperties.Highlight(false, 40, 12, 6, 8))
+        trigger(new ScoringProperties.Highlight(false, 40, 12, 6, 8, 8))
                 .evaluate(GAME_ID, 80, NOW);
 
         verify(gameEventRepository, never()).save(any());

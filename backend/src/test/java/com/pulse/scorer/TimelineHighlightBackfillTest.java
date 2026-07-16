@@ -29,7 +29,7 @@ class TimelineHighlightBackfillTest {
     private static final Instant START = Instant.parse("2026-07-10T05:00:00Z");
     private static final Instant NOW = Instant.parse("2026-07-10T08:00:00Z");
     private static final ScoringProperties.Highlight ENABLED =
-            new ScoringProperties.Highlight(true, 40, 12, 6, 8);
+            new ScoringProperties.Highlight(true, 40, 12, 6, 8, 8);
 
     private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
     private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
@@ -114,9 +114,9 @@ class TimelineHighlightBackfillTest {
     }
 
     @Test
-    @DisplayName("경기당 최대 두 건만 표시한다")
+    @DisplayName("설정된 경기당 백필 상한까지만 표시한다")
     void limitsHighlightsPerGame() {
-        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 8);
+        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 8, 2);
         GameEvent first = event(91L, 4, "full_count_two_out");
         GameEvent second = event(92L, 24, "pressure_bases_loaded");
         GameEvent third = event(93L, 44, "hard_contact");
@@ -141,7 +141,7 @@ class TimelineHighlightBackfillTest {
     @Test
     @DisplayName("쿨다운 미만 간격의 급변 후보는 건너뛴다")
     void skipsRiseCandidateInsideCooldown() {
-        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 8);
+        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 8, 8);
         GameEvent anchor = event(91L, 4, "full_count_two_out");
         prepare(
                 List.of(score(0, 10), score(5, 30), score(10, 35)),
@@ -157,7 +157,7 @@ class TimelineHighlightBackfillTest {
     @Test
     @DisplayName("하나의 anchor를 여러 급변 후보에 중복 선정하지 않는다")
     void doesNotSelectSameAnchorTwice() {
-        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 0);
+        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 0, 8);
         GameEvent anchor = event(91L, 4, "full_count_two_out");
         prepare(
                 List.of(score(0, 10), score(5, 30), score(10, 35)),
@@ -200,7 +200,7 @@ class TimelineHighlightBackfillTest {
     @Test
     @DisplayName("하이라이트 설정이 비활성화면 아무 것도 하지 않는다")
     void disabledIsNoOp() {
-        ScoringProperties.Highlight disabled = new ScoringProperties.Highlight(false, 40, 12, 6, 8);
+        ScoringProperties.Highlight disabled = new ScoringProperties.Highlight(false, 40, 12, 6, 8, 8);
 
         int marked = backfill(disabled).backfillIfEmpty(GAME_ID, NOW, true);
 

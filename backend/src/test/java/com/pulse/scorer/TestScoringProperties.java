@@ -10,7 +10,7 @@ final class TestScoringProperties {
     }
 
     static ScoringProperties version5() {
-        return version5(new ScoringProperties.Highlight(false, 40, 12, 6, 8));
+        return version5(new ScoringProperties.Highlight(false, 40, 12, 6, 8, 8));
     }
 
     static ScoringProperties version5(ScoringProperties.Highlight highlight) {

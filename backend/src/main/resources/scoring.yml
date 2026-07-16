@@ -6,7 +6,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 8
+  version: 9
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
@@ -98,10 +98,12 @@ scoring:
 
   # 보호 모드 이벤트 타임라인 하이라이트 트리거
   # (알림 thresholds와 분리 — 알림은 스팸 방지로 빡세고, 타임라인은 더 촘촘히 허용)
+  # 운영 7일치 종료 경기 42경기 watch_scores 재생 시뮬레이션 기준 경기당 평균 6.1건, 중앙값 5건(목표 5~10건)
   # enabled=false면 기존 이벤트별 문구 생성 트리거를 그대로 사용한다.
   highlight:
     enabled: true
-    min-score: 40
-    rise-score: 12
-    rise-window-minutes: 6
-    cooldown-minutes: 8
+    min-score: 20
+    rise-score: 6
+    rise-window-minutes: 12
+    cooldown-minutes: 5
+    backfill-max-per-game: 8
