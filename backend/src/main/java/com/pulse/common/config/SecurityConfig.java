@@ -147,6 +147,18 @@ public class SecurityConfig {
                         ).permitAll()
 
                         /*
+                         * 관심 선수 이름 검색 API입니다.
+                         *
+                         * 외부 선수 API를 호출할 수 있으므로
+                         * 비로그인 사용자가 반복 호출해 외부 API 쿼터와
+                         * 서버 자원을 소모하지 못하도록 인증을 요구합니다.
+                         */
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/players"
+                        ).authenticated()
+
+                        /*
                          * 로그인한 사용자 전용 API는 Access Token이 필요합니다.
                          * - POST /api/sse/token
                          *   SSE 인증 연결용 1회용 토큰 발급
