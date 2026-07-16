@@ -182,6 +182,42 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
 }
 ```
 
+#### Swagger Smoke Test
+
+로컬 ai-service Swagger UI에서 `POST /ai/play-translation` endpoint를 수동 검증했다.
+
+##### Request
+
+```json
+{
+  "gameId": 5059041,
+  "playId": 312,
+  "mode": "REVEALED",
+  "contextHash": "play-312-v1",
+  "sourceText": "Soto singled to center.",
+  "targetLanguage": "ko"
+}
+```
+
+##### Response
+
+```json
+{
+  "translatedText": "Soto, 중견수 방면 안타",
+  "violations": [],
+  "fallbackUsed": false,
+  "contextHash": "play-312-v1"
+}
+```
+
+##### 확인 사항
+
+- Swagger UI에 `POST /ai/play-translation` endpoint가 노출됨
+- `REVEALED` 모드와 `targetLanguage=ko` 요청이 200으로 처리됨
+- `contextHash`가 요청값 그대로 반환됨
+- guard 통과 시 `violations=[]`
+- fallback 번역은 사용하지 않으므로 `fallbackUsed=false`
+
 ## 5. scorer ↔ ai-service HTTP 계약
 
 | 항목 | `POST /ai/final-headline` | `POST /ai/event-copy` | `POST /ai/play-translation` |
