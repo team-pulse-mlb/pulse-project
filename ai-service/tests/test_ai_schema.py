@@ -67,6 +67,124 @@ class AiSchemaTestCase(unittest.TestCase):
         self.assertEqual(request.safe_context.final_score.away, 3)
         self.assertEqual(request.safe_context.winner, "home")
 
+    def test_final_headline_request_accepts_v2_revealed_context(self):
+        payload = {
+            "gameId": 5059082,
+            "mode": "REVEALED",
+            "contextHash": "game-5059082-final-revealed-v2",
+            "safeContext": {
+                "status": "STATUS_FINAL",
+                "periodLabel": "경기 종료",
+                "teams": {
+                    "home": {"name": "Los Angeles Dodgers", "abbr": "LAD"},
+                    "away": {"name": "San Francisco Giants", "abbr": "SF"},
+                },
+                "finalScore": {"home": 5, "away": 3},
+                "winner": "home",
+                "inningsPlayed": 10,
+                "extraInnings": True,
+                "postseason": False,
+                "venue": "Dodger Stadium",
+                "startTime": "2026-07-03T00:05:00Z",
+                "homeInningScores": [0, 0, 1, 0, 0, 0, 0, 2, 0, 2],
+                "awayInningScores": [0, 0, 0, 1, 0, 0, 2, 0, 0, 0],
+                "summaryFacts": {
+                    "winnerSide": "home",
+                    "winnerName": "Los Angeles Dodgers",
+                    "loserName": "San Francisco Giants",
+                    "winnerScore": 5,
+                    "loserScore": 3,
+                    "extraInnings": True,
+                    "finalInning": 10,
+                    "scoreGap": 2,
+                    "totalRuns": 8,
+                },
+                "revealedEvents": [
+                    {
+                        "eventId": 91,
+                        "eventType": "home_run",
+                        "inning": 8,
+                        "inningType": "Bottom",
+                        "batter": {"id": 660271, "name": "Shohei Ohtani"},
+                        "pitcher": {"id": 592789, "name": "Logan Webb"},
+                        "evidence": {"scoreValue": 2},
+                    }
+                ],
+                "revealedMoments": [
+                    {
+                        "inning": 8,
+                        "inningHalf": "Bottom",
+                        "battingTeam": "LAD",
+                        "eventTypes": ["home_run"],
+                        "batter": "Shohei Ohtani",
+                        "runsScored": 2,
+                        "scoreAfter": {"home": 5, "away": 3},
+                        "scoringPlays": 1,
+                    }
+                ],
+                "verifiedPlays": [
+                    {
+                        "playId": 312,
+                        "playOrder": 4250312,
+                        "inning": 8,
+                        "inningType": "bottom",
+                        "sourceText": "Ohtani homered to right center.",
+                        "translatedText": "Ohtani, 우중간 홈런",
+                        "homeScoreAfter": 5,
+                        "awayScoreAfter": 3,
+                        "scoringPlay": True,
+                        "scoreValue": 2,
+                        "outs": 1,
+                        "balls": 2,
+                        "strikes": 1,
+                        "batter": {"id": 660271, "name": "Shohei Ohtani"},
+                        "pitcher": {"id": 592789, "name": "Logan Webb"},
+                        "runnerOnFirst": False,
+                        "runnerOnSecond": True,
+                        "runnerOnThird": False,
+                        "factTags": ["SCORING_PLAY", "TRANSLATED"],
+                    }
+                ],
+            },
+        }
+
+        request = FinalHeadlineRequest.model_validate(payload)
+        safe_context = request.safe_context
+
+        self.assertEqual(request.mode, AiCopyMode.REVEALED)
+        self.assertEqual(safe_context.status, "STATUS_FINAL")
+        self.assertEqual(safe_context.period_label, "경기 종료")
+        self.assertIsNotNone(safe_context.teams)
+        self.assertEqual(safe_context.teams.home.abbr, "LAD")
+        self.assertEqual(safe_context.teams.away.abbr, "SF")
+        self.assertEqual(safe_context.innings_played, 10)
+        self.assertTrue(safe_context.extra_innings)
+        self.assertEqual(safe_context.venue, "Dodger Stadium")
+        self.assertEqual(safe_context.home_inning_scores[-1], 2)
+        self.assertEqual(safe_context.away_inning_scores[3], 1)
+
+        self.assertIsNotNone(safe_context.summary_facts)
+        self.assertEqual(safe_context.summary_facts.winner_side, "home")
+        self.assertEqual(safe_context.summary_facts.winner_name, "Los Angeles Dodgers")
+        self.assertEqual(safe_context.summary_facts.score_gap, 2)
+        self.assertEqual(safe_context.summary_facts.total_runs, 8)
+
+        self.assertEqual(len(safe_context.revealed_events), 1)
+        self.assertEqual(safe_context.revealed_events[0].event_id, 91)
+        self.assertEqual(safe_context.revealed_events[0].batter.name, "Shohei Ohtani")
+        self.assertEqual(safe_context.revealed_events[0].evidence["scoreValue"], 2)
+
+        self.assertEqual(len(safe_context.revealed_moments), 1)
+        self.assertEqual(safe_context.revealed_moments[0].inning_half, "Bottom")
+        self.assertEqual(safe_context.revealed_moments[0].score_after.home, 5)
+
+        self.assertEqual(len(safe_context.verified_plays), 1)
+        self.assertEqual(safe_context.verified_plays[0].play_id, 312)
+        self.assertEqual(safe_context.verified_plays[0].translated_text, "Ohtani, 우중간 홈런")
+        self.assertEqual(safe_context.verified_plays[0].batter.name, "Shohei Ohtani")
+        self.assertIn("TRANSLATED", safe_context.verified_plays[0].fact_tags)
+
+
     def test_event_copy_request_accepts_spring_camel_case_payload(self):
         payload = {
             "gameId": 5059041,
