@@ -11,12 +11,14 @@ import { useNavigate } from 'react-router';
 
 import '../styles/signup.css';
 
-import { 
-    signupMember, 
+import {
+    signupMember,
     checkEmailDuplicate,
-    sendEmailCode, 
-    verifyEmailCode 
+    sendEmailCode,
+    verifyEmailCode
 } from '../api/memberApi';
+
+import { login } from '../api/authApi';
 
 import {
     getTeams,
@@ -41,17 +43,15 @@ interface SignupErrors {
 type SignupStep = 1 | 2 | 3;
 
 interface NotificationSettings {
-    // 전체 알림 ON/OFF
-    all: boolean;
-
-    // 관심팀 경기가 시작되면 알림을 받을지 여부
+    /*
+     * 관심팀 경기가 시작되면 알림을 받을지 여부
+     */
     gameStart: boolean;
 
-    // 경기 흐름이 급상승할 때 알림을 받을지 여부
+    /*
+     * 경기 흐름이 급상승했을 때 알림을 받을지 여부
+     */
     surge: boolean;
-
-    // 사용자가 보던 경기보다 더 추천할 만한 경기로 전환할 때 알림을 받을지 여부
-    gameSwitch: boolean;
 }
 
 const initialFormData: SignupFormData = {
@@ -106,19 +106,18 @@ function SignupPage() {
     const [teamLoadError, setTeamLoadError] =
         useState('');
 
-    // 알림 설정 기본값
-    // 사용자가 알림 단계를 건너뛰거나 따로 수정하지 않으면 이 값이 기본 적용됨
+    /*
+     * 회원가입 화면에서 제공하는 알림 설정입니다.
+     *
+     * 사용자가 별도로 끄지 않으면 두 알림 모두 활성화된 상태로
+     * 회원가입을 진행합니다.
+     */
     const [notificationSettings, setNotificationSettings] =
         useState<NotificationSettings>({
-            // 기본값은 전체 ON
-            all: true,
-            
-            // 유저가 따로 끄지 않으면 기본 알림을 받는 방향
             gameStart: true,
             surge: true,
-            gameSwitch: true,
         });
-    
+
     const [formData, setFormData] =
         useState<SignupFormData>(initialFormData);
 
@@ -500,51 +499,21 @@ function SignupPage() {
         setSignupStep(3);
     };
 
-    const handleToggleAllNotifications = () => {
-        setNotificationSettings((prev) => {
-            // 현재 전체 알림이 true면 false로, false면 true로 변경
-            const nextAll = !prev.all;
-
-            return {
-                // 전체 알림 상태 변경
-                all: nextAll,
-
-                // 전체 알림을 끄면 개별 알림도 모두 OFF
-                // 전체 알림을 켜면 개별 알림도 모두 ON
-                gameStart: nextAll,
-                surge: nextAll,
-                gameSwitch: nextAll,
-            };
-        });
-    };
-
+    /*
+     * 선택한 알림 하나의 활성 상태만 반전합니다.
+     *
+     * 예:
+     * - gameStart가 true면 false
+     * - surge가 false면 true
+     */
     const handleToggleNotification = (
-        name: Exclude<keyof NotificationSettings, 'all'>,
+        name: keyof NotificationSettings,
     ) => {
-        setNotificationSettings((prev) => {
-            const nextSettings = {
-                ...prev,
-
-                // name으로 들어온 알림 설정만 true/false 반전
-                // 예: gameStart가 true면 false, false면 true
-                [name]: !prev[name],
-            };
-
-            // 개별 알림 3개가 모두 ON이면 전체 알림도 ON
-            // 하나라도 OFF면 전체 알림은 OFF
-            const nextAll =
-                nextSettings.gameStart &&
-                nextSettings.surge &&
-                nextSettings.gameSwitch;
-
-            return {
-                ...nextSettings,
-
-                // 개별 알림 상태에 맞춰 전체 알림 상태도 자동 갱신
-                all: nextAll,
-            };
-        });
-};
+        setNotificationSettings((previousSettings) => ({
+            ...previousSettings,
+            [name]: !previousSettings[name],
+        }));
+    };
 
     const handleFinalSignup = async () => {
         const email = formData.email.trim();
@@ -566,26 +535,93 @@ function SignupPage() {
             password: formData.password,
             selectedTeamIds,
             notificationSettings: {
-                all: notificationSettings.all,
+                /*
+                 * 전체 알림 UI는 제거했으므로,
+                 * 남아 있는 두 알림이 모두 켜졌을 때만 true로 전송합니다.
+                 */
+                all:
+                    notificationSettings.gameStart &&
+                    notificationSettings.surge,
+
                 gameStart: notificationSettings.gameStart,
                 surge: notificationSettings.surge,
-                gameSwitch: notificationSettings.gameSwitch,
+
+                /*
+                 * 경기 전환 알림 기능은 회원가입 UI에서 제거했으므로
+                 * 신규 회원은 기본적으로 비활성화합니다.
+                 */
+                gameSwitch: false,
             },
         };
-
-        console.log('최종 회원가입 요청:', signupRequest);
 
         try {
             /*
              * 회원 계정, 관심팀, 알림 설정을 한 번에 회원가입 API로 전송한다.
              */
-            const result = await signupMember(signupRequest);
+            await signupMember(signupRequest);
 
-            console.log('회원가입 응답:', result);
+            /*
+             * 관심 선수 온보딩 API는 로그인한 사용자만 사용할 수 있습니다.
+             *
+             * 따라서 회원가입이 성공하면 같은 이메일과 비밀번호로
+             * 자동 로그인을 진행한 뒤 온보딩 화면으로 이동합니다.
+             */
+            try {
+                const loginResponse = await login({
+                    email,
+                    password: formData.password,
+                });
 
-            alert(result.message ?? '회원가입이 완료되었습니다.');
+                /*
+                 * Access Token은 기존 로그인 기능과 동일하게
+                 * 브라우저 Local Storage에 저장합니다.
+                 *
+                 * Refresh Token은 로그인 API 응답 과정에서
+                 * HttpOnly 쿠키로 자동 저장됩니다.
+                 */
+                localStorage.setItem(
+                    'accessToken',
+                    loginResponse.accessToken,
+                );
 
-            navigate('/');
+                /*
+                 * Header 등 인증 상태를 사용하는 컴포넌트에
+                 * 로그인 상태가 변경됐음을 알립니다.
+                 */
+                window.dispatchEvent(
+                    new Event('auth-changed'),
+                );
+
+                /*
+                 * 로그인된 상태이므로 ProtectedRoute를 통과해
+                 * 관심 선수 온보딩 화면으로 바로 이동할 수 있습니다.
+                 */
+                navigate('/onboarding', {
+                    replace: true,
+                });
+            } catch (loginError) {
+                /*
+                 * 이 시점에는 회원가입 자체는 이미 성공한 상태입니다.
+                 * 자동 로그인만 실패했으므로 회원가입 실패 메시지를
+                 * 보여주면 안 됩니다.
+                 */
+                console.error(
+                    '회원가입 후 자동 로그인 오류:',
+                    loginError,
+                );
+
+                alert(
+                    '회원가입은 완료되었지만 자동 로그인에 실패했습니다. 홈에서 다시 로그인해 주세요.',
+                );
+
+                /*
+                 * PULSE 로그인은 독립 페이지가 아니라
+                 * 홈 화면의 로그인 모달을 사용합니다.
+                 */
+                navigate('/', {
+                    replace: true,
+                });
+            }
 
         } catch (error) {
             console.error('회원가입 요청 오류:', error);
@@ -602,16 +638,20 @@ function SignupPage() {
             alert('알 수 없는 오류가 발생했습니다.');
         }
     };
-    
+
     const emailMessage =
         errors.email || emailCheckMessage;
 
     return (
-        <main className="signup-page">
-            <section className="signup-container">
+        <main
+            className={`signup-page signup-page-step-${signupStep}`}
+        >
+            <section
+                className={`signup-container signup-container-step-${signupStep}`}
+            >
                 <header className="signup-header">
                     <h1 className="signup-logo">PULSE</h1>
-                    
+
                     {/* 현재 회원가입 단계 표시 */}
                     <div className="signup-step-indicator">
                         <span>{signupStep}/3</span>
@@ -623,15 +663,21 @@ function SignupPage() {
                         </strong>
                     </div>
 
-                    <h2>회원가입</h2>
+                    <h2>
+                        {signupStep === 1 && '회원가입'}
+                        {signupStep === 2 && '관심 있는 팀을 선택해주세요'}
+                        {signupStep === 3 && '원하는 알림을 설정해주세요'}
+                    </h2>
 
                     <p>
                         {signupStep === 1 &&
                             '이메일 인증과 비밀번호 설정을 완료해 주세요.'}
+
                         {signupStep === 2 &&
-                            '관심 있는 팀을 선택하면 개인화 추천에 활용할 수 있어요.'}
+                            '선택한 팀의 경기가 홈 화면과 추천에 우선 반영됩니다.'}
+
                         {signupStep === 3 &&
-                            '알림 수신 여부를 설정하고 가입을 완료해 주세요.'}
+                            '관심 있는 경기 알림만 선택해서 받을 수 있습니다.'}
                     </p>
                 </header>
 
@@ -680,17 +726,16 @@ function SignupPage() {
                             <div className="signup-email-message-area">
                                 {emailMessage && (
                                     <p
-                                        className={`signup-email-message ${
-                                            errors.email || emailAvailable === false
-                                                ? 'error'
-                                                : 'success'
-                                        }`}
+                                        className={`signup-email-message ${errors.email || emailAvailable === false
+                                            ? 'error'
+                                            : 'success'
+                                            }`}
                                     >
                                         {emailMessage}
                                     </p>
                                 )}
                             </div>
-                            
+
                         </div>
 
                         {isCodeSent && (
@@ -734,17 +779,16 @@ function SignupPage() {
                                 <div className="signup-email-message-area">
                                     {(errors.verificationCode ||
                                         verificationMessage) && (
-                                        <p
-                                            className={`signup-email-message ${
-                                                errors.verificationCode
+                                            <p
+                                                className={`signup-email-message ${errors.verificationCode
                                                     ? 'error'
                                                     : 'success'
-                                            }`}
-                                        >
-                                            {errors.verificationCode ||
-                                                verificationMessage}
-                                        </p>
-                                    )}
+                                                    }`}
+                                            >
+                                                {errors.verificationCode ||
+                                                    verificationMessage}
+                                            </p>
+                                        )}
                                 </div>
                             </div>
                         )}
@@ -818,7 +862,7 @@ function SignupPage() {
                             </button>
                         </div>
 
-                                                <div className="signup-team-board">
+                        <div className="signup-team-board">
                             {isTeamsLoading && (
                                 <p className="signup-step-help">
                                     팀 목록을 불러오는 중입니다.
@@ -841,9 +885,8 @@ function SignupPage() {
                                         <button
                                             key={team.teamId}
                                             type="button"
-                                            className={`signup-team-row ${
-                                                isSelected ? 'selected' : ''
-                                            }`}
+                                            className={`signup-team-row ${isSelected ? 'selected' : ''
+                                                }`}
                                             onClick={() =>
                                                 handleToggleTeam(team.teamId)
                                             }
@@ -904,92 +947,90 @@ function SignupPage() {
                                 다음
                             </button>
                         </div>
+
+
+
                     </div>
                 )}
 
                 {signupStep === 3 && (
                     <div className="signup-step-panel">
                         <div className="signup-tab-box">
-                            <button type="button" className="signup-tab" disabled>
+                            <button
+                                type="button"
+                                className="signup-tab"
+                                disabled
+                            >
                                 관심팀 선택
                             </button>
 
-                            <button type="button" className="signup-tab active">
+                            <button
+                                type="button"
+                                className="signup-tab active"
+                            >
                                 알림 설정
                             </button>
-                        </div>
-
-                        <div className="signup-preference-summary">
-                            <div>
-                                <span>내 관심팀</span>
-                                <strong>
-                                    {selectedTeamIds.length === 0
-                                        ? '선택 안 함'
-                                        : `${selectedTeamIds.length}개 팀`}
-                                </strong>
-                            </div>
-
                         </div>
 
                         <div className="signup-notification-list">
                             <button
                                 type="button"
-                                className={`signup-notification-card main ${
-                                    notificationSettings.all ? 'active' : ''
-                                }`}
-                                onClick={handleToggleAllNotifications}
+                                className={`signup-notification-card ${notificationSettings.gameStart
+                                    ? 'active'
+                                    : ''
+                                    }`}
+                                onClick={() =>
+                                    handleToggleNotification('gameStart')
+                                }
+                                aria-pressed={notificationSettings.gameStart}
                             >
-                                <div>
-                                    <strong>전체 알림 설정</strong>
-                                    <span>모든 알림을 한 번에 켜거나 끌 수 있어요.</span>
+                                <div className="signup-notification-copy">
+                                    <strong>
+                                        관심팀 경기 시작 알림
+                                    </strong>
+
+                                    <span>
+                                        등록한 관심팀의 경기가 시작되면
+                                        알려드려요.
+                                    </span>
                                 </div>
 
-                                <em>{notificationSettings.all ? 'ON' : 'OFF'}</em>
+                                <span
+                                    className="signup-toggle"
+                                    aria-hidden="true"
+                                >
+                                    <span className="signup-toggle-thumb" />
+                                </span>
                             </button>
 
                             <button
                                 type="button"
-                                className={`signup-notification-card ${
-                                    notificationSettings.gameStart ? 'active' : ''
-                                }`}
-                                onClick={() => handleToggleNotification('gameStart')}
+                                className={`signup-notification-card ${notificationSettings.surge
+                                    ? 'active'
+                                    : ''
+                                    }`}
+                                onClick={() =>
+                                    handleToggleNotification('surge')
+                                }
+                                aria-pressed={notificationSettings.surge}
                             >
-                                <div>
-                                    <strong>관심팀 경기 시작 알림</strong>
-                                    <span>관심팀 경기가 시작되면 알려드려요.</span>
+                                <div className="signup-notification-copy">
+                                    <strong>
+                                        급상승 경기 알림
+                                    </strong>
+
+                                    <span>
+                                        지금 갑자기 볼 만해진 경기를
+                                        알려드려요.
+                                    </span>
                                 </div>
 
-                                <em>{notificationSettings.gameStart ? 'ON' : 'OFF'}</em>
-                            </button>
-
-                            <button
-                                type="button"
-                                className={`signup-notification-card ${
-                                    notificationSettings.surge ? 'active' : ''
-                                }`}
-                                onClick={() => handleToggleNotification('surge')}
-                            >
-                                <div>
-                                    <strong>모멘텀 급상승 알림</strong>
-                                    <span>흐름이 급변한 경기를 알려드려요.</span>
-                                </div>
-
-                                <em>{notificationSettings.surge ? 'ON' : 'OFF'}</em>
-                            </button>
-
-                            <button
-                                type="button"
-                                className={`signup-notification-card ${
-                                    notificationSettings.gameSwitch ? 'active' : ''
-                                }`}
-                                onClick={() => handleToggleNotification('gameSwitch')}
-                            >
-                                <div>
-                                    <strong>경기 전환 알림</strong>
-                                    <span>지금보다 더 볼 만한 경기가 생기면 알려드려요.</span>
-                                </div>
-
-                                <em>{notificationSettings.gameSwitch ? 'ON' : 'OFF'}</em>
+                                <span
+                                    className="signup-toggle"
+                                    aria-hidden="true"
+                                >
+                                    <span className="signup-toggle-thumb" />
+                                </span>
                             </button>
                         </div>
 

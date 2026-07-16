@@ -18,6 +18,11 @@ import {
     type PlayerSearchResponse,
 } from '../api/playerApi';
 
+import {
+    getTeams,
+    type TeamResponse,
+} from '../../../shared/api/teamApi';
+
 import '../styles/myPage.css';
 import '../styles/settingsPlayers.css';
 
@@ -44,8 +49,39 @@ interface SelectedPlayer {
     teamAbbreviation: string | null;
 }
 
-function SettingsPlayersPage() {
+/*
+ * 관심 선수 화면의 사용 목적을 구분합니다.
+ *
+ * settings:
+ * - 마이페이지에서 기존 관심 선수를 수정하는 일반 설정 화면
+ *
+ * onboarding:
+ * - 회원가입과 로그인 직후 표시되는 마지막 온보딩 화면
+ */
+interface SettingsPlayersPageProps {
+    mode?: 'settings' | 'onboarding';
+}
+
+function SettingsPlayersPage({
+    mode = 'settings',
+}: SettingsPlayersPageProps) {
     const navigate = useNavigate();
+
+    /*
+     * 별도의 선수 검색·저장 로직을 복사하지 않고,
+     * 같은 화면을 온보딩 용도로도 사용할 수 있게 구분합니다.
+     */
+    const isOnboarding = mode === 'onboarding';
+
+    /*
+     * 온보딩 화면에서만 다크 전체 화면 CSS를 적용합니다.
+     *
+     * 일반 /settings/players 화면에는
+     * 기존 마이페이지 스타일이 그대로 유지됩니다.
+     */
+    const pageClassName = isOnboarding
+        ? 'mypage-shell player-settings-page player-onboarding-page'
+        : 'mypage-shell player-settings-page';
 
     /*
      * 사용자가 검색창에 입력한 영문 선수 이름입니다.
@@ -67,6 +103,15 @@ function SettingsPlayersPage() {
      */
     const [selectedPlayers, setSelectedPlayers] =
         useState<SelectedPlayer[]>([]);
+
+    /*
+     * MLB 전체 팀 목록입니다.
+     *
+     * 선수의 현재 teamId와 팀 목록의 teamId를 연결하여
+     * 선수 이니셜 대신 현재 소속팀 로고를 표시합니다.
+     */
+    const [teams, setTeams] =
+        useState<TeamResponse[]>([]);
 
     /*
      * 관심 선수 저장 API가 관심팀 ID도 함께 받으므로,
@@ -114,6 +159,54 @@ function SettingsPlayersPage() {
             ),
         );
     }, [selectedPlayers]);
+
+    /*
+     * teamId를 key로 사용하는 팀 정보 Map입니다.
+     *
+     * 선수마다 teams.find(...)를 반복하지 않고
+     * 현재 소속팀 정보를 빠르게 찾기 위해 사용합니다.
+     */
+    const teamById = useMemo(() => {
+        return new Map(
+            teams.map((team) => [
+                team.teamId,
+                team,
+            ]),
+        );
+    }, [teams]);
+
+    /*
+     * 선수 카드에 현재 소속팀 로고를 표시하기 위해
+     * 전체 MLB 팀 목록을 별도로 조회합니다.
+     *
+     * 팀 목록 조회 실패는 관심 선수 저장 기능에 영향을 주면 안 되므로,
+     * 오류 메시지를 화면에 표시하지 않고 이니셜 표시로 대체합니다.
+     */
+    useEffect(() => {
+        let ignore = false;
+
+        const loadTeams = async () => {
+            try {
+                const teamResponse =
+                    await getTeams();
+
+                if (!ignore) {
+                    setTeams(teamResponse);
+                }
+            } catch (error) {
+                console.error(
+                    '선수 로고용 팀 목록 조회 오류:',
+                    error,
+                );
+            }
+        };
+
+        void loadTeams();
+
+        return () => {
+            ignore = true;
+        };
+    }, []);
 
     /*
      * 페이지 진입 시 현재 사용자의 선호 설정을 조회합니다.
@@ -403,9 +496,16 @@ function SettingsPlayersPage() {
                 notificationSettings,
             });
 
-            navigate('/mypage', {
-                replace: true,
-            });
+            /*
+             * 온보딩에서 저장했다면 홈으로 이동하고,
+             * 일반 설정 화면에서 저장했다면 마이페이지로 돌아갑니다.
+             */
+            navigate(
+                isOnboarding ? '/' : '/mypage',
+                {
+                    replace: true,
+                },
+            );
         } catch (error) {
             console.error(
                 '관심 선수 저장 오류:',
@@ -422,7 +522,7 @@ function SettingsPlayersPage() {
 
     if (isLoading) {
         return (
-            <main className="mypage-shell">
+            <main className={pageClassName}>
                 <section className="mypage-loading-card">
                     관심 선수 정보를 불러오는 중입니다...
                 </section>
@@ -431,19 +531,26 @@ function SettingsPlayersPage() {
     }
 
     return (
-        <main className="mypage-shell player-settings-page">
+        <main className={pageClassName}>
             <section className="mypage-single-column">
                 <header className="mypage-content-header">
                     <div>
                         <p className="mypage-eyebrow">
-                            PLAYER SETTINGS
+                            {isOnboarding
+                                ? '4/4 · 관심 선수 선택'
+                                : 'PLAYER SETTINGS'}
                         </p>
 
-                        <h1>관심 선수 관리</h1>
+                        <h1>
+                            {isOnboarding
+                                ? '관심 있는 선수를 선택해주세요'
+                                : '관심 선수 관리'}
+                        </h1>
 
                         <p>
-                            좋아하는 MLB 선수를 영문 이름으로
-                            검색해 최대 5명까지 등록할 수 있습니다.
+                            {isOnboarding
+                                ? '좋아하는 MLB 선수를 최대 5명까지 선택하면 개인화 추천에 반영됩니다.'
+                                : '좋아하는 MLB 선수를 영문 이름으로 검색해 최대 5명까지 등록할 수 있습니다.'}
                         </p>
                     </div>
 
@@ -451,11 +558,18 @@ function SettingsPlayersPage() {
                         type="button"
                         className="mypage-text-button"
                         onClick={() =>
-                            navigate('/mypage')
+                            navigate(
+                                isOnboarding ? '/' : '/mypage',
+                                {
+                                    replace: isOnboarding,
+                                },
+                            )
                         }
                         disabled={isSaving}
                     >
-                        마이페이지로 돌아가기
+                        {isOnboarding
+                            ? '건너뛰기'
+                            : '마이페이지로 돌아가기'}
                     </button>
                 </header>
 
@@ -499,51 +613,76 @@ function SettingsPlayersPage() {
                     ) : (
                         <div className="player-selected-list">
                             {selectedPlayers.map(
-                                (player) => (
-                                    <article
-                                        key={player.playerId}
-                                        className="player-selected-card"
-                                    >
-                                        <div className="player-avatar">
-                                            {player.fullName
-                                                ?.charAt(0)
-                                                .toUpperCase() ??
-                                                '?'}
-                                        </div>
+                                (player) => {
+                                    /*
+                                     * 선수의 현재 teamId와 일치하는 팀을 찾습니다.
+                                     *
+                                     * 백엔드에서 선수의 teamId가 최신 소속팀으로 갱신되면
+                                     * 다음 조회부터 자동으로 새로운 팀 로고가 표시됩니다.
+                                     */
+                                    const currentTeam =
+                                        player.teamId === null
+                                            ? null
+                                            : teamById.get(
+                                                player.teamId,
+                                            ) ?? null;
 
-                                        <div className="player-card-text">
-                                            <strong>
-                                                {player.fullName ??
-                                                    `선수 #${player.playerId}`}
-                                            </strong>
-
-                                            <span>
-                                                {[
-                                                    player.position,
-                                                    player.teamAbbreviation,
-                                                    player.teamName,
-                                                ]
-                                                    .filter(Boolean)
-                                                    .join(' · ') ||
-                                                    '선수 정보를 확인 중입니다.'}
-                                            </span>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            className="player-remove-button"
-                                            onClick={() =>
-                                                handleRemovePlayer(
-                                                    player.playerId,
-                                                )
-                                            }
-                                            disabled={isSaving}
-                                            aria-label={`${player.fullName ?? '선수'} 관심 선수 해제`}
+                                    return (
+                                        <article
+                                            key={player.playerId}
+                                            className="player-selected-card"
                                         >
-                                            삭제
-                                        </button>
-                                    </article>
-                                ),
+                                            <div className="player-avatar">
+                                                {currentTeam?.logoUrl ? (
+                                                    <img
+                                                        className="player-team-logo"
+                                                        src={currentTeam.logoUrl}
+                                                        alt={`${currentTeam.displayName} 로고`}
+                                                        width={28}
+                                                        height={28}
+                                                    />
+                                                ) : (
+                                                    player.fullName
+                                                        ?.charAt(0)
+                                                        .toUpperCase() ??
+                                                    '?'
+                                                )}
+                                            </div>
+
+                                            <div className="player-card-text">
+                                                <strong>
+                                                    {player.fullName ??
+                                                        `선수 #${player.playerId}`}
+                                                </strong>
+
+                                                <span>
+                                                    {[
+                                                        player.position,
+                                                        player.teamAbbreviation,
+                                                        player.teamName,
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(' · ') ||
+                                                        '선수 정보를 확인 중입니다.'}
+                                                </span>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                className="player-remove-button"
+                                                onClick={() =>
+                                                    handleRemovePlayer(
+                                                        player.playerId,
+                                                    )
+                                                }
+                                                disabled={isSaving}
+                                                aria-label={`${player.fullName ?? '선수'} 관심 선수 해제`}
+                                            >
+                                                삭제
+                                            </button>
+                                        </article>
+                                    );
+                                },
                             )}
                         </div>
                     )}
@@ -572,7 +711,9 @@ function SettingsPlayersPage() {
                         >
                             {isSaving
                                 ? '저장 중...'
-                                : '관심 선수 저장'}
+                                : isOnboarding
+                                    ? '선택 완료'
+                                    : '관심 선수 저장'}
                         </button>
                     </div>
 
@@ -628,6 +769,13 @@ function SettingsPlayersPage() {
                                             player.playerId,
                                         );
 
+                                    const currentTeam =
+                                        player.teamId === null
+                                            ? null
+                                            : teamById.get(
+                                                player.teamId,
+                                            ) ?? null;
+
                                     return (
                                         <article
                                             key={player.playerId}
@@ -637,9 +785,19 @@ function SettingsPlayersPage() {
                                                 }`}
                                         >
                                             <div className="player-avatar">
-                                                {player.fullName
-                                                    .charAt(0)
-                                                    .toUpperCase()}
+                                                {currentTeam?.logoUrl ? (
+                                                    <img
+                                                        className="player-team-logo"
+                                                        src={currentTeam.logoUrl}
+                                                        alt={`${currentTeam.displayName} 로고`}
+                                                        width={30}
+                                                        height={30}
+                                                    />
+                                                ) : (
+                                                    player.fullName
+                                                        .charAt(0)
+                                                        .toUpperCase()
+                                                )}
                                             </div>
 
                                             <div className="player-card-text">

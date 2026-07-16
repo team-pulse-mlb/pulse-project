@@ -259,57 +259,151 @@
     gap: 12px;
 }
 
+/*
+ * 마이페이지 알림 설정 카드
+ */
 .mypage-notification-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 18px;
+
     width: 100%;
     padding: 18px;
+
     border: 1px solid var(--mypage-border);
     border-radius: 18px;
+
     background: #ffffff;
     text-align: left;
     cursor: pointer;
+
     transition:
-        border-color 0.15s ease,
-        background-color 0.15s ease;
+        border-color 0.2s ease,
+        background-color 0.2s ease;
 }
 
 .mypage-notification-card:hover {
-    background: #f9fafc;
+    border-color: #f3a6b5;
+    background: #fffafb;
 }
 
+/*
+ * 알림이 활성화됐을 때 카드 자체에도
+ * 연한 빨간색 강조를 적용합니다.
+ */
 .mypage-notification-card.active {
-    border-color: var(--mypage-navy);
-    background: #eef2fa;
+    border-color: var(--mypage-red, #e6002d);
+    background: #fff5f7;
+}
+
+/*
+ * 제목과 설명이 들어가는 왼쪽 영역입니다.
+ */
+.mypage-notification-copy {
+    flex: 1;
+    min-width: 0;
 }
 
 .mypage-notification-card strong {
     display: block;
+
     margin-bottom: 4px;
+
     color: var(--mypage-text);
+    line-height: 1.4;
 }
 
-.mypage-notification-card span {
+/*
+ * 모든 span이 아니라 설명 문장에만 적용합니다.
+ *
+ * 이렇게 범위를 좁혀야 오른쪽 스위치와
+ * 스위치 손잡이에는 글자 스타일이 적용되지 않습니다.
+ */
+.mypage-notification-copy > span {
+    display: block;
+
     color: #6b7280;
     font-size: 14px;
+    line-height: 1.5;
 }
 
-.mypage-notification-card em {
-    min-width: 48px;
-    padding: 6px 10px;
+/*
+ * 알림 스위치 바
+ *
+ * 기본 상태:
+ * - 회색 배경
+ * - 손잡이 왼쪽
+ */
+.mypage-toggle {
+    position: relative;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-shrink: 0;
+
+    box-sizing: border-box;
+    width: 48px;
+    height: 28px;
+    padding: 3px;
+
+    border: 0;
     border-radius: 999px;
-    background: #e5e7eb;
-    color: #6b7280;
-    font-style: normal;
-    font-weight: 900;
-    text-align: center;
+
+    background: #d1d5db;
+
+    transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
-.mypage-notification-card.active em {
-    background: var(--mypage-navy);
-    color: #ffffff;
+/*
+ * 좌우로 움직이는 흰색 원형 손잡이
+ */
+.mypage-toggle-thumb {
+    display: block;
+
+    box-sizing: border-box;
+    width: 20px;
+    height: 20px;
+
+    border-radius: 50%;
+
+    background: #ffffff;
+    box-shadow: 0 2px 5px rgba(15, 23, 42, 0.25);
+
+    transform: translateX(0);
+
+    transition:
+        transform 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+/*
+ * 활성화된 스위치:
+ * - 배경 빨간색
+ * - 손잡이 오른쪽 이동
+ */
+.mypage-notification-card.active
+    .mypage-toggle {
+    background: var(--mypage-red, #e6002d);
+
+    box-shadow:
+        0 0 0 3px rgba(230, 0, 45, 0.12);
+}
+
+.mypage-notification-card.active
+    .mypage-toggle-thumb {
+    transform: translateX(20px);
+}
+
+/*
+ * 키보드 Tab 이동 시 현재 선택된 카드를 표시합니다.
+ */
+.mypage-notification-card:focus-visible {
+    outline: 3px solid rgba(230, 0, 45, 0.25);
+    outline-offset: 3px;
 }
 
 /* 관심팀 미리보기 */
@@ -415,18 +509,51 @@
     transform: translateY(-1px);
 }
 
+/*
+ * 관심 선수의 현재 소속팀 로고 영역입니다.
+ *
+ * 팀 로고는 어두운 색상이 많으므로
+ * 흰색 원형 배경 위에 표시합니다.
+ *
+ * 팀 정보가 없으면 기존처럼
+ * 선수 이름 첫 글자가 표시됩니다.
+ */
 .mypage-preview-player-avatar {
     display: flex;
     align-items: center;
     justify-content: center;
+
     width: 44px;
     height: 44px;
+    flex-shrink: 0;
+
+    border: 1px solid #e5e7eb;
     border-radius: 50%;
-    background: #eef2fa;
+
+    background: #ffffff;
     color: var(--mypage-navy);
+
     font-size: 14px;
     font-weight: 850;
     line-height: 1;
+
+    overflow: hidden;
+
+    box-shadow:
+        0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+/*
+ * 팀 로고의 원본 비율을 유지하면서
+ * 원형 영역 안에 맞춰 표시합니다.
+ */
+.mypage-preview-player-logo {
+    display: block;
+
+    width: 34px;
+    height: 34px;
+
+    object-fit: contain;
 }
 
 .mypage-preview-player-text {

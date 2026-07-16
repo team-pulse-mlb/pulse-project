@@ -1,18 +1,41 @@
 .signup-page {
+  /*
+   * PULSE 회원가입 전용 색상
+   *
+   * 네이비: 주요 버튼, 제목, 입력 포커스
+   * 레드: 현재 단계, 인증 버튼, 선택 상태
+   */
+  --signup-navy: #102a43;
+  --signup-navy-dark: #081b33;
+  --signup-red: #e63946;
+  --signup-red-dark: #c92a36;
+  --signup-red-soft: #fff1f2;
+  --signup-background: #f3f6fa;
+  --signup-surface: #ffffff;
+  --signup-border: #d6dee8;
+  --signup-text: #101828;
+  --signup-muted: #667085;
+  --signup-error: #d92d20;
+  --signup-dark-background: #06162c;
+  --signup-dark-surface: rgba(255, 255, 255, 0.04);
+  --signup-dark-border: rgba(255, 255, 255, 0.11);
+  --signup-dark-muted: #9fb0c8;
+  --signup-light-text: #ffffff;
+
   display: flex;
   justify-content: center;
   align-items: flex-start;
 
-  min-height: calc(100vh - 72px);
-  padding: 70px 20px;
+  min-height: 100vh;
+  padding: 48px 20px 64px;
 
-  background-color: #f5f7fb;
+  background-color: var(--signup-background);
 }
 
 .signup-container {
   width: 100%;
-  max-width: 460px;
-  padding: 42px 38px;
+  max-width: 520px;
+  padding: 40px 44px;
 
   border: 1px solid #e5e7eb;
   border-radius: 20px;
@@ -22,26 +45,60 @@
 }
 
 /* 회원가입 상단 */
-
 .signup-header {
-  margin-bottom: 36px;
+  margin-bottom: 32px;
   text-align: center;
 }
 
 .signup-logo {
-  margin: 0 0 24px;
+  margin: 0 0 18px;
 
-  color: #175cd3;
+  color: var(--signup-navy);
 
   font-size: 30px;
   font-weight: 900;
   letter-spacing: 3px;
 }
 
+/*
+ * 현재 회원가입 단계 표시
+ *
+ * 예:
+ * 1/3  계정 정보
+ * 2/3  관심팀 선택
+ * 3/3  알림 설정
+ */
+.signup-step-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-bottom: 12px;
+  padding: 6px 12px;
+
+  border: 1px solid rgba(230, 57, 70, 0.22);
+  border-radius: 999px;
+
+  background-color: var(--signup-red-soft);
+
+  font-size: 13px;
+  line-height: 1;
+}
+
+.signup-step-indicator span {
+  color: var(--signup-red);
+  font-weight: 900;
+}
+
+.signup-step-indicator strong {
+  color: var(--signup-navy);
+  font-weight: 700;
+}
+
 .signup-header h2 {
   margin: 0;
 
-  color: #101828;
+  color: var(--signup-navy-dark);
 
   font-size: 30px;
   font-weight: 800;
@@ -101,8 +158,8 @@
 }
 
 .signup-field input:focus {
-  border-color: #175cd3;
-  box-shadow: 0 0 0 3px rgba(23, 92, 211, 0.12);
+  border-color: var(--signup-navy);
+  box-shadow: 0 0 0 3px rgba(16, 42, 67, 0.12);
 }
 
 /* 회원가입 버튼 */
@@ -116,7 +173,7 @@
   border-radius: 10px;
 
   color: #ffffff;
-  background-color: #175cd3;
+  background-color: var(--signup-navy);
 
   font-size: 16px;
   font-weight: 800;
@@ -129,7 +186,7 @@
 }
 
 .signup-submit-button:hover {
-  background-color: #124ba9;
+  background-color: var(--signup-navy-dark);
   transform: translateY(-1px);
 }
 
@@ -150,7 +207,7 @@
 
   border: 0;
 
-  color: #175cd3;
+  color: var(--signup-red);
   background-color: transparent;
 
   font-weight: 800;
@@ -159,21 +216,6 @@
 
 .signup-login-button:hover {
   text-decoration: underline;
-}
-
-@media (max-width: 520px) {
-  .signup-page {
-    padding: 30px 16px;
-  }
-
-  .signup-container {
-    padding: 32px 22px;
-    border-radius: 16px;
-  }
-
-  .signup-header h2 {
-    font-size: 26px;
-  }
 }
 
 .signup-input-row {
@@ -192,11 +234,11 @@
   min-width: 112px;
   padding: 0 14px;
 
-  border: 1px solid #175cd3;
+  border: 1px solid var(--signup-red);
   border-radius: 10px;
 
-  color: #175cd3;
-  background-color: #ffffff;
+  color: var(--signup-red);
+  background-color: var(--signup-surface);
 
   font-size: 13px;
   font-weight: 700;
@@ -204,100 +246,107 @@
 
   transition:
     color 0.2s,
+    border-color 0.2s,
     background-color 0.2s;
 }
 
-.email-action-button:hover {
+.email-action-button:hover:not(:disabled) {
   color: #ffffff;
-  background-color: #175cd3;
+  border-color: var(--signup-red-dark);
+  background-color: var(--signup-red-dark);
 }
 
-@media (max-width: 520px) {
-  .signup-input-row {
-    flex-direction: column;
-  }
-
-  .email-action-button {
-    width: 100%;
-    min-height: 46px;
-  }
-}
-
-.signup-input-error {
-    border-color: #ff3b30 !important;
-}
-
-.signup-error-message {
-    min-height: 20px;
-    margin: 6px 0 0;
-    color: #ff3b30;
-    font-size: 13px;
-    line-height: 1.4;
-}
-
-.signup-tab-box {
-  display: flex;
-  gap: 8px;
-
-  padding: 6px;
-
-  border-radius: 12px;
+.email-action-button:disabled {
+  color: #98a2b3;
+  border-color: #d0d5dd;
   background-color: #f2f4f7;
-}
 
-.signup-tab {
-  flex: 1;
-  height: 36px;
-
-  border: 0;
-  border-radius: 9px;
-
-  color: #667085;
-  background-color: transparent;
-
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.signup-tab.active {
-  color: #175cd3;
-  background-color: #ffffff;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
-}
-
-.signup-tab:disabled {
   cursor: default;
 }
 
+.signup-input-error {
+  border-color: #ff3b30 !important;
+}
+
+.signup-error-message {
+  min-height: 20px;
+  margin: 6px 0 0;
+  color: #ff3b30;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/*
+ * 오류가 없을 때 빈 p 태그가 차지하는 높이를 제거합니다.
+ *
+ * 기존에는 min-height 때문에 정상 상태에서도
+ * 비밀번호 입력칸 아래에 빈 공간이 남았습니다.
+ */
+.signup-error-message:empty {
+  display: none;
+}
+
+/*
+ * 관심팀·알림 탭은 실제 네비게이션 기능이 없으므로
+ * 온보딩 화면에서는 표시하지 않습니다.
+ */
+.signup-tab-box {
+  display: none;
+}
+
+/* =========================
+   Signup Step 2 - Team Grid
+========================= */
+
 .signup-team-board {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 
-  max-height: 360px;
-  overflow-y: auto;
+  /*
+   * 기존 360px 내부 스크롤을 제거합니다.
+   * 팀 목록은 페이지 자체의 스크롤을 사용합니다.
+   */
+  max-height: none;
+  overflow: visible;
 }
 
 .signup-team-row {
+  position: relative;
+
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
 
-  min-height: 72px;
-  padding: 12px;
+  min-height: 126px;
+  padding: 18px 14px;
 
-  border: 1px solid #d0d5dd;
-  border-radius: 14px;
+  border: 1px solid var(--signup-dark-border);
+  border-radius: 16px;
 
-  background-color: #ffffff;
-  text-align: left;
+  color: var(--signup-light-text);
+  background-color: var(--signup-dark-surface);
+  text-align: center;
 
   cursor: pointer;
+
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    transform 0.2s;
+}
+
+.signup-team-row:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background-color: rgba(255, 255, 255, 0.07);
+  transform: translateY(-2px);
 }
 
 .signup-team-row.selected {
-  border-color: #175cd3;
-  background-color: #eff6ff;
+  border-color: var(--signup-red);
+  background-color: rgba(230, 57, 70, 0.12);
 }
 
 .signup-team-badge {
@@ -305,161 +354,105 @@
   align-items: center;
   justify-content: center;
 
-  width: 38px;
-  height: 38px;
+  width: 54px;
+  height: 54px;
 
-  border-radius: 10px;
-  background-color: #175cd3;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
 
-  color: #ffffff;
-  font-size: 12px;
+  color: var(--signup-navy);
+  background-color: #ffffff;
+
+  font-size: 13px;
   font-weight: 900;
+
+  overflow: hidden;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.signup-team-row.selected .signup-team-badge {
+  box-shadow:
+    0 0 0 3px rgba(230, 57, 70, 0.18),
+    0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.signup-team-logo {
+  display: block;
+
+  width: 42px;
+  height: 42px;
+
+  object-fit: contain;
 }
 
 .signup-team-info {
   display: flex;
-  flex: 1;
+  align-items: center;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .signup-team-info strong {
-  color: #101828;
+  color: var(--signup-light-text);
+
   font-size: 14px;
+  line-height: 1.35;
 }
 
 .signup-team-info span {
-  color: #667085;
+  color: var(--signup-dark-muted);
+
   font-size: 12px;
+  line-height: 1.35;
 }
 
 .signup-team-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
   display: flex;
   align-items: center;
   justify-content: center;
 
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
 
   border-radius: 999px;
-  background-color: #f2f4f7;
 
-  color: #175cd3;
+  color: var(--signup-dark-muted);
+  background-color: rgba(255, 255, 255, 0.08);
+
+  font-size: 13px;
   font-weight: 900;
 }
 
 .signup-team-row.selected .signup-team-check {
   color: #ffffff;
-  background-color: #175cd3;
+  background-color: var(--signup-red);
 }
 
-.signup-preference-summary {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.signup-step-help {
+  margin: 18px 0 0;
+
+  color: var(--signup-dark-muted);
+
+  font-size: 14px;
+}
+
+/*
+ * 회원가입 3단계 알림 카드 목록
+ */
+.signup-page-step-3 .signup-notification-list {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.signup-preference-summary div {
-  padding: 14px;
-
-  border-radius: 14px;
-  background-color: #f9fafb;
-}
-
-.signup-preference-summary span {
-  display: block;
-
-  margin-bottom: 6px;
-
-  color: #667085;
-  font-size: 13px;
-}
-
-.signup-preference-summary strong {
-  color: #101828;
-  font-size: 15px;
-}
-
-.signup-notification-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.signup-notification-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-
-  padding: 16px;
-
-  border: 1px solid #d0d5dd;
-  border-radius: 14px;
-
-  background-color: #ffffff;
-  text-align: left;
-
-  cursor: pointer;
-}
-
-.signup-notification-card.main {
-  border-color: #175cd3;
-}
-
-.signup-notification-card.active {
-  background-color: #eff6ff;
-}
-
-.signup-notification-card strong {
-  display: block;
-
-  margin-bottom: 4px;
-
-  color: #101828;
-  font-size: 15px;
-}
-
-.signup-notification-card span {
-  color: #667085;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.signup-notification-card em {
-  min-width: 44px;
-  padding: 5px 8px;
-
-  border-radius: 999px;
-  background-color: #e4e7ec;
-
-  color: #667085;
-
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 900;
-  text-align: center;
-}
-
-.signup-notification-card.active em {
-  color: #ffffff;
-  background-color: #175cd3;
-}
-
-@media (max-width: 600px) {
-  .signup-team-board {
-    grid-template-columns: 1fr;
-  }
-
-  .signup-preference-summary {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* =========================
-   Signup Step Action Buttons
-   - 관심팀 선택 / 알림 설정 단계 하단 버튼 영역
-   - 기존 signup-submit-button의 width: 100% 영향을 여기서 다시 조정
+    Signup Step Action Buttons
+    - 관심팀 선택 / 알림 설정 단계 하단 버튼 영역
+    - 기존 signup-submit-button의 width: 100% 영향을 여기서 다시 조정
 ========================= */
 
 .signup-step-actions {
@@ -522,10 +515,562 @@
   }
 }
 
-/* 관심팀 선택 카드 안의 MLB 팀 로고 */
-.signup-team-logo {
-    width: 32px;
-    height: 32px;
-    object-fit: contain;
-    display: block;
+/*
+ * 모바일 회원가입 화면
+ *
+ * 작은 화면에서는 카드 장식을 제거하고
+ * 화면 너비를 입력 영역에 최대한 사용합니다.
+ */
+@media (max-width: 520px) {
+  .signup-page {
+    min-height: 100vh;
+    padding: 20px 0 36px;
+
+    background-color: #ffffff;
+  }
+
+  .signup-container {
+    max-width: none;
+    padding: 26px 20px;
+
+    border: 0;
+    border-radius: 0;
+
+    box-shadow: none;
+  }
+
+  .signup-logo {
+    margin-bottom: 14px;
+
+    font-size: 27px;
+  }
+
+  .signup-header {
+    margin-bottom: 26px;
+  }
+
+  .signup-header h2 {
+    font-size: 26px;
+  }
+
+  .signup-header p {
+    margin-top: 10px;
+  }
+
+  .signup-form {
+    gap: 16px;
+  }
+
+  .signup-field {
+    gap: 6px;
+  }
+
+  /*
+   * 375~430px 정도의 일반적인 모바일 화면에서는
+   * 이메일 입력창과 인증 버튼을 가로로 유지합니다.
+   *
+   * 기존 세로 배치보다 화면 높이를 덜 차지합니다.
+   */
+  .signup-input-row {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .email-action-button {
+    width: auto;
+    min-width: 104px;
+    min-height: 46px;
+    padding: 0 10px;
+  }
+}
+
+/*
+ * 폭이 매우 좁은 기기에서만
+ * 입력창과 인증 버튼을 위아래로 배치합니다.
+ */
+@media (max-width: 360px) {
+  .signup-input-row {
+    flex-direction: column;
+  }
+
+  .email-action-button {
+    width: 100%;
+  }
+}
+
+/* =========================
+   Signup Step 2 / Step 3
+   Dark Onboarding Layout
+========================= */
+
+.signup-page-step-2,
+.signup-page-step-3 {
+  min-height: 100vh;
+  padding: 48px 24px 72px;
+
+  background:
+    radial-gradient(
+      circle at top,
+      rgba(230, 57, 70, 0.1),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      #071a36 0%,
+      var(--signup-dark-background) 100%
+    );
+}
+
+.signup-container-step-2,
+.signup-container-step-3 {
+  width: 100%;
+  max-width: 1040px;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.signup-page-step-2 .signup-header,
+.signup-page-step-3 .signup-header {
+  max-width: 760px;
+  margin: 0 auto 34px;
+
+  text-align: left;
+}
+
+.signup-page-step-2 .signup-logo,
+.signup-page-step-3 .signup-logo {
+  margin-bottom: 42px;
+
+  color: var(--signup-light-text);
+
+  font-size: 22px;
+  text-align: center;
+}
+
+.signup-page-step-2 .signup-step-indicator,
+.signup-page-step-3 .signup-step-indicator {
+  gap: 6px;
+
+  margin-bottom: 14px;
+  padding: 0;
+
+  border: 0;
+
+  background-color: transparent;
+}
+
+.signup-page-step-2 .signup-step-indicator span,
+.signup-page-step-3 .signup-step-indicator span {
+  color: var(--signup-red);
+}
+
+.signup-page-step-2 .signup-step-indicator strong,
+.signup-page-step-3 .signup-step-indicator strong {
+  color: var(--signup-dark-muted);
+}
+
+.signup-page-step-2 .signup-header h2,
+.signup-page-step-3 .signup-header h2 {
+  color: var(--signup-light-text);
+
+  font-size: 36px;
+  line-height: 1.25;
+}
+
+.signup-page-step-2 .signup-header p,
+.signup-page-step-3 .signup-header p {
+  color: var(--signup-dark-muted);
+
+  font-size: 15px;
+}
+
+.signup-page-step-2 .signup-step-actions,
+.signup-page-step-3 .signup-step-actions {
+  justify-content: flex-end;
+
+  margin-top: 28px;
+}
+
+.signup-page-step-2 .signup-step-actions button,
+.signup-page-step-3 .signup-step-actions button {
+  flex: 0 0 auto;
+
+  min-width: 120px;
+}
+
+.signup-page-step-2
+  .signup-step-actions
+  .signup-secondary-button,
+.signup-page-step-3
+  .signup-step-actions
+  .signup-secondary-button {
+  border-color: var(--signup-dark-border);
+
+  color: #dce7f5;
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.signup-page-step-2
+  .signup-step-actions
+  .signup-secondary-button:hover,
+.signup-page-step-3
+  .signup-step-actions
+  .signup-secondary-button:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.signup-page-step-2
+  .signup-step-actions
+  .signup-submit-button,
+.signup-page-step-3
+  .signup-step-actions
+  .signup-submit-button {
+  background-color: var(--signup-red);
+}
+
+.signup-page-step-2
+  .signup-step-actions
+  .signup-submit-button:hover,
+.signup-page-step-3
+  .signup-step-actions
+  .signup-submit-button:hover {
+  background-color: var(--signup-red-dark);
+}
+
+@media (max-width: 900px) {
+  .signup-team-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .signup-team-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .signup-page-step-2,
+  .signup-page-step-3 {
+    padding: 24px 16px 40px;
+
+    background:
+      linear-gradient(
+        180deg,
+        #071a36 0%,
+        var(--signup-dark-background) 100%
+      );
+  }
+
+  .signup-page-step-2 .signup-header,
+  .signup-page-step-3 .signup-header {
+    margin-bottom: 26px;
+  }
+
+  .signup-page-step-2 .signup-header h2,
+  .signup-page-step-3 .signup-header h2 {
+    font-size: 28px;
+  }
+
+  .signup-page-step-2 .signup-logo,
+  .signup-page-step-3 .signup-logo {
+    margin-bottom: 32px;
+  }
+
+  .signup-team-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .signup-team-row {
+    min-height: 112px;
+    padding: 14px 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .signup-team-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   Signup Step 3 - Notification Onboarding
+
+   - 회원가입 3단계 알림 설정 화면에만 적용
+   - 기존 1단계와 2단계 스타일에는 영향을 주지 않음
+   ========================================================= */
+
+/*
+ * 알림 설정 영역을 상단 제목 너비와 맞춥니다.
+ */
+.signup-page-step-3 .signup-step-panel {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/*
+ * 알림 제목은 한 줄 전체를 차지하게 해서
+ * 설명이 제목 오른쪽이 아닌 아래쪽에 표시되게 합니다.
+ */
+.signup-page-step-3
+  .signup-notification-card strong {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: var(--signup-light-text);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/*
+ * 알림 설명도 독립된 줄로 표시합니다.
+ */
+.signup-page-step-3
+  .signup-notification-copy > span {
+  display: block;
+
+  color: var(--signup-dark-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/*
+ * 모바일에서는 카드 내부 텍스트와 ON/OFF 표시가
+ * 너무 붙지 않도록 간격을 조정합니다.
+ */
+@media (max-width: 520px) {
+  .signup-page-step-3
+    .signup-step-actions {
+    align-items: stretch;
+  }
+
+  .signup-page-step-3
+    .signup-step-actions
+    button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+    Signup Step 3 - Sliding Notification Toggle
+
+    - 회원가입 3단계 알림 카드에만 적용
+    - 비활성: 회색 스위치, 손잡이 왼쪽
+    - 활성: 빨간 스위치, 손잡이 오른쪽
+   ========================================================= */
+
+/*
+ * 알림 제목과 설명이 들어가는 왼쪽 영역입니다.
+ *
+ * 오른쪽 스위치가 밀려나지 않도록
+ * 남은 공간만 사용하게 합니다.
+ */
+.signup-page-step-3 .signup-notification-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+/*
+ * 회원가입 3단계 알림 카드 최종 스타일
+ *
+ * 카드의 배치, 크기, 색상과 애니메이션을
+ * 이 선택자 한 곳에서 관리합니다.
+ */
+.signup-page-step-3 .signup-notification-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  width: 100%;
+  min-height: 86px;
+  padding: 18px 20px;
+
+  border: 1px solid var(--signup-dark-border);
+  border-radius: 16px;
+
+  color: var(--signup-light-text);
+  background-color: rgba(255, 255, 255, 0.045);
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+/*
+ * 카드가 켜졌을 때는 빨간색을 너무 강하게 채우지 않고,
+ * 테두리와 은은한 배경으로만 활성 상태를 표현합니다.
+ */
+.signup-page-step-3
+  .signup-notification-card.active {
+  border-color: rgba(230, 57, 70, 0.72);
+  background-color: rgba(230, 57, 70, 0.09);
+}
+
+/*
+ * 키보드나 마우스로 카드를 가리켰을 때
+ * 살짝 떠오르는 효과입니다.
+ */
+.signup-page-step-3
+  .signup-notification-card:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.075);
+  transform: translateY(-1px);
+}
+
+.signup-page-step-3
+  .signup-notification-card.active:hover {
+  border-color: var(--signup-red);
+  background-color: rgba(230, 57, 70, 0.13);
+}
+
+/*
+ * 스위치 전체 바깥 영역입니다.
+ *
+ * flex-shrink: 0을 사용해 설명이 길어져도
+ * 스위치 너비가 줄어들지 않게 합니다.
+ */
+.signup-page-step-3 .signup-toggle {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+
+  padding: 3px;
+
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+
+  background-color: rgba(255, 255, 255, 0.13);
+
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/*
+ * 실제 좌우로 이동하는 흰색 원형 손잡이입니다.
+ */
+.signup-page-step-3 .signup-toggle-thumb {
+  display: block;
+
+  width: 20px;
+  height: 20px;
+
+  border-radius: 50%;
+
+  background-color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+
+  transform: translateX(0);
+
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+/*
+ * 알림이 활성화되면 스위치 배경을 빨간색으로 바꿉니다.
+ */
+.signup-page-step-3
+  .signup-notification-card.active
+  .signup-toggle {
+  border-color: var(--signup-red);
+  background-color: var(--signup-red);
+
+  box-shadow:
+    0 0 0 3px rgba(230, 57, 70, 0.13);
+}
+
+/*
+ * 활성화된 스위치 손잡이를 오른쪽으로 이동합니다.
+ *
+ * 전체 너비 50px
+ * 좌우 padding 3px
+ * 손잡이 너비 20px
+ * 이동 가능 거리: 50 - 6 - 20 = 24px
+ */
+.signup-page-step-3
+  .signup-notification-card.active
+  .signup-toggle-thumb {
+  transform: translateX(22px);
+}
+
+/*
+ * 버튼 클릭 순간에 손잡이가 살짝 눌리는 느낌을 줍니다.
+ */
+.signup-page-step-3
+  .signup-notification-card:active
+  .signup-toggle-thumb {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+
+/*
+ * 키보드 Tab 사용자를 위한 포커스 표시입니다.
+ */
+.signup-page-step-3
+  .signup-notification-card:focus-visible {
+  outline: 3px solid rgba(230, 57, 70, 0.38);
+  outline-offset: 3px;
+}
+
+/*
+ * 작은 화면에서는 설명과 스위치가 너무 가까워지지 않게
+ * 카드 간격을 조정합니다.
+ */
+@media (max-width: 520px) {
+  .signup-page-step-3 .signup-notification-card {
+    align-items: center;
+    min-height: 82px;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .signup-page-step-3
+    .signup-notification-card
+    strong {
+    font-size: 14px;
+  }
+
+  .signup-page-step-3
+    .signup-notification-card
+    span:not(.signup-toggle):not(.signup-toggle-thumb) {
+    font-size: 12px;
+  }
+
+  .signup-page-step-3 .signup-toggle {
+    width: 46px;
+    height: 26px;
+  }
+
+  .signup-page-step-3 .signup-toggle-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .signup-page-step-3
+    .signup-notification-card.active
+    .signup-toggle-thumb {
+    transform: translateX(20px);
+  }
 }

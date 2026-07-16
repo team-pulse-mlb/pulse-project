@@ -365,3 +365,425 @@
         justify-self: start;
     }
 }
+
+/* =========================================================
+   관심 선수 온보딩 전용 다크 스타일
+
+   - /onboarding에서만 적용됩니다.
+   - 일반 /settings/players 화면에는 영향을 주지 않습니다.
+   ========================================================= */
+
+.player-onboarding-page {
+    --onboarding-background: #06162c;
+    --onboarding-surface: rgba(255, 255, 255, 0.045);
+    --onboarding-surface-hover: rgba(255, 255, 255, 0.075);
+    --onboarding-border: rgba(255, 255, 255, 0.12);
+    --onboarding-text: #ffffff;
+    --onboarding-muted: #9fb0c8;
+
+    min-height: 100vh;
+    padding: 48px 24px 72px;
+
+    background:
+        radial-gradient(
+            circle at top,
+            rgba(228, 0, 43, 0.12),
+            transparent 32%
+        ),
+        linear-gradient(
+            180deg,
+            #071a36 0%,
+            var(--onboarding-background) 100%
+        );
+}
+
+/*
+ * 관심팀 선택 화면과 비슷하게
+ * 상단 중앙에 PULSE 브랜드를 표시합니다.
+ */
+.player-onboarding-page .mypage-single-column::before {
+    content: 'PULSE';
+
+    display: block;
+    margin-bottom: 42px;
+
+    color: #ffffff;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-align: center;
+}
+
+/*
+ * 기존 선수 설정 화면은 720px이지만,
+ * 온보딩에서는 조금 더 넓게 사용합니다.
+ */
+.player-onboarding-page .mypage-single-column {
+    width: 100%;
+    max-width: 920px;
+}
+
+/* 온보딩 상단 제목 영역 */
+
+.player-onboarding-page .mypage-content-header {
+    align-items: flex-start;
+    margin-bottom: 30px;
+    padding: 0;
+}
+
+.player-onboarding-page .mypage-eyebrow {
+    margin-bottom: 12px;
+    color: var(--mypage-red);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+}
+
+.player-onboarding-page .mypage-content-header h1 {
+    margin-bottom: 12px;
+    color: var(--onboarding-text);
+    font-size: clamp(30px, 4vw, 38px);
+    line-height: 1.25;
+}
+
+.player-onboarding-page
+    .mypage-content-header
+    > div
+    > p:last-child {
+    max-width: 620px;
+    color: var(--onboarding-muted);
+    font-size: 15px;
+}
+
+/* 건너뛰기 버튼 */
+
+.player-onboarding-page .mypage-text-button {
+    border-color: var(--onboarding-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: #dce7f5;
+}
+
+.player-onboarding-page
+    .mypage-text-button:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.09);
+    color: #ffffff;
+}
+
+/* 선택 선수 및 검색 카드 */
+
+.player-onboarding-page .mypage-card {
+    border-color: var(--onboarding-border);
+    background: var(--onboarding-surface);
+    box-shadow: none;
+}
+
+.player-onboarding-page .mypage-card:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.player-onboarding-page .mypage-card-title-row h2 {
+    color: var(--onboarding-text);
+}
+
+.player-onboarding-page .mypage-card-title-row p {
+    color: var(--onboarding-muted);
+}
+
+.player-onboarding-page
+    .mypage-card-title-row
+    > strong {
+    color: var(--mypage-red);
+}
+
+/* 선택된 선수가 없는 상태 */
+
+.player-onboarding-page .mypage-empty-box {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--onboarding-muted);
+}
+
+/* 현재 선택된 선수 카드 */
+
+.player-onboarding-page .player-selected-card {
+    border-color: rgba(228, 0, 43, 0.65);
+    background: rgba(228, 0, 43, 0.13);
+}
+
+.player-onboarding-page
+    .player-selected-card
+    .player-avatar {
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    background: #ffffff;
+    color: var(--mypage-red);
+}
+
+.player-onboarding-page
+    .player-selected-card
+    .player-card-text
+    strong {
+    color: #ffffff;
+}
+
+.player-onboarding-page .player-remove-button {
+    background: rgba(228, 0, 43, 0.18);
+    color: #ff8ca2;
+}
+
+.player-onboarding-page
+    .player-remove-button:hover:not(:disabled) {
+    background: var(--mypage-red);
+    color: #ffffff;
+}
+
+/* 선수 검색 입력창 */
+
+.player-onboarding-page .player-search-label {
+    color: #dce7f5;
+}
+
+.player-onboarding-page .player-search-control input {
+    border-color: var(--onboarding-border);
+    background: rgba(255, 255, 255, 0.055);
+    color: #ffffff;
+}
+
+.player-onboarding-page
+    .player-search-control
+    input::placeholder {
+    color: #7588a2;
+}
+
+.player-onboarding-page
+    .player-search-control
+    input:focus {
+    border-color: var(--mypage-red);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow:
+        0 0 0 3px rgba(228, 0, 43, 0.16);
+}
+
+.player-onboarding-page
+    .player-search-control
+    input:disabled {
+    background: rgba(255, 255, 255, 0.03);
+    color: #7588a2;
+}
+
+/* 검색 버튼 */
+
+.player-onboarding-page
+    .player-search-control
+    button {
+    border-color: var(--mypage-red);
+    background: var(--mypage-red);
+}
+
+.player-onboarding-page
+    .player-search-control
+    button:hover:not(:disabled) {
+    background: #c90026;
+}
+
+.player-onboarding-page
+    .player-search-control
+    button:disabled {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.1);
+    color: #7588a2;
+}
+
+/* 검색 결과 목록 */
+
+.player-onboarding-page .player-search-results {
+    overflow: hidden;
+    border-color: var(--onboarding-border);
+    background: rgba(4, 18, 38, 0.62);
+}
+
+.player-onboarding-page .player-result-card {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.player-onboarding-page .player-result-card:hover {
+    background: var(--onboarding-surface-hover);
+}
+
+.player-onboarding-page .player-result-card.selected {
+    background: rgba(228, 0, 43, 0.12);
+}
+
+.player-onboarding-page
+    .player-result-card
+    .player-avatar {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+}
+
+.player-onboarding-page
+    .player-result-card
+    .player-card-text
+    strong {
+    color: #ffffff;
+}
+
+.player-onboarding-page
+    .player-result-card
+    .player-card-text
+    span {
+    color: var(--onboarding-muted);
+}
+
+/* 선수 추가 버튼 */
+
+.player-onboarding-page .player-add-button {
+    border-color: var(--onboarding-border);
+    background: rgba(255, 255, 255, 0.045);
+    color: #dce7f5;
+}
+
+.player-onboarding-page
+    .player-add-button:hover:not(:disabled) {
+    border-color: var(--mypage-red);
+    background: rgba(228, 0, 43, 0.12);
+    color: #ffffff;
+}
+
+.player-onboarding-page
+    .player-result-card.selected
+    .player-add-button {
+    border-color: var(--mypage-red);
+    background: var(--mypage-red);
+    color: #ffffff;
+}
+
+/* 선택 완료 버튼 */
+
+.player-onboarding-page .mypage-primary-button {
+    background: var(--mypage-red);
+}
+
+.player-onboarding-page
+    .mypage-primary-button:hover:not(:disabled) {
+    background: #c90026;
+}
+
+.player-onboarding-page
+    .mypage-primary-button:disabled {
+    background: rgba(255, 255, 255, 0.12);
+    color: #7588a2;
+}
+
+/* 안내 및 오류 메시지 */
+
+.player-onboarding-page .mypage-message {
+    border: 1px solid var(--onboarding-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: #dce7f5;
+}
+
+.player-onboarding-page .mypage-message.error {
+    border-color: rgba(228, 0, 43, 0.4);
+    background: rgba(228, 0, 43, 0.12);
+    color: #ff9aad;
+}
+
+/* 로딩 화면 */
+
+.player-onboarding-page .mypage-loading-card {
+    border: 1px solid var(--onboarding-border);
+    background: var(--onboarding-surface);
+    color: var(--onboarding-muted);
+    box-shadow: none;
+}
+
+/* 키보드 접근성 포커스 */
+
+.player-onboarding-page button:focus-visible,
+.player-onboarding-page input:focus-visible {
+    outline-color: rgba(228, 0, 43, 0.45);
+}
+
+/* 모바일 */
+
+@media (max-width: 640px) {
+    .player-onboarding-page {
+        padding: 26px 16px 44px;
+    }
+
+    .player-onboarding-page
+        .mypage-single-column::before {
+        margin-bottom: 32px;
+    }
+
+    .player-onboarding-page
+        .mypage-content-header {
+        gap: 18px;
+    }
+
+    .player-onboarding-page
+        .mypage-content-header
+        h1 {
+        font-size: 28px;
+    }
+
+    .player-onboarding-page .mypage-text-button {
+        align-self: flex-start;
+    }
+}
+
+/* =========================================================
+   관심 선수 카드의 현재 소속팀 로고
+   ========================================================= */
+
+/*
+ * 팀 로고 이미지는 원본 비율을 유지하면서
+ * 원형 아바타 내부에 맞춰 표시합니다.
+ */
+.player-team-logo {
+    display: block;
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+}
+
+/*
+ * 선택된 선수 칩은 아바타가 조금 작으므로
+ * 내부 로고도 함께 줄입니다.
+ */
+.player-selected-card .player-team-logo {
+    width: 24px;
+    height: 24px;
+}
+
+/*
+ * 로고가 원 밖으로 튀어나가지 않도록 제한합니다.
+ */
+.player-avatar {
+    overflow: hidden;
+}
+
+/*
+ * 다크 온보딩 화면에서는 어두운 팀 로고도
+ * 잘 보이도록 흰색 원 배경을 사용합니다.
+ *
+ * 로고가 없는 선수는 기존 이름 첫 글자가
+ * 흰색 원 안에 표시됩니다.
+ */
+.player-onboarding-page .player-avatar {
+    border-color: rgba(255, 255, 255, 0.72);
+    background: #ffffff;
+    color: var(--mypage-navy);
+}
+
+/*
+ * 선택된 선수는 빨간색 포인트를 유지합니다.
+ */
+.player-onboarding-page
+    .player-selected-card
+    .player-avatar {
+    color: var(--mypage-red);
+    box-shadow:
+        0 0 0 2px rgba(228, 0, 43, 0.16);
+}
