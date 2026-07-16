@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
-/** 기존 값을 보존하면서 종료 헤드라인, 보호 이벤트 문구, 플레이 번역을 모두 다시 생성합니다. */
+/** 종료 경기의 하이라이트와 AI 문구를 단계별 설정에 따라 다시 생성합니다. */
 @Component
 @Profile("ai-copy-reprocess")
 @RequiredArgsConstructor
@@ -49,10 +49,33 @@ class AiCopyReprocessRunner implements ApplicationRunner {
             }
             List<Long> targetGameIds =
                     windowedGameIds != null ? windowedGameIds : gameRepository.findAllFinalGameIds();
-            int backfillFailures = backfillTimelineHighlights(targetGameIds);
-            int headlineFailures = reprocessHeadlines(targetGameIds);
-            int eventFailures = reprocessEventCopies(windowedGameIds);
-            int playTranslationFailures = reprocessPlayTranslations(targetGameIds);
+            int backfillFailures = 0;
+            if (properties.runBackfill()) {
+                backfillFailures = backfillTimelineHighlights(targetGameIds);
+            } else {
+                log.info("타임라인 하이라이트 삭제 후 재생성 단계 스킵");
+            }
+
+            int headlineFailures = 0;
+            if (properties.runHeadline()) {
+                headlineFailures = reprocessHeadlines(targetGameIds);
+            } else {
+                log.info("AI 종료 헤드라인 재처리 단계 스킵");
+            }
+
+            int eventFailures = 0;
+            if (properties.runEventCopy()) {
+                eventFailures = reprocessEventCopies(windowedGameIds);
+            } else {
+                log.info("AI 보호 이벤트 문구 재처리 단계 스킵");
+            }
+
+            int playTranslationFailures = 0;
+            if (properties.runPlayTranslation()) {
+                playTranslationFailures = reprocessPlayTranslations(targetGameIds);
+            } else {
+                log.info("AI 플레이 번역 재처리 단계 스킵");
+            }
             int failures = backfillFailures + headlineFailures + eventFailures + playTranslationFailures;
             if (failures > 0) {
                 throw new IllegalStateException("AI 문구 전체 재처리 실패: " + failures + "건");
@@ -66,16 +89,16 @@ class AiCopyReprocessRunner implements ApplicationRunner {
         int marked = 0;
         int exceptions = 0;
 
-        log.info("타임라인 하이라이트 백필 시작: 대상 경기={}건", gameIds.size());
+        log.info("타임라인 하이라이트 삭제 후 재생성 시작: 대상 경기={}건", gameIds.size());
         for (Long gameId : gameIds) {
             try {
-                marked += timelineHighlightBackfill.backfillIfEmpty(gameId, Instant.now(), false);
+                marked += timelineHighlightBackfill.rebuildHighlights(gameId, Instant.now(), false);
             } catch (RuntimeException exception) {
                 exceptions++;
-                log.warn("타임라인 하이라이트 백필 예외: gameId={}", gameId, exception);
+                log.warn("타임라인 하이라이트 삭제 후 재생성 예외: gameId={}", gameId, exception);
             }
         }
-        log.info("타임라인 하이라이트 백필 완료: 대상 경기={}건 표시={}건 exceptions={}",
+        log.info("타임라인 하이라이트 삭제 후 재생성 완료: 대상 경기={}건 표시={}건 exceptions={}",
                 gameIds.size(), marked, exceptions);
         return exceptions;
     }

@@ -10,7 +10,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 전체 종료 경기를 대상으로 한다.
  */
 @ConfigurationProperties(prefix = "pulse.ai-copy-reprocess")
-public record AiCopyReprocessProperties(int eventBatchSize, String windowStartDate, String windowEndDate) {
+public record AiCopyReprocessProperties(
+        int eventBatchSize,
+        String windowStartDate,
+        String windowEndDate,
+        Boolean runBackfill,
+        Boolean runHeadline,
+        Boolean runEventCopy,
+        Boolean runPlayTranslation
+) {
 
     public AiCopyReprocessProperties {
         if (eventBatchSize <= 0) {
@@ -25,6 +33,18 @@ public record AiCopyReprocessProperties(int eventBatchSize, String windowStartDa
         if ((windowStartDate == null) != (windowEndDate == null)) {
             throw new IllegalStateException(
                     "pulse.ai-copy-reprocess.window-start-date와 window-end-date는 함께 지정해야 한다");
+        }
+        if (runBackfill == null) {
+            runBackfill = Boolean.TRUE;
+        }
+        if (runHeadline == null) {
+            runHeadline = Boolean.TRUE;
+        }
+        if (runEventCopy == null) {
+            runEventCopy = Boolean.TRUE;
+        }
+        if (runPlayTranslation == null) {
+            runPlayTranslation = Boolean.TRUE;
         }
     }
 

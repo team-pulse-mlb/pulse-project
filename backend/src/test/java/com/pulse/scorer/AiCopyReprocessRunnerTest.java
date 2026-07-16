@@ -1,6 +1,7 @@
 package com.pulse.scorer;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -75,12 +76,12 @@ class AiCopyReprocessRunnerTest {
         when(playTranslationGenerator.regenerateSynchronously(100L, 30L))
                 .thenReturn(AiPlayTranslationGenerator.GenerationStatus.SAVED);
 
-        runner(new AiCopyReprocessProperties(50, null, null))
+        runner(new AiCopyReprocessProperties(50, null, null, true, true, true, true))
                 .run(new DefaultApplicationArguments());
 
         InOrder processingOrder = inOrder(timelineHighlightBackfill, finalHeadlineGenerator);
         processingOrder.verify(timelineHighlightBackfill)
-                .backfillIfEmpty(eq(100L), any(Instant.class), eq(false));
+                .rebuildHighlights(eq(100L), any(Instant.class), eq(false));
         processingOrder.verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(eventCopyGenerator).regenerateSynchronously(200L, 20L);
@@ -112,7 +113,8 @@ class AiCopyReprocessRunnerTest {
         when(playTranslationGenerator.regenerateSynchronously(100L, 30L))
                 .thenReturn(AiPlayTranslationGenerator.GenerationStatus.SAVED);
 
-        runner(new AiCopyReprocessProperties(50, "2026-07-13", "2026-07-16"))
+        runner(new AiCopyReprocessProperties(
+                50, "2026-07-13", "2026-07-16", true, true, true, true))
                 .run(new DefaultApplicationArguments());
 
         verify(gameRepository, never()).findAllFinalGameIds();
@@ -120,10 +122,27 @@ class AiCopyReprocessRunnerTest {
                 .findProtectedAiReprocessTargets(anyLong(), anyLong(), any());
         verify(gameEventRepository, never())
                 .findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(anyString(), any());
-        verify(timelineHighlightBackfill).backfillIfEmpty(eq(100L), any(Instant.class), eq(false));
+        verify(timelineHighlightBackfill).rebuildHighlights(eq(100L), any(Instant.class), eq(false));
         verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(eventCopyGenerator).regenerateSynchronously(100L, 20L);
         verify(playTranslationGenerator).regenerateSynchronously(100L, 30L);
+        verify(applicationContext).close();
+    }
+
+    @Test
+    void 헤드라인_단계만_켜면_다른_단계는_실행하지_않는다() throws Exception {
+        when(gameRepository.findAllFinalGameIds()).thenReturn(List.of(100L));
+        when(finalHeadlineGenerator.regenerateSynchronously(100L))
+                .thenReturn(AiFinalHeadlineGenerator.GenerationStatus.SAVED);
+
+        runner(new AiCopyReprocessProperties(50, null, null, false, true, false, false))
+                .run(new DefaultApplicationArguments());
+
+        verify(finalHeadlineGenerator).regenerateSynchronously(100L);
+        verify(timelineHighlightBackfill, never())
+                .rebuildHighlights(anyLong(), any(Instant.class), anyBoolean());
+        verify(eventCopyGenerator, never()).regenerateSynchronously(anyLong(), anyLong());
+        verify(playTranslationGenerator, never()).regenerateSynchronously(anyLong(), anyLong());
         verify(applicationContext).close();
     }
 }
