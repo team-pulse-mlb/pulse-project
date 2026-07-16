@@ -248,6 +248,73 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(data["violations"], [])
         self.assertFalse(data["fallbackUsed"])
 
+    def test_event_copy_accepts_protected_situation_context(self):
+        payload = {
+            "gameId": 5059082,
+            "eventId": 10,
+            "mode": "PROTECTED",
+            "contextHash": "event-copy-v2",
+            "safeContext": {
+                "eventType": "full_count_two_out",
+                "label": "승부처 카운트",
+                "inning": 7,
+                "contributingLabels": [
+                    "만루 승부",
+                    "승부처 카운트",
+                ],
+                "situation": {
+                    "outs": 2,
+                    "balls": 3,
+                    "strikes": 2,
+                    "runnerOnFirst": True,
+                    "runnerOnSecond": True,
+                    "runnerOnThird": True,
+                },
+            },
+        }
+
+        generated_summary = {
+            "safe_title": "2사 만루에서 풀카운트 승부가 이어졌습니다.",
+        }
+
+        with patch(
+            "app.routers.ai_router.generate_spoiler_free_summary",
+            return_value=generated_summary,
+        ) as generate_summary:
+            response = self.client.post("/ai/event-copy", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertTrue(data["spoilerSafe"])
+        self.assertEqual(data["contextHash"], "event-copy-v2")
+        self.assertEqual(data["safeTitle"], generated_summary["safe_title"])
+        self.assertEqual(data["violations"], [])
+        self.assertFalse(data["fallbackUsed"])
+
+        generated_request = generate_summary.call_args.args[0]
+        self.assertEqual(generated_request.game_id, 5059082)
+        self.assertEqual(generated_request.event_id, 10)
+        self.assertEqual(generated_request.mode.value, "PROTECTED")
+        self.assertEqual(
+            generated_request.safe_context.contributing_labels,
+            [
+                "만루 승부",
+                "승부처 카운트",
+            ],
+        )
+        self.assertEqual(
+            generated_request.safe_context.situation,
+            {
+                "outs": 2,
+                "balls": 3,
+                "strikes": 2,
+                "runnerOnFirst": True,
+                "runnerOnSecond": True,
+                "runnerOnThird": True,
+            },
+        )
+
     def test_event_copy_returns_failure_state_when_generated_text_is_unsafe(self):
         payload = {
             "gameId": 5059082,

@@ -279,6 +279,24 @@ services:
       ai-service:
         condition: service_healthy
 
+  # GitHub Actions가 SSM으로 요청하는 가중치 영향 백테스트다.
+  # 운영 .env를 읽지 않고 백테스트 전용 읽기 계정과 실행 인자만 담은 임시 env 파일을 사용한다.
+  pulse-backtest-impact:
+    image: ${PULSE_APP_IMAGE:?PULSE_APP_IMAGE required}
+    profiles: ["batch"]
+    restart: "no"
+    env_file:
+      - path: ${PULSE_BACKTEST_ENV_FILE:-/tmp/pulse-backtest-not-configured.env}
+        required: false
+    environment:
+      SPRING_PROFILES_ACTIVE: backtest
+      PULSE_POLLER_ENABLED: "false"
+      PULSE_SCORER_ENABLED: "false"
+      PULSE_SSE_ENABLED: "false"
+      SPRING_FLYWAY_ENABLED: "false"
+      JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
+    logging: *app-logging
+
 volumes:
   rabbitmq-data:
   prometheus-data:

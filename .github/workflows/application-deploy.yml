@@ -30,6 +30,7 @@ jobs:
       INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
       RDS_SECRET_ID: ${{ vars.RDS_SECRET_ARN }}
       RUNTIME_SECRET_ID: ${{ vars.RUNTIME_SECRET_ARN }}
+      BACKTEST_SECRET_ID: ${{ vars.BACKTEST_DB_SECRET_ARN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +84,7 @@ jobs:
             --arg ai "$AI_IMAGE" \
             --arg rds "$RDS_SECRET_ID" \
             --arg runtime "$RUNTIME_SECRET_ID" \
+            --arg backtest "$BACKTEST_SECRET_ID" \
             '{
               DocumentName: "AWS-RunShellScript",
               InstanceIds: [$instance],
@@ -96,10 +98,11 @@ jobs:
                 "aws s3 cp \"$prefix/deploy/sync-secrets.py\" /usr/local/lib/pulse/sync-secrets.py",
                 "aws s3 cp \"$prefix/deploy/deploy-runtime.sh\" /usr/local/bin/pulse-deploy-runtime",
                 "aws s3 cp \"$prefix/deploy/refresh-secrets.sh\" /usr/local/bin/pulse-refresh-secrets",
+                "aws s3 cp \"$prefix/deploy/run-backtest-impact.sh\" /usr/local/bin/pulse-backtest-impact",
                 "aws s3 cp \"$prefix/deploy/pulse-secret-sync.service\" /etc/systemd/system/pulse-secret-sync.service",
                 "aws s3 cp \"$prefix/deploy/pulse-secret-sync.timer\" /etc/systemd/system/pulse-secret-sync.timer",
-                "chmod 755 /usr/local/lib/pulse/sync-secrets.py /usr/local/bin/pulse-deploy-runtime /usr/local/bin/pulse-refresh-secrets",
-                "printf \"AWS_REGION=ap-northeast-2\\nPULSE_RDS_SECRET_ID=" + $rds + "\\nPULSE_RUNTIME_SECRET_ID=" + $runtime + "\\n\" > /etc/pulse/secrets.conf",
+                "chmod 755 /usr/local/lib/pulse/sync-secrets.py /usr/local/bin/pulse-deploy-runtime /usr/local/bin/pulse-refresh-secrets /usr/local/bin/pulse-backtest-impact",
+                "printf \"AWS_REGION=ap-northeast-2\\nPULSE_RDS_SECRET_ID=" + $rds + "\\nPULSE_RUNTIME_SECRET_ID=" + $runtime + "\\nPULSE_BACKTEST_SECRET_ID=" + $backtest + "\\n\" > /etc/pulse/secrets.conf",
                 "chmod 600 /etc/pulse/secrets.conf",
                 "systemctl daemon-reload",
                 "/usr/local/bin/pulse-deploy-runtime \"" + $backend + "\" \"" + $ai + "\"",

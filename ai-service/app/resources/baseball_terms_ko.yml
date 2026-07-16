@@ -1,0 +1,796 @@
+metadata:
+  version: 1
+  locale: "ko-KR"
+  source_language: "en"
+  target_language: "ko"
+  purpose: "PLAY_TRANSLATION"
+  description: "MLB Play Result 원문을 한국 야구 중계·기록 용어로 번역하기 위한 용어집"
+  unknown_term_policy: "reject"
+
+output_policy:
+  preferred_format: "{player}, {result}"
+  preserve_player_names: true
+  preserve_numbers: true
+  preserve_distances: true
+  preserve_base_numbers: true
+  preserve_play_order: true
+  one_play_per_translation: true
+  maximum_sentences: 1
+  allow_added_commentary: false
+  allow_added_score: false
+  allow_added_inning: false
+  allow_added_player: false
+  allow_added_winner: false
+  allow_added_emotion: false
+  transliterate_player_names: false
+
+global_forbidden_expressions:
+  - "결정적인"
+  - "극적인"
+  - "짜릿한"
+  - "환상적인"
+  - "완벽한"
+  - "승리를 이끈"
+  - "분위기를 바꾼"
+  - "흐름을 가져온"
+  - "승부를 결정한"
+  - "경기를 지배한"
+
+positions:
+  pitcher: "투수"
+  catcher: "포수"
+  first_baseman: "1루수"
+  second_baseman: "2루수"
+  third_baseman: "3루수"
+  shortstop: "유격수"
+  left_fielder: "좌익수"
+  center_fielder: "중견수"
+  right_fielder: "우익수"
+  designated_hitter: "지명타자"
+  pinch_hitter: "대타"
+  pinch_runner: "대주자"
+
+position_patterns:
+  pitcher:
+    - "pitcher"
+  catcher:
+    - "catcher"
+  first_baseman:
+    - "first baseman"
+    - "first"
+  second_baseman:
+    - "second baseman"
+    - "second"
+  third_baseman:
+    - "third baseman"
+    - "third"
+  shortstop:
+    - "shortstop"
+  left_fielder:
+    - "left fielder"
+    - "left"
+  center_fielder:
+    - "center fielder"
+    - "center"
+  right_fielder:
+    - "right fielder"
+    - "right"
+
+directions:
+  left: "좌익수 방면"
+  center: "중견수 방면"
+  right: "우익수 방면"
+  left_center: "좌중간"
+  right_center: "우중간"
+  left_field_line: "좌익선상"
+  right_field_line: "우익선상"
+  up_the_middle: "중앙"
+  infield: "내야"
+  deep: "깊숙한"
+  shallow: "얕은"
+  warning_track: "워닝트랙"
+  foul_territory: "파울 지역"
+
+direction_patterns:
+  left_center:
+    - "to left-center"
+    - "to left center"
+  right_center:
+    - "to right-center"
+    - "to right center"
+  left_field_line:
+    - "down the left-field line"
+    - "down the left field line"
+  right_field_line:
+    - "down the right-field line"
+    - "down the right field line"
+  up_the_middle:
+    - "up the middle"
+  left:
+    - "to left"
+  center:
+    - "to center"
+  right:
+    - "to right"
+  deep:
+    - "deep"
+  shallow:
+    - "shallow"
+  warning_track:
+    - "warning track"
+  foul_territory:
+    - "in foul territory"
+
+bases:
+  first: "1루"
+  second: "2루"
+  third: "3루"
+  home: "홈"
+
+modifiers:
+  - id: walk_off
+    priority: 120
+    source_patterns:
+      - "walk-off"
+      - "walk off"
+    canonical_ko: "끝내기"
+
+  - id: game_tying
+    priority: 110
+    source_patterns:
+      - "game-tying"
+      - "game tying"
+    canonical_ko: "동점"
+
+  - id: go_ahead
+    priority: 110
+    source_patterns:
+      - "go-ahead"
+      - "go ahead"
+    canonical_ko: "앞서가는"
+
+  - id: run_scoring
+    priority: 100
+    source_patterns:
+      - "run-scoring"
+      - "rbi"
+    canonical_ko: "적시"
+
+  - id: bases_clearing
+    priority: 100
+    source_patterns:
+      - "bases-clearing"
+      - "cleared the bases"
+    canonical_ko: "주자 일소"
+
+  - id: solo
+    priority: 100
+    source_patterns:
+      - "solo home run"
+      - "solo homer"
+    canonical_ko: "솔로"
+
+  - id: two_run
+    priority: 100
+    source_patterns:
+      - "two-run"
+      - "2-run"
+    canonical_ko: "투런"
+
+  - id: three_run
+    priority: 100
+    source_patterns:
+      - "three-run"
+      - "3-run"
+    canonical_ko: "스리런"
+
+event_terms:
+  - id: strikeout_swinging
+    category: "strikeout"
+    priority: 150
+    source_patterns:
+      - "struck out swinging"
+      - "strikes out swinging"
+      - "swinging strikeout"
+    canonical_ko: "헛스윙 삼진"
+    outcome_code: "STRIKEOUT_SWINGING"
+    required_ko:
+      - "헛스윙"
+      - "삼진"
+    forbidden_ko:
+      - "루킹 삼진"
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: strikeout_looking
+    category: "strikeout"
+    priority: 150
+    source_patterns:
+      - "struck out looking"
+      - "strikes out looking"
+      - "called out on strikes"
+      - "called strikeout"
+    canonical_ko: "루킹 삼진"
+    outcome_code: "STRIKEOUT_LOOKING"
+    required_ko:
+      - "루킹"
+      - "삼진"
+    forbidden_ko:
+      - "헛스윙 삼진"
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: strikeout_foul_tip
+    category: "strikeout"
+    priority: 150
+    source_patterns:
+      - "struck out on a foul tip"
+      - "foul-tip strikeout"
+      - "foul tip strikeout"
+    canonical_ko: "파울팁 삼진"
+    outcome_code: "STRIKEOUT_FOUL_TIP"
+    required_ko:
+      - "파울팁"
+      - "삼진"
+    forbidden_ko:
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: strikeout_generic
+    category: "strikeout"
+    priority: 50
+    source_patterns:
+      - "struck out"
+      - "strikes out"
+    canonical_ko: "삼진"
+    outcome_code: "STRIKEOUT"
+    required_ko:
+      - "삼진"
+    forbidden_ko:
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: infield_single
+    category: "hit"
+    priority: 140
+    source_patterns:
+      - "infield single"
+      - "singled on a ground ball"
+    canonical_ko: "내야 안타"
+    outcome_code: "SINGLE"
+    required_ko:
+      - "내야"
+      - "안타"
+    forbidden_ko:
+      - "2루타"
+      - "3루타"
+      - "홈런"
+      - "아웃"
+
+  - id: bunt_single
+    category: "hit"
+    priority: 140
+    source_patterns:
+      - "bunt single"
+      - "singled on a bunt"
+    canonical_ko: "번트 안타"
+    outcome_code: "SINGLE"
+    required_ko:
+      - "번트"
+      - "안타"
+    forbidden_ko:
+      - "2루타"
+      - "3루타"
+      - "홈런"
+      - "아웃"
+
+  - id: single
+    category: "hit"
+    priority: 100
+    source_patterns:
+      - "singled"
+      - "hit a single"
+      - "single to"
+    canonical_ko: "안타"
+    outcome_code: "SINGLE"
+    required_ko:
+      - "안타"
+    forbidden_ko:
+      - "2루타"
+      - "3루타"
+      - "홈런"
+      - "아웃"
+
+  - id: ground_rule_double
+    category: "hit"
+    priority: 150
+    source_patterns:
+      - "ground-rule double"
+      - "ground rule double"
+      - "automatic double"
+    canonical_ko: "인정 2루타"
+    outcome_code: "DOUBLE"
+    required_ko:
+      - "인정"
+      - "2루타"
+    forbidden_ko:
+      - "3루타"
+      - "홈런"
+      - "아웃"
+
+  - id: double
+    category: "hit"
+    priority: 100
+    source_patterns:
+      - "doubled"
+      - "hit a double"
+      - "double to"
+    canonical_ko: "2루타"
+    outcome_code: "DOUBLE"
+    required_ko:
+      - "2루타"
+    forbidden_ko:
+      - "3루타"
+      - "홈런"
+      - "아웃"
+
+  - id: triple
+    category: "hit"
+    priority: 100
+    source_patterns:
+      - "tripled"
+      - "hit a triple"
+      - "triple to"
+    canonical_ko: "3루타"
+    outcome_code: "TRIPLE"
+    required_ko:
+      - "3루타"
+    forbidden_ko:
+      - "2루타"
+      - "홈런"
+      - "아웃"
+
+  - id: grand_slam
+    category: "home_run"
+    priority: 160
+    source_patterns:
+      - "grand slam"
+    canonical_ko: "만루 홈런"
+    outcome_code: "HOME_RUN"
+    required_ko:
+      - "만루"
+      - "홈런"
+    forbidden_ko:
+      - "안타"
+      - "2루타"
+      - "3루타"
+      - "아웃"
+
+  - id: inside_the_park_home_run
+    category: "home_run"
+    priority: 160
+    source_patterns:
+      - "inside-the-park home run"
+      - "inside the park home run"
+    canonical_ko: "인사이드 더 파크 홈런"
+    outcome_code: "HOME_RUN"
+    required_ko:
+      - "인사이드 더 파크"
+      - "홈런"
+    forbidden_ko:
+      - "2루타"
+      - "3루타"
+      - "아웃"
+
+  - id: home_run
+    category: "home_run"
+    priority: 100
+    source_patterns:
+      - "homered"
+      - "hit a home run"
+      - "home run to"
+    canonical_ko: "홈런"
+    outcome_code: "HOME_RUN"
+    required_ko:
+      - "홈런"
+    forbidden_ko:
+      - "안타"
+      - "2루타"
+      - "3루타"
+      - "아웃"
+
+  - id: groundout
+    category: "out"
+    priority: 100
+    source_patterns:
+      - "grounded out"
+      - "groundout"
+    canonical_ko: "땅볼 아웃"
+    outcome_code: "GROUNDOUT"
+    required_ko:
+      - "땅볼"
+      - "아웃"
+    forbidden_ko:
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: flyout
+    category: "out"
+    priority: 100
+    source_patterns:
+      - "flied out"
+      - "flyout"
+    canonical_ko: "뜬공 아웃"
+    outcome_code: "FLYOUT"
+    required_ko:
+      - "뜬공"
+      - "아웃"
+    forbidden_ko:
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: lineout
+    category: "out"
+    priority: 110
+    source_patterns:
+      - "lined out"
+      - "lineout"
+    canonical_ko: "직선타 아웃"
+    outcome_code: "LINEOUT"
+    required_ko:
+      - "직선타"
+      - "아웃"
+    forbidden_ko:
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: popout
+    category: "out"
+    priority: 110
+    source_patterns:
+      - "popped out"
+      - "pop out"
+      - "popout"
+    canonical_ko: "뜬공 아웃"
+    outcome_code: "POPOUT"
+    required_ko:
+      - "뜬공"
+      - "아웃"
+    forbidden_ko:
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: foulout
+    category: "out"
+    priority: 120
+    source_patterns:
+      - "fouled out"
+      - "foul out"
+    canonical_ko: "파울플라이 아웃"
+    outcome_code: "FOULOUT"
+    required_ko:
+      - "파울"
+      - "아웃"
+    forbidden_ko:
+      - "안타"
+      - "볼넷"
+      - "홈런"
+
+  - id: double_play
+    category: "multi_out"
+    priority: 150
+    source_patterns:
+      - "grounded into a double play"
+      - "grounded into double play"
+      - "hit into a double play"
+      - "double play"
+    canonical_ko: "병살타"
+    outcome_code: "DOUBLE_PLAY"
+    required_ko:
+      - "병살"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: triple_play
+    category: "multi_out"
+    priority: 160
+    source_patterns:
+      - "triple play"
+      - "hit into a triple play"
+    canonical_ko: "삼중살"
+    outcome_code: "TRIPLE_PLAY"
+    required_ko:
+      - "삼중살"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: fielders_choice
+    category: "reach"
+    priority: 120
+    source_patterns:
+      - "fielder's choice"
+      - "fielders choice"
+      - "reached on a fielder's choice"
+    canonical_ko: "야수선택으로 출루"
+    outcome_code: "FIELDERS_CHOICE"
+    required_ko:
+      - "야수선택"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: force_out
+    category: "out"
+    priority: 120
+    source_patterns:
+      - "force out"
+      - "forced out"
+    canonical_ko: "포스 아웃"
+    outcome_code: "FORCE_OUT"
+    required_ko:
+      - "포스 아웃"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: intentional_walk
+    category: "reach"
+    priority: 150
+    source_patterns:
+      - "intentionally walked"
+      - "intentional walk"
+      - "intentional base on balls"
+    canonical_ko: "고의4구"
+    outcome_code: "INTENTIONAL_WALK"
+    required_ko:
+      - "고의4구"
+    forbidden_ko:
+      - "안타"
+      - "아웃"
+      - "홈런"
+
+  - id: walk
+    category: "reach"
+    priority: 80
+    source_patterns:
+      - "walked"
+      - "draws a walk"
+      - "drew a walk"
+      - "base on balls"
+    canonical_ko: "볼넷 출루"
+    outcome_code: "WALK"
+    required_ko:
+      - "볼넷"
+    forbidden_ko:
+      - "안타"
+      - "아웃"
+      - "홈런"
+
+  - id: hit_by_pitch
+    category: "reach"
+    priority: 130
+    source_patterns:
+      - "hit by pitch"
+      - "was hit by pitch"
+    canonical_ko: "몸에 맞는 공으로 출루"
+    outcome_code: "HIT_BY_PITCH"
+    required_ko:
+      - "몸에 맞는 공"
+    forbidden_ko:
+      - "안타"
+      - "아웃"
+      - "홈런"
+
+  - id: reached_on_fielding_error
+    category: "error"
+    priority: 140
+    source_patterns:
+      - "reached on a fielding error"
+      - "reached on fielding error"
+    canonical_ko: "포구 실책으로 출루"
+    outcome_code: "REACHED_ON_ERROR"
+    required_ko:
+      - "포구 실책"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: reached_on_throwing_error
+    category: "error"
+    priority: 140
+    source_patterns:
+      - "reached on a throwing error"
+      - "reached on throwing error"
+    canonical_ko: "송구 실책으로 출루"
+    outcome_code: "REACHED_ON_ERROR"
+    required_ko:
+      - "송구 실책"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: reached_on_error
+    category: "error"
+    priority: 100
+    source_patterns:
+      - "reached on an error"
+      - "reached on error"
+    canonical_ko: "실책으로 출루"
+    outcome_code: "REACHED_ON_ERROR"
+    required_ko:
+      - "실책"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: catchers_interference
+    category: "interference"
+    priority: 140
+    source_patterns:
+      - "catcher's interference"
+      - "catcher interference"
+      - "reached on catcher's interference"
+    canonical_ko: "포수 타격방해로 출루"
+    outcome_code: "CATCHERS_INTERFERENCE"
+    required_ko:
+      - "포수"
+      - "타격방해"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: sacrifice_fly
+    category: "sacrifice"
+    priority: 140
+    source_patterns:
+      - "sacrifice fly"
+      - "sac fly"
+    canonical_ko: "희생플라이"
+    outcome_code: "SACRIFICE_FLY"
+    required_ko:
+      - "희생플라이"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: sacrifice_bunt
+    category: "sacrifice"
+    priority: 140
+    source_patterns:
+      - "sacrifice bunt"
+      - "sac bunt"
+    canonical_ko: "희생번트"
+    outcome_code: "SACRIFICE_BUNT"
+    required_ko:
+      - "희생번트"
+    forbidden_ko:
+      - "안타"
+      - "홈런"
+
+  - id: stole_second
+    category: "baserunning"
+    priority: 130
+    source_patterns:
+      - "stole second"
+    canonical_ko: "2루 도루"
+    outcome_code: "STOLEN_BASE"
+    required_ko:
+      - "2루"
+      - "도루"
+    forbidden_ko:
+      - "도루 실패"
+      - "견제사"
+
+  - id: stole_third
+    category: "baserunning"
+    priority: 130
+    source_patterns:
+      - "stole third"
+    canonical_ko: "3루 도루"
+    outcome_code: "STOLEN_BASE"
+    required_ko:
+      - "3루"
+      - "도루"
+    forbidden_ko:
+      - "도루 실패"
+      - "견제사"
+
+  - id: stole_home
+    category: "baserunning"
+    priority: 140
+    source_patterns:
+      - "stole home"
+    canonical_ko: "홈스틸"
+    outcome_code: "STOLEN_BASE"
+    required_ko:
+      - "홈스틸"
+    forbidden_ko:
+      - "도루 실패"
+      - "견제사"
+
+  - id: caught_stealing
+    category: "baserunning"
+    priority: 140
+    source_patterns:
+      - "caught stealing"
+    canonical_ko: "도루 실패"
+    outcome_code: "CAUGHT_STEALING"
+    required_ko:
+      - "도루 실패"
+    forbidden_ko:
+      - "도루 성공"
+      - "안타"
+
+  - id: picked_off
+    category: "baserunning"
+    priority: 140
+    source_patterns:
+      - "picked off"
+    canonical_ko: "견제사"
+    outcome_code: "PICKED_OFF"
+    required_ko:
+      - "견제사"
+    forbidden_ko:
+      - "도루"
+      - "안타"
+
+  - id: wild_pitch
+    category: "pitching_misc"
+    priority: 130
+    source_patterns:
+      - "wild pitch"
+    canonical_ko: "폭투"
+    outcome_code: "WILD_PITCH"
+    required_ko:
+      - "폭투"
+    forbidden_ko:
+      - "포일"
+      - "보크"
+
+  - id: passed_ball
+    category: "fielding_misc"
+    priority: 130
+    source_patterns:
+      - "passed ball"
+    canonical_ko: "포일"
+    outcome_code: "PASSED_BALL"
+    required_ko:
+      - "포일"
+    forbidden_ko:
+      - "폭투"
+      - "보크"
+
+  - id: balk
+    category: "pitching_misc"
+    priority: 130
+    source_patterns:
+      - "balk"
+    canonical_ko: "보크"
+    outcome_code: "BALK"
+    required_ko:
+      - "보크"
+    forbidden_ko:
+      - "폭투"
+      - "포일"
+
+  - id: scored
+    category: "baserunning"
+    priority: 80
+    source_patterns:
+      - "scored"
+    canonical_ko: "득점"
+    outcome_code: "RUN_SCORED"
+    required_ko:
+      - "득점"
+    forbidden_ko:
+      - "아웃"

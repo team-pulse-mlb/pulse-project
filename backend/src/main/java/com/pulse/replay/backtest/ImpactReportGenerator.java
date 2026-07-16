@@ -166,8 +166,10 @@ public class ImpactReportGenerator {
                 "sources", sourceDistribution(baseline),
                 "baselineVersion", baselineProperties.version(),
                 "candidateVersion", candidateProperties.version(),
-                "backfillApproximation", "최근 득점 15 plays 선형 감쇠, 리드 변경 25 plays 윈도",
-                "alertLimit", "S3_BACKFILL 시간 트리거·쿨다운 및 전역 한도 미적용"));
+                "backfillApproximation", "최근 득점 %d plays 선형 감쇠, 리드 변경 %d plays 윈도".formatted(
+                        options.backfillRecentScoreWindowPlays(),
+                        options.backfillLeadChangeWindowPlays()),
+                "alertLimit", "실측 시각 source는 전역 한도 적용, S3_BACKFILL은 시간 기반 알림 제어 미적용"));
         report.put("rankCorrelation", Map.of(
                 "spearman", nullable(summary.rankSpearman()),
                 "kendallTauB", nullable(summary.rankKendall())));
@@ -198,8 +200,12 @@ public class ImpactReportGenerator {
         text.append("- 상수 버전: v%d → v%d\n".formatted(
                 baselineProperties.version(), candidateProperties.version()));
         text.append("- source 분포: %s\n".formatted(sourceDistribution(baseline)));
-        text.append("- 근사·생략: S3_BACKFILL은 최근 득점 15 plays 선형 감쇠와 리드 변경 25 plays 윈도를 "
-                + "사용하며 시간 기반 알림 상승·쿨다운을 생략함. 전역 알림 한도는 모든 source에서 시뮬레이션하지 않음.\n\n");
+        text.append("- 근사·생략: S3_BACKFILL은 최근 득점 %d plays 선형 감쇠와 리드 변경 %d plays 윈도를 "
+                .formatted(
+                        options.backfillRecentScoreWindowPlays(),
+                        options.backfillLeadChangeWindowPlays()));
+        text.append("사용하며 시간 기반 알림 상승·쿨다운·전역 한도를 생략함. "
+                + "실측 시각이 있는 source에는 전역 알림 한도를 적용함.\n\n");
         text.append("## 핵심 지표\n\n| 지표 | 기준 | 후보 | 델타 |\n|---|---:|---:|---:|\n");
         row(text, "AUC", summary.baselineAuc(), summary.candidateAuc());
         row(text, "정렬 품질 Spearman", summary.baselineQuality(), summary.candidateQuality());
