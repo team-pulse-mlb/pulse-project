@@ -1,142 +1,57 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import {
+    useLocation,
+    useNavigate,
+} from 'react-router';
 
-import { getMe, login } from '../api/authApi';
+import LoginModal from '../components/LoginModal';
+
+/*
+ * ProtectedRoute가 로그인 페이지로 보낼 때 전달하는 상태입니다.
+ *
+ * from:
+ * - 로그인이 끝난 뒤 다시 돌아갈 보호 페이지 경로
+ * - 예: /mypage, /onboarding
+ */
+interface LoginLocationState {
+    from?: string;
+}
 
 function LoginPage() {
+    const location = useLocation();
     const navigate = useNavigate();
 
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const loginLocationState =
+        location.state as LoginLocationState | null;
 
-    const [emailError, setEmailError] = useState('');
-    const [passwordError, setPasswordError] = useState('');
-    const [loginError, setLoginError] = useState('');
+    /*
+     * LoginModal은 로그인 성공 후에도 onClose를 호출합니다.
+     *
+     * Access Token이 존재하면 로그인이 성공한 상태이므로
+     * 사용자가 원래 접근하려던 보호 페이지로 이동합니다.
+     *
+     * 토큰이 없으면 사용자가 모달을 닫은 것이므로
+     * 홈으로 이동합니다.
+     */
+    const handleClose = () => {
+        const isLoggedIn =
+            Boolean(localStorage.getItem('accessToken'));
 
-    const validate = () => {
-        let valid = true;
+        const nextPath =
+            isLoggedIn
+                ? loginLocationState?.from ?? '/'
+                : '/';
 
-        setEmailError('');
-        setPasswordError('');
-        setLoginError('');
-
-        if (email.trim() === '') {
-        setEmailError('이메일을 입력해 주세요.');
-        valid = false;
-        }
-
-        if (password.trim() === '') {
-        setPasswordError('비밀번호를 입력해 주세요.');
-        valid = false;
-        }
-
-        return valid;
-    };
-
-    const handleLogin = async () => {
-        if (!validate()) {
-        return;
-        }
-
-        try {
-        const loginResponse = await login({
-            email,
-            password,
+        navigate(nextPath, {
+            replace: true,
         });
-
-        localStorage.setItem(
-            'accessToken',
-            loginResponse.accessToken,
-        );
-
-        window.dispatchEvent(new Event('auth-changed'));
-
-        const meResponse = await getMe();
-
-        console.log('현재 로그인 사용자:', meResponse);
-
-        navigate('/');
-        } catch (error) {
-        console.error(error);
-        setLoginError('이메일 또는 비밀번호가 올바르지 않습니다.');
-        }
     };
 
     return (
-        <div style={{ maxWidth: '420px', margin: '80px auto' }}>
-        <h2>로그인</h2>
-
-        <div style={{ marginBottom: '16px' }}>
-            <label>이메일</label>
-            <input
-            type="email"
-            value={email}
-            placeholder="이메일을 입력해 주세요."
-            onChange={(event) => setEmail(event.target.value)}
-            style={{
-                width: '100%',
-                padding: '12px',
-                boxSizing: 'border-box',
-            }}
-            />
-            {emailError && (
-            <p style={{ color: 'red', margin: '6px 0 0' }}>
-                {emailError}
-            </p>
-            )}
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-            <label>비밀번호</label>
-            <input
-            type="password"
-            value={password}
-            placeholder="비밀번호를 입력해 주세요."
-            onChange={(event) => setPassword(event.target.value)}
-            style={{
-                width: '100%',
-                padding: '12px',
-                boxSizing: 'border-box',
-            }}
-            />
-            {passwordError && (
-            <p style={{ color: 'red', margin: '6px 0 0' }}>
-                {passwordError}
-            </p>
-            )}
-        </div>
-
-        {loginError && (
-            <p style={{ color: 'red' }}>
-            {loginError}
-            </p>
-        )}
-
-        <button
-            type="button"
-            onClick={handleLogin}
-            style={{
-            width: '100%',
-            padding: '12px',
-            cursor: 'pointer',
-            }}
-        >
-            로그인
-        </button>
-
-        <button
-            type="button"
-            onClick={() => navigate('/signup')}
-            style={{
-            width: '100%',
-            padding: '12px',
-            marginTop: '8px',
-            cursor: 'pointer',
-            }}
-        >
-            회원가입
-        </button>
-        </div>
+        <LoginModal
+            isOpen={true}
+            onClose={handleClose}
+            onLoginSuccess={() => undefined}
+        />
     );
 }
 
