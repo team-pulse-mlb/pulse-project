@@ -91,11 +91,12 @@ container_uid=$(docker run --rm --entrypoint sh "$image" -c 'id -u')
 chown "$container_uid" "$OUTPUT_DIR"
 
 export PULSE_BACKTEST_ENV_FILE="$BACKTEST_ENV_FILE"
-export PULSE_BACKTEST_INPUT_DIR="$INPUT_DIR"
-export PULSE_BACKTEST_OUTPUT_DIR="$OUTPUT_DIR"
 
 cd "$RUNTIME_DIR"
-docker compose -f "$COMPOSE_FILE" --profile batch run --rm --no-deps pulse-backtest-impact
+docker compose -f "$COMPOSE_FILE" --profile batch run --rm --no-deps \
+  --volume "$INPUT_DIR:/work/input:ro" \
+  --volume "$OUTPUT_DIR:/work/output" \
+  pulse-backtest-impact
 
 if ! compgen -G "$OUTPUT_DIR/impact_*.md" >/dev/null \
     || ! compgen -G "$OUTPUT_DIR/impact_*.json" >/dev/null; then

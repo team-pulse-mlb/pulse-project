@@ -29,6 +29,7 @@ jobs:
         run: |
           bash -n infra/prod/deploy/deploy-runtime.sh
           bash -n infra/prod/deploy/refresh-secrets.sh
+          bash -n infra/prod/deploy/run-backtest-impact.sh
           python -m py_compile infra/prod/deploy/sync-secrets.py
           python - <<'PY'
           import runpy
