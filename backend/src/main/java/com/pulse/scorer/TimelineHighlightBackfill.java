@@ -79,13 +79,78 @@ class TimelineHighlightBackfill {
                         event.getSpoilerLevel(), event.getEventType()) != null)
                 .toList();
 
+        List<GameEvent> selectedAnchors = selectAnchors(
+                riseCandidates, anchorCandidates, config, config.backfillMaxPerGame());
+
+        markHighlights(gameId, now, requestCopyGeneration, selectedAnchors);
+
+        if (!selectedAnchors.isEmpty()) {
+            log.debug("종료 경기 타임라인 하이라이트 백필 gameId={} count={}",
+                    gameId, selectedAnchors.size());
+        }
+        return selectedAnchors.size();
+    }
+
+    /** 기존 하이라이트를 모두 해제한 뒤 경기당 상한 없이 다시 생성한다. */
+    @Transactional
+    public int rebuildHighlights(long gameId, Instant now, boolean requestCopyGeneration) {
+        ScoringProperties.Highlight config = props.highlight();
+        if (config == null || !config.enabled()) {
+            return 0;
+        }
+
+        List<GameEvent> existingHighlights = gameEventRepository
+                .findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
+                        gameId, GameEvent.SPOILER_PROTECTED_SAFE);
+        for (GameEvent existingHighlight : existingHighlights) {
+            existingHighlight.setTimelineHighlight(false);
+            gameEventRepository.save(existingHighlight);
+        }
+
+        List<WatchScore> scores = watchScoreRepository.findByGameIdOrderByComputedAtAsc(gameId);
+        if (scores.isEmpty()) {
+            return 0;
+        }
+
+        List<RiseCandidate> riseCandidates = findRiseCandidates(scores, config);
+        if (riseCandidates.isEmpty()) {
+            return 0;
+        }
+
+        List<GameEvent> anchorCandidates = gameEventRepository
+                .findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                        gameId, GameEvent.SPOILER_PROTECTED_SAFE)
+                .stream()
+                .filter(event -> !event.isTimelineHighlight())
+                .filter(event -> event.getObservedAt() != null)
+                .filter(event -> GameEventLabelPolicy.protectedLabel(
+                        event.getSpoilerLevel(), event.getEventType()) != null)
+                .toList();
+
+        List<GameEvent> selectedAnchors = selectAnchors(
+                riseCandidates, anchorCandidates, config, null);
+        markHighlights(gameId, now, requestCopyGeneration, selectedAnchors);
+
+        if (!selectedAnchors.isEmpty()) {
+            log.debug("종료 경기 타임라인 하이라이트 삭제 후 재생성 gameId={} count={}",
+                    gameId, selectedAnchors.size());
+        }
+        return selectedAnchors.size();
+    }
+
+    private static List<GameEvent> selectAnchors(
+            List<RiseCandidate> riseCandidates,
+            List<GameEvent> anchorCandidates,
+            ScoringProperties.Highlight config,
+            Integer maxPerGame
+    ) {
         List<Instant> selectedTimes = new ArrayList<>();
         Set<Long> selectedAnchorIds = new HashSet<>();
         List<GameEvent> selectedAnchors = new ArrayList<>();
         Duration cooldown = Duration.ofMinutes(config.cooldownMinutes());
 
         for (RiseCandidate riseCandidate : riseCandidates) {
-            if (selectedAnchors.size() >= config.backfillMaxPerGame()) {
+            if (maxPerGame != null && selectedAnchors.size() >= maxPerGame) {
                 break;
             }
             boolean inCooldown = selectedTimes.stream()
@@ -114,6 +179,15 @@ class TimelineHighlightBackfill {
             selectedAnchors.add(anchor);
         }
 
+        return selectedAnchors;
+    }
+
+    private void markHighlights(
+            long gameId,
+            Instant now,
+            boolean requestCopyGeneration,
+            List<GameEvent> selectedAnchors
+    ) {
         for (GameEvent anchor : selectedAnchors) {
             anchor.setTimelineHighlight(true);
             gameEventRepository.save(anchor);
@@ -125,12 +199,6 @@ class TimelineHighlightBackfill {
                         gameId, anchorId, AiGenerationTrigger.MODE_PROTECTED, now));
             }
         }
-
-        if (!selectedAnchors.isEmpty()) {
-            log.debug("종료 경기 타임라인 하이라이트 백필 gameId={} count={}",
-                    gameId, selectedAnchors.size());
-        }
-        return selectedAnchors.size();
     }
 
     private static List<RiseCandidate> findRiseCandidates(

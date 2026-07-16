@@ -19,6 +19,7 @@ import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -136,6 +137,62 @@ class TimelineHighlightBackfillTest {
                 .filter(GameEvent::isTimelineHighlight)
                 .count()).isEqualTo(2);
         verify(gameEventRepository, times(2)).save(any(GameEvent.class));
+    }
+
+    @Test
+    @DisplayName("기존 하이라이트를 해제한 뒤 다시 선정한다")
+    void rebuildClearsExistingHighlightBeforeReselection() {
+        GameEvent existingHighlight = event(91L, 4, "full_count_two_out");
+        existingHighlight.setTimelineHighlight(true);
+        List<Boolean> savedStates = new ArrayList<>();
+        when(gameEventRepository
+                .findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
+                        GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE))
+                .thenReturn(List.of(existingHighlight));
+        when(watchScoreRepository.findByGameIdOrderByComputedAtAsc(GAME_ID))
+                .thenReturn(List.of(score(0, 26), score(5, 38)));
+        when(gameEventRepository.findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE))
+                .thenReturn(List.of(existingHighlight));
+        when(gameEventRepository.save(any(GameEvent.class))).thenAnswer(invocation -> {
+            GameEvent saved = invocation.getArgument(0);
+            savedStates.add(saved.isTimelineHighlight());
+            return saved;
+        });
+
+        int marked = backfill(ENABLED).rebuildHighlights(GAME_ID, NOW, false);
+
+        assertThat(marked).isEqualTo(1);
+        assertThat(savedStates).containsExactly(false, true);
+        assertThat(existingHighlight.isTimelineHighlight()).isTrue();
+    }
+
+    @Test
+    @DisplayName("재생성은 경기당 상한을 적용하지 않는다")
+    void rebuildDoesNotLimitHighlightsPerGame() {
+        ScoringProperties.Highlight config =
+                new ScoringProperties.Highlight(true, 40, 12, 10, 8, 2);
+        GameEvent first = event(91L, 4, "full_count_two_out");
+        GameEvent second = event(92L, 24, "pressure_bases_loaded");
+        GameEvent third = event(93L, 44, "hard_contact");
+        when(gameEventRepository
+                .findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
+                        GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE))
+                .thenReturn(List.of());
+        when(watchScoreRepository.findByGameIdOrderByComputedAtAsc(GAME_ID)).thenReturn(List.of(
+                score(0, 10), score(5, 30), score(10, 35),
+                score(20, 10), score(25, 45), score(30, 50),
+                score(40, 10), score(45, 55)
+        ));
+        when(gameEventRepository.findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE))
+                .thenReturn(List.of(first, second, third));
+
+        int marked = backfill(config).rebuildHighlights(GAME_ID, NOW, false);
+
+        assertThat(marked).isEqualTo(3);
+        assertThat(List.of(first, second, third)).allMatch(GameEvent::isTimelineHighlight);
+        verify(gameEventRepository, times(3)).save(any(GameEvent.class));
     }
 
     @Test
