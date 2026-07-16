@@ -273,11 +273,14 @@
 
 | Code | Meaning |
 | --- | --- |
-| `TRANSLATED_TEXT_EMPTY` | 번역문이 비어 있음 |
 | `SOURCE_TEXT_EMPTY` | 원문이 비어 있음 |
+| `TRANSLATED_TEXT_EMPTY` | 번역문이 비어 있음 |
 | `MULTIPLE_SENTENCES` | 번역문이 여러 문장으로 생성됨 |
 | `MISSING_PLAYER_NAME:{name}` | 원문 선수명이 번역문에서 누락됨 |
+| `ADDED_PLAYER_NAME:{name}` | 원문에 없는 영문 선수명이 번역문에 추가됨 |
 | `MISSING_NUMBER:{number}` | 원문 숫자가 번역문에서 누락됨 |
+| `ADDED_NUMBER:{number}` | 원문 또는 용어집 규칙으로 설명되지 않는 숫자가 번역문에 추가됨 |
+| `MISSING_EVENT:{outcomeCode}` | YAML 용어집에 매칭된 이벤트의 필수 한국어 표현이 번역문에 보존되지 않음 |
 | `MISSING_EVENT:SINGLE` | 원문 single 이벤트가 안타로 보존되지 않음 |
 | `MISSING_EVENT:DOUBLE` | 원문 double 이벤트가 2루타로 보존되지 않음 |
 | `MISSING_EVENT:TRIPLE` | 원문 triple 이벤트가 3루타로 보존되지 않음 |
@@ -296,6 +299,8 @@
 | `ADDED_RESULT:SCORE` | 원문에 없는 득점 표현이 추가됨 |
 | `ADDED_RESULT:RUN_ALLOWED` | 원문에 없는 실점 표현이 추가됨 |
 | `ADDED_RESULT:LEAD` | 원문에 없는 리드 표현이 추가됨 |
+| `ADDED_COMMENTARY:{expression}` | YAML `global_forbidden_expressions`에 등록된 평가·감정·해설 표현이 번역문에 포함됨 |
+
 
 ### 1.3 관심 선수 검색·등록 계약
 
