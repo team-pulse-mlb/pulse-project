@@ -1,9 +1,11 @@
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
 from app.prompts.play_translation_prompt import (
     find_matching_event_terms,
+    find_matching_positions,
     load_baseball_terms,
 )
 
@@ -34,6 +36,68 @@ FORBIDDEN_ADDITIONS = {
     "득점": "ADDED_RESULT:SCORE",
     "실점": "ADDED_RESULT:RUN_ALLOWED",
     "리드": "ADDED_RESULT:LEAD",
+}
+
+
+# 선수명 후보를 찾을 때 일반 문맥 토큰으로 제외할 표현입니다.
+IGNORED_NAME_TOKENS = frozenset(
+    {
+        "Top",
+        "Bottom",
+        "Pitcher",
+        "Batter",
+        "Runner",
+        "Home",
+        "Away",
+        "Play",
+        "Result",
+    }
+)
+
+
+# 영문 선수명 후보를 추출합니다.
+#
+# \b 대신 ASCII lookaround를 사용하므로 "Soto가"처럼
+# 영문 이름 바로 뒤에 한글 조사가 붙어도 Soto를 추출할 수 있습니다.
+NAME_CANDIDATE_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9])"
+    r"([A-Z][a-zA-Z'.-]{1,})"
+    r"(?![A-Za-z0-9])"
+)
+
+
+# 정수와 소수 형태의 숫자를 비교 대상으로 사용합니다.
+NUMBER_TOKEN_PATTERN = re.compile(r"\d+(?:\.\d+)?")
+
+
+# 영문 원문에서 한국어 숫자 표기로 바뀔 수 있는 표현입니다.
+#
+# 예:
+# - second → 2루
+# - two outs → 2아웃
+# - third inning → 3회
+SOURCE_NUMBER_WORDS = {
+    "zero": "0",
+    "one": "1",
+    "two": "2",
+    "three": "3",
+    "four": "4",
+    "five": "5",
+    "six": "6",
+    "seven": "7",
+    "eight": "8",
+    "nine": "9",
+    "ten": "10",
+    "first": "1",
+    "second": "2",
+    "third": "3",
+    "fourth": "4",
+    "fifth": "5",
+    "sixth": "6",
+    "seventh": "7",
+    "eighth": "8",
+    "ninth": "9",
+    "tenth": "10",
 }
 
 
@@ -98,15 +162,16 @@ def check_play_translation(
         _check_single_sentence(normalized_translation)
     )
     violations.extend(
-        _check_player_names_preserved(
+        _check_player_names_preserved_and_not_added(
             source_text=source_text,
             translated_text=translated_text or "",
         )
     )
     violations.extend(
-        _check_numbers_preserved(
+        _check_numbers_preserved_and_not_added(
             source_text=source_text,
             translated_text=translated_text or "",
+            glossary=glossary,
         )
     )
     violations.extend(
@@ -185,89 +250,228 @@ def _check_single_sentence(
     return []
 
 
-def _check_player_names_preserved(
+def _check_player_names_preserved_and_not_added(
     source_text: str,
     translated_text: str,
 ) -> list[str]:
     """
-    원문에 등장한 선수명 후보가 번역문에도 남아 있는지 검사합니다.
+    원문 선수명이 번역문에 모두 남아 있고,
+    원문에 없는 영문 선수명이 추가되지 않았는지 검사합니다.
 
-    MLB Play Result는 보통 대문자로 시작하는 영문 토큰으로
-    선수명을 표기하므로 해당 토큰을 선수명 후보로 사용합니다.
+    이름이 다른 이름으로 바뀐 경우:
+    - MISSING_PLAYER_NAME:{원문 이름}
+    - ADDED_PLAYER_NAME:{추가 이름}
 
-    이번 단계에서는 원문 선수명의 누락만 검사합니다.
-    원문에 없는 추가 선수명 검사는 후속 작업에서 추가합니다.
+    두 violation을 함께 반환합니다.
     """
 
     source_names = _extract_name_candidates(source_text)
+    translated_names = _extract_name_candidates(
+        translated_text
+    )
+
+    source_name_set = set(source_names)
+    translated_name_set = set(translated_names)
+
+    violations: list[str] = []
 
     missing_names = [
         name
         for name in source_names
-        if name not in translated_text
+        if name not in translated_name_set
     ]
+    violations.extend(
+        f"MISSING_PLAYER_NAME:{name}"
+        for name in missing_names
+    )
 
-    if missing_names:
-        return [
-            f"MISSING_PLAYER_NAME:{name}"
-            for name in missing_names
-        ]
+    added_names = [
+        name
+        for name in translated_names
+        if name not in source_name_set
+    ]
+    violations.extend(
+        f"ADDED_PLAYER_NAME:{name}"
+        for name in added_names
+    )
 
-    return []
+    return violations
 
 
 def _extract_name_candidates(
-    source_text: str,
+    text: str,
 ) -> list[str]:
     """
-    원문에서 선수명 후보를 추출합니다.
+    텍스트에서 영문 선수명 후보를 추출합니다.
+
+    - 일반 문맥 토큰은 제외합니다.
+    - RBI, MLB처럼 전부 대문자인 약어는 제외합니다.
+    - 최초 등장 순서를 유지하면서 중복을 제거합니다.
     """
 
-    candidates = re.findall(
-        r"\b[A-Z][a-zA-Z'.-]{1,}\b",
-        source_text,
-    )
+    candidates = NAME_CANDIDATE_PATTERN.findall(text)
 
-    ignored_words = {
-        "Top",
-        "Bottom",
-        "Pitcher",
-        "Batter",
-    }
-
-    return [
+    filtered_candidates = [
         candidate
         for candidate in candidates
-        if candidate not in ignored_words
+        if candidate not in IGNORED_NAME_TOKENS
+        and not candidate.isupper()
     ]
 
+    return list(dict.fromkeys(filtered_candidates))
 
-def _check_numbers_preserved(
+
+def _check_numbers_preserved_and_not_added(
     source_text: str,
     translated_text: str,
+    glossary: dict[str, Any],
 ) -> list[str]:
     """
-    원문에 등장한 숫자가 번역문에도 유지되는지 검사합니다.
+    원문의 명시적 숫자가 번역문에 보존됐는지 검사하고,
+    원문이나 야구 용어 규칙으로 설명되지 않는 숫자 추가를 차단합니다.
 
-    이번 단계에서는 원문 숫자의 누락만 검사합니다.
-    원문에 없는 추가 숫자 검사는 후속 작업에서 추가합니다.
+    허용 예:
+    - doubled → 2루타
+    - tripled → 3루타
+    - stole second → 2루 도루
+    - grounded out to third → 3루수 땅볼 아웃
+
+    차단 예:
+    - 숫자가 없는 single 원문에 "12구째" 추가
+    - pitch 12를 pitch 13으로 변경
     """
 
-    source_numbers = re.findall(r"\d+", source_text)
+    source_number_counts = Counter(
+        _extract_number_tokens(source_text)
+    )
+    translated_number_counts = Counter(
+        _extract_number_tokens(translated_text)
+    )
+    semantically_allowed_numbers = (
+        _extract_semantically_allowed_numbers(
+            source_text=source_text,
+            glossary=glossary,
+        )
+    )
 
-    missing_numbers = [
-        number
-        for number in source_numbers
-        if number not in translated_text
-    ]
+    violations: list[str] = []
 
-    if missing_numbers:
-        return [
-            f"MISSING_NUMBER:{number}"
-            for number in missing_numbers
-        ]
+    for number, required_count in (
+        source_number_counts.items()
+    ):
+        translated_count = translated_number_counts[number]
 
-    return []
+        if translated_count < required_count:
+            violations.append(
+                f"MISSING_NUMBER:{number}"
+            )
+
+    for number, translated_count in (
+        translated_number_counts.items()
+    ):
+        source_count = source_number_counts[number]
+
+        # double→2루타, second→2루처럼 원문 의미가
+        # 숫자 표기를 허용하는 경우에는 추가 숫자로 보지 않습니다.
+        if number in semantically_allowed_numbers:
+            continue
+
+        if translated_count > source_count:
+            violations.append(
+                f"ADDED_NUMBER:{number}"
+            )
+
+    return violations
+
+
+def _extract_number_tokens(
+    text: str,
+) -> list[str]:
+    """
+    텍스트에서 정수·소수 형태의 숫자를 추출합니다.
+    """
+
+    return NUMBER_TOKEN_PATTERN.findall(text)
+
+
+def _extract_semantically_allowed_numbers(
+    source_text: str,
+    glossary: dict[str, Any],
+) -> set[str]:
+    """
+    원문 의미상 한국어 번역에 등장할 수 있는 숫자를 추출합니다.
+
+    명시적 숫자 외에도 다음 변환을 허용합니다.
+    - 영문 수사·서수 → 숫자
+    - YAML 이벤트 canonicalKo/requiredKo의 숫자
+    - YAML 수비 위치 canonicalKo의 숫자
+    """
+
+    allowed_numbers: set[str] = set()
+    normalized_source = source_text.lower()
+
+    for source_word, number in SOURCE_NUMBER_WORDS.items():
+        source_word_pattern = re.compile(
+            rf"(?<![a-z])"
+            rf"{re.escape(source_word)}"
+            rf"(?![a-z])",
+            re.IGNORECASE,
+        )
+
+        if source_word_pattern.search(normalized_source):
+            allowed_numbers.add(number)
+
+    matched_event_terms = find_matching_event_terms(
+        source_text=source_text,
+        glossary=glossary,
+    )
+
+    for matched_term in matched_event_terms:
+        _add_numbers_from_value(
+            allowed_numbers=allowed_numbers,
+            value=matched_term.get("canonicalKo"),
+        )
+        _add_numbers_from_value(
+            allowed_numbers=allowed_numbers,
+            value=matched_term.get("requiredKo", []),
+        )
+
+    matched_positions = find_matching_positions(
+        source_text=source_text,
+        glossary=glossary,
+    )
+
+    for matched_position in matched_positions:
+        _add_numbers_from_value(
+            allowed_numbers=allowed_numbers,
+            value=matched_position.get("canonicalKo"),
+        )
+
+    return allowed_numbers
+
+
+def _add_numbers_from_value(
+    allowed_numbers: set[str],
+    value: Any,
+) -> None:
+    """
+    문자열 또는 문자열 목록에서 숫자를 찾아 허용 집합에 추가합니다.
+    """
+
+    if value is None:
+        return
+
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            _add_numbers_from_value(
+                allowed_numbers=allowed_numbers,
+                value=item,
+            )
+        return
+
+    allowed_numbers.update(
+        _extract_number_tokens(str(value))
+    )
 
 
 def _check_glossary_event_preserved(

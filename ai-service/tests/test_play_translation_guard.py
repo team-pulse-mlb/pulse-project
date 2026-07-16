@@ -85,6 +85,21 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
             translated_text="Soto, 2루 도루",
         )
 
+    def test_safe_double_allows_semantic_number(self):
+        # 원문에 숫자 2가 직접 없더라도 doubled는
+        # 한국 야구 용어인 2루타로 번역할 수 있어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto doubled to center.",
+            translated_text="Soto, 중견수 방면 2루타",
+        )
+
+    def test_safe_explicit_number_preserved(self):
+        # 원문에 있는 투구 번호가 그대로 보존되면 통과합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled to center on pitch 12.",
+            translated_text="Soto, 12구째 중견수 방면 안타",
+        )
+
     def test_safe_wild_pitch_translation_passes(self):
         # wild pitch의 필수 한국어 표현인 폭투가 보존되면 통과합니다.
         self.assert_safe_translation(
@@ -160,12 +175,56 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
             ],
         )
 
+    def test_rejects_added_player_name(self):
+        # Judge는 원문에 존재하지 않으므로 추가 선수로 차단합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center.",
+            translated_text="Soto와 Judge, 중견수 방면 안타",
+            expected_violations=[
+                "ADDED_PLAYER_NAME:Judge",
+            ],
+        )
+
+    def test_rejects_changed_player_name(self):
+        # Soto를 Judge로 바꾸면 원문 선수 누락과 새 선수 추가를
+        # 모두 반환해야 합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center.",
+            translated_text="Judge, 중견수 방면 안타",
+            expected_violations=[
+                "MISSING_PLAYER_NAME:Soto",
+                "ADDED_PLAYER_NAME:Judge",
+            ],
+        )
+
     def test_rejects_missing_number(self):
         self.assert_translation_violations_include(
             source_text="Soto singled to center on pitch 12.",
             translated_text="Soto, 중견수 방면 안타",
             expected_violations=[
                 "MISSING_NUMBER:12",
+            ],
+        )
+
+    def test_rejects_added_number(self):
+        # 원문에 없는 12구째 정보를 번역문이 임의로 추가하면 차단합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center.",
+            translated_text="Soto, 12구째 중견수 방면 안타",
+            expected_violations=[
+                "ADDED_NUMBER:12",
+            ],
+        )
+
+    def test_rejects_changed_number(self):
+        # 원문의 12를 13으로 바꾸면 12 누락과 13 추가를
+        # 각각 확인할 수 있어야 합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center on pitch 12.",
+            translated_text="Soto, 13구째 중견수 방면 안타",
+            expected_violations=[
+                "MISSING_NUMBER:12",
+                "ADDED_NUMBER:13",
             ],
         )
 
