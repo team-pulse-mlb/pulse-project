@@ -149,7 +149,11 @@ def _collect_forbidden_words(
     violations: list[str],
 ) -> None:
     """
-    문구에 포함된 금지 표현을 violations에 추가합니다.
+    문구에 포함된 금지 표현을 violations에bidden_words(
+    text: str,
+    forbidden_words: tuple[str, ...],
+    violations: list[str],
+) -> 추가합니다.
     """
 
     for word in forbidden_words:
@@ -161,6 +165,102 @@ def _collect_forbidden_words(
 
     for pattern, violation_word in UNSUPPORTED_RESULT_PATTERNS:
         if pattern.search(text):
+            _append_violation(
+                violations,
+                f"FORBIDDEN_WORD:{violation_word}",
+            )
+
+
+def _revealed_event_types(
+    safe_context: SafeContext | None,
+) -> set[str]:
+    """
+    FINAL_HEADLINE REVEALED safeContext에 실제 포함된 공개 이벤트 타입을 수집합니다.
+    """
+
+    if safe_context is None:
+        return set()
+
+    event_types: set[str] = set()
+
+    for event in getattr(safe_context, "revealed_events", []) or []:
+        event_type = getattr(event, "event_type", None)
+        if event_type:
+            event_types.add(event_type)
+
+    for moment in getattr(safe_context, "revealed_moments", []) or []:
+        for event_type in getattr(moment, "event_types", []) or []:
+            if event_type:
+                event_types.add(event_type)
+
+    return event_types
+
+
+def _revealed_supported_words(
+    safe_context: SafeContext | None,
+) -> set[str]:
+    """
+    REVEALED 모드에서 safeContext 근거로 검증 가능한 결과 표현을 반환합니다.
+
+    PROTECTED 모드에서는 계속 금지하지만,
+    REVEALED 모드에서는 revealedEvents/revealedMoments/verifiedPlays에 실제 근거가 있으면 허용합니다.
+    """
+
+    supported_words: set[str] = set()
+    event_types = _revealed_event_types(safe_context)
+
+    if "home_run" in event_types:
+        supported_words.add("홈런")
+
+    if "lead_change" in event_types:
+        supported_words.update({"역전", "리드"})
+
+    if "walk_off" in event_types:
+        supported_words.add("끝내기")
+
+    if "scoring_play" in event_types:
+        supported_words.add("득점")
+
+    if safe_context is None:
+        return supported_words
+
+    for play in getattr(safe_context, "verified_plays", []) or []:
+        translated_text = getattr(play, "translated_text", None) or ""
+        source_text = (getattr(play, "source_text", None) or "").lower()
+
+        if (
+            "홈런" in translated_text
+            or "homered" in source_text
+            or "home run" in source_text
+        ):
+            supported_words.add("홈런")
+
+        if getattr(play, "scoring_play", None) is True:
+            supported_words.add("득점")
+
+    return supported_words
+
+
+def _collect_revealed_unsupported_words(
+    text: str,
+    safe_context: SafeContext | None,
+    violations: list[str],
+) -> None:
+    """
+    REVEALED 모드에서 safeContext로 검증되지 않는 결과 표현만 차단합니다.
+    """
+
+    supported_words = _revealed_supported_words(safe_context)
+
+    for word in REVEALED_UNSUPPORTED_WORDS:
+        if word in text and word not in supported_words:
+            _append_violation(
+                violations,
+                f"FORBIDDEN_WORD:{word}",
+            )
+
+    for pattern, violation_word in UNSUPPORTED_RESULT_PATTERNS:
+        if pattern.search(text) and violation_word not in supported_words:
             _append_violation(
                 violations,
                 f"FORBIDDEN_WORD:{violation_word}",
@@ -244,7 +344,136 @@ def _opposite_winner(team_name: str) -> str:
     return "home"
 
 
-def _resolve_claimed_winner(text: str) -> str | None:
+def _alias_values(
+    *values: str | None,
+) -> set[str]:
+    """
+    팀 정식명/약어/영문 마지막 단어를 승자 검증 alias로 사용합니다.
+    """
+
+    aliases: set[str] = set()
+
+    for value in values:
+        if not isinstance(value, str):
+            continue
+
+        alias = value.strip()
+        if not alias:
+            continue
+
+        aliases.add(alias)
+
+        parts = alias.split()
+        if len(parts) > 1:
+            aliases.add(parts[-1])
+
+    return aliases
+
+
+def _team_aliases(
+    safe_context: SafeContext | None,
+) -> dict[str, set[str]]:
+    """
+    safeContext의 팀 정보를 home/away winner claim 검증용 alias로 변환합니다.
+    """
+
+    aliases = {
+        "home": {"홈팀"},
+        "away": {"원정팀"},
+    }
+
+    if safe_context is None:
+        return aliases
+
+    teams = getattr(safe_context, "teams", None)
+    if teams is not None:
+        home = getattr(teams, "home", None)
+        away = getattr(teams, "away", None)
+
+        if home is not None:
+            aliases["home"].update(
+                _alias_values(
+                    getattr(home, "name", None),
+                    getattr(home, "abbr", None),
+                )
+            )
+
+        if away is not None:
+            aliases["away"].update(
+                _alias_values(
+                    getattr(away, "name", None),
+                    getattr(away, "abbr", None),
+                )
+            )
+
+    summary_facts = getattr(safe_context, "summary_facts", None)
+    if summary_facts is not None:
+        winner_side = getattr(summary_facts, "winner_side", None)
+        loser_side = _opposite_winner(winner_side) if winner_side in {"home", "away"} else None
+
+        if winner_side in aliases:
+            aliases[winner_side].update(
+                _alias_values(getattr(summary_facts, "winner_name", None))
+            )
+
+        if loser_side in aliases:
+            aliases[loser_side].update(
+                _alias_values(getattr(summary_facts, "loser_name", None))
+            )
+
+    return aliases
+
+
+def _resolve_alias_winner_claims(
+    text: str,
+    safe_context: SafeContext | None,
+) -> set[str]:
+    """
+    홈팀/원정팀 표현뿐 아니라 실제 팀명·약어 기반 승패 표현도 winner claim으로 인식합니다.
+    """
+
+    claimed_winners: set[str] = set()
+    aliases = _team_aliases(safe_context)
+
+    win_verbs = r"승리|이겼|이긴|이김"
+    loss_verbs = r"패배|졌다|패한"
+
+    for side, side_aliases in aliases.items():
+        for alias in sorted(side_aliases, key=len, reverse=True):
+            escaped_alias = re.escape(alias)
+
+            if re.search(
+                rf"{escaped_alias}(?:이|가|은|는)?\s*"
+                rf"(?:\d{{1,3}}\s*-\s*\d{{1,3}}(?:으로|로)?\s*)?"
+                rf"(?:{win_verbs})",
+                text,
+                flags=re.IGNORECASE,
+            ):
+                claimed_winners.add(side)
+
+            if re.search(
+                rf"{escaped_alias}(?:이|가|은|는)?\s*"
+                rf"(?:\d{{1,3}}\s*-\s*\d{{1,3}}(?:으로|로)?\s*)?"
+                rf"(?:{loss_verbs})",
+                text,
+                flags=re.IGNORECASE,
+            ):
+                claimed_winners.add(_opposite_winner(side))
+
+            if re.search(
+                rf"승자(?:는|가)?\s*{escaped_alias}",
+                text,
+                flags=re.IGNORECASE,
+            ):
+                claimed_winners.add(side)
+
+    return claimed_winners
+
+
+def _resolve_claimed_winner(
+    text: str,
+    safe_context: SafeContext | None = None,
+) -> str | None:
     """
     문구에서 명시적으로 주장하는 승자를 home, away, draw로 변환합니다.
 
@@ -261,6 +490,13 @@ def _resolve_claimed_winner(text: str) -> str | None:
 
     for match in EXPLICIT_WINNER_PATTERN.finditer(text):
         claimed_winners.add(_team_to_winner(match.group(1)))
+
+    claimed_winners.update(
+        _resolve_alias_winner_claims(
+            text=text,
+            safe_context=safe_context,
+        )
+    )
 
     if any(pattern.search(text) for pattern in DRAW_PATTERNS):
         claimed_winners.add("draw")
@@ -302,7 +538,7 @@ def _validate_revealed_winner(
         )
         return
 
-    claimed_winner = _resolve_claimed_winner(text)
+    claimed_winner = _resolve_claimed_winner(text, safe_context)
 
     if claimed_winner == "ambiguous":
         _append_violation(
@@ -391,9 +627,9 @@ def check_spoiler_text(
             )
 
     elif resolved_mode == AiCopyMode.REVEALED:
-        _collect_forbidden_words(
+        _collect_revealed_unsupported_words(
             text=normalized_text,
-            forbidden_words=REVEALED_UNSUPPORTED_WORDS,
+            safe_context=safe_context,
             violations=violations,
         )
 
