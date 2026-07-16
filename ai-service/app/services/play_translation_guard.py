@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.prompts.play_translation_prompt import (
+    find_matching_directions,
     find_matching_event_terms,
     find_matching_positions,
     load_baseball_terms,
@@ -101,30 +102,6 @@ SOURCE_NUMBER_WORDS = {
 }
 
 
-# 원문의 타구 방향이 번역문에도 보존됐는지 검사하는 규칙입니다.
-#
-# 이번 작업에서는 기존 동작과의 호환성을 위해 유지합니다.
-# left-center, right-center, 선상 타구 등 세부 방향 검증은
-# 후속 작업에서 YAML direction_patterns 기준으로 확장합니다.
-DIRECTION_PRESERVATION_RULES = [
-    (
-        re.compile(r"\bto left\b", re.IGNORECASE),
-        ["좌익", "왼쪽", "레프트"],
-        "MISSING_DIRECTION:LEFT",
-    ),
-    (
-        re.compile(r"\bto center\b", re.IGNORECASE),
-        ["중견", "가운데", "센터"],
-        "MISSING_DIRECTION:CENTER",
-    ),
-    (
-        re.compile(r"\bto right\b", re.IGNORECASE),
-        ["우익", "오른쪽", "라이트"],
-        "MISSING_DIRECTION:RIGHT",
-    ),
-]
-
-
 def check_play_translation(
     source_text: str,
     translated_text: str | None,
@@ -182,9 +159,17 @@ def check_play_translation(
         )
     )
     violations.extend(
-        _check_direction_preserved(
+        _check_glossary_direction_preserved(
             source_text=source_text,
             translated_text=translated_text or "",
+            glossary=glossary,
+        )
+    )
+    violations.extend(
+        _check_glossary_position_preserved(
+            source_text=source_text,
+            translated_text=translated_text or "",
+            glossary=glossary,
         )
     )
     violations.extend(
@@ -529,31 +514,196 @@ def _check_glossary_event_preserved(
     return violations
 
 
-def _check_direction_preserved(
+def _check_glossary_direction_preserved(
     source_text: str,
     translated_text: str,
+    glossary: dict[str, Any],
 ) -> list[str]:
     """
-    원문 방향 표현이 번역문에 보존됐는지 검사합니다.
+    YAML direction_patterns에서 원문과 매칭된 타구 방향이
+    번역문에 보존됐는지 검사합니다.
+
+    예:
+    - to left-center → 좌중간
+    - down the left-field line → 좌익선상
+    - up the middle → 중앙
     """
 
     violations: list[str] = []
 
-    for (
-        pattern,
-        allowed_terms,
-        violation_code,
-    ) in DIRECTION_PRESERVATION_RULES:
-        if not pattern.search(source_text):
-            continue
+    matched_directions = _select_specific_directions(
+        find_matching_directions(
+            source_text=source_text,
+            glossary=glossary,
+        )
+    )
 
-        if not any(
+    for matched_direction in matched_directions:
+        allowed_terms = _build_direction_allowed_terms(
+            matched_direction
+        )
+
+        if any(
             allowed_term in translated_text
             for allowed_term in allowed_terms
         ):
-            violations.append(violation_code)
+            continue
+
+        direction_id = str(
+            matched_direction.get("id")
+            or "UNKNOWN"
+        )
+
+        violations.append(
+            _build_missing_violation(
+                prefix="MISSING_DIRECTION",
+                raw_id=direction_id,
+            )
+        )
 
     return violations
+
+
+def _select_specific_directions(
+    matched_directions: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """
+    구체 방향과 일반 방향이 동시에 잡히면 구체 방향만 남깁니다.
+
+    예:
+    - to left-center → left_center + left가 잡힐 수 있으므로 left 제거
+    - to right-center → right_center + right가 잡힐 수 있으므로 right 제거
+    """
+
+    matched_ids = {
+        str(direction.get("id") or "")
+        for direction in matched_directions
+    }
+
+    suppressed_ids: set[str] = set()
+
+    if matched_ids & {"left_center", "left_field_line"}:
+        suppressed_ids.add("left")
+
+    if matched_ids & {"right_center", "right_field_line"}:
+        suppressed_ids.add("right")
+
+    return [
+        direction
+        for direction in matched_directions
+        if str(direction.get("id") or "") not in suppressed_ids
+    ]
+
+
+def _build_direction_allowed_terms(
+    matched_direction: dict[str, Any],
+) -> list[str]:
+    """
+    방향별 허용 한국어 표현 목록을 만듭니다.
+
+    left·center·right는 기존 guard가 허용하던
+    짧은 표현도 유지해 호환성을 보장합니다.
+    """
+
+    direction_id = str(matched_direction.get("id") or "")
+    canonical_ko = str(
+        matched_direction.get("canonicalKo") or ""
+    ).strip()
+
+    allowed_terms = [
+        canonical_ko,
+    ]
+
+    if direction_id == "left":
+        allowed_terms.extend(
+            ["좌익", "왼쪽", "레프트"]
+        )
+    elif direction_id == "center":
+        allowed_terms.extend(
+            ["중견", "가운데", "센터"]
+        )
+    elif direction_id == "right":
+        allowed_terms.extend(
+            ["우익", "오른쪽", "라이트"]
+        )
+
+    return [
+        term
+        for term in dict.fromkeys(allowed_terms)
+        if term
+    ]
+
+
+def _check_glossary_position_preserved(
+    source_text: str,
+    translated_text: str,
+    glossary: dict[str, Any],
+) -> list[str]:
+    """
+    YAML position_patterns에서 원문과 매칭된 수비 위치가
+    번역문에 보존됐는지 검사합니다.
+
+    find_matching_positions()는 first·second·third 같은
+    모호한 단어를 수비 아웃 문맥에서만 위치로 인정합니다.
+
+    예:
+    - grounded out to third → 3루수
+    - grounded out to shortstop → 유격수
+    """
+
+    violations: list[str] = []
+
+    matched_positions = find_matching_positions(
+        source_text=source_text,
+        glossary=glossary,
+    )
+
+    for matched_position in matched_positions:
+        canonical_ko = str(
+            matched_position.get("canonicalKo") or ""
+        ).strip()
+
+        if canonical_ko and canonical_ko in translated_text:
+            continue
+
+        position_id = str(
+            matched_position.get("id")
+            or "UNKNOWN"
+        )
+
+        violations.append(
+            _build_missing_violation(
+                prefix="MISSING_POSITION",
+                raw_id=position_id,
+            )
+        )
+
+    return violations
+
+
+def _build_missing_violation(
+    prefix: str,
+    raw_id: str,
+) -> str:
+    """
+    YAML id를 violation code 형식으로 변환합니다.
+
+    예:
+    - left_center → MISSING_DIRECTION:LEFT_CENTER
+    - third_baseman → MISSING_POSITION:THIRD_BASEMAN
+    """
+
+    normalized_id = (
+        str(raw_id)
+        .strip()
+        .replace("-", "_")
+        .upper()
+    )
+
+    if not normalized_id:
+        normalized_id = "UNKNOWN"
+
+    return f"{prefix}:{normalized_id}"
 
 
 def _check_forbidden_additions(
