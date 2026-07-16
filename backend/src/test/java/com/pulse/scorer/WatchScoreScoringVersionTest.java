@@ -41,8 +41,6 @@ class WatchScoreScoringVersionTest {
         when(watchScoreRepository.existsByGameIdAndComputedAt(GAME_ID, OBSERVED_AT)).thenReturn(false);
         when(watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(GAME_ID)).thenReturn(Optional.empty());
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(liveGame()));
-        when(playRepository.findByGameIdOrderByPlayOrderDesc(eq(GAME_ID), any(Pageable.class)))
-                .thenReturn(List.of());
         when(importanceCalculator.multiplier(any(Game.class))).thenReturn(1.0);
 
         LiveScoringService service = new LiveScoringService(
