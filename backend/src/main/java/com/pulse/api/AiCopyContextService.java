@@ -1,38 +1,14 @@
 package com.pulse.api;
 
-import com.pulse.common.ai.AiContextHashCalculator;
-import com.pulse.common.ai.AiCopyContextReader;
-import com.pulse.common.ai.AiCopyMode;
-import com.pulse.common.ai.EventCopyContext;
-import com.pulse.common.ai.FinalHeadlineContext;
-import com.pulse.common.ai.ProtectedEventCopyContext;
-import com.pulse.common.ai.RevealedEventCopyContext;
-import com.pulse.domain.Game;
-import com.pulse.domain.GameEvent;
-import com.pulse.domain.GameEventLabelPolicy;
-import com.pulse.domain.GameEventRepository;
-import com.pulse.domain.GameRepository;
-import com.pulse.domain.Player;
-import com.pulse.domain.PlayerRepository;
-import com.pulse.domain.Play;
-import com.pulse.domain.PlayRepository;
-import com.pulse.domain.WatchScore;
-import com.pulse.domain.WatchScoreRepository;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import com.pulse.common.ai.*;
+import com.pulse.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * AiCopyContextReader 구현. AI 문구 생성에 노출 가능한 값만 조립하고
@@ -49,6 +25,9 @@ public class AiCopyContextService implements AiCopyContextReader {
 
     private static final int MAX_CONTRIBUTING_LABELS = 4;
     private static final int MAX_REVEALED_MOMENTS = 4;
+    private static final int MAX_REVEALED_EVENTS = 8;
+    private static final int MAX_VERIFIED_PLAYS = 8;
+    private static final int MAX_VERIFIED_PLAY_CANDIDATES = 40;
     private static final List<String> REVEALED_MOMENT_EVENT_TYPES = List.of(
             "scoring_play", "home_run", "lead_change", "big_inning");
     private static final Comparator<RevealedMomentCandidate> REVEALED_MOMENT_ORDER =
@@ -142,6 +121,13 @@ public class AiCopyContextService implements AiCopyContextReader {
                 new FinalHeadlineContext.FinalScore(game.getHomeRuns(), game.getAwayRuns());
         Integer inningsPlayed = game.getPeriod();
         Boolean extraInnings = inningsPlayed == null ? null : inningsPlayed > 9;
+        String winner = winner(game);
+        List<Integer> homeInningScores = safeInningScores(game.getHomeInningScores());
+        List<Integer> awayInningScores = safeInningScores(game.getAwayInningScores());
+        FinalHeadlineContext.SummaryFacts summaryFacts =
+                summaryFacts(game, winner, inningsPlayed, extraInnings);
+        List<FinalHeadlineContext.RevealedEvent> revealedEvents = revealedEvents(game);
+        List<FinalHeadlineContext.VerifiedPlay> verifiedPlays = verifiedPlays(game);
         List<FinalHeadlineContext.RevealedMoment> revealedMoments = revealedMoments(game);
 
         Map<String, Object> safeContext = new LinkedHashMap<>();
@@ -151,16 +137,320 @@ public class AiCopyContextService implements AiCopyContextReader {
         safeContext.put("periodLabel", "경기 종료");
         safeContext.put("teams", teams);
         safeContext.put("finalScore", finalScore);
-        safeContext.put("winner", winner(game));
+        safeContext.put("winner", winner);
         safeContext.put("inningsPlayed", inningsPlayed);
         safeContext.put("extraInnings", extraInnings);
         safeContext.put("postseason", game.getPostseason());
+        safeContext.put("venue", game.getVenue());
+        safeContext.put("startTime", safeStartTime(game.getStartTime()));
+        safeContext.put("homeInningScores", homeInningScores);
+        safeContext.put("awayInningScores", awayInningScores);
+        safeContext.put("summaryFacts", summaryFacts);
+        safeContext.put("revealedEvents", revealedEvents);
+        safeContext.put("verifiedPlays", verifiedPlays);
         safeContext.put("revealedMoments", revealedMoments);
+
         String hash = AiContextHashCalculator.calculate(
                 "FINAL_HEADLINE", AiCopyMode.REVEALED, gameId, null, safeContext);
-        return new FinalHeadlineContext(gameId, AiCopyMode.REVEALED, game.getStatus(), "경기 종료",
-                List.of(), List.of(), List.of(), teams, finalScore, winner(game), inningsPlayed,
-                extraInnings, game.getPostseason(), revealedMoments, hash);
+
+        return new FinalHeadlineContext(
+                gameId,
+                AiCopyMode.REVEALED,
+                game.getStatus(),
+                "경기 종료",
+                List.of(),
+                List.of(),
+                List.of(),
+                teams,
+                finalScore,
+                winner,
+                inningsPlayed,
+                extraInnings,
+                game.getPostseason(),
+                revealedMoments,
+                game.getVenue(),
+                game.getStartTime(),
+                homeInningScores,
+                awayInningScores,
+                summaryFacts,
+                revealedEvents,
+                verifiedPlays,
+                hash
+        );
+    }
+
+    private static FinalHeadlineContext.SummaryFacts summaryFacts(
+            Game game,
+            String winnerSide,
+            Integer finalInning,
+            Boolean extraInnings
+    ) {
+        Integer homeRuns = game.getHomeRuns();
+        Integer awayRuns = game.getAwayRuns();
+        boolean scoreKnown = homeRuns != null && awayRuns != null;
+
+        String loserSide = oppositeSide(winnerSide);
+
+        return new FinalHeadlineContext.SummaryFacts(
+                winnerSide,
+                teamNameBySide(game, winnerSide),
+                teamNameBySide(game, loserSide),
+                scoreBySide(game, winnerSide),
+                scoreBySide(game, loserSide),
+
+                null,
+                null,
+
+                null,
+                null,
+                null,
+
+                null,
+                null,
+                null,
+                null,
+                extraInnings,
+                finalInning,
+
+                scoreKnown ? Math.abs(homeRuns - awayRuns) : null,
+                scoreKnown ? homeRuns + awayRuns : null
+        );
+    }
+
+    private static String oppositeSide(
+            String side
+    ) {
+        if ("home".equals(side)) {
+            return "away";
+        }
+
+        if ("away".equals(side)) {
+            return "home";
+        }
+
+        return null;
+    }
+
+    private static String teamNameBySide(
+            Game game,
+            String side
+    ) {
+        if ("home".equals(side)) {
+            return game.getHomeTeamName();
+        }
+
+        if ("away".equals(side)) {
+            return game.getAwayTeamName();
+        }
+
+        return null;
+    }
+
+    private static Integer scoreBySide(
+            Game game,
+            String side
+    ) {
+        if ("home".equals(side)) {
+            return game.getHomeRuns();
+        }
+
+        if ("away".equals(side)) {
+            return game.getAwayRuns();
+        }
+
+        return null;
+    }
+
+    private static List<Integer> safeInningScores(
+            List<Integer> inningScores
+    ) {
+        if (inningScores == null || inningScores.isEmpty()) {
+            return List.of();
+        }
+
+        return List.copyOf(inningScores);
+    }
+
+    private static String safeStartTime(
+            Instant startTime
+    ) {
+        return startTime == null ? null : startTime.toString();
+    }
+
+    private List<FinalHeadlineContext.VerifiedPlay> verifiedPlays(Game game) {
+        List<Play> candidates = playRepository.findByGameIdOrderByPlayOrderDesc(
+                game.getId(),
+                org.springframework.data.domain.PageRequest.of(0, MAX_VERIFIED_PLAY_CANDIDATES));
+        List<Play> selectedPlays = selectVerifiedPlayCandidates(candidates);
+
+        if (selectedPlays.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> playerIds = selectedPlays.stream()
+                .flatMap(play -> java.util.stream.Stream.of(play.getBatterId(), play.getPitcherId()))
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, FinalHeadlineContext.PlayerInfo> playersById = playerInfosById(playerIds);
+
+        return selectedPlays.stream()
+                .map(play -> new FinalHeadlineContext.VerifiedPlay(
+                        play.getId(),
+                        play.getPlayOrder(),
+
+                        play.getInning(),
+                        play.getInningType(),
+
+                        play.getText(),
+                        play.getTextKo(),
+
+                        play.getHomeScore(),
+                        play.getAwayScore(),
+
+                        play.getScoringPlay(),
+                        play.getScoreValue(),
+
+                        play.getOuts(),
+                        play.getBalls(),
+                        play.getStrikes(),
+
+                        playersById.get(play.getBatterId()),
+                        playersById.get(play.getPitcherId()),
+
+                        play.getRunnerOnFirst(),
+                        play.getRunnerOnSecond(),
+                        play.getRunnerOnThird(),
+
+                        factTags(play)
+                ))
+                .toList();
+    }
+
+    private static List<Play> selectVerifiedPlayCandidates(
+            List<Play> candidates
+    ) {
+        if (candidates == null || candidates.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Play> selectedByKey = new LinkedHashMap<>();
+
+        for (Play play : candidates) {
+            if (selectedByKey.size() >= MAX_VERIFIED_PLAYS) {
+                break;
+            }
+
+            if (isUsableVerifiedPlay(play) && Boolean.TRUE.equals(play.getScoringPlay())) {
+                selectedByKey.putIfAbsent(verifiedPlayKey(play), play);
+            }
+        }
+
+        for (Play play : candidates) {
+            if (selectedByKey.size() >= MAX_VERIFIED_PLAYS) {
+                break;
+            }
+
+            if (isUsableVerifiedPlay(play)) {
+                selectedByKey.putIfAbsent(verifiedPlayKey(play), play);
+            }
+        }
+
+        return selectedByKey.values().stream()
+                .sorted(Comparator.comparing(
+                        Play::getPlayOrder,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+    }
+
+    private static boolean isUsableVerifiedPlay(
+            Play play
+    ) {
+        return play != null
+                && play.getId() != null
+                && play.getPlayOrder() != null
+                && play.getInning() != null
+                && play.getInning() > 0
+                && play.getText() != null
+                && !play.getText().isBlank();
+    }
+
+    private static Long verifiedPlayKey(
+            Play play
+    ) {
+        return play.getPlayOrder() == null ? play.getId() : play.getPlayOrder();
+    }
+
+    private static List<String> factTags(
+            Play play
+    ) {
+        List<String> tags = new ArrayList<>();
+
+        if (Boolean.TRUE.equals(play.getScoringPlay())) {
+            tags.add("SCORING_PLAY");
+        }
+
+        if (play.getScoreValue() != null && play.getScoreValue() > 0) {
+            tags.add("RUNS_SCORED");
+        }
+
+        if (play.getHomeScore() != null || play.getAwayScore() != null) {
+            tags.add("SCORE_AFTER");
+        }
+
+        if (play.getTextKo() != null && !play.getTextKo().isBlank()) {
+            tags.add("TRANSLATED");
+        }
+
+        return List.copyOf(tags);
+    }
+
+    private List<FinalHeadlineContext.RevealedEvent> revealedEvents(Game game) {
+        List<GameEvent> events = gameEventRepository
+                .findByGameIdAndSpoilerLevelAndEventTypeInOrderByInningAscSourceRefAscIdAsc(
+                        game.getId(), GameEvent.SPOILER_REVEALED_ONLY, REVEALED_MOMENT_EVENT_TYPES);
+        if (events.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> playerIds = events.stream()
+                .flatMap(event -> java.util.stream.Stream.of(event.getBatterId(), event.getPitcherId()))
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, FinalHeadlineContext.PlayerInfo> playersById = playerInfosById(playerIds);
+
+        return events.stream()
+                .limit(MAX_REVEALED_EVENTS)
+                .map(event -> new FinalHeadlineContext.RevealedEvent(
+                        event.getId(),
+                        event.getEventType(),
+                        event.getInning(),
+                        event.getInningType(),
+                        playersById.get(event.getBatterId()),
+                        playersById.get(event.getPitcherId()),
+                        projectEvidence(event.getEventType(), event.getPayload())
+                ))
+                .toList();
+    }
+
+    private Map<Long, FinalHeadlineContext.PlayerInfo> playerInfosById(
+            List<Long> playerIds
+    ) {
+        if (playerIds == null || playerIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return playerRepository.findAllById(playerIds).stream()
+                .filter(player -> player.getFullName() != null && !player.getFullName().isBlank())
+                .collect(Collectors.toMap(
+                        Player::getId,
+                        player -> new FinalHeadlineContext.PlayerInfo(
+                                player.getId(),
+                                player.getFullName()
+                        ),
+                        (first, ignored) -> first
+                ));
     }
 
     private List<FinalHeadlineContext.RevealedMoment> revealedMoments(Game game) {
