@@ -2,6 +2,8 @@ package com.pulse.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.ai.AiCopyMode;
@@ -12,6 +14,9 @@ import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.PlayerRepository;
+import com.pulse.domain.Player;
+import com.pulse.domain.Play;
+import com.pulse.domain.PlayRepository;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -27,8 +32,9 @@ class AiCopyContextServiceTest {
     private final GameEventRepository eventRepository = mock(GameEventRepository.class);
     private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
     private final PlayerRepository playerRepository = mock(PlayerRepository.class);
+    private final PlayRepository playRepository = mock(PlayRepository.class);
     private final AiCopyContextService service = new AiCopyContextService(
-            gameRepository, eventRepository, watchScoreRepository, playerRepository);
+            gameRepository, eventRepository, watchScoreRepository, playerRepository, playRepository);
 
     @BeforeEach
     void 기본값을_설정한다() {
@@ -159,6 +165,61 @@ class AiCopyContextServiceTest {
         assertThat(revealedContext.contextHash()).isNotEqualTo(protectedContext.contextHash());
     }
 
+    @Test
+    void 공개_헤드라인은_결과_컨텍스트와_대표_득점_장면만_일괄_조회한다() {
+        Game game = game(Game.STATUS_FINAL, 5, 3);
+        game.setHomeTeamName("Los Angeles Dodgers");
+        game.setHomeTeamAbbr("LAD");
+        game.setAwayTeamName("San Francisco Giants");
+        game.setAwayTeamAbbr("SF");
+        game.setPeriod(10);
+        game.setPostseason(false);
+        when(gameRepository.findById(1L)).thenReturn(Optional.of(game));
+
+        GameEvent bigInning = revealedEvent(30, 7, "Top", "big_inning", 30L, 301L,
+                Map.of("scoringPlays", 3L));
+        GameEvent scoring = revealedEvent(10, 8, "Top", "scoring_play", 10L, 101L,
+                Map.of("scoreValue", 2));
+        GameEvent homeRun = revealedEvent(11, 8, "Top", "home_run", 10L, 101L,
+                Map.of("scoreValue", 2));
+        GameEvent leadChange = revealedEvent(12, 8, "Top", "lead_change", 10L, 101L, Map.of());
+        GameEvent lastScoring = revealedEvent(20, 9, "Bottom", "scoring_play", 20L, null,
+                Map.of("scoreValue", 1));
+        when(eventRepository.findByGameIdAndSpoilerLevelAndEventTypeInOrderByInningAscSourceRefAscIdAsc(
+                1L, GameEvent.SPOILER_REVEALED_ONLY,
+                List.of("scoring_play", "home_run", "lead_change", "big_inning")))
+                .thenReturn(List.of(bigInning, scoring, homeRun, leadChange, lastScoring));
+        when(playRepository.findByGameIdAndPlayOrderIn(1L, List.of(30L, 10L, 20L)))
+                .thenReturn(List.of(play(10L, 2, 3), play(20L, 3, 3), play(30L, 1, 0)));
+        when(playerRepository.findAllById(List.of(301L, 101L)))
+                .thenReturn(List.of(player(101L, "Heliot Ramos"), player(301L, "Big Inning Batter")));
+
+        FinalHeadlineContext context = service
+                .finalHeadlineContext(1L, AiCopyMode.REVEALED).orElseThrow();
+
+        assertThat(context.reasonTags()).isEmpty();
+        assertThat(context.spoilerSafeSignals()).isEmpty();
+        assertThat(context.keyMoments()).isEmpty();
+        assertThat(context.teams()).isEqualTo(new FinalHeadlineContext.Teams(
+                new FinalHeadlineContext.Team("Los Angeles Dodgers", "LAD"),
+                new FinalHeadlineContext.Team("San Francisco Giants", "SF")));
+        assertThat(context.inningsPlayed()).isEqualTo(10);
+        assertThat(context.extraInnings()).isTrue();
+        assertThat(context.postseason()).isFalse();
+        assertThat(context.revealedMoments()).extracting(FinalHeadlineContext.RevealedMoment::inning)
+                .containsExactly(7, 8, 9);
+        assertThat(context.revealedMoments().get(1).eventTypes())
+                .containsExactly("scoring_play", "home_run", "lead_change");
+        assertThat(context.revealedMoments().get(1).battingTeam()).isEqualTo("SF");
+        assertThat(context.revealedMoments().get(1).batter()).isEqualTo("Heliot Ramos");
+        assertThat(context.revealedMoments().get(1).runsScored()).isEqualTo(2);
+        assertThat(context.revealedMoments().get(1).scoreAfter())
+                .isEqualTo(new FinalHeadlineContext.ScoreAfter(2, 3));
+        verify(watchScoreRepository, never()).findTopByGameIdOrderByComputedAtDesc(1L);
+        verify(eventRepository, never()).findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                1L, GameEvent.SPOILER_PROTECTED_SAFE);
+    }
+
     private static GameEvent event(long id, int inning, String eventType, long second) {
         GameEvent event = new GameEvent();
         event.setId(id);
@@ -168,6 +229,41 @@ class AiCopyContextServiceTest {
         event.setSpoilerLevel(GameEvent.SPOILER_PROTECTED_SAFE);
         event.setObservedAt(Instant.parse("2026-01-01T00:00:00Z").plusSeconds(second));
         return event;
+    }
+
+    private static GameEvent revealedEvent(
+            long id,
+            int inning,
+            String inningType,
+            String eventType,
+            long sourceRef,
+            Long batterId,
+            Map<String, Object> payload
+    ) {
+        GameEvent event = event(id, inning, eventType, id);
+        event.setSpoilerLevel(GameEvent.SPOILER_REVEALED_ONLY);
+        event.setSourceType(GameEvent.SOURCE_TYPE_PLAY);
+        event.setSourceRef(sourceRef);
+        event.setInningType(inningType);
+        event.setBatterId(batterId);
+        event.setPayload(payload);
+        return event;
+    }
+
+    private static Play play(long playOrder, int homeScore, int awayScore) {
+        Play play = new Play();
+        play.setGameId(1L);
+        play.setPlayOrder(playOrder);
+        play.setHomeScore(homeScore);
+        play.setAwayScore(awayScore);
+        return play;
+    }
+
+    private static Player player(long id, String fullName) {
+        Player player = new Player();
+        player.setId(id);
+        player.setFullName(fullName);
+        return player;
     }
 
     private static Game game(String status, int homeRuns, int awayRuns) {
