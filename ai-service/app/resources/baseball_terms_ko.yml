@@ -24,6 +24,117 @@ output_policy:
   allow_added_emotion: false
   transliterate_player_names: false
 
+non_player_entities:
+  # 팀명·도시명·리그명처럼 선수명이 아닌 영문 고유명사를
+  # PLAY_TRANSLATION 선수명 보존 검사에서 제외하기 위한 목록입니다.
+  #
+  # 목적:
+  # - "Philadelphia Phillies"가 원문에 있고 번역문이 "필라델피아 필리스"인 경우,
+  #   Philadelphia / Phillies를 선수명 누락으로 오탐하지 않게 합니다.
+  # - 실제 선수명은 계속 보존 검사 대상입니다.
+  #
+  # 주의:
+  # - 단독 도시명은 실제 선수 성씨와 충돌할 수 있으므로 필요한 값만 추가합니다.
+  # - 정식 팀명처럼 긴 표현을 먼저 제거할 수 있도록 guard에서 길이 내림차순으로 처리합니다.
+
+  teams:
+    - "Arizona Diamondbacks"
+    - "Atlanta Braves"
+    - "Baltimore Orioles"
+    - "Boston Red Sox"
+    - "Chicago Cubs"
+    - "Chicago White Sox"
+    - "Cincinnati Reds"
+    - "Cleveland Guardians"
+    - "Cleveland Indians"
+    - "Colorado Rockies"
+    - "Detroit Tigers"
+    - "Houston Astros"
+    - "Kansas City Royals"
+    - "Los Angeles Angels"
+    - "Los Angeles Angels of Anaheim"
+    - "Los Angeles Dodgers"
+    - "Miami Marlins"
+    - "Milwaukee Brewers"
+    - "Minnesota Twins"
+    - "New York Mets"
+    - "New York Yankees"
+    - "Athletics"
+    - "Oakland Athletics"
+    - "Philadelphia Phillies"
+    - "Pittsburgh Pirates"
+    - "San Diego Padres"
+    - "San Francisco Giants"
+    - "Seattle Mariners"
+    - "St. Louis Cardinals"
+    - "Tampa Bay Rays"
+    - "Texas Rangers"
+    - "Toronto Blue Jays"
+    - "Washington Nationals"
+
+  team_aliases:
+    - "Diamondbacks"
+    - "D-backs"
+    - "Braves"
+    - "Orioles"
+    - "Red Sox"
+    - "Cubs"
+    - "White Sox"
+    - "Reds"
+    - "Guardians"
+    - "Indians"
+    - "Rockies"
+    - "Tigers"
+    - "Astros"
+    - "Royals"
+    - "Angels"
+    - "Dodgers"
+    - "Marlins"
+    - "Brewers"
+    - "Twins"
+    - "Mets"
+    - "Yankees"
+    - "Athletics"
+    - "A's"
+    - "Phillies"
+    - "Pirates"
+    - "Padres"
+    - "Giants"
+    - "Mariners"
+    - "Cardinals"
+    - "Rays"
+    - "Rangers"
+    - "Blue Jays"
+    - "Nationals"
+    - "LA Angels"
+    - "LA Dodgers"
+    - "NY Mets"
+    - "NY Yankees"
+    - "Chi Cubs"
+    - "Chi White Sox"
+
+  leagues_and_events:
+    - "American League"
+    - "National League"
+    - "American League All-Stars"
+    - "National League All-Stars"
+    - "American All-Stars"
+    - "National All-Stars"
+    - "AL All-Stars"
+    - "NL All-Stars"
+    - "All-Star Game"
+    - "Spring Training"
+    - "Postseason"
+    - "World Series"
+    - "Wild Card"
+    - "Division Series"
+    - "Championship Series"
+
+  observed_city_terms:
+    # 실제 오탐으로 확인된 도시명만 우선 등록합니다.
+    # 모든 도시명을 무작정 넣으면 선수 성씨와 충돌할 수 있습니다.
+    - "Philadelphia"
+
 global_forbidden_expressions:
   - "결정적인"
   - "극적인"
