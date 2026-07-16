@@ -1,12 +1,16 @@
 package com.pulse.scorer;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.DefaultApplicationArguments;
@@ -21,17 +25,17 @@ class AiCopyReprocessRunnerTest {
     private final AiEventCopyGenerator eventCopyGenerator = mock(AiEventCopyGenerator.class);
     private final ConfigurableApplicationContext applicationContext =
             mock(ConfigurableApplicationContext.class);
-    private final AiCopyReprocessRunner runner = new AiCopyReprocessRunner(
-            new AiCopyReprocessProperties(50),
-            gameRepository,
-            gameEventRepository,
-            finalHeadlineGenerator,
-            eventCopyGenerator,
-            applicationContext
-    );
 
     @Test
     void 전체_종료_헤드라인과_보호_이벤트_문구를_강제_재생성한다() throws Exception {
+        AiCopyReprocessRunner runner = new AiCopyReprocessRunner(
+                new AiCopyReprocessProperties(50, null, null),
+                gameRepository,
+                gameEventRepository,
+                finalHeadlineGenerator,
+                eventCopyGenerator,
+                applicationContext
+        );
         GameEvent event = new GameEvent();
         event.setId(20L);
         event.setGameId(200L);
@@ -51,6 +55,41 @@ class AiCopyReprocessRunnerTest {
 
         verify(finalHeadlineGenerator).regenerateSynchronously(100L);
         verify(eventCopyGenerator).regenerateSynchronously(200L, 20L);
+        verify(applicationContext).close();
+    }
+
+    @Test
+    void 기간이_지정되면_해당_기간_종료_경기만_재생성한다() throws Exception {
+        AiCopyReprocessRunner runner = new AiCopyReprocessRunner(
+                new AiCopyReprocessProperties(50, "2026-07-13", "2026-07-16"),
+                gameRepository,
+                gameEventRepository,
+                finalHeadlineGenerator,
+                eventCopyGenerator,
+                applicationContext
+        );
+        GameEvent event = new GameEvent();
+        event.setId(20L);
+        event.setGameId(100L);
+        Instant startInclusive = Instant.parse("2026-07-12T15:00:00Z");
+        Instant endExclusive = Instant.parse("2026-07-16T15:00:00Z");
+        when(gameRepository.findFinalGameIdsByStartTimeBetween(startInclusive, endExclusive))
+                .thenReturn(List.of(100L));
+        when(finalHeadlineGenerator.regenerateSynchronously(100L))
+                .thenReturn(AiFinalHeadlineGenerator.GenerationStatus.SAVED);
+        when(gameEventRepository.findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(
+                GameEvent.SPOILER_PROTECTED_SAFE, List.of(100L)))
+                .thenReturn(List.of(event));
+        when(eventCopyGenerator.regenerateSynchronously(100L, 20L))
+                .thenReturn(AiEventCopyGenerator.GenerationStatus.SAVED);
+
+        runner.run(new DefaultApplicationArguments());
+
+        verify(gameRepository, never()).findAllFinalGameIds();
+        verify(gameEventRepository, never())
+                .findProtectedAiReprocessTargets(anyLong(), anyLong(), any());
+        verify(finalHeadlineGenerator).regenerateSynchronously(100L);
+        verify(eventCopyGenerator).regenerateSynchronously(100L, 20L);
         verify(applicationContext).close();
     }
 }

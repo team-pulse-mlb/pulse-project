@@ -83,4 +83,8 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
             @Param("maxId") long maxId,
             Pageable pageable);
 
+    /** 기간 한정 재처리용: 대상 경기 목록이 작아 커서 배치 없이 한 번에 조회한다. */
+    List<GameEvent> findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(
+            String spoilerLevel, List<Long> gameIds);
+
 }

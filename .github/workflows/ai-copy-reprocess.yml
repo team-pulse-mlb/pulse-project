@@ -7,6 +7,14 @@ on:
         description: "전체 AI 문구 재생성을 승인하려면 REGENERATE_ALL_AI_COPY 입력"
         required: true
         type: string
+      from_date:
+        description: "기간 한정 재처리 시작일(KST, yyyy-MM-dd). 비우면 전체 종료 경기 대상"
+        required: false
+        type: string
+      to_date:
+        description: "기간 한정 재처리 종료일(KST, yyyy-MM-dd, 포함). 비우면 전체 종료 경기 대상"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -24,10 +32,30 @@ jobs:
       AWS_REGION: ap-northeast-2
       INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
     steps:
-      - name: Validate confirmation
+      - name: Validate inputs
         env:
           CONFIRM: ${{ inputs.confirm }}
-        run: test "$CONFIRM" = "REGENERATE_ALL_AI_COPY"
+          FROM_DATE: ${{ inputs.from_date }}
+          TO_DATE: ${{ inputs.to_date }}
+        run: |
+          test "$CONFIRM" = "REGENERATE_ALL_AI_COPY"
+
+          date_re='^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+          if [ -z "$FROM_DATE" ] && [ -z "$TO_DATE" ]; then
+            exit 0
+          fi
+          if [ -z "$FROM_DATE" ] || [ -z "$TO_DATE" ]; then
+            echo "from_date와 to_date는 함께 지정해야 한다." >&2
+            exit 1
+          fi
+          if ! [[ "$FROM_DATE" =~ $date_re ]] || ! [[ "$TO_DATE" =~ $date_re ]]; then
+            echo "from_date, to_date는 yyyy-MM-dd 형식이어야 한다." >&2
+            exit 1
+          fi
+          if [[ "$FROM_DATE" > "$TO_DATE" ]]; then
+            echo "from_date는 to_date보다 이후일 수 없다." >&2
+            exit 1
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -35,14 +63,19 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Reprocess all AI copy through SSM
+      - name: Reprocess AI copy through SSM
+        env:
+          FROM_DATE: ${{ inputs.from_date }}
+          TO_DATE: ${{ inputs.to_date }}
         run: |
           jq -n \
             --arg instance "$INSTANCE_ID" \
+            --arg fromDate "$FROM_DATE" \
+            --arg toDate "$TO_DATE" \
             '{
               DocumentName: "AWS-RunShellScript",
               InstanceIds: [$instance],
-              Comment: "PULSE all AI copy reprocess",
+              Comment: "PULSE AI copy reprocess",
               TimeoutSeconds: 21600,
               Parameters: {commands: [
                 "set -euo pipefail",
@@ -50,7 +83,10 @@ jobs:
                 "mkdir -p logs",
                 "log=logs/ai-copy-reprocess-$(date -u +%Y%m%dT%H%M%SZ).log",
                 "status=0",
-                "docker compose -f docker-compose.prod.yml run --rm pulse-ai-copy-reprocess >\"$log\" 2>&1 || status=$?",
+                ("docker compose -f docker-compose.prod.yml run --rm"
+                  + " -e PULSE_AI_COPY_REPROCESS_WINDOW_START_DATE=" + ($fromDate | @sh)
+                  + " -e PULSE_AI_COPY_REPROCESS_WINDOW_END_DATE=" + ($toDate | @sh)
+                  + " pulse-ai-copy-reprocess >\"$log\" 2>&1 || status=$?"),
                 "echo AI_COPY_REPROCESS_LOG=$log",
                 "tail -n 200 \"$log\"",
                 "exit $status"
