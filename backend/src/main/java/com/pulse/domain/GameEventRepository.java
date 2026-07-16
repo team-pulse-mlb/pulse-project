@@ -1,6 +1,7 @@
 package com.pulse.domain;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +24,22 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     Optional<GameEvent> findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
             Long gameId, String spoilerLevel);
+
+    @Query("""
+            select gameEvent from GameEvent gameEvent
+            where gameEvent.gameId in :gameIds
+              and gameEvent.spoilerLevel = :spoilerLevel
+              and not exists (
+                  select newer.id from GameEvent newer
+                  where newer.gameId = gameEvent.gameId
+                    and newer.spoilerLevel = gameEvent.spoilerLevel
+                    and (newer.observedAt > gameEvent.observedAt
+                      or (newer.observedAt = gameEvent.observedAt and newer.id > gameEvent.id))
+              )
+            """)
+    List<GameEvent> findLatestByGameIdInAndSpoilerLevel(
+            @Param("gameIds") Collection<Long> gameIds,
+            @Param("spoilerLevel") String spoilerLevel);
 
     /**
      * 급변 하이라이트의 anchor 후보를 찾는다.

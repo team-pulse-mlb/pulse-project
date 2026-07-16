@@ -170,7 +170,13 @@ pulse:
     enabled: ${PULSE_SSE_ENABLED:true}
     heartbeat-interval: ${PULSE_SSE_HEARTBEAT_INTERVAL:25s}
     connection-ttl: ${PULSE_SSE_CONNECTION_TTL:60m}
-    max-connections: ${PULSE_SSE_MAX_CONNECTIONS:1000}
+    anonymous-max-connections: ${PULSE_SSE_ANONYMOUS_MAX_CONNECTIONS:1000}
+    authenticated-max-connections: ${PULSE_SSE_AUTHENTICATED_MAX_CONNECTIONS:1000}
+    broadcast-threads: ${PULSE_SSE_BROADCAST_THREADS:8}
+    broadcast-queue-capacity: ${PULSE_SSE_BROADCAST_QUEUE_CAPACITY:1024}
+  home:
+    ranking-cache:
+      ttl: ${PULSE_HOME_RANKING_CACHE_TTL:3s}
 
 server:
   port: 8080
