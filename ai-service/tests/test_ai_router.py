@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.openai_service import SpoilerFreeSummaryGenerationError
+from app.services.play_translation_service import PlayTranslationGenerationError
 
 
 class AiRouterTestCase(unittest.TestCase):
@@ -34,6 +35,14 @@ class AiRouterTestCase(unittest.TestCase):
             "eventType": "pressure_scoring_position",
             "label": "득점권 압박",
             "inning": 7,
+        }
+        self.play_translation_payload = {
+            "gameId": 5059041,
+            "playId": 312,
+            "mode": "REVEALED",
+            "contextHash": "play-312-v1",
+            "sourceText": "Soto singled to center.",
+            "targetLanguage": "ko",
         }
 
     def test_final_headline_returns_generated_text_with_context_hash(self):
@@ -181,7 +190,9 @@ class AiRouterTestCase(unittest.TestCase):
 
         with patch(
             "app.routers.ai_router.generate_spoiler_free_summary",
-            side_effect=SpoilerFreeSummaryGenerationError("OPENAI_API_KEY_MISSING"),
+            side_effect=SpoilerFreeSummaryGenerationError(
+                "OPENAI_API_KEY_MISSING"
+            ),
         ):
             response = self.client.post("/ai/final-headline", json=payload)
 
@@ -342,6 +353,103 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertIn("FORBIDDEN_WORD:홈런", data["violations"])
         self.assertFalse(data["fallbackUsed"])
         self.assertNotIn("safeTitle", data)
+
+    def test_play_translation_returns_generated_text_with_context_hash(self):
+        generated_translation = {
+            "translated_text": "Soto, 중견수 방면 안타",
+        }
+
+        with patch(
+            "app.routers.ai_router.generate_play_translation",
+            return_value=generated_translation,
+        ) as generate_translation:
+            response = self.client.post(
+                "/ai/play-translation",
+                json=self.play_translation_payload,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertEqual(data["translatedText"], "Soto, 중견수 방면 안타")
+        self.assertEqual(data["violations"], [])
+        self.assertFalse(data["fallbackUsed"])
+        self.assertEqual(data["contextHash"], "play-312-v1")
+
+        generated_request = generate_translation.call_args.args[0]
+        self.assertEqual(generated_request.game_id, 5059041)
+        self.assertEqual(generated_request.play_id, 312)
+        self.assertEqual(generated_request.mode.value, "REVEALED")
+        self.assertEqual(
+            generated_request.source_text,
+            "Soto singled to center.",
+        )
+        self.assertEqual(generated_request.target_language, "ko")
+
+    def test_play_translation_returns_failure_state_when_generation_fails(self):
+        with patch(
+            "app.routers.ai_router.generate_play_translation",
+            side_effect=PlayTranslationGenerationError("OPENAI_TIMEOUT"),
+        ):
+            response = self.client.post(
+                "/ai/play-translation",
+                json=self.play_translation_payload,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertEqual(data["violations"], ["OPENAI_TIMEOUT"])
+        self.assertFalse(data["fallbackUsed"])
+        self.assertEqual(data["contextHash"], "play-312-v1")
+        self.assertNotIn("translatedText", data)
+
+    def test_play_translation_returns_failure_state_when_translated_text_is_missing(self):
+        with patch(
+            "app.routers.ai_router.generate_play_translation",
+            return_value={},
+        ):
+            response = self.client.post(
+                "/ai/play-translation",
+                json=self.play_translation_payload,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertEqual(
+            data["violations"],
+            ["OPENAI_RESPONSE_MISSING_FIELD:translated_text"],
+        )
+        self.assertFalse(data["fallbackUsed"])
+        self.assertEqual(data["contextHash"], "play-312-v1")
+        self.assertNotIn("translatedText", data)
+
+    def test_play_translation_rejects_protected_mode(self):
+        payload = {
+            **self.play_translation_payload,
+            "mode": "PROTECTED",
+        }
+
+        response = self.client.post(
+            "/ai/play-translation",
+            json=payload,
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_play_translation_rejects_non_ko_target_language(self):
+        payload = {
+            **self.play_translation_payload,
+            "targetLanguage": "en",
+        }
+
+        response = self.client.post(
+            "/ai/play-translation",
+            json=payload,
+        )
+
+        self.assertEqual(response.status_code, 422)
 
 
 if __name__ == "__main__":

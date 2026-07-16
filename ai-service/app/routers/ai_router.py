@@ -8,10 +8,16 @@ from app.schemas.ai_schema import (
     EventCopyResponse,
     FinalHeadlineRequest,
     FinalHeadlineResponse,
+    PlayTranslationRequest,
+    PlayTranslationResponse,
 )
 from app.services.openai_service import (
     SpoilerFreeSummaryGenerationError,
     generate_spoiler_free_summary,
+)
+from app.services.play_translation_service import (
+    PlayTranslationGenerationError,
+    generate_play_translation,
 )
 from app.services.spoiler_guard import check_spoiler_text
 
@@ -240,6 +246,102 @@ def _generate_checked_copy(
     )
 
 
+def _translation_failure_violations(
+    error: PlayTranslationGenerationError,
+) -> list[str]:
+    """
+    PLAY_TRANSLATION 생성 실패 예외를
+    Spring Boot가 저장 여부를 판단할 수 있는 violations 코드로 변환합니다.
+    """
+
+    error_code = str(error).strip()
+
+    if not error_code:
+        return ["OPENAI_GENERATION_FAILED"]
+
+    return [error_code]
+
+
+def _build_play_translation_failed_response(
+    request: PlayTranslationRequest,
+    violations: list[str],
+) -> PlayTranslationResponse:
+    """
+    PLAY_TRANSLATION 생성 실패 응답을 만듭니다.
+
+    ai-service는 fallback 번역을 만들지 않으므로
+    translatedText는 내려주지 않습니다.
+    """
+
+    return PlayTranslationResponse(
+        translated_text=None,
+        violations=violations,
+        fallback_used=False,
+        context_hash=request.context_hash,
+    )
+
+
+def _extract_translated_text(
+    generated_translation: dict,
+) -> str | None:
+    """
+    OpenAI 생성 결과에서 저장 가능한 번역문만 추출합니다.
+    """
+
+    translated_text = generated_translation.get("translated_text")
+
+    if not isinstance(translated_text, str):
+        return None
+
+    translated_text = translated_text.strip()
+
+    if not translated_text:
+        return None
+
+    return translated_text
+
+
+def _log_play_translation_failure(
+    event_name: str,
+    request: PlayTranslationRequest,
+    violations: list[str],
+) -> None:
+    """
+    PLAY_TRANSLATION 생성 실패를 운영 로그에 기록합니다.
+
+    sourceText, translatedText, contextHash 원문은 로그에 남기지 않습니다.
+    """
+
+    logger.warning(
+        "%s purpose=%s gameId=%s playId=%s mode=%s model=%s violations=%s",
+        event_name,
+        "PLAY_TRANSLATION",
+        request.game_id,
+        request.play_id,
+        request.mode.value,
+        settings.openai_model,
+        violations,
+    )
+
+
+def _log_play_translation_success(
+    request: PlayTranslationRequest,
+) -> None:
+    """
+    PLAY_TRANSLATION 생성 성공을 운영 로그에 기록합니다.
+    """
+
+    logger.info(
+        "AI_COPY_GENERATED purpose=%s gameId=%s playId=%s mode=%s model=%s violations=%s",
+        "PLAY_TRANSLATION",
+        request.game_id,
+        request.play_id,
+        request.mode.value,
+        settings.openai_model,
+        [],
+    )
+
+
 @router.post(
     "/final-headline",
     response_model=FinalHeadlineResponse,
@@ -279,4 +381,61 @@ def event_copy(request: EventCopyRequest):
     return _generate_checked_copy(
         request=request,
         response_type=EventCopyResponse,
+    )
+
+
+@router.post(
+    "/play-translation",
+    response_model=PlayTranslationResponse,
+    response_model_exclude_none=True,
+)
+def play_translation(request: PlayTranslationRequest):
+    """
+    공개 모드 최근 플레이에 표시할 단일 Play Result 원문을 한국어로 번역합니다.
+
+    PLAY_TRANSLATION:
+    - REVEALED 모드만 허용합니다.
+    - targetLanguage=ko만 허용합니다.
+    - ai-service는 fallback 번역을 만들지 않습니다.
+    """
+
+    try:
+        generated_translation = generate_play_translation(request)
+    except PlayTranslationGenerationError as error:
+        violations = _translation_failure_violations(error)
+
+        _log_play_translation_failure(
+            event_name="PLAY_TRANSLATION_GENERATION_FAILED",
+            request=request,
+            violations=violations,
+        )
+
+        return _build_play_translation_failed_response(
+            request=request,
+            violations=violations,
+        )
+
+    translated_text = _extract_translated_text(generated_translation)
+
+    if translated_text is None:
+        violations = ["OPENAI_RESPONSE_MISSING_FIELD:translated_text"]
+
+        _log_play_translation_failure(
+            event_name="PLAY_TRANSLATION_GENERATION_FAILED",
+            request=request,
+            violations=violations,
+        )
+
+        return _build_play_translation_failed_response(
+            request=request,
+            violations=violations,
+        )
+
+    _log_play_translation_success(request)
+
+    return PlayTranslationResponse(
+        translated_text=translated_text,
+        violations=[],
+        fallback_used=False,
+        context_hash=request.context_hash,
     )
