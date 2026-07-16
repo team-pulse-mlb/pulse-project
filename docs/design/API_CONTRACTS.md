@@ -8,8 +8,8 @@
 | `GET /api/games?date=&status=&sort=` | 홈 하단 전체 경기 목록. `status=scheduled`는 현재 이후 모든 예정 경기를 조회하고, 나머지 상태는 슬레이트 단위로 조회한다. `date` 미지정 시 오늘 슬레이트, `status` in `all\|scheduled\|live\|finished`(기본 `all`), `sort` in `recommended\|startTime`(기본 `startTime`) | 선택 |
 | `GET /api/games/{id}?mode=PROTECTED\|REVEALED` | 경기 상세. `mode` 기본값 `PROTECTED`. 진행 중이면 `switchSuggestion` 포함 | 선택 |
 | `GET /api/games/{id}/events?mode=` | 보호 모드 `경기 흐름`용 흥미 순간 이벤트. 공개 모드는 빈 목록 | 선택 |
-| `GET /api/games/{id}/recent-plays?mode=` | 공개 모드 `경기 흐름`용 최근 타석 결과 10건. 보호 모드는 빈 목록 | 선택 |
-| `GET /api/teams` | 온보딩 관심 팀 선택용 팀 목록 | 선택 |
+| `GET /api/games/{id}/recent-plays?mode=` | 공개 모드 `경기 흐름`용 전체 타석 결과(최신순, 건수 제한 없음). 보호 모드는 빈 목록 | 선택 |
+| `GET /api/teams` | 회원가입 Step 2 관심 팀 선택용 팀 목록 | 선택 |
 | `GET /api/sse` | SSE 구독(이벤트 3종) | 선택 |
 | `POST /api/sse/token` | SSE 연결용 1회용 단기 토큰 발급(§2.1) | 필요 |
 | `POST /api/members/signup` · `/login` · `/refresh` · `/logout` | 이메일+비밀번호 인증, JWT 발급·재발급·로그아웃 | — |
@@ -17,7 +17,7 @@
 | `POST /api/members/email/**` | 이메일 인증 요청·확인 | — |
 | `GET·PUT /api/me/preferences` | 관심 팀/선수, 알림 설정 | 필요 |
 | `GET /api/me/notifications` · `POST /api/me/notifications/read` | 알림 센터 목록·읽음 처리 | 필요 |
-| `GET /api/players?search=` | 관심 선수 등록용 이름 검색(§1.3). 외부 우선 read-only, DB 쓰기 없음 | 필요 |
+| `GET /api/players?search=` | 최초 로그인 온보딩과 설정의 관심 선수 등록용 이름 검색(§1.3). 외부 우선 read-only, DB 쓰기 없음 | 필요 |
 
 공통 에러 응답: `{ "code": "GAME_NOT_FOUND", "message": "..." }` 형식, HTTP 상태 코드와 함께.
 
@@ -209,7 +209,93 @@
 
 이벤트 API의 `copy`는 nullable이며, 프론트 폴백은 `label`이다. 공개 모드는 이벤트 타임라인을 사용하지 않으므로 `mode=REVEALED`이면 빈 목록을 반환한다. 보호 모드(`mode=PROTECTED`)는 `game_events` 전체가 아니라 `is_timeline_highlight=true`인 하이라이트 이벤트만 반환한다(추천 점수 급변 순간 단위. 상세는 AI_COPY.md §2·§6).
 
-최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 최신 10건을 `play_order DESC`로 반환한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
+최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 전체 건을 `play_order DESC`로 반환한다. 진행 중·종료 경기 모두 건수 제한을 두지 않으며, 타석 결과 필터는 메모리 필터가 아니라 DB 조회 조건으로 적용한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
+
+### POST `/ai/play-translation`
+
+단일 MLB play result 원문을 한국어로 번역한다.
+
+이 API는 공개 모드 최근 플레이 표시용이며, 현재는 `REVEALED` 모드와 `targetLanguage=ko`만 허용한다.
+
+#### Request
+
+```json
+{
+  "gameId": 5059041,
+  "playId": 312,
+  "mode": "REVEALED",
+  "contextHash": "play-312-v1",
+  "sourceText": "Soto singled to center.",
+  "targetLanguage": "ko"
+}
+```
+
+#### Success Response
+
+번역 생성과 번역 검수 guard를 모두 통과한 경우 `translatedText`를 반환한다.
+
+```json
+{
+  "translatedText": "Soto, 중견수 방면 안타",
+  "violations": [],
+  "fallbackUsed": false,
+  "contextHash": "play-312-v1"
+}
+```
+
+#### Guard Failure Response
+
+번역문이 원문 `sourceText`의 핵심 사실을 보존하지 못한 경우 `translatedText`를 반환하지 않는다.
+
+예를 들어 원문이 `single`인데 AI 번역문이 `홈런`으로 생성된 경우 guard 실패로 처리한다.
+
+```json
+{
+  "violations": [
+    "MISSING_EVENT:SINGLE",
+    "ADDED_RESULT:HOME_RUN"
+  ],
+  "fallbackUsed": false,
+  "contextHash": "play-312-v1"
+}
+```
+
+`response_model_exclude_none=true` 정책으로 인해 실패 응답에서는 `translatedText` 필드가 제외된다.
+
+#### Failure Policy
+
+- ai-service는 fallback 번역을 생성하지 않는다.
+- 생성 실패, 응답 필드 누락, guard 실패 모두 `fallbackUsed=false`를 반환한다.
+- 실패 응답에서는 `contextHash`를 그대로 반환한다.
+- 실패 응답에서는 저장 가능한 번역문이 없으므로 `translatedText`를 반환하지 않는다.
+
+#### Main Violations
+
+| Code | Meaning |
+| --- | --- |
+| `TRANSLATED_TEXT_EMPTY` | 번역문이 비어 있음 |
+| `SOURCE_TEXT_EMPTY` | 원문이 비어 있음 |
+| `MULTIPLE_SENTENCES` | 번역문이 여러 문장으로 생성됨 |
+| `MISSING_PLAYER_NAME:{name}` | 원문 선수명이 번역문에서 누락됨 |
+| `MISSING_NUMBER:{number}` | 원문 숫자가 번역문에서 누락됨 |
+| `MISSING_EVENT:SINGLE` | 원문 single 이벤트가 안타로 보존되지 않음 |
+| `MISSING_EVENT:DOUBLE` | 원문 double 이벤트가 2루타로 보존되지 않음 |
+| `MISSING_EVENT:TRIPLE` | 원문 triple 이벤트가 3루타로 보존되지 않음 |
+| `MISSING_EVENT:HOME_RUN` | 원문 home run 이벤트가 홈런으로 보존되지 않음 |
+| `MISSING_EVENT:STRIKEOUT` | 원문 strikeout 이벤트가 삼진으로 보존되지 않음 |
+| `MISSING_EVENT:STRIKEOUT_SWINGING` | 원문 swinging strikeout 세부 정보가 보존되지 않음 |
+| `MISSING_EVENT:STRIKEOUT_LOOKING` | 원문 looking strikeout 세부 정보가 보존되지 않음 |
+| `MISSING_DIRECTION:LEFT` | 좌측 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:CENTER` | 중앙 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:RIGHT` | 우측 방향 표현이 보존되지 않음 |
+| `ADDED_RESULT:HOME_RUN` | 원문에 없는 홈런 결과가 추가됨 |
+| `ADDED_RESULT:COME_BACK` | 원문에 없는 역전 표현이 추가됨 |
+| `ADDED_RESULT:WALK_OFF` | 원문에 없는 끝내기 표현이 추가됨 |
+| `ADDED_RESULT:WIN` | 원문에 없는 승리 표현이 추가됨 |
+| `ADDED_RESULT:LOSS` | 원문에 없는 패배 표현이 추가됨 |
+| `ADDED_RESULT:SCORE` | 원문에 없는 득점 표현이 추가됨 |
+| `ADDED_RESULT:RUN_ALLOWED` | 원문에 없는 실점 표현이 추가됨 |
+| `ADDED_RESULT:LEAD` | 원문에 없는 리드 표현이 추가됨 |
 
 ### 1.3 관심 선수 검색·등록 계약
 

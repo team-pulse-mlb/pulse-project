@@ -15,6 +15,7 @@ from app.services.openai_service import (
     SpoilerFreeSummaryGenerationError,
     generate_spoiler_free_summary,
 )
+from app.services.play_translation_guard import check_play_translation
 from app.services.play_translation_service import (
     PlayTranslationGenerationError,
     find_play_translation_violations,
@@ -432,16 +433,31 @@ def play_translation(request: PlayTranslationRequest):
             violations=violations,
         )
 
-    # 모델의 프롬프트 준수 여부와 별개로 선수명·숫자 보존을
-    # 코드에서 다시 검수해 불완전한 번역이 DB에 저장되지 않게 한다.
-    violations = find_play_translation_violations(
+    # TODO(창현): PLAY_TRANSLATION 검수가 두 사람이 독립 구현한
+    # check_play_translation(이벤트·방향·결과 유출 검사)과
+    # find_play_translation_violations(선수명·숫자 보존 검사)로 중복 존재한다.
+    # 병합 충돌 임시 해소를 위해 두 검수를 모두 실행해 합집합으로 반려하며,
+    # 최종적으로 하나의 검수 로직으로 정리가 필요하다.
+    guard_result = check_play_translation(
         source_text=request.source_text,
         translated_text=translated_text,
     )
 
+    preservation_violations = find_play_translation_violations(
+        source_text=request.source_text,
+        translated_text=translated_text,
+    )
+
+    violations = list(guard_result.violations)
+    violations.extend(
+        violation
+        for violation in preservation_violations
+        if violation not in violations
+    )
+
     if violations:
         _log_play_translation_failure(
-            event_name="PLAY_TRANSLATION_REVIEW_REJECTED",
+            event_name="PLAY_TRANSLATION_GUARD_REJECTED",
             request=request,
             violations=violations,
         )
