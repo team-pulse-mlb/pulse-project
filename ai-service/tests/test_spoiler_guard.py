@@ -247,6 +247,93 @@ class SpoilerGuardTestCase(unittest.TestCase):
         self.assertFalse(result["spoiler_safe"])
         self.assertIn("WINNER_REFERENCE_AMBIGUOUS", result["violations"])
 
+    def test_revealed_team_name_winner_claim_passes(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+            teams={
+                "home": {
+                    "name": "Los Angeles Dodgers",
+                    "abbr": "LAD",
+                },
+                "away": {
+                    "name": "San Francisco Giants",
+                    "abbr": "SF",
+                },
+            },
+            summary_facts={
+                "winnerSide": "home",
+                "winnerName": "Los Angeles Dodgers",
+                "loserName": "San Francisco Giants",
+                "winnerScore": 5,
+                "loserScore": 3,
+            },
+        )
+
+        result = check_spoiler_text(
+            "Dodgers가 5-3으로 승리한 경기",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertTrue(result["spoiler_safe"])
+        self.assertEqual(result["violations"], [])
+
+    def test_revealed_team_abbr_winner_claim_passes(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+            teams={
+                "home": {
+                    "name": "Los Angeles Dodgers",
+                    "abbr": "LAD",
+                },
+                "away": {
+                    "name": "San Francisco Giants",
+                    "abbr": "SF",
+                },
+            },
+        )
+
+        result = check_spoiler_text(
+            "LAD가 5-3으로 승리한 경기",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertTrue(result["spoiler_safe"])
+        self.assertEqual(result["violations"], [])
+
+    def test_revealed_home_run_with_revealed_context_passes(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+            revealed_events=[
+                {
+                    "eventType": "home_run",
+                    "inning": 8,
+                }
+            ],
+            verified_plays=[
+                {
+                    "sourceText": "Ohtani homered to right center.",
+                    "translatedText": "Ohtani, 우중간 홈런",
+                    "scoringPlay": True,
+                    "factTags": ["SCORING_PLAY", "TRANSLATED"],
+                }
+            ],
+        )
+
+        result = check_spoiler_text(
+            "홈팀이 5-3으로 승리, Ohtani 홈런이 나온 경기",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertTrue(result["spoiler_safe"])
+        self.assertEqual(result["violations"], [])
+
+
     def test_revealed_unsupported_play_result_is_blocked(self):
         safe_context = SafeContext(
             final_score=FinalScore(home=5, away=3),
