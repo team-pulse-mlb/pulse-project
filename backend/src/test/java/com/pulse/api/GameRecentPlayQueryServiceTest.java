@@ -5,8 +5,6 @@ import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -16,8 +14,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -83,7 +79,7 @@ class GameRecentPlayQueryServiceTest {
     }
 
     @Test
-    void revealedMode_shouldReturnLatestTenPlateAppearanceResults() {
+    void revealedMode_shouldReturnAllPlateAppearanceResults() {
         // given
         long gameId = 300L;
 
@@ -91,15 +87,9 @@ class GameRecentPlayQueryServiceTest {
                 new ArrayList<>();
 
         /*
-         * 최신 데이터에 투구 로그와 투수 교체가 섞여 있어도
-         * 실제 타석 결과만 최근 플레이로 사용해야 한다.
+         * Repository가 Play Result만 조회하더라도,
+         * 화면에 표시할 필수값이 없는 결과는 서비스에서 제외한다.
          */
-        source.add(
-                pitchLog(
-                        900L,
-                        gameId,
-                        2000L));
-
         source.add(
                 pitcherChange(
                         901L,
@@ -126,9 +116,9 @@ class GameRecentPlayQueryServiceTest {
 
         when(
                 playRepository
-                        .findByGameIdOrderByPlayOrderDesc(
-                                eq(gameId),
-                                any(Pageable.class)))
+                        .findByGameIdAndTypeIgnoreCaseOrderByPlayOrderDesc(
+                                gameId,
+                                "Play Result"))
                 .thenReturn(source);
 
         // when
@@ -138,14 +128,18 @@ class GameRecentPlayQueryServiceTest {
                         " normal ");
 
         // then
+        /*
+         * 진행 중 경기와 종료 경기 모두 별도 개수 제한 없이
+         * 조회된 타석 결과 전체를 반환한다.
+         */
         assertThat(response.plays())
-                .hasSize(10);
+                .hasSize(12);
 
         assertThat(response.plays().get(0).playId())
                 .isEqualTo(1000L);
 
-        assertThat(response.plays().get(9).playId())
-                .isEqualTo(1009L);
+        assertThat(response.plays().get(11).playId())
+                .isEqualTo(1011L);
 
         assertThat(response.plays())
                 .allSatisfy(
@@ -166,24 +160,14 @@ class GameRecentPlayQueryServiceTest {
                                     .isFalse();
                         });
 
-        ArgumentCaptor<Pageable> pageableCaptor =
-                ArgumentCaptor.forClass(Pageable.class);
-
         verify(playRepository)
-                .findByGameIdOrderByPlayOrderDesc(
-                        eq(gameId),
-                        pageableCaptor.capture());
-
-        /*
-         * 필터링 후 10건을 확보하기 위해 최신 로그 200건을
-         * 조회하도록 한 계약을 고정한다.
-         */
-        assertThat(pageableCaptor.getValue().getPageSize())
-                .isEqualTo(200);
+                .findByGameIdAndTypeIgnoreCaseOrderByPlayOrderDesc(
+                        gameId,
+                        "Play Result");
     }
 
     @Test
-    void revealedMode_shouldPreferStoredTranslationWhenTextKoBecomesAvailable() {
+    void revealedMode_shouldPreferStoredTranslation() {
         // given
         long gameId = 400L;
 
@@ -198,9 +182,9 @@ class GameRecentPlayQueryServiceTest {
 
         when(
                 playRepository
-                        .findByGameIdOrderByPlayOrderDesc(
-                                eq(gameId),
-                                any(Pageable.class)))
+                        .findByGameIdAndTypeIgnoreCaseOrderByPlayOrderDesc(
+                                gameId,
+                                "Play Result"))
                 .thenReturn(
                         List.of(
                                 translatedPlay));
@@ -217,7 +201,7 @@ class GameRecentPlayQueryServiceTest {
                 .satisfies(
                         play -> {
                             /*
-                             * 데이터 파이프라인에서 getTextKo가 제공되면
+                             * Play에 한국어 번역문이 저장되어 있으면
                              * 원문 대신 저장된 번역문을 그대로 반환한다.
                              */
                             assertThat(play.text())
@@ -255,8 +239,8 @@ class GameRecentPlayQueryServiceTest {
             long gameId,
             long playOrder) {
 
-        TranslatedPlay play =
-                new TranslatedPlay();
+        Play play =
+                new Play();
 
         play.setId(id);
         play.setGameId(gameId);
@@ -381,24 +365,4 @@ class GameRecentPlayQueryServiceTest {
 
         return play;
     }
-
-    /**
-     * 데이터 파이프라인의 Play.getTextKo()가 병합된 이후 상태를
-     * 현재 브랜치에서 미리 검증하기 위한 테스트 전용 타입이다.
-     */
-    static final class TranslatedPlay extends Play {
-
-        private String textKo;
-
-        public String getTextKo() {
-            return textKo;
-        }
-
-        void setTextKo(
-                String textKo) {
-
-            this.textKo = textKo;
-        }
-    }
-
 }

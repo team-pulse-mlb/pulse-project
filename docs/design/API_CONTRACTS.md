@@ -8,7 +8,7 @@
 | `GET /api/games?date=&status=&sort=` | 홈 하단 전체 경기 목록. `status=scheduled`는 현재 이후 모든 예정 경기를 조회하고, 나머지 상태는 슬레이트 단위로 조회한다. `date` 미지정 시 오늘 슬레이트, `status` in `all\|scheduled\|live\|finished`(기본 `all`), `sort` in `recommended\|startTime`(기본 `startTime`) | 선택 |
 | `GET /api/games/{id}?mode=PROTECTED\|REVEALED` | 경기 상세. `mode` 기본값 `PROTECTED`. 진행 중이면 `switchSuggestion` 포함 | 선택 |
 | `GET /api/games/{id}/events?mode=` | 보호 모드 `경기 흐름`용 흥미 순간 이벤트. 공개 모드는 빈 목록 | 선택 |
-| `GET /api/games/{id}/recent-plays?mode=` | 공개 모드 `경기 흐름`용 최근 타석 결과 10건. 보호 모드는 빈 목록 | 선택 |
+| `GET /api/games/{id}/recent-plays?mode=` | 공개 모드 `경기 흐름`용 전체 타석 결과(최신순, 건수 제한 없음). 보호 모드는 빈 목록 | 선택 |
 | `GET /api/teams` | 회원가입 Step 2 관심 팀 선택용 팀 목록 | 선택 |
 | `GET /api/sse` | SSE 구독(이벤트 3종) | 선택 |
 | `POST /api/sse/token` | SSE 연결용 1회용 단기 토큰 발급(§2.1) | 필요 |
@@ -209,7 +209,7 @@
 
 이벤트 API의 `copy`는 nullable이며, 프론트 폴백은 `label`이다. 공개 모드는 이벤트 타임라인을 사용하지 않으므로 `mode=REVEALED`이면 빈 목록을 반환한다. 보호 모드(`mode=PROTECTED`)는 `game_events` 전체가 아니라 `is_timeline_highlight=true`인 하이라이트 이벤트만 반환한다(추천 점수 급변 순간 단위. 상세는 AI_COPY.md §2·§6).
 
-최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 최신 10건을 `play_order DESC`로 반환한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
+최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 전체 건을 `play_order DESC`로 반환한다. 진행 중·종료 경기 모두 건수 제한을 두지 않으며, 타석 결과 필터는 메모리 필터가 아니라 DB 조회 조건으로 적용한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
 
 ### POST `/ai/play-translation`
 
@@ -273,11 +273,14 @@
 
 | Code | Meaning |
 | --- | --- |
-| `TRANSLATED_TEXT_EMPTY` | 번역문이 비어 있음 |
 | `SOURCE_TEXT_EMPTY` | 원문이 비어 있음 |
+| `TRANSLATED_TEXT_EMPTY` | 번역문이 비어 있음 |
 | `MULTIPLE_SENTENCES` | 번역문이 여러 문장으로 생성됨 |
 | `MISSING_PLAYER_NAME:{name}` | 원문 선수명이 번역문에서 누락됨 |
+| `ADDED_PLAYER_NAME:{name}` | 원문에 없는 영문 선수명이 번역문에 추가됨 |
 | `MISSING_NUMBER:{number}` | 원문 숫자가 번역문에서 누락됨 |
+| `ADDED_NUMBER:{number}` | 원문 또는 용어집 규칙으로 설명되지 않는 숫자가 번역문에 추가됨 |
+| `MISSING_EVENT:{outcomeCode}` | YAML 용어집에 매칭된 이벤트의 필수 한국어 표현이 번역문에 보존되지 않음 |
 | `MISSING_EVENT:SINGLE` | 원문 single 이벤트가 안타로 보존되지 않음 |
 | `MISSING_EVENT:DOUBLE` | 원문 double 이벤트가 2루타로 보존되지 않음 |
 | `MISSING_EVENT:TRIPLE` | 원문 triple 이벤트가 3루타로 보존되지 않음 |
@@ -285,9 +288,17 @@
 | `MISSING_EVENT:STRIKEOUT` | 원문 strikeout 이벤트가 삼진으로 보존되지 않음 |
 | `MISSING_EVENT:STRIKEOUT_SWINGING` | 원문 swinging strikeout 세부 정보가 보존되지 않음 |
 | `MISSING_EVENT:STRIKEOUT_LOOKING` | 원문 looking strikeout 세부 정보가 보존되지 않음 |
+| `MISSING_DIRECTION:{directionId}` | YAML `direction_patterns`에 매칭된 타구 방향 표현이 번역문에 보존되지 않음 |
 | `MISSING_DIRECTION:LEFT` | 좌측 방향 표현이 보존되지 않음 |
 | `MISSING_DIRECTION:CENTER` | 중앙 방향 표현이 보존되지 않음 |
 | `MISSING_DIRECTION:RIGHT` | 우측 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:LEFT_CENTER` | 좌중간 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:RIGHT_CENTER` | 우중간 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:LEFT_FIELD_LINE` | 좌익선상 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:RIGHT_FIELD_LINE` | 우익선상 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:UP_THE_MIDDLE` | 중앙으로 빠지는 타구 방향 표현이 보존되지 않음 |
+| `MISSING_POSITION:{positionId}` | YAML `position_patterns`에 매칭된 수비 위치가 번역문에 보존되지 않음 |
+| `MISSING_POSITION:THIRD_BASEMAN` | 3루수 수비 위치가 번역문에 보존되지 않음 |
 | `ADDED_RESULT:HOME_RUN` | 원문에 없는 홈런 결과가 추가됨 |
 | `ADDED_RESULT:COME_BACK` | 원문에 없는 역전 표현이 추가됨 |
 | `ADDED_RESULT:WALK_OFF` | 원문에 없는 끝내기 표현이 추가됨 |
@@ -296,6 +307,8 @@
 | `ADDED_RESULT:SCORE` | 원문에 없는 득점 표현이 추가됨 |
 | `ADDED_RESULT:RUN_ALLOWED` | 원문에 없는 실점 표현이 추가됨 |
 | `ADDED_RESULT:LEAD` | 원문에 없는 리드 표현이 추가됨 |
+| `ADDED_COMMENTARY:{expression}` | YAML `global_forbidden_expressions`에 등록된 평가·감정·해설 표현이 번역문에 포함됨 |
+
 
 ### 1.3 관심 선수 검색·등록 계약
 

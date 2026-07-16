@@ -15,6 +15,7 @@ import com.pulse.domain.WatchScoreRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -44,6 +45,7 @@ public class LiveScoringService {
     private final LiveSignalPublisher liveSignalPublisher;
     private final SurgeDetector surgeDetector;
     private final TimelineHighlightTrigger timelineHighlightTrigger;
+    private final AiGenerationTrigger aiGenerationTrigger;
     private final NotificationEventPublisher notificationEventPublisher;
     private final ScoringProperties props;
 
@@ -72,8 +74,12 @@ public class LiveScoringService {
             return;
         }
 
-        List<Play> recentPlays = playRepository.findByGameIdOrderByPlayOrderDesc(
-                gameId, PageRequest.of(0, props.leadChange().windowPlays() + 1));
+        List<Play> recentPlays = task.lastPlayOrder() == null
+                ? new ArrayList<>()
+                : playRepository.findByGameIdAndPlayOrderLessThanEqualOrderByPlayOrderDesc(
+                        gameId,
+                        task.lastPlayOrder(),
+                        PageRequest.of(0, props.leadChange().windowPlays() + 1));
         Collections.reverse(recentPlays);
         int seedLeader = 0;
         if (recentPlays.size() > props.leadChange().windowPlays()) {
@@ -119,6 +125,15 @@ public class LiveScoringService {
         // 급변 순간의 anchor 보호 이벤트를 하이라이트로 표시하고 보호 문구 생성을 요청한다.
         // (scoring.highlight.enabled=false면 no-op)
         timelineHighlightTrigger.evaluate(gameId, watchScoreRounded, observedAt);
+
+        /*
+         * 한 poll에 여러 play가 저장될 수 있으므로 마지막 play 순서까지의
+         * 미번역 타석 결과를 비동기로 생성한다.
+         */
+        aiGenerationTrigger.onPlayTranslationsPending(
+                gameId,
+                task.lastPlayOrder(),
+                observedAt);
 
         log.debug("라이브 점수 계산 gameId={} watchScore={} observedAt={}", gameId, watchScoreRounded, observedAt);
     }

@@ -67,9 +67,11 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
         )
 
     def test_safe_groundout_translation_passes(self):
+        # grounded out to third의 third는 수비 처리 위치이므로
+        # 3루수 정보가 번역문에 보존되어야 합니다.
         self.assert_safe_translation(
             source_text="Trout grounded out to third.",
-            translated_text="Trout, 땅볼 아웃",
+            translated_text="Trout, 3루수 땅볼 아웃",
         )
 
     def test_safe_hit_by_pitch_translation_passes(self):
@@ -79,9 +81,83 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
         )
 
     def test_safe_stolen_base_translation_passes(self):
+        # YAML의 stole_second 규칙은 베이스와 도루를 모두 보존합니다.
         self.assert_safe_translation(
             source_text="Soto stole second.",
-            translated_text="Soto, 도루",
+            translated_text="Soto, 2루 도루",
+        )
+
+    def test_safe_left_center_direction_translation_passes(self):
+        # left-center는 YAML direction_patterns 기준으로 좌중간이어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled to left-center.",
+            translated_text="Soto, 좌중간 안타",
+        )
+
+    def test_rejects_missing_left_center_direction(self):
+        # left-center를 단순 좌익수 방면으로 번역하면 세부 방향 누락입니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to left-center.",
+            translated_text="Soto, 좌익수 방면 안타",
+            expected_violations=[
+                "MISSING_DIRECTION:LEFT_CENTER",
+            ],
+        )
+
+    def test_safe_left_field_line_direction_translation_passes(self):
+        # down the left-field line은 좌익선상으로 보존되어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled down the left-field line.",
+            translated_text="Soto, 좌익선상 안타",
+        )
+
+    def test_safe_up_the_middle_direction_translation_passes(self):
+        # up the middle은 중앙 방향으로 보존되어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled up the middle.",
+            translated_text="Soto, 중앙 안타",
+        )
+
+    def test_safe_double_allows_semantic_number(self):
+        # 원문에 숫자 2가 직접 없더라도 doubled는
+        # 한국 야구 용어인 2루타로 번역할 수 있어야 합니다.
+        self.assert_safe_translation(
+            source_text="Soto doubled to center.",
+            translated_text="Soto, 중견수 방면 2루타",
+        )
+
+    def test_safe_explicit_number_preserved(self):
+        # 원문에 있는 투구 번호가 그대로 보존되면 통과합니다.
+        self.assert_safe_translation(
+            source_text="Soto singled to center on pitch 12.",
+            translated_text="Soto, 12구째 중견수 방면 안타",
+        )
+
+    def test_safe_wild_pitch_translation_passes(self):
+        # wild pitch의 필수 한국어 표현인 폭투가 보존되면 통과합니다.
+        self.assert_safe_translation(
+            source_text="Soto advanced on a wild pitch.",
+            translated_text="Soto, 폭투로 진루",
+        )
+
+    def test_rejects_missing_yaml_event_term(self):
+        # 원문은 wild pitch인데 포일로 바뀌면 이벤트 보존 실패입니다.
+        self.assert_translation_violations_include(
+            source_text="Soto advanced on a wild pitch.",
+            translated_text="Soto, 포일로 진루",
+            expected_violations=[
+                "MISSING_EVENT:WILD_PITCH",
+            ],
+        )
+
+    def test_rejects_added_commentary_from_glossary(self):
+        # YAML 전역 금지어에 등록된 임의 평가 표현을 차단합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center.",
+            translated_text="Soto, 결정적인 중견수 방면 안타",
+            expected_violations=[
+                "ADDED_COMMENTARY:결정적인",
+            ],
         )
 
     def test_rejects_empty_source_text(self):
@@ -132,12 +208,56 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
             ],
         )
 
+    def test_rejects_added_player_name(self):
+        # Judge는 원문에 존재하지 않으므로 추가 선수로 차단합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center.",
+            translated_text="Soto와 Judge, 중견수 방면 안타",
+            expected_violations=[
+                "ADDED_PLAYER_NAME:Judge",
+            ],
+        )
+
+    def test_rejects_changed_player_name(self):
+        # Soto를 Judge로 바꾸면 원문 선수 누락과 새 선수 추가를
+        # 모두 반환해야 합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center.",
+            translated_text="Judge, 중견수 방면 안타",
+            expected_violations=[
+                "MISSING_PLAYER_NAME:Soto",
+                "ADDED_PLAYER_NAME:Judge",
+            ],
+        )
+
     def test_rejects_missing_number(self):
         self.assert_translation_violations_include(
             source_text="Soto singled to center on pitch 12.",
             translated_text="Soto, 중견수 방면 안타",
             expected_violations=[
                 "MISSING_NUMBER:12",
+            ],
+        )
+
+    def test_rejects_added_number(self):
+        # 원문에 없는 12구째 정보를 번역문이 임의로 추가하면 차단합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center.",
+            translated_text="Soto, 12구째 중견수 방면 안타",
+            expected_violations=[
+                "ADDED_NUMBER:12",
+            ],
+        )
+
+    def test_rejects_changed_number(self):
+        # 원문의 12를 13으로 바꾸면 12 누락과 13 추가를
+        # 각각 확인할 수 있어야 합니다.
+        self.assert_translation_violations_include(
+            source_text="Soto singled to center on pitch 12.",
+            translated_text="Soto, 13구째 중견수 방면 안타",
+            expected_violations=[
+                "MISSING_NUMBER:12",
+                "ADDED_NUMBER:13",
             ],
         )
 
@@ -213,6 +333,16 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
             ],
         )
 
+    def test_rejects_missing_fielding_position(self):
+        # grounded out to third의 third는 3루수 수비 위치입니다.
+        self.assert_translation_violations_include(
+            source_text="Trout grounded out to third.",
+            translated_text="Trout, 땅볼 아웃",
+            expected_violations=[
+                "MISSING_POSITION:THIRD_BASEMAN",
+            ],
+        )
+
     def test_rejects_added_home_run_to_single(self):
         self.assert_translation_violations_include(
             source_text="Soto singled to center.",
@@ -244,7 +374,10 @@ class PlayTranslationGuardTestCase(unittest.TestCase):
     def test_rejects_added_win_and_loss_terms(self):
         self.assert_translation_violations_include(
             source_text="Soto singled to center.",
-            translated_text="Soto, 중견수 방면 안타로 승리와 패배가 갈렸습니다",
+            translated_text=(
+                "Soto, 중견수 방면 안타로 "
+                "승리와 패배가 갈렸습니다"
+            ),
             expected_violations=[
                 "ADDED_RESULT:WIN",
                 "ADDED_RESULT:LOSS",

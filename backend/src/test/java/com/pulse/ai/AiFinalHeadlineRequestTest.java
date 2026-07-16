@@ -58,11 +58,19 @@ class AiFinalHeadlineRequestTest {
                 new AiFinalHeadlineRequest.RevealedSafeContext(
                         "STATUS_FINAL",
                         "경기 종료",
-                        List.of("후반 긴장 구간"),
-                        List.of("late_or_extra"),
-                        List.of(new AiFinalHeadlineRequest.KeyMoment(7, "만루 승부")),
+                        new AiFinalHeadlineRequest.Teams(
+                                new AiFinalHeadlineRequest.Team("Los Angeles Dodgers", "LAD"),
+                                new AiFinalHeadlineRequest.Team("San Francisco Giants", "SF")),
                         new AiFinalHeadlineRequest.FinalScore(5, 3),
-                        "home"
+                        "home",
+                        10,
+                        true,
+                        false,
+                        List.of(new AiFinalHeadlineRequest.RevealedMoment(
+                                10, "Bottom", "LAD",
+                                List.of("scoring_play", "home_run", "lead_change"),
+                                "Shohei Ohtani", 2,
+                                new AiFinalHeadlineRequest.ScoreAfter(5, 3), null))
                 )
         );
 
@@ -76,10 +84,19 @@ class AiFinalHeadlineRequestTest {
         // REVEALED 요청에는 결과 관련 key가 존재해야 합니다.
         assertTrue(safeContext.has("finalScore"));
         assertTrue(safeContext.has("winner"));
+        assertFalse(safeContext.has("safeTags"));
+        assertFalse(safeContext.has("reasonCodes"));
+        assertFalse(safeContext.has("keyMoments"));
 
         assertEquals(5, safeContext.get("finalScore").get("home").asInt());
         assertEquals(3, safeContext.get("finalScore").get("away").asInt());
         assertEquals("home", safeContext.get("winner").asText());
+        assertEquals("LAD", safeContext.get("teams").get("home").get("abbr").asText());
+        assertEquals(10, safeContext.get("inningsPlayed").asInt());
+        assertTrue(safeContext.get("extraInnings").asBoolean());
+        assertEquals("Shohei Ohtani",
+                safeContext.get("revealedMoments").get(0).get("batter").asText());
+        assertFalse(safeContext.get("revealedMoments").get(0).has("scoringPlays"));
     }
 
     @Test
@@ -91,11 +108,15 @@ class AiFinalHeadlineRequestTest {
                 new AiFinalHeadlineRequest.RevealedSafeContext(
                         "STATUS_FINAL",
                         "경기 종료",
-                        List.of("후반 긴장 구간"),
-                        List.of("late_or_extra"),
-                        List.of(new AiFinalHeadlineRequest.KeyMoment(7, "만루 승부")),
+                        new AiFinalHeadlineRequest.Teams(
+                                new AiFinalHeadlineRequest.Team("Home", "HOM"),
+                                new AiFinalHeadlineRequest.Team("Away", "AWY")),
                         new AiFinalHeadlineRequest.FinalScore(3, 3),
-                        null
+                        null,
+                        9,
+                        false,
+                        false,
+                        List.of()
                 )
         );
 

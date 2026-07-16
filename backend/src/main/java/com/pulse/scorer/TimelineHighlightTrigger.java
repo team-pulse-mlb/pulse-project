@@ -1,6 +1,7 @@
 package com.pulse.scorer;
 
 import com.pulse.common.config.ScoringProperties;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
@@ -73,6 +74,7 @@ class TimelineHighlightTrigger {
 
         anchor.setTimelineHighlight(true);
         gameEventRepository.save(anchor);
+        PulseMetrics.increment("pulse.scorer.highlight.fired");
 
         long anchorId = anchor.getId();
         afterCommitExecutor.execute(() -> aiGenerationTrigger.onGameEventPersisted(

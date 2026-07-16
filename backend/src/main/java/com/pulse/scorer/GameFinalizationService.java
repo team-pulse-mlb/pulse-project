@@ -25,6 +25,7 @@ public class GameFinalizationService {
     private final LiveSignalPublisher liveSignalPublisher;
     private final AiGenerationTrigger aiGenerationTrigger;
     private final AfterCommitExecutor afterCommitExecutor;
+    private final TimelineHighlightBackfill timelineHighlightBackfill;
     private final StringRedisTemplate redisTemplate;
 
     @Transactional
@@ -42,6 +43,11 @@ public class GameFinalizationService {
         liveSignalPublisher.publishRankingSignal();
 
         Instant observedAt = task.observedAt() == null ? Instant.now() : task.observedAt();
+        // 백필은 자체 멱등이므로 재전달에도 안전하며, 비FINAL 선처리로 선점될 수 있는 종료 키에 종속시키지 않는다.
+        if (isFinal(task.lifecycleState(), game)) {
+            timelineHighlightBackfill.backfillIfEmpty(task.gameId(), observedAt, true);
+        }
+
         Boolean firstProcessing = redisTemplate.opsForValue()
                 .setIfAbsent(finalizedKey(task.gameId()), observedAt.toString());
         if (!Boolean.TRUE.equals(firstProcessing)) {

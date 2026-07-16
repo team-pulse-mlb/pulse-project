@@ -35,12 +35,57 @@ public final class AiContextHashCalculator {
             envelope.put("eventId", eventId);
         }
         envelope.set("safeContext", withoutNulls(OBJECT_MAPPER.valueToTree(safeContext)));
+        return hash(envelope);
+    }
+
+    /**
+     * 공개 최근 플레이 번역의 최신 원문을 식별하는 해시를 계산한다.
+     *
+     * 이벤트 문구의 eventId와 혼동하지 않도록 playId를 별도 필드로 사용하고,
+     * 번역 목적·공개 모드·대상 언어를 함께 포함한다.
+     */
+    public static String calculatePlayTranslation(
+            long gameId,
+            long playId,
+            String sourceText
+    ) {
+        if (sourceText == null || sourceText.isBlank()) {
+            throw new IllegalArgumentException(
+                    "플레이 번역 원문은 비어 있을 수 없습니다.");
+        }
+
+        ObjectNode envelope = OBJECT_MAPPER.createObjectNode();
+        envelope.put("schemaVersion", 1);
+        envelope.put("purpose", "PLAY_TRANSLATION");
+        envelope.put("mode", AiCopyMode.REVEALED.name());
+        envelope.put("gameId", gameId);
+        envelope.put("playId", playId);
+        envelope.put("sourceText", sourceText);
+        envelope.put("targetLanguage", "ko");
+
+        return hash(envelope);
+    }
+
+    private static String hash(
+            ObjectNode envelope
+    ) {
         try {
-            byte[] serialized = OBJECT_MAPPER.writeValueAsString(withoutNulls(envelope))
-                    .getBytes(StandardCharsets.UTF_8);
-            return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(serialized));
+            byte[] serialized =
+                    OBJECT_MAPPER
+                            .writeValueAsString(
+                                    withoutNulls(envelope))
+                            .getBytes(
+                                    StandardCharsets.UTF_8);
+
+            return java.util.HexFormat.of()
+                    .formatHex(
+                            MessageDigest
+                                    .getInstance("SHA-256")
+                                    .digest(serialized));
         } catch (JsonProcessingException | NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("AI 컨텍스트 해시 계산에 실패했습니다.", exception);
+            throw new IllegalStateException(
+                    "AI 컨텍스트 해시 계산에 실패했습니다.",
+                    exception);
         }
     }
 

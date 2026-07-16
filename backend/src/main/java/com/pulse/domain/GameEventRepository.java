@@ -17,6 +17,10 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
 
     long countBySpoilerLevel(String spoilerLevel);
 
+    long countBySpoilerLevelAndTimelineHighlightTrue(String spoilerLevel);
+
+    boolean existsByGameIdAndTimelineHighlightTrue(Long gameId);
+
     Optional<GameEvent> findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
             Long gameId, String spoilerLevel);
 
@@ -35,6 +39,10 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
             Long gameId, Instant since);
 
     List<GameEvent> findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(Long gameId, String spoilerLevel);
+
+    /** 공개 헤드라인 컨텍스트용 결과 이벤트를 한 번에 조회한다. */
+    List<GameEvent> findByGameIdAndSpoilerLevelAndEventTypeInOrderByInningAscSourceRefAscIdAsc(
+            Long gameId, String spoilerLevel, List<String> eventTypes);
 
     /**
      * 보호 모드 경기 흐름에 노출할 급변 하이라이트만 시간순으로 조회한다.
@@ -74,6 +82,7 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
     @Query("""
             SELECT gameEvent FROM GameEvent gameEvent
             WHERE gameEvent.spoilerLevel = 'PROTECTED_SAFE'
+              AND gameEvent.timelineHighlight = true
               AND gameEvent.id > :afterId
               AND gameEvent.id <= :maxId
             ORDER BY gameEvent.id ASC
@@ -82,5 +91,12 @@ public interface GameEventRepository extends JpaRepository<GameEvent, Long> {
             @Param("afterId") long afterId,
             @Param("maxId") long maxId,
             Pageable pageable);
+
+    /** 기간 한정 재처리용: 대상 경기 목록이 작아 커서 배치 없이 한 번에 조회한다. */
+    List<GameEvent> findBySpoilerLevelAndGameIdInOrderByGameIdAscObservedAtAsc(
+            String spoilerLevel, List<Long> gameIds);
+
+    List<GameEvent> findBySpoilerLevelAndTimelineHighlightTrueAndGameIdInOrderByGameIdAscObservedAtAsc(
+            String spoilerLevel, List<Long> gameIds);
 
 }

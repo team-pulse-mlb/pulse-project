@@ -22,6 +22,8 @@ class GameFinalizationServiceTest {
     private final GameRepository gameRepository = mock(GameRepository.class);
     private final LiveSignalPublisher liveSignalPublisher = mock(LiveSignalPublisher.class);
     private final AiGenerationTrigger aiGenerationTrigger = mock(AiGenerationTrigger.class);
+    private final TimelineHighlightBackfill timelineHighlightBackfill =
+            mock(TimelineHighlightBackfill.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     @SuppressWarnings("unchecked")
     private final ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
@@ -30,6 +32,7 @@ class GameFinalizationServiceTest {
             liveSignalPublisher,
             aiGenerationTrigger,
             new AfterCommitExecutor(),
+            timelineHighlightBackfill,
             redisTemplate
     );
 
@@ -47,6 +50,7 @@ class GameFinalizationServiceTest {
         verify(liveSignalPublisher).evictGameCache(100L);
         verify(liveSignalPublisher).publishGameSignal(100L);
         verify(liveSignalPublisher).publishRankingSignal();
+        verify(timelineHighlightBackfill).backfillIfEmpty(100L, observedAt, true);
         verify(aiGenerationTrigger).onGameFinalized(100L, observedAt);
     }
 
@@ -62,6 +66,7 @@ class GameFinalizationServiceTest {
         verify(liveSignalPublisher).evictGameCache(100L);
         verify(liveSignalPublisher).publishGameSignal(100L);
         verify(liveSignalPublisher).publishRankingSignal();
+        verify(timelineHighlightBackfill).backfillIfEmpty(100L, observedAt, true);
         verifyNoInteractions(aiGenerationTrigger);
     }
 
@@ -74,6 +79,7 @@ class GameFinalizationServiceTest {
         service.handle(task(GameLifecycle.SUSPENDED_POSTPONED.name()));
 
         verify(liveSignalPublisher).removeLiveGame(100L);
+        verifyNoInteractions(timelineHighlightBackfill);
         verify(aiGenerationTrigger, never()).onGameFinalized(100L, observedAt);
     }
 
@@ -89,6 +95,7 @@ class GameFinalizationServiceTest {
         verify(liveSignalPublisher).evictGameCache(100L);
         verify(liveSignalPublisher).publishGameSignal(100L);
         verify(liveSignalPublisher).publishRankingSignal();
+        verifyNoInteractions(timelineHighlightBackfill);
         verify(aiGenerationTrigger, never()).onGameFinalized(100L, observedAt);
     }
 
@@ -104,6 +111,7 @@ class GameFinalizationServiceTest {
         verify(liveSignalPublisher).evictGameCache(100L);
         verify(liveSignalPublisher).publishGameSignal(100L);
         verify(liveSignalPublisher).publishRankingSignal();
+        verifyNoInteractions(timelineHighlightBackfill);
         verify(aiGenerationTrigger, never()).onGameFinalized(100L, observedAt);
     }
 

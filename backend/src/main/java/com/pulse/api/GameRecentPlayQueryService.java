@@ -4,7 +4,6 @@ import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,14 +20,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class GameRecentPlayQueryService {
-
-    /**
-     * 투구 단위 로그를 제외한 실제 타석 결과 10건을 확보하기 위해
-     * 최신 로그를 넉넉하게 조회한다.
-     */
-    private static final int RECENT_PLAY_QUERY_LIMIT = 200;
-
-    private static final int RECENT_PLAY_LIMIT = 10;
 
     private static final String PLAY_RESULT_TYPE = "Play Result";
 
@@ -62,19 +53,10 @@ public class GameRecentPlayQueryService {
 
         List<RecentPlayResponse> plays =
                 playRepository
-                        .findByGameIdOrderByPlayOrderDesc(
+                        .findByGameIdAndTypeIgnoreCaseOrderByPlayOrderDesc(
                                 gameId,
-                                PageRequest.of(
-                                        0,
-                                        RECENT_PLAY_QUERY_LIMIT))
+                                PLAY_RESULT_TYPE)
                         .stream()
-                        /*
-                         * Pitch, Start Batter/Pitcher 등의 원시 로그는 제외하고
-                         * 실제 타석 결과인 Play Result만 최근 플레이로 사용한다.
-                         */
-                        .filter(
-                                GameRecentPlayQueryService
-                                        ::isPlayResult)
                         /*
                          * 화면에 표시할 수 없는 불완전한 play는
                          * 임의로 값을 만들어내지 않고 제외한다.
@@ -82,11 +64,6 @@ public class GameRecentPlayQueryService {
                         .filter(
                                 GameRecentPlayQueryService
                                         ::hasDisplayableContent)
-                        /*
-                         * 필터링 후 최근 타석 결과 10건만 반환한다.
-                         */
-                        .limit(
-                                RECENT_PLAY_LIMIT)
                         .map(
                                 GameRecentPlayQueryService
                                         ::toResponse)
@@ -94,17 +71,6 @@ public class GameRecentPlayQueryService {
 
         return new RecentPlaysResponse(
                 plays);
-    }
-
-    /**
-     * 원시 투구 로그가 아니라 타석의 최종 결과인지 확인한다.
-     */
-    private static boolean isPlayResult(
-            Play play) {
-
-        return play.getType() != null
-                && PLAY_RESULT_TYPE.equalsIgnoreCase(
-                play.getType().trim());
     }
 
     /**
@@ -133,13 +99,11 @@ public class GameRecentPlayQueryService {
             Play play) {
 
         /*
-         * textKo는 데이터 파이프라인 담당 영역에서 추가될 필드다.
-         * 현재 엔티티에 필드가 없어도 원문으로 동작하고,
-         * 필드가 추가되면 저장된 번역문을 자동으로 우선 사용한다.
+         * 저장된 한국어 번역문이 있으면 화면 표시 문구로 우선 사용하고,
+         * 번역이 아직 없으면 기존 원문으로 폴백한다.
          */
         String translatedText =
-                readOptionalTextKo(
-                        play);
+                play.getTextKo();
 
         boolean translated =
                 hasText(
@@ -160,37 +124,6 @@ public class GameRecentPlayQueryService {
                         play.getHomeScore(),
                         play.getAwayScore()),
                 play.getFetchedAt());
-    }
-
-    /**
-     * textKo 필드가 아직 병합되지 않은 상태에서도
-     * 최근 플레이 API를 독립적으로 빌드할 수 있도록 선택적으로 읽는다.
-     */
-    private static String readOptionalTextKo(
-            Play play) {
-
-        try {
-            Object value =
-                    play.getClass()
-                            .getMethod(
-                                    "getTextKo")
-                            .invoke(
-                                    play);
-
-            return value instanceof String text
-                    ? text
-                    : null;
-        } catch (NoSuchMethodException exception) {
-            /*
-             * textKo 저장 구현이 아직 병합되지 않았으면
-             * 기존 원문 폴백 계약을 유지한다.
-             */
-            return null;
-        } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException(
-                    "최근 플레이 번역문을 읽을 수 없습니다.",
-                    exception);
-        }
     }
 
     /**
