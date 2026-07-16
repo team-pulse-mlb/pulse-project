@@ -87,7 +87,7 @@ def _build_event_copy_context(
     """
     이벤트 타임라인 문구 생성에 필요한 필드만 추출합니다.
 
-    PROTECTED에서는 보호 라벨과 이닝 숫자만 사용하고,
+    PROTECTED에서는 보호 라벨, 이닝 숫자, 보호 가능한 상황 근거만 사용하고,
     REVEALED에서만 초·말, 선수명, 제한된 evidence를 포함합니다.
     """
 
@@ -98,6 +98,18 @@ def _build_event_copy_context(
         "label": safe_context.label,
         "inning": safe_context.inning,
     }
+
+    if request.mode == AiCopyMode.PROTECTED:
+        # PROTECTED EVENT_COPY에서는 점수·결과가 아닌
+        # 보호 라벨 묶음과 상황 근거만 추가로 사용합니다.
+        prompt_context.update(
+            {
+                "contributingLabels": (
+                    safe_context.contributing_labels
+                ),
+                "situation": safe_context.situation,
+            }
+        )
 
     if request.mode == AiCopyMode.REVEALED:
         # 공개 모드 전용 정보도 safeContext에 실제로 들어온 값만 사용합니다.
@@ -159,19 +171,48 @@ def _build_purpose_instruction(purpose: str) -> str:
         ) from exc
 
 
-def _build_mode_instruction(mode: AiCopyMode) -> str:
+def _build_mode_instruction(
+    mode: AiCopyMode,
+    purpose: str,
+) -> str:
     """
     보호·공개 모드별 스포일러 제한 지시문을 반환합니다.
+
+    EVENT_COPY는 경기 상세 타임라인의 "N회" 헤더 아래에 표시되므로,
+    PROTECTED EVENT_COPY에만 이닝/회차 문구 금지와 문체 예시를 추가합니다.
     """
 
     if mode == AiCopyMode.PROTECTED:
-        return """
+        protected_instruction = """
 - 점수, 점수 차, 승패, 승자, 패자, 리드 팀을 언급하지 마세요.
 - 홈런, 역전, 끝내기, 득점 결과처럼 경기 결과를 직접 드러내는 표현을 사용하지 마세요.
 - 어느 팀이 유리하거나 불리했는지 추측하지 마세요.
 - 이닝 숫자와 safeContext의 보호 라벨은 사용할 수 있습니다.
 - 이닝 초/말, 선수명, 원본 play 내용은 생성하거나 추측하지 마세요.
 """.strip()
+
+        if purpose == "EVENT_COPY":
+            return f"""
+{protected_instruction}
+
+EVENT_COPY PROTECTED 추가 규칙:
+- 화면에서 이미 "N회" 헤더를 표시하므로 safe_title에는 이닝 숫자, "회", "초", "말"을 쓰지 마세요.
+- "~합니다"체로 작성하세요.
+- 반드시 한 문장으로 작성하세요.
+- "긴장감", "흐름", "승부처" 같은 상투 표현을 반복하지 마세요.
+- contributingLabels와 situation에 있는 카운트·아웃·주자 정보만 조합하세요.
+- situation에 없는 타석 결과, 득점 결과, 팀 유불리는 만들지 마세요.
+
+EVENT_COPY PROTECTED 예시:
+- label="승부처 카운트", contributingLabels=["만루 승부", "승부처 카운트"], situation={{"outs": 2, "balls": 3, "strikes": 2, "runnerOnFirst": true, "runnerOnSecond": true, "runnerOnThird": true}}
+  → {{"safe_title": "2사 만루에서 풀카운트 승부가 이어졌습니다."}}
+- label="득점권 압박", situation={{"outs": 1, "runnerOnSecond": true, "runnerOnThird": false}}
+  → {{"safe_title": "1사 2루 상황에서 집중이 필요한 승부가 이어졌습니다."}}
+- label="긴 승부", situation={{"pitchNumber": 8}}
+  → {{"safe_title": "긴 타석 승부가 계속 이어졌습니다."}}
+""".strip()
+
+        return protected_instruction
 
     if mode == AiCopyMode.REVEALED:
         return """
@@ -219,7 +260,7 @@ def build_spoiler_free_prompt(request: AiCopyRequest) -> str:
 {request.mode.value}
 
 모드별 규칙:
-{_build_mode_instruction(request.mode)}
+{_build_mode_instruction(request.mode, purpose)}
 
 공통 규칙:
 - 아래 JSON의 safeContext에 실제로 포함된 정보만 사용하세요.

@@ -145,6 +145,26 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
         self.assertIn("원정팀이 3-5로 승리", prompt)
         self.assertIn("승자 한 팀만", prompt)
 
+    def test_final_headline_protected_prompt_excludes_event_copy_specific_rules(self):
+        request = FinalHeadlineRequest(
+            game_id=5059082,
+            mode=AiCopyMode.PROTECTED,
+            context_hash="game-5059082-final-protected-v1",
+            safe_context=SafeContext(
+                game_status="STATUS_FINAL",
+                inning_phase="경기 종료",
+                safe_tags=["후반 긴장 구간"],
+                reason_codes=["late_or_extra"],
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn('"purpose": "FINAL_HEADLINE"', prompt)
+        self.assertNotIn("EVENT_COPY PROTECTED 예시", prompt)
+        self.assertNotIn("safe_title에는 이닝 숫자", prompt)
+        self.assertNotIn('"~합니다"체로 작성하세요.', prompt)
+
     def test_event_copy_protected_prompt_contains_only_protected_event_context(self):
         request = EventCopyRequest(
             game_id=5059041,
@@ -177,6 +197,95 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
         self.assertNotIn('"batter"', prompt)
         self.assertNotIn('"pitcher"', prompt)
         self.assertNotIn('"evidence"', prompt)
+
+    def test_event_copy_protected_prompt_contains_situation_context(self):
+        request = EventCopyRequest(
+            game_id=5059041,
+            event_id=91,
+            mode=AiCopyMode.PROTECTED,
+            context_hash="event-91-protected-v1",
+            safe_context=SafeContext(
+                event_type="full_count_two_out",
+                label="승부처 카운트",
+                inning=7,
+                contributing_labels=[
+                    "만루 승부",
+                    "승부처 카운트",
+                ],
+                situation={
+                    "outs": 2,
+                    "balls": 3,
+                    "strikes": 2,
+                    "runnerOnFirst": True,
+                    "runnerOnSecond": True,
+                    "runnerOnThird": True,
+                },
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn('"purpose": "EVENT_COPY"', prompt)
+        self.assertIn('"mode": "PROTECTED"', prompt)
+        self.assertIn('"contributingLabels": [', prompt)
+        self.assertIn('"만루 승부"', prompt)
+        self.assertIn('"승부처 카운트"', prompt)
+        self.assertIn('"situation": {', prompt)
+        self.assertIn('"outs": 2', prompt)
+        self.assertIn('"balls": 3', prompt)
+        self.assertIn('"strikes": 2', prompt)
+        self.assertIn('"runnerOnFirst": true', prompt)
+        self.assertIn('"runnerOnSecond": true', prompt)
+        self.assertIn('"runnerOnThird": true', prompt)
+
+    def test_event_copy_protected_prompt_contains_style_rules_and_examples(self):
+        request = EventCopyRequest(
+            game_id=5059041,
+            event_id=91,
+            mode=AiCopyMode.PROTECTED,
+            context_hash="event-91-protected-v1",
+            safe_context=SafeContext(
+                event_type="full_count_two_out",
+                label="승부처 카운트",
+                inning=7,
+                contributing_labels=[
+                    "만루 승부",
+                    "승부처 카운트",
+                ],
+                situation={
+                    "outs": 2,
+                    "balls": 3,
+                    "strikes": 2,
+                    "runnerOnFirst": True,
+                    "runnerOnSecond": True,
+                    "runnerOnThird": True,
+                },
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn("EVENT_COPY PROTECTED 추가 규칙", prompt)
+        self.assertIn(
+            'safe_title에는 이닝 숫자, "회", "초", "말"을 쓰지 마세요.',
+            prompt,
+        )
+        self.assertIn('"~합니다"체로 작성하세요.', prompt)
+        self.assertIn("반드시 한 문장으로 작성하세요.", prompt)
+        self.assertIn("상투 표현을 반복하지 마세요.", prompt)
+        self.assertIn("EVENT_COPY PROTECTED 예시", prompt)
+        self.assertIn(
+            "2사 만루에서 풀카운트 승부가 이어졌습니다.",
+            prompt,
+        )
+        self.assertIn(
+            "1사 2루 상황에서 집중이 필요한 승부가 이어졌습니다.",
+            prompt,
+        )
+        self.assertIn(
+            "긴 타석 승부가 계속 이어졌습니다.",
+            prompt,
+        )
 
     def test_event_copy_revealed_prompt_contains_revealed_event_context(self):
         request = EventCopyRequest(
@@ -213,6 +322,45 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
         self.assertIn('"outs": 2', prompt)
         self.assertIn('"balls": 3', prompt)
         self.assertIn('"strikes": 2', prompt)
+
+    def test_event_copy_revealed_prompt_excludes_protected_situation_context(self):
+        request = EventCopyRequest(
+            game_id=5059041,
+            event_id=91,
+            mode=AiCopyMode.REVEALED,
+            context_hash="event-91-revealed-v1",
+            safe_context=SafeContext(
+                event_type="pressure_bases_loaded",
+                label="만루 승부",
+                inning=7,
+                contributing_labels=[
+                    "만루 승부",
+                    "승부처 카운트",
+                ],
+                situation={
+                    "outs": 2,
+                    "balls": 3,
+                    "strikes": 2,
+                },
+                inning_type="Top",
+                batter="Kim",
+                pitcher="Steele",
+                evidence={
+                    "outs": 2,
+                    "balls": 3,
+                    "strikes": 2,
+                },
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn('"purpose": "EVENT_COPY"', prompt)
+        self.assertIn('"mode": "REVEALED"', prompt)
+        self.assertIn('"evidence"', prompt)
+        self.assertNotIn('"contributingLabels"', prompt)
+        self.assertNotIn('"situation"', prompt)
+        self.assertNotIn("EVENT_COPY PROTECTED 예시", prompt)
 
 
 if __name__ == "__main__":
