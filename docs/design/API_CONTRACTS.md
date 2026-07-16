@@ -288,9 +288,17 @@
 | `MISSING_EVENT:STRIKEOUT` | 원문 strikeout 이벤트가 삼진으로 보존되지 않음 |
 | `MISSING_EVENT:STRIKEOUT_SWINGING` | 원문 swinging strikeout 세부 정보가 보존되지 않음 |
 | `MISSING_EVENT:STRIKEOUT_LOOKING` | 원문 looking strikeout 세부 정보가 보존되지 않음 |
+| `MISSING_DIRECTION:{directionId}` | YAML `direction_patterns`에 매칭된 타구 방향 표현이 번역문에 보존되지 않음 |
 | `MISSING_DIRECTION:LEFT` | 좌측 방향 표현이 보존되지 않음 |
 | `MISSING_DIRECTION:CENTER` | 중앙 방향 표현이 보존되지 않음 |
 | `MISSING_DIRECTION:RIGHT` | 우측 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:LEFT_CENTER` | 좌중간 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:RIGHT_CENTER` | 우중간 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:LEFT_FIELD_LINE` | 좌익선상 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:RIGHT_FIELD_LINE` | 우익선상 방향 표현이 보존되지 않음 |
+| `MISSING_DIRECTION:UP_THE_MIDDLE` | 중앙으로 빠지는 타구 방향 표현이 보존되지 않음 |
+| `MISSING_POSITION:{positionId}` | YAML `position_patterns`에 매칭된 수비 위치가 번역문에 보존되지 않음 |
+| `MISSING_POSITION:THIRD_BASEMAN` | 3루수 수비 위치가 번역문에 보존되지 않음 |
 | `ADDED_RESULT:HOME_RUN` | 원문에 없는 홈런 결과가 추가됨 |
 | `ADDED_RESULT:COME_BACK` | 원문에 없는 역전 표현이 추가됨 |
 | `ADDED_RESULT:WALK_OFF` | 원문에 없는 끝내기 표현이 추가됨 |
