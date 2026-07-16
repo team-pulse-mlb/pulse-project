@@ -121,6 +121,8 @@ public class AiCopyContextService implements AiCopyContextReader {
         String winner = winner(game);
         List<Integer> homeInningScores = safeInningScores(game.getHomeInningScores());
         List<Integer> awayInningScores = safeInningScores(game.getAwayInningScores());
+        FinalHeadlineContext.SummaryFacts summaryFacts =
+                summaryFacts(game, winner, inningsPlayed, extraInnings);
         List<FinalHeadlineContext.RevealedMoment> revealedMoments = revealedMoments(game);
 
         Map<String, Object> safeContext = new LinkedHashMap<>();
@@ -138,6 +140,7 @@ public class AiCopyContextService implements AiCopyContextReader {
         safeContext.put("startTime", safeStartTime(game.getStartTime()));
         safeContext.put("homeInningScores", homeInningScores);
         safeContext.put("awayInningScores", awayInningScores);
+        safeContext.put("summaryFacts", summaryFacts);
         safeContext.put("revealedMoments", revealedMoments);
 
         String hash = AiContextHashCalculator.calculate(
@@ -162,11 +165,93 @@ public class AiCopyContextService implements AiCopyContextReader {
                 game.getStartTime(),
                 homeInningScores,
                 awayInningScores,
-                null,
+                summaryFacts,
                 List.of(),
                 List.of(),
                 hash
         );
+    }
+
+    private static FinalHeadlineContext.SummaryFacts summaryFacts(
+            Game game,
+            String winnerSide,
+            Integer finalInning,
+            Boolean extraInnings
+    ) {
+        Integer homeRuns = game.getHomeRuns();
+        Integer awayRuns = game.getAwayRuns();
+        boolean scoreKnown = homeRuns != null && awayRuns != null;
+
+        String loserSide = oppositeSide(winnerSide);
+
+        return new FinalHeadlineContext.SummaryFacts(
+                winnerSide,
+                teamNameBySide(game, winnerSide),
+                teamNameBySide(game, loserSide),
+                scoreBySide(game, winnerSide),
+                scoreBySide(game, loserSide),
+
+                null,
+                null,
+
+                null,
+                null,
+                null,
+
+                null,
+                null,
+                null,
+                null,
+                extraInnings,
+                finalInning,
+
+                scoreKnown ? Math.abs(homeRuns - awayRuns) : null,
+                scoreKnown ? homeRuns + awayRuns : null
+        );
+    }
+
+    private static String oppositeSide(
+            String side
+    ) {
+        if ("home".equals(side)) {
+            return "away";
+        }
+
+        if ("away".equals(side)) {
+            return "home";
+        }
+
+        return null;
+    }
+
+    private static String teamNameBySide(
+            Game game,
+            String side
+    ) {
+        if ("home".equals(side)) {
+            return game.getHomeTeamName();
+        }
+
+        if ("away".equals(side)) {
+            return game.getAwayTeamName();
+        }
+
+        return null;
+    }
+
+    private static Integer scoreBySide(
+            Game game,
+            String side
+    ) {
+        if ("home".equals(side)) {
+            return game.getHomeRuns();
+        }
+
+        if ("away".equals(side)) {
+            return game.getAwayRuns();
+        }
+
+        return null;
     }
 
     private static List<Integer> safeInningScores(
