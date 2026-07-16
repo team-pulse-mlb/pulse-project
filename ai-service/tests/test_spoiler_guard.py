@@ -279,6 +279,63 @@ class SpoilerGuardTestCase(unittest.TestCase):
         self.assertTrue(result["spoiler_safe"])
         self.assertEqual(result["violations"], [])
 
+    def test_revealed_team_name_winner_claim_with_context_backed_extra_inning_modifier_passes(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+            innings_played=10,
+            extra_innings=True,
+            teams={
+                "home": {
+                    "name": "Los Angeles Dodgers",
+                    "abbr": "LAD",
+                },
+                "away": {
+                    "name": "San Francisco Giants",
+                    "abbr": "SF",
+                },
+            },
+        )
+
+        result = check_spoiler_text(
+            "Los Angeles Dodgers가 10회 연장 끝에 5-3으로 승리",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertTrue(result["spoiler_safe"])
+        self.assertEqual(result["violations"], [])
+
+    def test_revealed_team_name_winner_claim_with_wrong_extra_inning_modifier_is_blocked(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+            innings_played=10,
+            extra_innings=True,
+            teams={
+                "home": {
+                    "name": "Los Angeles Dodgers",
+                    "abbr": "LAD",
+                },
+                "away": {
+                    "name": "San Francisco Giants",
+                    "abbr": "SF",
+                },
+            },
+        )
+
+        result = check_spoiler_text(
+            "Los Angeles Dodgers가 9회 연장 끝에 5-3으로 승리",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertIn(
+            "WINNER_REFERENCE_UNVERIFIABLE",
+            result["violations"],
+        )
+
     def test_revealed_team_abbr_winner_claim_passes(self):
         safe_context = SafeContext(
             final_score=FinalScore(home=5, away=3),

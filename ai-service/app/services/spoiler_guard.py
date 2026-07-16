@@ -424,26 +424,89 @@ def _team_aliases(
     return aliases
 
 
+def _context_backed_winner_modifier_pattern(
+    safe_context: SafeContext | None,
+) -> str:
+    """
+    safeContext가 검증한 연장 여부와 종료 이닝을 기준으로
+    승자 주어와 점수 사이에 허용할 제한된 수식어 정규식을 만듭니다.
+
+    임의 문장을 허용하지 않고 현재 context와 일치하는 연장 표현만 허용합니다.
+    """
+
+    if safe_context is None:
+        return ""
+
+    if getattr(safe_context, "extra_innings", None) is not True:
+        return ""
+
+    modifiers = {
+        "연장 끝에",
+        "연장전 끝에",
+    }
+
+    innings_played = getattr(
+        safe_context,
+        "innings_played",
+        None,
+    )
+
+    if (
+        isinstance(innings_played, int)
+        and not isinstance(innings_played, bool)
+        and innings_played > 0
+    ):
+        modifiers.update(
+            {
+                f"{innings_played}회 연장 끝에",
+                f"{innings_played}회 연장전 끝에",
+            }
+        )
+
+    escaped_modifiers = "|".join(
+        re.escape(modifier)
+        for modifier in sorted(
+            modifiers,
+            key=len,
+            reverse=True,
+        )
+    )
+
+    return rf"(?:(?:{escaped_modifiers})\s*)?"
+
+
 def _resolve_alias_winner_claims(
     text: str,
     safe_context: SafeContext | None,
 ) -> set[str]:
     """
     홈팀/원정팀 표현뿐 아니라 실제 팀명·약어 기반 승패 표현도 winner claim으로 인식합니다.
+
+    safeContext가 검증한 연장 표현은 팀 주어와 점수 사이에 사용할 수 있습니다.
     """
 
     claimed_winners: set[str] = set()
     aliases = _team_aliases(safe_context)
+    winner_modifier_pattern = (
+        _context_backed_winner_modifier_pattern(
+            safe_context
+        )
+    )
 
     win_verbs = r"승리|이겼|이긴|이김"
     loss_verbs = r"패배|졌다|패한"
 
     for side, side_aliases in aliases.items():
-        for alias in sorted(side_aliases, key=len, reverse=True):
+        for alias in sorted(
+            side_aliases,
+            key=len,
+            reverse=True,
+        ):
             escaped_alias = re.escape(alias)
 
             if re.search(
                 rf"{escaped_alias}(?:이|가|은|는)?\s*"
+                rf"{winner_modifier_pattern}"
                 rf"(?:\d{{1,3}}\s*-\s*\d{{1,3}}(?:으로|로)?\s*)?"
                 rf"(?:{win_verbs})",
                 text,
@@ -453,12 +516,15 @@ def _resolve_alias_winner_claims(
 
             if re.search(
                 rf"{escaped_alias}(?:이|가|은|는)?\s*"
+                rf"{winner_modifier_pattern}"
                 rf"(?:\d{{1,3}}\s*-\s*\d{{1,3}}(?:으로|로)?\s*)?"
                 rf"(?:{loss_verbs})",
                 text,
                 flags=re.IGNORECASE,
             ):
-                claimed_winners.add(_opposite_winner(side))
+                claimed_winners.add(
+                    _opposite_winner(side)
+                )
 
             if re.search(
                 rf"승자(?:는|가)?\s*{escaped_alias}",
