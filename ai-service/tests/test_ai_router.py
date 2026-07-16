@@ -386,6 +386,29 @@ class AiRouterTestCase(unittest.TestCase):
         )
         self.assertEqual(generated_request.target_language, "ko")
 
+    def test_play_translation_returns_failure_state_when_guard_rejects_translation(self):
+        generated_translation = {
+            "translated_text": "Soto, 중견수 방면 홈런",
+        }
+
+        with patch(
+            "app.routers.ai_router.generate_play_translation",
+            return_value=generated_translation,
+        ):
+            response = self.client.post(
+                "/ai/play-translation",
+                json=self.play_translation_payload,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertEqual(data["contextHash"], "play-312-v1")
+        self.assertIn("MISSING_EVENT:SINGLE", data["violations"])
+        self.assertIn("ADDED_RESULT:HOME_RUN", data["violations"])
+        self.assertFalse(data["fallbackUsed"])
+        self.assertNotIn("translatedText", data)
+
     def test_play_translation_returns_failure_state_when_generation_fails(self):
         with patch(
             "app.routers.ai_router.generate_play_translation",
