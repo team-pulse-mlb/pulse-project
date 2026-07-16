@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 
 import {
@@ -14,6 +14,11 @@ import {
     type FavoriteTeamResponse,
     type NotificationSettings,
 } from '../api/preferenceApi';
+
+import {
+    getTeams,
+    type TeamResponse,
+} from '../../../shared/api/teamApi';
 
 import '../styles/myPage.css';
 
@@ -50,6 +55,16 @@ function MyPage() {
         useState<FavoriteTeamResponse[]>([]);
 
     /*
+    * 선수의 현재 소속팀 로고를 표시하기 위한
+    * MLB 전체 팀 목록입니다.
+    *
+    * favoriteTeams에는 사용자가 선택한 관심팀만 들어 있으므로,
+    * 선수 소속팀 로고를 찾기 위해서는 전체 팀 목록이 필요합니다.
+    */
+    const [teams, setTeams] =
+        useState<TeamResponse[]>([]);
+
+    /*
     * 현재 사용자가 등록한 관심 선수 목록입니다.
     *
     * 마이페이지에서는 읽기 전용으로 표시하고,
@@ -57,6 +72,22 @@ function MyPage() {
     */
     const [favoritePlayers, setFavoritePlayers] =
         useState<FavoritePlayerResponse[]>([]);
+
+    /*
+    * teamId를 기준으로 팀 정보를 빠르게 찾기 위한 Map입니다.
+    *
+    * 예:
+    * 선수 teamId가 14라면
+    * teamById.get(14)로 해당 팀의 logoUrl을 찾습니다.
+    */
+    const teamById = useMemo(() => {
+        return new Map(
+            teams.map((team) => [
+                team.teamId,
+                team,
+            ]),
+        );
+    }, [teams]);
 
     /*
      * 사용자의 알림 수신 설정입니다.
@@ -91,9 +122,11 @@ function MyPage() {
                 const [
                     meResponse,
                     preferenceResponse,
+                    teamResponse,
                 ] = await Promise.all([
                     getMe(),
                     getMyPreferences(),
+                    getTeams(),
                 ]);
 
                 if (ignore) {
@@ -109,6 +142,8 @@ function MyPage() {
                 setFavoritePlayers(
                     preferenceResponse.favoritePlayers,
                 );
+
+                setTeams(teamResponse);
 
                 setNotificationSettings(
                     preferenceResponse.notificationSettings,
@@ -142,7 +177,7 @@ function MyPage() {
      * 개별 알림 설정을 켜거나 끕니다.
      *
      * all은 백엔드와의 기존 계약을 유지하기 위한 값입니다.
-     * 세 개의 개별 설정이 모두 켜졌을 때만 true가 됩니다.
+     * 현재 제공하는 두 개의 알림이 모두 켜졌을 때 true가 됩니다.
      */
     const handleToggleNotification = (
         name: 'gameStart' | 'surge',
@@ -159,10 +194,17 @@ function MyPage() {
             return {
                 ...nextSettings,
 
+                /*
+                * 현재 화면에서 제공하는 두 알림이
+                * 모두 활성화된 경우에만 all을 true로 설정합니다.
+                *
+                * gameSwitch는 기존 API 호환을 위해 값은 보존하지만,
+                * 사용자에게 제공하지 않는 설정이므로
+                * 전체 활성화 여부 계산에는 포함하지 않습니다.
+                */
                 all:
                     nextSettings.gameStart &&
-                    nextSettings.surge &&
-                    nextSettings.gameSwitch,
+                    nextSettings.surge,
             };
         });
     };
@@ -382,11 +424,10 @@ function MyPage() {
                     <div className="mypage-notification-list">
                         <button
                             type="button"
-                            className={`mypage-notification-card ${
-                                notificationSettings.gameStart
-                                    ? 'active'
-                                    : ''
-                            }`}
+                            className={`mypage-notification-card ${notificationSettings.gameStart
+                                ? 'active'
+                                : ''
+                                }`}
                             aria-pressed={
                                 notificationSettings.gameStart
                             }
@@ -396,7 +437,7 @@ function MyPage() {
                                 )
                             }
                         >
-                            <div>
+                            <div className="mypage-notification-copy">
                                 <strong>
                                     관심팀 경기 시작 알림
                                 </strong>
@@ -407,20 +448,20 @@ function MyPage() {
                                 </span>
                             </div>
 
-                            <em>
-                                {notificationSettings.gameStart
-                                    ? 'ON'
-                                    : 'OFF'}
-                            </em>
+                            <span
+                                className="mypage-toggle"
+                                aria-hidden="true"
+                            >
+                                <span className="mypage-toggle-thumb" />
+                            </span>
                         </button>
 
                         <button
                             type="button"
-                            className={`mypage-notification-card ${
-                                notificationSettings.surge
-                                    ? 'active'
-                                    : ''
-                            }`}
+                            className={`mypage-notification-card ${notificationSettings.surge
+                                ? 'active'
+                                : ''
+                                }`}
                             aria-pressed={
                                 notificationSettings.surge
                             }
@@ -430,7 +471,7 @@ function MyPage() {
                                 )
                             }
                         >
-                            <div>
+                            <div className="mypage-notification-copy">
                                 <strong>
                                     모멘텀 급상승 알림
                                 </strong>
@@ -441,11 +482,12 @@ function MyPage() {
                                 </span>
                             </div>
 
-                            <em>
-                                {notificationSettings.surge
-                                    ? 'ON'
-                                    : 'OFF'}
-                            </em>
+                            <span
+                                className="mypage-toggle"
+                                aria-hidden="true"
+                            >
+                                <span className="mypage-toggle-thumb" />
+                            </span>
                         </button>
                     </div>
                 </section>
@@ -543,30 +585,57 @@ function MyPage() {
                         </div>
                     ) : (
                         <div className="mypage-preview-player-grid">
-                            {favoritePlayers.map((player) => (
-                                <article
-                                    key={player.playerId}
-                                    className="mypage-preview-player-card"
-                                >
-                                    <div className="mypage-preview-player-avatar">
-                                        {player.fullName
-                                            ?.charAt(0)
-                                            .toUpperCase() ?? '?'}
-                                    </div>
+                            {favoritePlayers.map((player) => {
+                                /*
+                                 * 선수 응답의 현재 teamId를 기준으로
+                                 * 전체 팀 목록에서 소속팀 정보를 찾습니다.
+                                 */
+                                const currentTeam =
+                                    player.teamId === null
+                                        ? null
+                                        : teamById.get(player.teamId) ?? null;
 
-                                    <div className="mypage-preview-player-text">
-                                        <strong>
-                                            {player.fullName ??
-                                                `선수 #${player.playerId}`}
-                                        </strong>
+                                return (
+                                    <article
+                                        key={player.playerId}
+                                        className="mypage-preview-player-card"
+                                    >
+                                        <div className="mypage-preview-player-avatar">
+                                            {currentTeam?.logoUrl ? (
+                                                <img
+                                                    className="mypage-preview-player-logo"
+                                                    src={currentTeam.logoUrl}
+                                                    alt={`${currentTeam.displayName} 로고`}
+                                                    width={34}
+                                                    height={34}
+                                                />
+                                            ) : (
+                                                player.fullName
+                                                    ?.charAt(0)
+                                                    .toUpperCase() ??
+                                                '?'
+                                            )}
+                                        </div>
 
-                                        <span>
-                                            {player.position ??
-                                                '포지션 정보 없음'}
-                                        </span>
-                                    </div>
-                                </article>
-                            ))}
+                                        <div className="mypage-preview-player-text">
+                                            <strong>
+                                                {player.fullName ??
+                                                    `선수 #${player.playerId}`}
+                                            </strong>
+
+                                            <span>
+                                                {[
+                                                    player.position,
+                                                    currentTeam?.abbreviation,
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(' · ') ||
+                                                    '선수 정보 없음'}
+                                            </span>
+                                        </div>
+                                    </article>
+                                );
+                            })}
                         </div>
                     )}
                 </section>

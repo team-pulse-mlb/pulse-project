@@ -440,113 +440,19 @@
   font-size: 14px;
 }
 
-.signup-preference-summary {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+/*
+ * 회원가입 3단계 알림 카드 목록
+ */
+.signup-page-step-3 .signup-notification-list {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.signup-preference-summary div {
-  padding: 14px;
-
-  border-radius: 14px;
-  background-color: #f9fafb;
-}
-
-.signup-preference-summary span {
-  display: block;
-
-  margin-bottom: 6px;
-
-  color: #667085;
-  font-size: 13px;
-}
-
-.signup-preference-summary strong {
-  color: #101828;
-  font-size: 15px;
-}
-
-.signup-notification-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.signup-notification-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-
-  padding: 16px;
-
-  border: 1px solid #d0d5dd;
-  border-radius: 14px;
-
-  background-color: #ffffff;
-  text-align: left;
-
-  cursor: pointer;
-}
-
-.signup-notification-card.main {
-  border-color: #175cd3;
-}
-
-.signup-notification-card.active {
-  background-color: #eff6ff;
-}
-
-.signup-notification-card strong {
-  display: block;
-
-  margin-bottom: 4px;
-
-  color: #101828;
-  font-size: 15px;
-}
-
-.signup-notification-card span {
-  color: #667085;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.signup-notification-card em {
-  min-width: 44px;
-  padding: 5px 8px;
-
-  border-radius: 999px;
-  background-color: #e4e7ec;
-
-  color: #667085;
-
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 900;
-  text-align: center;
-}
-
-.signup-notification-card.active em {
-  color: #ffffff;
-  background-color: #175cd3;
-}
-
-@media (max-width: 600px) {
-  .signup-team-board {
-    grid-template-columns: 1fr;
-  }
-
-  .signup-preference-summary {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* =========================
-   Signup Step Action Buttons
-   - 관심팀 선택 / 알림 설정 단계 하단 버튼 영역
-   - 기존 signup-submit-button의 width: 100% 영향을 여기서 다시 조정
+    Signup Step Action Buttons
+    - 관심팀 선택 / 알림 설정 단계 하단 버튼 영역
+    - 기존 signup-submit-button의 width: 100% 영향을 여기서 다시 조정
 ========================= */
 
 .signup-step-actions {
@@ -893,5 +799,278 @@
 @media (max-width: 360px) {
   .signup-team-board {
     grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   Signup Step 3 - Notification Onboarding
+
+   - 회원가입 3단계 알림 설정 화면에만 적용
+   - 기존 1단계와 2단계 스타일에는 영향을 주지 않음
+   ========================================================= */
+
+/*
+ * 알림 설정 영역을 상단 제목 너비와 맞춥니다.
+ */
+.signup-page-step-3 .signup-step-panel {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/*
+ * 알림 제목은 한 줄 전체를 차지하게 해서
+ * 설명이 제목 오른쪽이 아닌 아래쪽에 표시되게 합니다.
+ */
+.signup-page-step-3
+  .signup-notification-card strong {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: var(--signup-light-text);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/*
+ * 알림 설명도 독립된 줄로 표시합니다.
+ */
+.signup-page-step-3
+  .signup-notification-copy > span {
+  display: block;
+
+  color: var(--signup-dark-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/*
+ * 모바일에서는 카드 내부 텍스트와 ON/OFF 표시가
+ * 너무 붙지 않도록 간격을 조정합니다.
+ */
+@media (max-width: 520px) {
+  .signup-page-step-3
+    .signup-step-actions {
+    align-items: stretch;
+  }
+
+  .signup-page-step-3
+    .signup-step-actions
+    button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+    Signup Step 3 - Sliding Notification Toggle
+
+    - 회원가입 3단계 알림 카드에만 적용
+    - 비활성: 회색 스위치, 손잡이 왼쪽
+    - 활성: 빨간 스위치, 손잡이 오른쪽
+   ========================================================= */
+
+/*
+ * 알림 제목과 설명이 들어가는 왼쪽 영역입니다.
+ *
+ * 오른쪽 스위치가 밀려나지 않도록
+ * 남은 공간만 사용하게 합니다.
+ */
+.signup-page-step-3 .signup-notification-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+/*
+ * 회원가입 3단계 알림 카드 최종 스타일
+ *
+ * 카드의 배치, 크기, 색상과 애니메이션을
+ * 이 선택자 한 곳에서 관리합니다.
+ */
+.signup-page-step-3 .signup-notification-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  width: 100%;
+  min-height: 86px;
+  padding: 18px 20px;
+
+  border: 1px solid var(--signup-dark-border);
+  border-radius: 16px;
+
+  color: var(--signup-light-text);
+  background-color: rgba(255, 255, 255, 0.045);
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+/*
+ * 카드가 켜졌을 때는 빨간색을 너무 강하게 채우지 않고,
+ * 테두리와 은은한 배경으로만 활성 상태를 표현합니다.
+ */
+.signup-page-step-3
+  .signup-notification-card.active {
+  border-color: rgba(230, 57, 70, 0.72);
+  background-color: rgba(230, 57, 70, 0.09);
+}
+
+/*
+ * 키보드나 마우스로 카드를 가리켰을 때
+ * 살짝 떠오르는 효과입니다.
+ */
+.signup-page-step-3
+  .signup-notification-card:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.075);
+  transform: translateY(-1px);
+}
+
+.signup-page-step-3
+  .signup-notification-card.active:hover {
+  border-color: var(--signup-red);
+  background-color: rgba(230, 57, 70, 0.13);
+}
+
+/*
+ * 스위치 전체 바깥 영역입니다.
+ *
+ * flex-shrink: 0을 사용해 설명이 길어져도
+ * 스위치 너비가 줄어들지 않게 합니다.
+ */
+.signup-page-step-3 .signup-toggle {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+
+  padding: 3px;
+
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+
+  background-color: rgba(255, 255, 255, 0.13);
+
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/*
+ * 실제 좌우로 이동하는 흰색 원형 손잡이입니다.
+ */
+.signup-page-step-3 .signup-toggle-thumb {
+  display: block;
+
+  width: 20px;
+  height: 20px;
+
+  border-radius: 50%;
+
+  background-color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+
+  transform: translateX(0);
+
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+/*
+ * 알림이 활성화되면 스위치 배경을 빨간색으로 바꿉니다.
+ */
+.signup-page-step-3
+  .signup-notification-card.active
+  .signup-toggle {
+  border-color: var(--signup-red);
+  background-color: var(--signup-red);
+
+  box-shadow:
+    0 0 0 3px rgba(230, 57, 70, 0.13);
+}
+
+/*
+ * 활성화된 스위치 손잡이를 오른쪽으로 이동합니다.
+ *
+ * 전체 너비 50px
+ * 좌우 padding 3px
+ * 손잡이 너비 20px
+ * 이동 가능 거리: 50 - 6 - 20 = 24px
+ */
+.signup-page-step-3
+  .signup-notification-card.active
+  .signup-toggle-thumb {
+  transform: translateX(22px);
+}
+
+/*
+ * 버튼 클릭 순간에 손잡이가 살짝 눌리는 느낌을 줍니다.
+ */
+.signup-page-step-3
+  .signup-notification-card:active
+  .signup-toggle-thumb {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+
+/*
+ * 키보드 Tab 사용자를 위한 포커스 표시입니다.
+ */
+.signup-page-step-3
+  .signup-notification-card:focus-visible {
+  outline: 3px solid rgba(230, 57, 70, 0.38);
+  outline-offset: 3px;
+}
+
+/*
+ * 작은 화면에서는 설명과 스위치가 너무 가까워지지 않게
+ * 카드 간격을 조정합니다.
+ */
+@media (max-width: 520px) {
+  .signup-page-step-3 .signup-notification-card {
+    align-items: center;
+    min-height: 82px;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .signup-page-step-3
+    .signup-notification-card
+    strong {
+    font-size: 14px;
+  }
+
+  .signup-page-step-3
+    .signup-notification-card
+    span:not(.signup-toggle):not(.signup-toggle-thumb) {
+    font-size: 12px;
+  }
+
+  .signup-page-step-3 .signup-toggle {
+    width: 46px;
+    height: 26px;
+  }
+
+  .signup-page-step-3 .signup-toggle-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .signup-page-step-3
+    .signup-notification-card.active
+    .signup-toggle-thumb {
+    transform: translateX(20px);
   }
 }
