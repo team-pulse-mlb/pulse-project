@@ -285,7 +285,9 @@ services:
     image: ${PULSE_APP_IMAGE:?PULSE_APP_IMAGE required}
     profiles: ["batch"]
     restart: "no"
-    env_file: ${PULSE_BACKTEST_ENV_FILE:?PULSE_BACKTEST_ENV_FILE required}
+    env_file:
+      - path: ${PULSE_BACKTEST_ENV_FILE:-/tmp/pulse-backtest-not-configured.env}
+        required: false
     environment:
       SPRING_PROFILES_ACTIVE: backtest
       PULSE_POLLER_ENABLED: "false"
@@ -293,9 +295,6 @@ services:
       PULSE_SSE_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
       JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
-    volumes:
-      - ${PULSE_BACKTEST_INPUT_DIR:?PULSE_BACKTEST_INPUT_DIR required}:/work/input:ro
-      - ${PULSE_BACKTEST_OUTPUT_DIR:?PULSE_BACKTEST_OUTPUT_DIR required}:/work/output
     logging: *app-logging
 
 volumes:
