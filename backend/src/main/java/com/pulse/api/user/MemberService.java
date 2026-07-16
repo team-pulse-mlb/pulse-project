@@ -1,5 +1,8 @@
 package com.pulse.api.user;
 
+import com.pulse.api.user.dto.*;
+import com.pulse.api.user.exception.*;
+import com.pulse.api.user.security.PersistentRefreshTokenService;
 import com.pulse.domain.Team;
 import com.pulse.domain.TeamRepository;
 import com.pulse.api.user.domain.Member;
@@ -8,13 +11,6 @@ import com.pulse.api.user.domain.UserFavoriteTeam;
 import com.pulse.api.user.domain.UserFavoriteTeamRepository;
 import com.pulse.api.user.domain.UserSetting;
 import com.pulse.api.user.domain.UserSettingRepository;
-import com.pulse.api.user.dto.EmailCheckResponse;
-import com.pulse.api.user.dto.SignupRequest;
-import com.pulse.api.user.dto.SignupResponse;
-import com.pulse.api.user.exception.DuplicateEmailException;
-import com.pulse.api.user.exception.EmailVerificationException;
-import com.pulse.api.user.exception.FavoriteTeamLimitExceededException;
-import com.pulse.api.user.exception.InvalidFavoriteTeamException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -67,6 +63,18 @@ public class MemberService {
      * 회원가입 요청의 원문 비밀번호를 BCrypt 해시로 변환한 뒤 DB에 저장한다.
      */
     private final PasswordEncoder passwordEncoder;
+
+    /**
+     * DB에 저장된 Refresh Token을 관리하는 서비스입니다.
+     *
+     * 비밀번호가 변경되면 기존 로그인 세션을 계속 사용할 수 없도록
+     * 해당 사용자의 활성 Refresh Token을 모두 폐기합니다.
+     */
+    private final PersistentRefreshTokenService
+            persistentRefreshTokenService;
+
+    /*
+     * 이메일 인증번호/인증 완료 상태를 관리하는 서비스.
 
     /*
      * 이메일 인증번호/인증 완료 상태를 관리하는 서비스.
@@ -318,6 +326,107 @@ public class MemberService {
                 "DUPLICATE_EMAIL",
                 false,
                 "이미 사용 중인 이메일입니다."
+        );
+    }
+
+
+    /**
+     * 로그인한 사용자의 비밀번호를 변경합니다.
+     *
+     * 처리 순서:
+     * 1. 새 비밀번호와 확인 값 비교
+     * 2. 로그인 사용자 조회
+     * 3. 현재 비밀번호 검증
+     * 4. 새 비밀번호 BCrypt 암호화
+     * 5. Member 비밀번호 해시 변경
+     * 6. 사용자의 활성 Refresh Token 전체 폐기
+     */
+    @Transactional
+    public ChangePasswordResponse changePassword(
+            String email,
+            ChangePasswordRequest request
+    ) {
+        /*
+         * 프론트에서 확인했더라도 개발자 도구나 Postman으로
+         * 서로 다른 값을 보낼 수 있으므로 서버에서 다시 검사합니다.
+         */
+        if (!request.getNewPassword()
+                .equals(request.getNewPasswordConfirm())) {
+
+            throw new PasswordMismatchException(
+                    "새 비밀번호와 비밀번호 확인이 일치하지 않습니다."
+            );
+        }
+
+        /*
+         * JWT Authentication의 이름에는 이메일이 들어 있습니다.
+         *
+         * 회원가입·로그인과 같은 방식으로 공백을 제거하고
+         * 소문자로 통일합니다.
+         */
+        String normalizedEmail = email
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        /*
+         * 비관적 쓰기 잠금을 사용해 같은 사용자의
+         * 비밀번호 변경 요청이 동시에 처리되지 않도록 합니다.
+         */
+        Member member = memberRepository
+                .findByEmailForUpdate(normalizedEmail)
+                .orElseThrow(() ->
+                        new LoginFailedException(
+                                "로그인 정보를 확인할 수 없습니다."
+                        )
+                );
+
+        /*
+         * 사용자가 입력한 현재 비밀번호 원문과
+         * DB의 BCrypt 해시를 비교합니다.
+         *
+         * BCrypt 값은 매번 다르게 생성될 수 있으므로
+         * 문자열 equals()로 비교하면 안 됩니다.
+         */
+        boolean currentPasswordMatches =
+                passwordEncoder.matches(
+                        request.getCurrentPassword(),
+                        member.getPasswordHash()
+                );
+
+        if (!currentPasswordMatches) {
+            throw new InvalidCurrentPasswordException(
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
+        }
+
+        /*
+         * 새 비밀번호를 BCrypt로 암호화합니다.
+         *
+         * 원문 비밀번호는 Member나 DB에 저장하지 않습니다.
+         */
+        String encodedNewPassword =
+                passwordEncoder.encode(
+                        request.getNewPassword()
+                );
+
+        member.changePasswordHash(encodedNewPassword);
+
+        /*
+         * Refresh Token 일괄 폐기 쿼리는 영속성 컨텍스트를
+         * clear할 수 있으므로, 먼저 비밀번호 변경을 DB에 반영합니다.
+         */
+        memberRepository.saveAndFlush(member);
+
+        /*
+         * 비밀번호가 변경됐으므로 모든 기기의 Refresh Token을
+         * 폐기해 다시 로그인하도록 합니다.
+         */
+        persistentRefreshTokenService
+                .revokeAllActiveTokens(member);
+
+        return new ChangePasswordResponse(
+                "SUCCESS",
+                "비밀번호가 변경되었습니다. 다시 로그인해 주세요."
         );
     }
 }

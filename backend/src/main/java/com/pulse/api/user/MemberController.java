@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -87,6 +88,33 @@ public class MemberController {
     }
 
 
+    /**
+     * 로그인한 사용자의 비밀번호를 변경합니다.
+     *
+     * 요청 경로:
+     * PUT /api/members/me/password
+     *
+     * Authentication.getName():
+     * - JwtAuthenticationFilter가 등록한 로그인 사용자 이메일
+     *
+     * 처리 성공 시:
+     * - 새 비밀번호가 BCrypt 해시로 저장됩니다.
+     * - 해당 사용자의 활성 Refresh Token이 모두 폐기됩니다.
+     * - 프론트에서는 Access Token을 삭제하고 다시 로그인시켜야 합니다.
+     */
+    @PutMapping("/me/password")
+    public ResponseEntity<ChangePasswordResponse> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        ChangePasswordResponse response =
+                memberService.changePassword(
+                        authentication.getName(),
+                        request
+                );
+
+        return ResponseEntity.ok(response);
+    }
 
 
 }

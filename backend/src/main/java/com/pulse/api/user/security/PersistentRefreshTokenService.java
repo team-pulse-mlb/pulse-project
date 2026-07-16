@@ -163,9 +163,40 @@ public class PersistentRefreshTokenService {
     }
 
     /**
+     * 계정 보안 상태가 변경된 사용자의
+     * 활성 Refresh Token을 모두 폐기합니다.
+     *
+     * 사용 예:
+     * - 비밀번호 변경
+     * - 회원탈퇴
+     * - 계정 보안 사고 대응
+     *
+     * 모든 기기의 Refresh Token을 폐기하므로,
+     * 이후에는 기존 Refresh Token으로 Access Token을
+     * 다시 발급받을 수 없습니다.
+     */
+    @Transactional
+    public void revokeAllActiveTokens(Member member) {
+        if (member == null || member.getUserId() == null) {
+            throw new IllegalArgumentException(
+                    "Refresh Token을 폐기할 회원 정보가 올바르지 않습니다."
+            );
+        }
+
+        revokeAllActiveTokens(
+                member,
+                LocalDateTime.now()
+        );
+    }
+
+    /**
      * 특정 사용자의 활성 Refresh Token 전체 폐기
      *
-     * 재사용 감지 시 사용한다.
+     * 폐기 시각을 직접 전달해야 하는 내부 처리에서 사용합니다.
+     *
+     * 예:
+     * - Refresh Token 재사용 감지 과정에서
+     *   동일한 시각으로 여러 토큰을 폐기할 때 사용
      */
     private void revokeAllActiveTokens(
             Member member,
