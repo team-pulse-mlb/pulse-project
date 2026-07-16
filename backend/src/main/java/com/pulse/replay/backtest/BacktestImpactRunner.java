@@ -39,6 +39,7 @@ public class BacktestImpactRunner implements ApplicationRunner {
         List<GameData> games = loadedGames.stream()
                 .filter(game -> !game.plays().isEmpty())
                 .toList();
+        requireGames(games);
         int excludedGames = loadedGames.size() - games.size();
         log.info("play가 없어 백테스트에서 제외된 경기: {}", excludedGames);
         GameReplayEngine engine = new GameReplayEngine(options, objectMapper);
@@ -63,6 +64,12 @@ public class BacktestImpactRunner implements ApplicationRunner {
                         cyclesByGame.get(game.game().gameId()),
                         alertCounts.getOrDefault(game.game().gameId(), 0)))
                 .toList();
+    }
+
+    static void requireGames(List<GameData> games) {
+        if (games.isEmpty()) {
+            throw new IllegalStateException("백테스트 기간에 play가 있는 경기가 없습니다.");
+        }
     }
 
     private void validate() {
