@@ -119,8 +119,6 @@ public class GameQueryService {
                 homeTeam,
                 awayTeam,
                 game.getStartTime(),
-                nullableText(
-                        game.getVenue()),
                 periodLabel(game),
                 inning,
                 situation,
@@ -290,8 +288,6 @@ public class GameQueryService {
                 homeTeam,
                 awayTeam,
                 game.getStartTime(),
-                nullableText(
-                        game.getVenue()),
                 nullableText(
                         game.getFinalHeadlineProtected()),
                 protectedTensionCurve(game.getId()));
@@ -712,7 +708,6 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
-            String venue,
             String periodLabel,
             Integer inning,
             SituationResponse situation,
@@ -753,7 +748,6 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
-            String venue,
             String headline,
             List<ProtectedTensionPointResponse> tensionCurve)
             implements GameDetailView {}
