@@ -262,6 +262,16 @@ function GameDetailPage() {
             )
             : [];
 
+    /*
+     * 공개 모드의 recent-plays API는 최신 플레이 우선으로 내려온다.
+     * LIVE는 최신 이닝이 위에 오도록 그대로 사용하고,
+     * FINAL은 보호 모드와 동일하게 1이닝부터 보이도록 뒤집는다.
+     */
+    const orderedRecentPlays =
+        detail.kind === 'FINAL'
+            ? [...recentPlays].reverse()
+            : recentPlays;
+
     const revealedGameFlowContent =
         recentPlaysQuery.isPending ? (
             <Card>
@@ -284,7 +294,7 @@ function GameDetailPage() {
         ) : (
             <RecentPlayList
                 title="경기 흐름"
-                plays={recentPlays}
+                plays={orderedRecentPlays}
             />
         );
 

@@ -174,6 +174,7 @@ export interface ProtectedFinalGameDetailResponse
     status: 'STATUS_FINAL';
     displayMode: 'PROTECTED';
 
+    venue: string | null;
     headline: string | null;
     tensionCurve: ProtectedTensionPointResponse[];
 }
@@ -187,6 +188,7 @@ export interface RevealedFinalGameDetailResponse
     status: 'STATUS_FINAL';
     displayMode: 'REVEALED';
 
+    venue: string | null;
     headline: string | null;
     finalScore: ScoreResponse;
     inningScores: InningScoresResponse;
