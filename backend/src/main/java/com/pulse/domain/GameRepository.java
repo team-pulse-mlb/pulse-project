@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface GameRepository extends JpaRepository<Game, Long> {
 
@@ -61,6 +62,32 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     int markSuspendedPostponed(
             @Param("gameId") Long gameId,
             @Param("processedAt") Instant processedAt
+    );
+
+    /**
+     * 중요 플레이 번역 후 REVEALED 헤드라인 자동 재생성 권한을
+     * DB에서 원자적으로 한 번만 획득합니다.
+     *
+     * <p>프로세스가 재시작되거나 동일 task가 중복 처리돼도
+     * 최초 한 호출만 1을 반환합니다.</p>
+     */
+    @Transactional
+    @Modifying(
+            clearAutomatically = true,
+            flushAutomatically = true
+    )
+    @Query("""
+            update Game game
+            set game.finalHeadlineRevealedRegenerationAttemptedAt =
+                :attemptedAt
+            where game.id = :gameId
+              and game.status like 'STATUS_FINAL%'
+              and game.finalHeadlineRevealedRegenerationAttemptedAt
+                  is null
+            """)
+    int markFinalHeadlineRevealedRegenerationAttempted(
+            @Param("gameId") Long gameId,
+            @Param("attemptedAt") Instant attemptedAt
     );
 
     @Query("""

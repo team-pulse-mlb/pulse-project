@@ -13,8 +13,13 @@ import com.pulse.ai.AiPlayTranslationRequest;
 import com.pulse.ai.AiPlayTranslationResponse;
 import com.pulse.ai.AiServiceClient;
 import com.pulse.common.ai.AiContextHashCalculator;
+import com.pulse.common.ai.AiCopyContextReader;
+import com.pulse.common.ai.AiCopyMode;
+import com.pulse.common.ai.FinalHeadlineContext;
+import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -34,6 +39,15 @@ class AiPlayTranslationGeneratorTest {
     private final LiveSignalPublisher liveSignalPublisher =
             mock(LiveSignalPublisher.class);
 
+    private final AiCopyContextReader aiCopyContextReader =
+            mock(AiCopyContextReader.class);
+
+    private final GameRepository gameRepository =
+            mock(GameRepository.class);
+
+    private final AiFinalHeadlineGenerator aiFinalHeadlineGenerator =
+            mock(AiFinalHeadlineGenerator.class);
+
     private final AiPlayTranslationGenerator generator =
             new AiPlayTranslationGenerator(
                     aiServiceClient,
@@ -41,7 +55,191 @@ class AiPlayTranslationGeneratorTest {
                     liveSignalPublisher,
                     new PlayTranslationProperties(
                             3,
-                            10));
+                            10),
+                    aiCopyContextReader,
+                    gameRepository,
+                    aiFinalHeadlineGenerator);
+
+    @Test
+    void generatePending_shouldRegenerateRevealedAfterImportantTranslationSaved() {
+        Play play =
+                play("Soto singled to center.");
+
+        stubSuccessfulTranslation(play);
+
+        when(
+                playRepository.findPendingPlayTranslations(
+                        eq(GAME_ID),
+                        eq(100L),
+                        eq(3),
+                        any()
+                )
+        ).thenReturn(List.of(play));
+
+        when(
+                aiCopyContextReader.finalHeadlineContext(
+                        GAME_ID,
+                        AiCopyMode.REVEALED
+                )
+        ).thenReturn(
+                Optional.of(
+                        revealedContext(
+                                List.of(
+                                        "DECISIVE_SCORE",
+                                        "HIT"
+                                )
+                        )
+                )
+        );
+
+        when(
+                gameRepository
+                        .markFinalHeadlineRevealedRegenerationAttempted(
+                                eq(GAME_ID),
+                                any(Instant.class)
+                        )
+        ).thenReturn(1);
+
+        when(
+                aiFinalHeadlineGenerator
+                        .regenerateRevealedSynchronously(
+                                GAME_ID
+                        )
+        ).thenReturn(
+                AiFinalHeadlineGenerator
+                        .GenerationStatus
+                        .SAVED
+        );
+
+        generator.generatePending(
+                GAME_ID,
+                100L
+        );
+
+        assertThat(play.getTextKo())
+                .isEqualTo(
+                        "Soto, 중견수 방면 안타"
+                );
+
+        verify(
+                gameRepository
+        ).markFinalHeadlineRevealedRegenerationAttempted(
+                eq(GAME_ID),
+                any(Instant.class)
+        );
+
+        verify(
+                aiFinalHeadlineGenerator
+        ).regenerateRevealedSynchronously(
+                GAME_ID
+        );
+    }
+
+    @Test
+    void generatePending_shouldNotRegenerateWhenDatabaseClaimAlreadyUsed() {
+        Play play =
+                play("Soto singled to center.");
+
+        stubSuccessfulTranslation(play);
+
+        when(
+                playRepository.findPendingPlayTranslations(
+                        eq(GAME_ID),
+                        eq(100L),
+                        eq(3),
+                        any()
+                )
+        ).thenReturn(List.of(play));
+
+        when(
+                aiCopyContextReader.finalHeadlineContext(
+                        GAME_ID,
+                        AiCopyMode.REVEALED
+                )
+        ).thenReturn(
+                Optional.of(
+                        revealedContext(
+                                List.of(
+                                        "DECISIVE_SCORE",
+                                        "HIT"
+                                )
+                        )
+                )
+        );
+
+        when(
+                gameRepository
+                        .markFinalHeadlineRevealedRegenerationAttempted(
+                                eq(GAME_ID),
+                                any(Instant.class)
+                        )
+        ).thenReturn(0);
+
+        generator.generatePending(
+                GAME_ID,
+                100L
+        );
+
+        verify(
+                aiFinalHeadlineGenerator,
+                never()
+        ).regenerateRevealedSynchronously(
+                GAME_ID
+        );
+    }
+
+    @Test
+    void generatePending_shouldNotRegenerateForNonImportantTranslation() {
+        Play play =
+                play("Soto singled to center.");
+
+        stubSuccessfulTranslation(play);
+
+        when(
+                playRepository.findPendingPlayTranslations(
+                        eq(GAME_ID),
+                        eq(100L),
+                        eq(3),
+                        any()
+                )
+        ).thenReturn(List.of(play));
+
+        when(
+                aiCopyContextReader.finalHeadlineContext(
+                        GAME_ID,
+                        AiCopyMode.REVEALED
+                )
+        ).thenReturn(
+                Optional.of(
+                        revealedContext(
+                                List.of(
+                                        "SCORING_PLAY",
+                                        "HIT"
+                                )
+                        )
+                )
+        );
+
+        generator.generatePending(
+                GAME_ID,
+                100L
+        );
+
+        verify(
+                gameRepository,
+                never()
+        ).markFinalHeadlineRevealedRegenerationAttempted(
+                eq(GAME_ID),
+                any(Instant.class)
+        );
+
+        verify(
+                aiFinalHeadlineGenerator,
+                never()
+        ).regenerateRevealedSynchronously(
+                GAME_ID
+        );
+    }
 
     @Test
     void generateSynchronously_shouldSaveTranslationAndPublishGameSignal() {
@@ -444,6 +642,89 @@ class AiPlayTranslationGeneratorTest {
 
         verify(liveSignalPublisher, never())
                 .publishGameSignal(GAME_ID);
+    }
+
+    private void stubSuccessfulTranslation(
+            Play play
+    ) {
+        String contextHash =
+                AiContextHashCalculator
+                        .calculatePlayTranslation(
+                                GAME_ID,
+                                PLAY_ID,
+                                play.getText()
+                        );
+
+        AiPlayTranslationResponse response =
+                new AiPlayTranslationResponse(
+                        "Soto, 중견수 방면 안타",
+                        List.of(),
+                        false,
+                        contextHash
+                );
+
+        when(playRepository.findById(PLAY_ID))
+                .thenReturn(
+                        Optional.of(play),
+                        Optional.of(play)
+                );
+
+        when(aiServiceClient.generatePlayTranslation(any()))
+                .thenReturn(Optional.of(response));
+    }
+
+    private static FinalHeadlineContext revealedContext(
+            List<String> factTags
+    ) {
+        return new FinalHeadlineContext(
+                GAME_ID,
+                AiCopyMode.REVEALED,
+                "STATUS_FINAL",
+                "경기 종료",
+                List.of(),
+                List.of(),
+                List.of(),
+
+                null,
+                null,
+                "home",
+                9,
+                false,
+                false,
+                List.of(),
+
+                null,
+                null,
+                List.of(),
+                List.of(),
+                null,
+                List.of(),
+                List.of(
+                        new FinalHeadlineContext.VerifiedPlay(
+                                PLAY_ID,
+                                100L,
+                                7,
+                                "Bottom",
+                                "Soto singled to center.",
+                                "Soto, 중견수 방면 안타",
+                                5,
+                                3,
+                                true,
+                                1,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                false,
+                                false,
+                                false,
+                                factTags
+                        )
+                ),
+
+                "hash-final"
+        );
     }
 
     private static Play play(

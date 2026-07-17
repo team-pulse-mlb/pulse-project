@@ -61,6 +61,85 @@ class AiFinalHeadlineGenerator {
         return generateSynchronously(gameId, true);
     }
 
+    /**
+     * 중요 플레이 번역 반영용 REVEALED 전용 재생성 경로입니다.
+     *
+     * <p>PROTECTED 헤드라인은 다시 요청하거나 변경하지 않습니다.</p>
+     */
+    GenerationStatus regenerateRevealedSynchronously(
+            long gameId
+    ) {
+        Game current =
+                gameRepository.findById(gameId)
+                        .orElse(null);
+
+        if (current == null || !current.isFinal()) {
+            log.debug(
+                    "AI 공개 헤드라인 재생성 대상 경기 없음/미종료: "
+                            + "gameId={}",
+                    gameId
+            );
+
+            return GenerationStatus.NOT_ELIGIBLE;
+        }
+
+        Optional<AiCopyResult> revealedResult =
+                requestStorableHeadline(
+                        gameId,
+                        AiCopyMode.REVEALED
+                );
+
+        if (revealedResult.isEmpty()) {
+            log.debug(
+                    "AI 공개 헤드라인 재생성 결과 없음: gameId={}",
+                    gameId
+            );
+
+            return GenerationStatus.NOT_GENERATED;
+        }
+
+        Game latest =
+                gameRepository.findById(gameId)
+                        .orElse(null);
+
+        if (latest == null || !latest.isFinal()) {
+            log.debug(
+                    "AI 공개 헤드라인 재생성 저장 대상 없음/미종료: "
+                            + "gameId={}",
+                    gameId
+            );
+
+            return GenerationStatus.NOT_ELIGIBLE;
+        }
+
+        revealedResult = filterLatestContextHash(
+                gameId,
+                AiCopyMode.REVEALED,
+                revealedResult
+        );
+
+        if (revealedResult.isEmpty()) {
+            log.debug(
+                    "AI 공개 헤드라인 재생성 contextHash 불일치: "
+                            + "gameId={}",
+                    gameId
+            );
+
+            return GenerationStatus.NOT_GENERATED;
+        }
+
+        latest.setFinalHeadlineRevealed(
+                revealedResult.orElseThrow().safeTitle()
+        );
+
+        gameRepository.save(latest);
+
+        liveSignalPublisher.publishGameSignal(gameId);
+        liveSignalPublisher.publishRankingSignal();
+
+        return GenerationStatus.SAVED;
+    }
+
     private GenerationStatus generateSynchronously(long gameId, boolean force) {
         Game current = gameRepository.findById(gameId).orElse(null);
         if (current == null || !current.isFinal()) {

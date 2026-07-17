@@ -4,8 +4,13 @@ import com.pulse.ai.AiPlayTranslationRequest;
 import com.pulse.ai.AiPlayTranslationResponse;
 import com.pulse.ai.AiServiceClient;
 import com.pulse.common.ai.AiContextHashCalculator;
+import com.pulse.common.ai.AiCopyContextReader;
+import com.pulse.common.ai.AiCopyMode;
+import com.pulse.common.ai.FinalHeadlineContext;
+import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -36,10 +41,33 @@ class AiPlayTranslationGenerator {
     private static final String TARGET_LANGUAGE = "ko";
     private static final String PLAY_RESULT_TYPE = "Play Result";
 
+    /**
+     * 번역 저장 후 REVEALED FINAL_HEADLINE을 다시 생성할 가치가 있는
+     * 핵심 경기 흐름 태그입니다.
+     *
+     * 단순 안타나 일반 득점만으로는 재생성하지 않습니다.
+     */
+    private static final Set<String>
+            FINAL_HEADLINE_REGENERATION_FACT_TAGS =
+            Set.of(
+                    "DECISIVE_SCORE",
+                    "TYING_SCORE",
+                    "LEAD_CHANGE",
+                    "TAKES_LEAD",
+                    "INSURANCE_SCORE",
+                    "CUTS_DEFICIT",
+                    "COMEBACK_WIN",
+                    "WALK_OFF"
+            );
+
     private final AiServiceClient aiServiceClient;
     private final PlayRepository playRepository;
     private final LiveSignalPublisher liveSignalPublisher;
     private final PlayTranslationProperties properties;
+
+    private final AiCopyContextReader aiCopyContextReader;
+    private final GameRepository gameRepository;
+    private final AiFinalHeadlineGenerator aiFinalHeadlineGenerator;
 
     /**
      * 연속 ScoreTask가 들어와도 같은 play를 동시에 번역하지 않도록
@@ -69,6 +97,8 @@ class AiPlayTranslationGenerator {
                                 0,
                                 properties.batchSize()));
 
+        boolean translationSaved = false;
+
         for (Play play : pending) {
             Long playId = play.getId();
 
@@ -79,13 +109,106 @@ class AiPlayTranslationGenerator {
             }
 
             try {
-                generateSynchronously(
-                        gameId,
-                        playId);
+                GenerationStatus status =
+                        generateSynchronously(
+                                gameId,
+                                playId);
+
+                if (status == GenerationStatus.SAVED) {
+                    translationSaved = true;
+                }
             } finally {
                 inFlightPlayIds.remove(playId);
             }
         }
+
+        /*
+         * 현재 batch의 번역 저장이 모두 끝난 뒤 context를 다시 조회합니다.
+         * 번역된 중요 플레이가 있으면 DB claim을 획득한 한 호출만
+         * REVEALED FINAL_HEADLINE을 재생성합니다.
+         */
+        if (translationSaved) {
+            regenerateRevealedHeadlineIfReady(gameId);
+        }
+    }
+
+    /**
+     * 번역된 중요 verifiedPlay가 context에 반영된 경우에만
+     * REVEALED FINAL_HEADLINE의 일회성 자동 재생성을 시도합니다.
+     */
+    private void regenerateRevealedHeadlineIfReady(
+            long gameId
+    ) {
+        Optional<FinalHeadlineContext> context =
+                aiCopyContextReader.finalHeadlineContext(
+                        gameId,
+                        AiCopyMode.REVEALED
+                );
+
+        if (context.isEmpty()
+                || !containsTranslatedImportantPlay(
+                        context.orElseThrow()
+                )) {
+            return;
+        }
+
+        int acquired =
+                gameRepository
+                        .markFinalHeadlineRevealedRegenerationAttempted(
+                                gameId,
+                                Instant.now()
+                        );
+
+        if (acquired != 1) {
+            log.debug(
+                    "AI 공개 헤드라인 자동 재생성 이미 시도됨: "
+                            + "gameId={}",
+                    gameId
+            );
+            return;
+        }
+
+        AiFinalHeadlineGenerator.GenerationStatus status =
+                aiFinalHeadlineGenerator
+                        .regenerateRevealedSynchronously(
+                                gameId
+                        );
+
+        log.info(
+                "AI 공개 헤드라인 번역 반영 자동 재생성 완료: "
+                        + "gameId={} status={}",
+                gameId,
+                status
+        );
+    }
+
+    /**
+     * verifiedPlay에 번역문과 핵심 경기 흐름 태그가
+     * 함께 존재하는지 확인합니다.
+     */
+    private static boolean containsTranslatedImportantPlay(
+            FinalHeadlineContext context
+    ) {
+        return context.verifiedPlays().stream()
+                .filter(play -> play != null)
+                .filter(
+                        play -> hasText(
+                                play.translatedText()
+                        )
+                )
+                .map(
+                        FinalHeadlineContext
+                                .VerifiedPlay
+                                ::factTags
+                )
+                .filter(tags -> tags != null)
+                .anyMatch(
+                        tags -> tags.stream()
+                                .anyMatch(
+                                        FINAL_HEADLINE_REGENERATION_FACT_TAGS
+                                                ::contains
+                                )
+                );
     }
 
     GenerationStatus generateSynchronously(
