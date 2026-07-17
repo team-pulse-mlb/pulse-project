@@ -7,6 +7,11 @@ CREATE TEMP TABLE fixture_players (LIKE players INCLUDING DEFAULTS) ON COMMIT DR
 CREATE TEMP TABLE fixture_games (LIKE games INCLUDING DEFAULTS) ON COMMIT DROP;
 CREATE TEMP TABLE fixture_plays (LIKE plays INCLUDING DEFAULTS) ON COMMIT DROP;
 
+-- plays.text_ko_attempts는 최신 스키마에서 NOT NULL이므로
+-- 기존 fixture CSV에 없는 값을 0으로 채운다.
+ALTER TABLE fixture_plays
+ALTER COLUMN text_ko_attempts SET DEFAULT 0;
+
 -- COPY는 CSV 헤더명이 아니라 아래 컬럼 위치로 매핑하므로 덤프 순서를 명시한다.
 \copy fixture_teams (team_id, abbreviation, created_at, display_name, division, league, location, logo_team_id, name, short_display_name, slug, updated_at) FROM '/tmp/pulse-fixtures/teams.csv' WITH (FORMAT csv, HEADER true)
 \copy fixture_players (player_id, created_at, first_name, full_name, last_name, position, team_id, updated_at) FROM '/tmp/pulse-fixtures/players.csv' WITH (FORMAT csv, HEADER true)
@@ -128,7 +133,7 @@ INSERT INTO plays (
     away_score, backfilled, balls, batter_id, observed_at, game_id, home_score,
     inning, inning_type, outs, pitcher_id, play_order, runner_on_first,
     runner_on_second, runner_on_third, score_value, scoring_play, source,
-    strikes, text, type
+    strikes, text, type, text_ko_attempts
 )
 SELECT CASE WHEN target.reverse_matchup THEN source.home_score ELSE source.away_score END,
        source.backfilled,
@@ -150,7 +155,8 @@ SELECT CASE WHEN target.reverse_matchup THEN source.home_score ELSE source.away_
        'FIXTURE',
        source.strikes,
        source.text,
-       source.type
+       source.type,
+       COALESCE(source.text_ko_attempts, 0)
 FROM fixture_plays source
 CROSS JOIN (
     VALUES (8800000004::BIGINT, true), (8800000006::BIGINT, false)

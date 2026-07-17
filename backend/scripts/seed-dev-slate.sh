@@ -50,9 +50,15 @@ for fixture_file in \
   fi
 done
 
-# Git Bash(MSYS)는 컨테이너 내부 절대경로 인자를 호스트 경로로 변환하므로 이 호출만 변환을 끈다.
-MSYS_NO_PATHCONV=1 docker exec -i pulse-postgres mkdir -p /tmp/pulse-fixtures
-docker cp "$FIXTURE_DIR/." pulse-postgres:/tmp/pulse-fixtures >/dev/null
+# Git Bash(MSYS)는 컨테이너 내부 절대경로 인자를 호스트 경로로 변환하므로
+# 컨테이너 내부 경로를 쓰는 호출만 변환을 끈다.
+MSYS_NO_PATHCONV=1 docker exec -i pulse-postgres sh -lc "rm -rf /tmp/pulse-fixtures && mkdir -p /tmp/pulse-fixtures"
+
+# docker cp는 Git Bash에서 절대 호스트 경로(/c/...)와 컨테이너 경로(/tmp/...)가 함께 있을 때
+# 경로 변환이 꼬일 수 있으므로 저장소 루트 기준 상대 경로로 복사한다.
+pushd "$PROJECT_DIR" >/dev/null
+MSYS_NO_PATHCONV=1 docker cp "backend/scripts/fixtures/." "pulse-postgres:/tmp/pulse-fixtures/" >/dev/null
+popd >/dev/null
 
 # psql -f 경로도 MSYS가 변환하므로 SQL은 stdin으로 넘긴다. CSV는 컨테이너 /tmp/pulse-fixtures에서 \copy로 읽는다.
 for sql_file in load-fixtures.sql supplement.sql notifications.sql; do
