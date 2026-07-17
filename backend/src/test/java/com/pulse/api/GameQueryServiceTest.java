@@ -259,6 +259,13 @@ class GameQueryServiceTest {
                             assertThat(detail.displayMode())
                                     .isEqualTo(DisplayMode.PROTECTED);
 
+                            /*
+                             * Game의 구장이 보호 LIVE DTO까지
+                             * 연결되는지 검증한다.
+                             */
+                            assertThat(detail.venue())
+                                    .isEqualTo("Wrigley Field");
+
                             assertThat(detail.inning())
                                     .isEqualTo(8);
 
@@ -271,6 +278,47 @@ class GameQueryServiceTest {
                             assertThat(
                                     detail.situation().scoringPosition())
                                     .isTrue();
+                        });
+    }
+
+    @Test
+    void revealedLiveGame_shouldReturnVenue() {
+        // given
+        Game game = liveGame(301L);
+        Play latestPlay = livePlay();
+
+        latestPlay.setGameId(301L);
+
+        when(gameRepository.findById(301L))
+                .thenReturn(Optional.of(game));
+
+        when(
+                playRepository
+                        .findByGameIdOrderByPlayOrderDesc(
+                                eq(301L),
+                                any(Pageable.class)))
+                .thenReturn(List.of(latestPlay));
+
+        // when
+        GameDetailView response =
+                service.getGameDetail(
+                        301L,
+                        "revealed");
+
+        // then
+        assertThat(response)
+                .isInstanceOfSatisfying(
+                        RevealedGameDetailResponse.class,
+                        detail -> {
+                            assertThat(detail.displayMode())
+                                    .isEqualTo(DisplayMode.REVEALED);
+
+                            /*
+                             * Game의 구장이 공개 LIVE DTO까지
+                             * 연결되는지 검증한다.
+                             */
+                            assertThat(detail.venue())
+                                    .isEqualTo("Wrigley Field");
                         });
     }
 
@@ -496,6 +544,11 @@ class GameQueryServiceTest {
         game.setStatus(Game.STATUS_IN_PROGRESS);
         game.setStartTime(
                 Instant.parse("2026-07-14T00:05:00Z"));
+
+        /*
+         * LIVE 상세 구장 연결을 검증하기 위한 값이다.
+         */
+        game.setVenue("Wrigley Field");
 
         game.setPeriod(8);
         game.setHomeRuns(3);

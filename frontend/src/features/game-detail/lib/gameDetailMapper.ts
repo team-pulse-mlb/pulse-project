@@ -318,10 +318,9 @@ export function toLiveGameDetailViewModel(
             response.startTime,
         ),
 
-        /*
-         * 현재 진행 경기 상세 응답에는 구장이 없다.
-         */
-        venue: null,
+        venue:
+            response.venue?.trim()
+            || null,
 
         inning: response.inning,
 
