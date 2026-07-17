@@ -10,164 +10,212 @@ import type { DisplayMode } from '../lib/displayMode';
  * 전달받은 1~5 값을 그대로 그래프에 사용한다.
  */
 export interface TensionPoint {
-  inning: number;
+    inning: number;
 
-  /**
-   * 보호 응답에는 포함되지 않을 수 있다.
-   * 공개 모드에서만 초·말 라벨 표시에 사용한다.
-   */
-  inningType?: 'TOP' | 'BOTTOM';
+    /**
+     * 보호 응답에는 포함되지 않을 수 있다.
+     * 공개 모드에서만 초·말 라벨 표시에 사용한다.
+     */
+    inningType?: 'TOP' | 'BOTTOM';
 
-  level: 1 | 2 | 3 | 4 | 5;
+    level: 1 | 2 | 3 | 4 | 5;
 }
 
 interface TensionCurveProps {
-  mode: DisplayMode;
-  points: TensionPoint[];
+    mode: DisplayMode;
+    points: TensionPoint[];
 }
 
 const WIDTH = 640;
-const HEIGHT = 180;
-const PADDING_X = 24;
-const PADDING_TOP = 16;
-const PADDING_BOTTOM = 32;
+const HEIGHT = 188;
+const PADDING_X = 28;
+const PADDING_TOP = 18;
+const PADDING_BOTTOM = 44;
 
-function getInningLabel(point: TensionPoint, mode: DisplayMode) {
-  /**
-   * 보호 모드에서는 현재 공격 방향을 추측할 수 없도록
-   * 이닝 숫자만 표시한다.
-   */
-  if (mode === 'PROTECTED' || !point.inningType) {
-    return String(point.inning);
-  }
+function getInningLabel(
+    point: TensionPoint,
+    mode: DisplayMode,
+) {
+    /**
+     * 보호 모드에서는 현재 공격 방향을 추측할 수 없도록
+     * 이닝 숫자만 표시한다.
+     */
+    if (
+        mode === 'PROTECTED'
+        || !point.inningType
+    ) {
+        return String(point.inning);
+    }
 
-  return `${point.inning}${
-      point.inningType === 'TOP' ? '초' : '말'
-  }`;
+    return `${point.inning}${
+        point.inningType === 'TOP'
+            ? '초'
+            : '말'
+    }`;
 }
 
-function TensionCurve({ mode, points }: TensionCurveProps) {
-  const gradientId = useId().replace(/:/g, '');
+function TensionCurve({
+    mode,
+    points,
+}: TensionCurveProps) {
+    const gradientId =
+        useId().replace(/:/g, '');
 
-  if (points.length === 0) {
-    return null;
-  }
+    if (points.length === 0) {
+        return null;
+    }
 
-  const innerWidth = WIDTH - PADDING_X * 2;
-  const innerHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+    const baselineY =
+        HEIGHT - PADDING_BOTTOM;
 
-  const getX = (index: number) =>
-      PADDING_X +
-      (points.length === 1
-          ? innerWidth / 2
-          : (index / (points.length - 1)) * innerWidth);
+    const innerWidth =
+        WIDTH - PADDING_X * 2;
 
-  const getY = (level: TensionPoint['level']) =>
-      PADDING_TOP + ((5 - level) / 4) * innerHeight;
+    const innerHeight =
+        baselineY - PADDING_TOP;
 
-  /**
-   * 서버 레벨을 순서대로 직선 연결한다.
-   * 부드러운 곡선 보간이나 임의의 진폭은 추가하지 않는다.
-   */
-  const linePath = points
-      .map(
-          (point, index) =>
-              `${index === 0 ? 'M' : 'L'} ${getX(index).toFixed(1)} ${getY(
-                  point.level,
-              ).toFixed(1)}`,
-      )
-      .join(' ');
+    const getX = (index: number) =>
+        PADDING_X
+        + (
+            points.length === 1
+                ? innerWidth / 2
+                : (index / (points.length - 1)) * innerWidth
+        );
 
-  const baselineY = HEIGHT - PADDING_BOTTOM;
+    const getY = (level: TensionPoint['level']) =>
+        PADDING_TOP
+        + ((5 - level) / 4) * innerHeight;
 
-  const areaPath = [
-    linePath,
-    `L ${getX(points.length - 1).toFixed(1)} ${baselineY}`,
-    `L ${getX(0).toFixed(1)} ${baselineY}`,
-    'Z',
-  ].join(' ');
+    /**
+     * 서버가 내려준 양자화 레벨만 순서대로 연결한다.
+     * 이벤트 노드, 피크 마커, 세로축 숫자는 표시하지 않는다.
+     */
+    const linePath =
+        points
+            .map(
+                (point, index) =>
+                    `${index === 0 ? 'M' : 'L'} ${getX(index).toFixed(1)} ${getY(
+                        point.level,
+                    ).toFixed(1)}`,
+            )
+            .join(' ');
 
-  return (
-      <Card>
-        <h3 className="text-[15px] font-bold text-text-strong">
-          경기 흐름
-        </h3>
+    const areaPath = [
+        linePath,
+        `L ${getX(points.length - 1).toFixed(1)} ${baselineY}`,
+        `L ${getX(0).toFixed(1)} ${baselineY}`,
+        'Z',
+    ].join(' ');
 
-        <p className="mb-4 mt-1 text-[13px] text-text-faint">
-          점수를 드러내지 않는 이닝별 긴장도입니다
-        </p>
+    const description =
+        mode === 'PROTECTED'
+            ? '점수를 드러내지 않는 이닝별 긴장 흐름입니다.'
+            : '하프이닝 단위까지 압축한 경기 긴장 흐름입니다.';
 
-        <div className="overflow-x-auto">
-          <svg
-              viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-              className="min-w-[480px] w-full"
-              role="img"
-              aria-label="이닝별 긴장도 곡선"
-          >
-            <defs>
-              <linearGradient
-                  id={gradientId}
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-              >
-                <stop
-                    offset="0%"
-                    stopColor="#E4002B"
-                    stopOpacity="0.18"
-                />
-                <stop
-                    offset="100%"
-                    stopColor="#E4002B"
-                    stopOpacity="0"
-                />
-              </linearGradient>
-            </defs>
+    return (
+        <Card>
+            <div className="mb-4">
+                <h3 className="text-[15px] font-bold text-text-strong">
+                    경기 맥박
+                </h3>
 
-            {/* 세로축 숫자는 표시하지 않고 이닝 위치만 구분한다. */}
-            {points.map((point, index) => (
-                <line
-                    key={`grid-${point.inning}-${point.inningType ?? 'FULL'}-${index}`}
-                    x1={getX(index)}
-                    x2={getX(index)}
-                    y1={PADDING_TOP}
-                    y2={baselineY}
-                    stroke="#F1F3F6"
-                    strokeWidth="1"
-                />
-            ))}
+                <p className="mt-1 text-[13px] text-text-faint">
+                    {description}
+                </p>
+            </div>
 
-            <path
-                d={areaPath}
-                fill={`url(#${gradientId})`}
-            />
-
-            <path
-                d={linePath}
-                fill="none"
-                stroke="#E4002B"
-                strokeWidth="2.5"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-            />
-
-            {points.map((point, index) => (
-                <text
-                    key={`label-${point.inning}-${point.inningType ?? 'FULL'}-${index}`}
-                    x={getX(index)}
-                    y={HEIGHT - 10}
-                    textAnchor="middle"
-                    className="fill-text-faint"
-                    fontSize="11"
+            <div className="overflow-x-auto">
+                <svg
+                    viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+                    className="min-w-[480px] w-full"
+                    role="img"
+                    aria-label="종료 경기 긴장도 곡선"
                 >
-                  {getInningLabel(point, mode)}
-                </text>
-            ))}
-          </svg>
-        </div>
-      </Card>
-  );
+                    <defs>
+                        <linearGradient
+                            id={gradientId}
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                        >
+                            <stop
+                                offset="0%"
+                                stopColor="#E4002B"
+                                stopOpacity="0.18"
+                            />
+                            <stop
+                                offset="100%"
+                                stopColor="#E4002B"
+                                stopOpacity="0"
+                            />
+                        </linearGradient>
+                    </defs>
+
+                    <path
+                        d={areaPath}
+                        fill={`url(#${gradientId})`}
+                    />
+
+                    <path
+                        d={linePath}
+                        fill="none"
+                        stroke="#E4002B"
+                        strokeWidth="2.5"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                    />
+
+                    {/*
+                     * 가로축에는 숫자 눈금을 두지 않고,
+                     * 이닝 위치를 알려주는 얇은 기준선과 짧은 눈금만 표시한다.
+                     */}
+                    <line
+                        x1={PADDING_X}
+                        x2={WIDTH - PADDING_X}
+                        y1={baselineY}
+                        y2={baselineY}
+                        stroke="#D8DDE6"
+                        strokeWidth="1"
+                    />
+
+                    {points.map((point, index) => {
+                        const x =
+                            getX(index);
+
+                        return (
+                            <line
+                                key={`tick-${point.inning}-${point.inningType ?? 'FULL'}-${index}`}
+                                x1={x}
+                                x2={x}
+                                y1={baselineY}
+                                y2={baselineY + 6}
+                                stroke="#D8DDE6"
+                                strokeWidth="1"
+                                strokeLinecap="round"
+                            />
+                        );
+                    })}
+
+                    {points.map((point, index) => (
+                        <text
+                            key={`label-${point.inning}-${point.inningType ?? 'FULL'}-${index}`}
+                            x={getX(index)}
+                            y={HEIGHT - 12}
+                            textAnchor="middle"
+                            className="fill-text-faint"
+                            fontSize="11"
+                        >
+                            {getInningLabel(
+                                point,
+                                mode,
+                            )}
+                        </text>
+                    ))}
+                </svg>
+            </div>
+        </Card>
+    );
 }
 
 export default TensionCurve;

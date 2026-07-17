@@ -2,6 +2,7 @@ package com.pulse.api;
 
 import com.pulse.api.GameQueryService.*;
 import com.pulse.domain.*;
+import com.pulse.scorer.TensionCurveQueryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Pageable;
 
@@ -31,13 +32,17 @@ class GameQueryServiceTest {
     private final LineupRepository lineupRepository =
             mock(LineupRepository.class);
 
+    private final TensionCurveQueryService tensionCurveQueryService =
+            mock(TensionCurveQueryService.class);
+
     private final GameQueryService service =
             new GameQueryService(
                     gameRepository,
                     teamRepository,
                     playRepository,
                     playerRepository,
-                    lineupRepository);
+                    lineupRepository,
+                    tensionCurveQueryService);
 
     @Test
     void scheduledGame_shouldReturnScheduledDetailEvenWhenRevealedIsRequested() {
@@ -139,6 +144,20 @@ class GameQueryServiceTest {
                 .thenReturn(
                         List.of(incompleteScoringPlay));
 
+        when(
+                tensionCurveQueryService
+                        .getRevealedCurve(200L))
+                .thenReturn(
+                        List.of(
+                                new TensionCurveQueryService.RevealedPoint(
+                                        1,
+                                        "Top",
+                                        2),
+                                new TensionCurveQueryService.RevealedPoint(
+                                        2,
+                                        "Bottom",
+                                        4)));
+
         // when
         GameDetailView response =
                 service.getGameDetail(
@@ -182,6 +201,17 @@ class GameQueryServiceTest {
                                                         scoringPlay.inningType())
                                                         .isEqualTo("Bottom");
                                             });
+
+                            assertThat(detail.tensionCurve())
+                                    .containsExactly(
+                                            new RevealedTensionPointResponse(
+                                                    1,
+                                                    "Top",
+                                                    2),
+                                            new RevealedTensionPointResponse(
+                                                    2,
+                                                    "Bottom",
+                                                    4));
                         });
 
         /*
