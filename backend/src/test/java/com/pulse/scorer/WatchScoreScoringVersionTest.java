@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.config.ScoringProperties;
-import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
@@ -54,7 +53,7 @@ class WatchScoreScoringVersionTest {
                 mock(SurgeDetector.class),
                 mock(TimelineHighlightTrigger.class),
                 mock(AiGenerationTrigger.class),
-                mock(NotificationEventPublisher.class),
+                mock(SurgeNotificationPublisher.class),
                 properties);
 
         service.handle(new ScoreTask(GAME_ID, OBSERVED_AT, null, "LIVE", null));

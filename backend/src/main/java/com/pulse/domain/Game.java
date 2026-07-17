@@ -89,6 +89,15 @@ public class Game {
 
     private Instant observedAt;
 
+    /** FINAL 경기의 일회성 종료 후처리를 최초 확정한 시각. */
+    private Instant finalizedAt;
+
+    /** DONE terminal task를 최초 처리한 시각. */
+    private Instant terminalDoneAt;
+
+    /** SUSPENDED_POSTPONED terminal task를 최초 처리한 시각. */
+    private Instant terminalSuspendedPostponedAt;
+
     private Instant updatedAt;
 
     private Instant createdAt;

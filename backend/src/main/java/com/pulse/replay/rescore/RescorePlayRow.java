@@ -15,6 +15,9 @@ record RescorePlayRow(
         Integer outs,
         Integer balls,
         Integer strikes,
+        Boolean runnerOnFirst,
+        Boolean runnerOnSecond,
+        Boolean runnerOnThird,
         Instant observedAt,
         Boolean backfilled,
         String source

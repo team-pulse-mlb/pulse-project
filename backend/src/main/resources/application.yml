@@ -22,7 +22,9 @@ spring:
     password: ${POSTGRES_PASSWORD:pulse}
   jpa:
     hibernate:
-      ddl-auto: update    # 3주 프로젝트 기준. 스키마 확정 후 validate 전환 검토
+      # 기본값은 스키마를 건드리지 않는다. 프로파일 없이 운영 DB에 붙어도 안전하도록 none을 유지하고,
+      # 로컬 개발에서 스키마 자동 반영이 필요하면 local 프로파일을 켠다(application-local.yml).
+      ddl-auto: none
     open-in-view: false
     properties:
       hibernate:
@@ -38,6 +40,7 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:pulse}
     password: ${RABBITMQ_PASSWORD:pulse}
+    publisher-confirm-type: correlated
     listener:
       simple:
         default-requeue-rejected: false   # 처리 실패 메시지는 재큐잉 대신 DLQ로
@@ -120,6 +123,8 @@ pulse:
   bdl:
     base-url: https://api.balldontlie.io
     api-key: ${BDL_API_KEY:}
+    connect-timeout: ${PULSE_BDL_CONNECT_TIMEOUT:2s}
+    read-timeout: ${PULSE_BDL_READ_TIMEOUT:10s}
   ai:
     base-url: ${PULSE_AI_BASE_URL:http://localhost:8000}
     event-copy-retry:
@@ -139,7 +144,11 @@ pulse:
     enabled: ${PULSE_POLLER_ENABLED:false}
     tick-delay-ms: ${PULSE_POLLER_TICK_DELAY_MS:20000}
     tick-interval: ${PULSE_POLLER_TICK_INTERVAL:20s}
+    # 동시 라이브 15경기 기준 분당 약 12건의 RabbitMQ task 증가이며 외부 API 호출은 늘지 않는다.
+    heartbeat-interval: ${PULSE_POLLER_HEARTBEAT_INTERVAL:75s}
     idle-games-interval: ${PULSE_POLLER_IDLE_GAMES_INTERVAL:10m}
+    scheduled-games-near-threshold: ${PULSE_POLLER_SCHEDULED_GAMES_NEAR_THRESHOLD:15m}
+    scheduled-games-interval: ${PULSE_POLLER_SCHEDULED_GAMES_INTERVAL:20s}
     slate-lookback-days: ${PULSE_POLLER_SLATE_LOOKBACK_DAYS:1}
     slate-lookahead-days: ${PULSE_POLLER_SLATE_LOOKAHEAD_DAYS:2}
     max-play-pages-per-game: ${PULSE_POLLER_MAX_PLAY_PAGES_PER_GAME:5}
@@ -156,11 +165,20 @@ pulse:
       region: ${AWS_REGION:ap-northeast-2}
   scorer:
     enabled: ${PULSE_SCORER_ENABLED:true}
+    # SURGE 알림 빈도 제어 캐시의 비상 TTL. Redis 재시작 시 초기화되어도 허용한다.
+    redis-emergency-ttl-ms: ${PULSE_SCORER_REDIS_EMERGENCY_TTL_MS:172800000}
+    finalization-recovery-delay-ms: ${PULSE_SCORER_FINALIZATION_RECOVERY_DELAY_MS:900000}
+    # 복구 스캔 대상을 최근 갱신 terminal 경기로 한정하는 창. finalized 키 비상 TTL보다 짧게 유지한다.
+    finalization-recovery-window-ms: ${PULSE_SCORER_FINALIZATION_RECOVERY_WINDOW_MS:86400000}
   score-task-outbox:
     dispatch-delay: ${PULSE_SCORE_TASK_OUTBOX_DISPATCH_DELAY:5s}
     retry-initial-interval: ${PULSE_SCORE_TASK_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
     retry-max-interval: ${PULSE_SCORE_TASK_OUTBOX_RETRY_MAX_INTERVAL:5m}
     batch-size: ${PULSE_SCORE_TASK_OUTBOX_BATCH_SIZE:50}
+    confirm-timeout: ${PULSE_SCORE_TASK_OUTBOX_CONFIRM_TIMEOUT:10s}
+    retention-period: ${PULSE_SCORE_TASK_OUTBOX_RETENTION_PERIOD:7d}
+    cleanup-delay: ${PULSE_SCORE_TASK_OUTBOX_CLEANUP_DELAY:1h}
+    cleanup-batch-size: ${PULSE_SCORE_TASK_OUTBOX_CLEANUP_BATCH_SIZE:500}
   notification-outbox:
     dispatch-delay: ${PULSE_NOTIFICATION_OUTBOX_DISPATCH_DELAY:5s}
     retry-initial-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
@@ -170,7 +188,13 @@ pulse:
     enabled: ${PULSE_SSE_ENABLED:true}
     heartbeat-interval: ${PULSE_SSE_HEARTBEAT_INTERVAL:25s}
     connection-ttl: ${PULSE_SSE_CONNECTION_TTL:60m}
-    max-connections: ${PULSE_SSE_MAX_CONNECTIONS:1000}
+    anonymous-max-connections: ${PULSE_SSE_ANONYMOUS_MAX_CONNECTIONS:1000}
+    authenticated-max-connections: ${PULSE_SSE_AUTHENTICATED_MAX_CONNECTIONS:1000}
+    broadcast-threads: ${PULSE_SSE_BROADCAST_THREADS:8}
+    broadcast-queue-capacity: ${PULSE_SSE_BROADCAST_QUEUE_CAPACITY:1024}
+  home:
+    ranking-cache:
+      ttl: ${PULSE_HOME_RANKING_CACHE_TTL:3s}
 
 server:
   port: 8080

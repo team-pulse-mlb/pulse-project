@@ -110,6 +110,7 @@ services:
     healthcheck: *app-healthcheck
 
   redis:
+    # Redis는 영속 상태를 보관하지 않는 순수 캐시다. 볼륨·AOF를 추가하지 않으며 라이브 랭킹은 scorer 기동 시 DB에서 복원한다.
     image: redis:7-alpine
     container_name: pulse-redis
     restart: unless-stopped
@@ -214,7 +215,7 @@ services:
     profiles: ["batch"]
     restart: "no"
     environment:
-      # prod 없이 기동하면 base 설정의 ddl-auto: update가 운영 스키마를 건드린다.
+      # 기본 프로파일 ddl-auto가 none이라 prod 누락 시에도 스키마는 안전하지만, 운영 설정 일관성을 위해 prod를 명시한다.
       SPRING_PROFILES_ACTIVE: prod,replay
       PULSE_POLLER_ENABLED: "false"
       PULSE_SCORER_ENABLED: "false"

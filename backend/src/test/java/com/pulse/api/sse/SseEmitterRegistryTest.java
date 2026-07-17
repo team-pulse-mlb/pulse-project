@@ -6,10 +6,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -17,8 +21,13 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 class SseEmitterRegistryTest {
 
     private final SseEmitterRegistry registry = new SseEmitterRegistry(
-            new SseProperties(Duration.ofSeconds(25), Duration.ofMinutes(60), 2)
+            new SseProperties(Duration.ofSeconds(25), Duration.ofMinutes(60), 2, 2, 2, 16)
     );
+
+    @AfterEach
+    void tearDown() {
+        registry.shutdownBroadcastExecutor();
+    }
 
     @Test
     @DisplayName("subscribe는 연결을 등록하고 TTL이 설정된 emitter를 반환한다")
@@ -50,8 +59,8 @@ class SseEmitterRegistryTest {
         registry.broadcast("ranking_changed", "{\"sequence\":1}");
 
         // 등록 시 connected 코멘트 1회 + 브로드캐스트 1회
-        verify(first, times(2)).send(any(SseEmitter.SseEventBuilder.class));
-        verify(second, times(2)).send(any(SseEmitter.SseEventBuilder.class));
+        verify(first, timeout(1000).times(2)).send(any(SseEmitter.SseEventBuilder.class));
+        verify(second, timeout(1000).times(2)).send(any(SseEmitter.SseEventBuilder.class));
     }
 
     @Test
@@ -64,8 +73,8 @@ class SseEmitterRegistryTest {
 
         registry.broadcast("game_updated", "{\"gameId\":1}");
 
+        verify(broken, timeout(1000)).complete();
         assertThat(registry.activeConnectionCount()).isZero();
-        verify(broken).complete();
     }
 
     @Test
@@ -178,18 +187,98 @@ class SseEmitterRegistryTest {
          * connected 코멘트 1회
          * ranking_changed 1회
          */
-        verify(anonymousEmitter, times(2))
+        verify(anonymousEmitter, timeout(1000).times(2))
                 .send(
                         any(
                                 SseEmitter.SseEventBuilder.class
                         )
                 );
 
-        verify(authenticatedEmitter, times(2))
+        verify(authenticatedEmitter, timeout(1000).times(2))
                 .send(
                         any(
                                 SseEmitter.SseEventBuilder.class
                         )
                 );
+    }
+
+    @Test
+    @DisplayName("느린 연결이 있어도 broadcast 호출과 다른 연결 전송은 막히지 않는다")
+    void broadcast_shouldIsolateSlowEmitter() throws Exception {
+        SseEmitter slow = mock(SseEmitter.class);
+        SseEmitter fast = mock(SseEmitter.class);
+        registry.register(slow);
+        registry.register(fast);
+        CountDownLatch slowStarted = new CountDownLatch(1);
+        CountDownLatch releaseSlow = new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            slowStarted.countDown();
+            releaseSlow.await(2, TimeUnit.SECONDS);
+            return null;
+        }).when(slow).send(any(SseEmitter.SseEventBuilder.class));
+
+        long startedAt = System.nanoTime();
+        registry.broadcast("ranking_changed", "{\"sequence\":1}");
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+
+        try {
+            assertThat(elapsedMillis).isLessThan(500);
+            assertThat(slowStarted.await(1, TimeUnit.SECONDS)).isTrue();
+            verify(fast, timeout(1000).times(2)).send(any(SseEmitter.SseEventBuilder.class));
+        } finally {
+            releaseSlow.countDown();
+        }
+    }
+
+    @Test
+    @DisplayName("bounded queue가 가득 차도 broadcast 호출 스레드에서 전송하지 않는다")
+    void broadcast_shouldNotRunRejectedTaskOnCallerThread() throws Exception {
+        SseEmitterRegistry saturatedRegistry = new SseEmitterRegistry(
+                new SseProperties(Duration.ofSeconds(25), Duration.ofMinutes(60), 3, 3, 1, 1));
+        SseEmitter first = mock(SseEmitter.class);
+        SseEmitter second = mock(SseEmitter.class);
+        SseEmitter third = mock(SseEmitter.class);
+        saturatedRegistry.register(first);
+        saturatedRegistry.register(second);
+        saturatedRegistry.register(third);
+        CountDownLatch sendStarted = new CountDownLatch(1);
+        CountDownLatch releaseSend = new CountDownLatch(1);
+        for (SseEmitter emitter : java.util.List.of(first, second, third)) {
+            org.mockito.Mockito.doAnswer(invocation -> {
+                sendStarted.countDown();
+                releaseSend.await(2, TimeUnit.SECONDS);
+                return null;
+            }).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
+        }
+
+        long startedAt = System.nanoTime();
+        saturatedRegistry.broadcast("game_updated", "{\"gameId\":1}");
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+
+        try {
+            assertThat(elapsedMillis).isLessThan(500);
+            assertThat(sendStarted.await(1, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            releaseSend.countDown();
+            saturatedRegistry.shutdownBroadcastExecutor();
+        }
+    }
+
+    @Test
+    @DisplayName("익명 연결 상한이 가득 차도 인증 연결 quota는 소진되지 않는다")
+    void subscribe_shouldSeparateAnonymousAndAuthenticatedQuotas() {
+        registry.subscribe();
+        registry.subscribe();
+
+        assertThatThrownBy(registry::subscribe)
+                .isInstanceOf(SseConnectionLimitExceededException.class);
+
+        registry.subscribe(7L);
+        registry.subscribe(8L);
+
+        assertThat(registry.activeConnectionCount()).isEqualTo(4);
+        assertThat(registry.activeAnonymousConnectionCount()).isEqualTo(2);
+        assertThatThrownBy(() -> registry.subscribe(9L))
+                .isInstanceOf(SseConnectionLimitExceededException.class);
     }
 }

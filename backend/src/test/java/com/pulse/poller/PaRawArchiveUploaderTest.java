@@ -60,7 +60,10 @@ class PaRawArchiveUploaderTest {
         return new PollerProperties(
                 true,
                 Duration.ofSeconds(20),
+                Duration.ofSeconds(75),
                 Duration.ofMinutes(10),
+                Duration.ofMinutes(15),
+                Duration.ofSeconds(20),
                 0,
                 0,
                 5,

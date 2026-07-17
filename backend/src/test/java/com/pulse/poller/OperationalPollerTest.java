@@ -2,7 +2,10 @@ package com.pulse.poller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -27,10 +30,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 
@@ -41,14 +46,20 @@ class OperationalPollerTest {
     private final PlayRepository playRepository = mock(PlayRepository.class);
     private final PollerGameWriter gameWriter = mock(PollerGameWriter.class);
     private final ScoreTaskPublisher scoreTaskPublisher = mock(ScoreTaskPublisher.class);
+    private final LiveGameCycleWriter liveGameCycleWriter = new LiveGameCycleWriter(
+            gameWriter,
+            playRepository,
+            new ScoreTaskFactory(),
+            scoreTaskPublisher
+    );
     private final NotificationEventPublisher notificationEventPublisher = mock(NotificationEventPublisher.class);
     private final PaRawArchiveUploader paRawArchiveUploader = mock(PaRawArchiveUploader.class);
     private final Instant now = Instant.parse("2026-07-08T00:00:00Z");
     private final OperationalPoller poller = new OperationalPoller(
             balldontlieClient,
             gameRepository,
-            playRepository,
             gameWriter,
+            liveGameCycleWriter,
             new ScoreTaskFactory(),
             scoreTaskPublisher,
             notificationEventPublisher,
@@ -63,7 +74,7 @@ class OperationalPollerTest {
         Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
         BdlPlay fetchedPlay = play(1L, 10L);
         Play latestPlay = persistedPlay(1L, 10L, true, true, false);
-        when(balldontlieClient.getGames(now.atZone(ZoneOffset.UTC).toLocalDate()))
+        when(balldontlieClient.getGames(anyList()))
                 .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
         when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
                 .thenReturn(new PollerGameWriter.GameUpsertResult(
@@ -96,9 +107,11 @@ class OperationalPollerTest {
     }
 
     @Test
-    void poll_shouldPublishTerminalTaskOnlyWhenLiveGameLeavesLiveState() {
+    void poll_shouldDrainRemainingPlaysBeforePublishingTerminalTask() {
         Game finalGame = game(GameLifecycle.FINAL.name(), 7L);
-        when(balldontlieClient.getGames(now.atZone(ZoneOffset.UTC).toLocalDate()))
+        BdlPlay finalPlay = play(8L, 10L);
+        Play latestPlay = persistedPlay(8L, 10L, false, false, false);
+        when(balldontlieClient.getGames(anyList()))
                 .thenReturn(List.of(gameDto(Game.STATUS_FINAL)));
         when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
                 .thenReturn(new PollerGameWriter.GameUpsertResult(
@@ -107,13 +120,58 @@ class OperationalPollerTest {
                         GameLifecycle.FINAL.name(),
                         true
                 ));
+        when(balldontlieClient.getPlays(100L, 7L))
+                .thenReturn(new ListResponse<>(List.of(finalPlay), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of(plateAppearance(1L, 10L))));
+        when(gameWriter.appendPlay(finalGame, finalPlay, now)).thenAnswer(invocation -> {
+            finalGame.setLastPlayOrder(8L);
+            return true;
+        });
+        when(gameWriter.updateRunnerStates(eq(100L), any()))
+                .thenReturn(new PollerRunnerStateMatcher.MatchResult(List.of(), 0, 0));
+        when(playRepository.findByGameIdOrderByPlayOrderDesc(
+                100L,
+                org.springframework.data.domain.PageRequest.of(0, 1)
+        )).thenReturn(List.of(latestPlay));
+
+        poller.poll();
+
+        ArgumentCaptor<ScoreTask> taskCaptor = ArgumentCaptor.forClass(ScoreTask.class);
+        verify(scoreTaskPublisher, times(2)).publish(taskCaptor.capture());
+        assertThat(taskCaptor.getAllValues()).extracting(ScoreTask::lifecycleState)
+                .containsExactly(GameLifecycle.LIVE.name(), GameLifecycle.FINAL.name());
+        assertThat(taskCaptor.getAllValues()).extracting(ScoreTask::lastPlayOrder)
+                .containsExactly(8L, 8L);
+        assertThat(taskCaptor.getAllValues()).extracting(ScoreTask::observedAt)
+                .containsExactly(now, now.plusMillis(1));
+        InOrder inOrder = inOrder(gameWriter, scoreTaskPublisher);
+        inOrder.verify(gameWriter).appendPlay(finalGame, finalPlay, now);
+        inOrder.verify(scoreTaskPublisher).publish(taskCaptor.getAllValues().get(0));
+        inOrder.verify(scoreTaskPublisher).publish(taskCaptor.getAllValues().get(1));
+    }
+
+    @Test
+    void poll_shouldPublishTerminalTaskWhenScheduledGameTransitionsDirectlyToFinal() {
+        Game finalGame = game(GameLifecycle.FINAL.name(), null);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_FINAL)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
+                .thenReturn(new PollerGameWriter.GameUpsertResult(
+                        finalGame,
+                        GameLifecycle.SCHEDULED.name(),
+                        GameLifecycle.FINAL.name(),
+                        false
+                ));
+        when(balldontlieClient.getPlays(100L, null))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
 
         poller.poll();
 
         ArgumentCaptor<ScoreTask> taskCaptor = ArgumentCaptor.forClass(ScoreTask.class);
         verify(scoreTaskPublisher).publish(taskCaptor.capture());
+        verify(balldontlieClient, never()).getPlateAppearancesRaw(100L);
         assertThat(taskCaptor.getValue().lifecycleState()).isEqualTo(GameLifecycle.FINAL.name());
-        assertThat(taskCaptor.getValue().situation()).isNull();
     }
 
     @Test
@@ -123,12 +181,14 @@ class OperationalPollerTest {
         BdlPlay firstPlay = play(1L, 10L);
         BdlPlay secondPlay = play(1L, 20L);
         Play latestPlay = persistedPlay(200L, 1L, 20L, true, false, false);
-        when(balldontlieClient.getGames(now.atZone(ZoneOffset.UTC).toLocalDate()))
+        when(balldontlieClient.getGames(anyList()))
                 .thenReturn(List.of(gameDto(100L, Game.STATUS_IN_PROGRESS), gameDto(200L, Game.STATUS_IN_PROGRESS)));
         when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
                 .thenReturn(liveResult(firstGame), liveResult(secondGame));
         when(balldontlieClient.getPlays(100L, 1L))
                 .thenReturn(new ListResponse<>(List.of(firstPlay), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
         when(gameWriter.appendPlay(firstGame, firstPlay, now)).thenThrow(new RuntimeException("저장 실패"));
         when(balldontlieClient.getPlays(200L, 1L))
                 .thenReturn(new ListResponse<>(List.of(secondPlay), new ListResponse.Meta(null, 100)));
@@ -150,7 +210,7 @@ class OperationalPollerTest {
     void poll_shouldStopRemainingGamesAndRecordBackoffWhenRateLimited() {
         Game firstGame = game(100L, GameLifecycle.LIVE.name(), 1L);
         Game secondGame = game(200L, GameLifecycle.LIVE.name(), 1L);
-        when(balldontlieClient.getGames(now.atZone(ZoneOffset.UTC).toLocalDate()))
+        when(balldontlieClient.getGames(anyList()))
                 .thenReturn(List.of(gameDto(100L, Game.STATUS_IN_PROGRESS), gameDto(200L, Game.STATUS_IN_PROGRESS)));
         when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
                 .thenReturn(liveResult(firstGame), liveResult(secondGame));
@@ -167,17 +227,144 @@ class OperationalPollerTest {
     }
 
     @Test
-    void poll_shouldRequestTodayAndNextTwoDaysWhenLookaheadIsTwoDays() {
-        OperationalPoller twoDayLookaheadPoller = poller(now, 2);
-        when(balldontlieClient.getGames(any(LocalDate.class))).thenReturn(List.of());
+    void poll_shouldPublishHeartbeatAfterIntervalWhenNoNewPlay() {
+        MutableClock clock = new MutableClock(now);
+        OperationalPoller heartbeatPoller = poller(clock, 0);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
+        BdlPlay fetchedPlay = play(2L, 10L);
+        Play latestPlay = persistedPlay(2L, 10L, false, true, false);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), any(Instant.class)))
+                .thenReturn(liveResult(liveGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenReturn(new ListResponse<>(List.of(fetchedPlay), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlays(100L, 2L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
+        when(gameWriter.appendPlay(liveGame, fetchedPlay, now)).thenAnswer(invocation -> {
+            liveGame.setLastPlayOrder(2L);
+            return true;
+        });
+        when(gameWriter.updateRunnerStates(100L, List.of()))
+                .thenReturn(new PollerRunnerStateMatcher.MatchResult(List.of(), 0, 0));
+        when(playRepository.findByGameIdOrderByPlayOrderDesc(
+                100L,
+                org.springframework.data.domain.PageRequest.of(0, 1)
+        )).thenReturn(List.of(latestPlay));
 
-        twoDayLookaheadPoller.poll();
+        heartbeatPoller.poll();
+        clearInvocations(scoreTaskPublisher, balldontlieClient);
+        clock.advance(Duration.ofSeconds(75));
+
+        heartbeatPoller.poll();
+
+        ArgumentCaptor<ScoreTask> taskCaptor = ArgumentCaptor.forClass(ScoreTask.class);
+        verify(scoreTaskPublisher).publish(taskCaptor.capture());
+        verify(balldontlieClient, never()).getPlateAppearancesRaw(100L);
+        assertThat(taskCaptor.getValue().observedAt()).isEqualTo(now.plusSeconds(75));
+        assertThat(taskCaptor.getValue().lastPlayOrder()).isEqualTo(2L);
+        assertThat(taskCaptor.getValue().plateAppearances()).isEmpty();
+    }
+
+    @Test
+    void poll_shouldNotPublishHeartbeatBeforeInterval() {
+        MutableClock clock = new MutableClock(now);
+        OperationalPoller heartbeatPoller = poller(clock, 0);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
+        BdlPlay fetchedPlay = play(2L, 10L);
+        Play latestPlay = persistedPlay(2L, 10L, false, true, false);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), any(Instant.class)))
+                .thenReturn(liveResult(liveGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenReturn(new ListResponse<>(List.of(fetchedPlay), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlays(100L, 2L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
+        when(gameWriter.appendPlay(liveGame, fetchedPlay, now)).thenAnswer(invocation -> {
+            liveGame.setLastPlayOrder(2L);
+            return true;
+        });
+        when(gameWriter.updateRunnerStates(100L, List.of()))
+                .thenReturn(new PollerRunnerStateMatcher.MatchResult(List.of(), 0, 0));
+        when(playRepository.findByGameIdOrderByPlayOrderDesc(
+                100L,
+                org.springframework.data.domain.PageRequest.of(0, 1)
+        )).thenReturn(List.of(latestPlay));
+
+        heartbeatPoller.poll();
+        clearInvocations(scoreTaskPublisher, balldontlieClient);
+        clock.advance(Duration.ofSeconds(74));
+
+        heartbeatPoller.poll();
+
+        verify(scoreTaskPublisher, never()).publish(any(ScoreTask.class));
+        verify(balldontlieClient, never()).getPlateAppearancesRaw(100L);
+    }
+
+    @Test
+    void poll_shouldPublishOnlyRegularTaskWhenNewPlayExists() {
+        Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
+        BdlPlay fetchedPlay = play(2L, 10L);
+        Play latestPlay = persistedPlay(2L, 10L, false, false, false);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now))).thenReturn(liveResult(liveGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenReturn(new ListResponse<>(List.of(fetchedPlay), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
+        when(gameWriter.appendPlay(liveGame, fetchedPlay, now)).thenReturn(true);
+        when(gameWriter.updateRunnerStates(100L, List.of()))
+                .thenReturn(new PollerRunnerStateMatcher.MatchResult(List.of(), 0, 0));
+        when(playRepository.findByGameIdOrderByPlayOrderDesc(
+                100L,
+                org.springframework.data.domain.PageRequest.of(0, 1)
+        )).thenReturn(List.of(latestPlay));
+
+        poller.poll();
+
+        verify(scoreTaskPublisher, times(1)).publish(any(ScoreTask.class));
+    }
+
+    @Test
+    void poll_shouldSkipHeartbeatWhenStoredPlayDoesNotExist() {
+        Game liveGame = game(GameLifecycle.LIVE.name(), null);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now))).thenReturn(liveResult(liveGame));
+        when(balldontlieClient.getPlays(100L, null))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+        when(playRepository.findByGameIdOrderByPlayOrderDesc(
+                100L,
+                org.springframework.data.domain.PageRequest.of(0, 1)
+        )).thenReturn(List.of());
+
+        poller.poll();
+
+        verify(scoreTaskPublisher, never()).publish(any(ScoreTask.class));
+        verify(balldontlieClient, never()).getPlateAppearancesRaw(100L);
+    }
+
+    @Test
+    void 사일_슬레이트를_games_한_번으로_조회한다() {
+        OperationalPoller fourDaySlatePoller = poller(now, 2, 1);
+        when(balldontlieClient.getGames(anyList())).thenReturn(List.of());
+
+        fourDaySlatePoller.poll();
 
         LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
-        verify(balldontlieClient).getGames(today);
-        verify(balldontlieClient).getGames(today.plusDays(1));
-        verify(balldontlieClient).getGames(today.plusDays(2));
-        verify(balldontlieClient, times(3)).getGames(any(LocalDate.class));
+        verify(balldontlieClient).getGames(List.of(
+                today.minusDays(1),
+                today,
+                today.plusDays(1),
+                today.plusDays(2)
+        ));
+        verify(balldontlieClient, times(1)).getGames(anyList());
     }
 
     @Test
@@ -186,11 +373,42 @@ class OperationalPollerTest {
         Instant gameStartAtBoundary = afternoonNow.plus(Duration.ofHours(36));
         LocalDate gameDate = LocalDate.ofInstant(gameStartAtBoundary, ZoneOffset.UTC);
         OperationalPoller twoDayLookaheadPoller = poller(afternoonNow, 2);
-        when(balldontlieClient.getGames(any(LocalDate.class))).thenReturn(List.of());
+        when(balldontlieClient.getGames(anyList())).thenReturn(List.of());
 
         twoDayLookaheadPoller.poll();
 
-        verify(balldontlieClient).getGames(gameDate);
+        verify(balldontlieClient).getGames(
+                org.mockito.ArgumentMatchers.<List<LocalDate>>argThat(dates -> dates.contains(gameDate)));
+    }
+
+    @Test
+    void 예정_경기_시작이_임박하면_tick_간격으로_조회한다() {
+        MutableClock clock = new MutableClock(now);
+        OperationalPoller scheduleAwarePoller = poller(clock, 0);
+        when(balldontlieClient.getGames(anyList())).thenReturn(List.of());
+        when(gameRepository.findNextScheduledStartTime(now.minus(Duration.ofMinutes(15))))
+                .thenReturn(now.plus(Duration.ofMinutes(10)));
+
+        scheduleAwarePoller.poll();
+        clock.advance(Duration.ofSeconds(20));
+        scheduleAwarePoller.poll();
+
+        verify(balldontlieClient, times(2)).getGames(anyList());
+    }
+
+    @Test
+    void 다음_조회는_예정_경기의_임박_구간_시작을_지나치지_않는다() {
+        MutableClock clock = new MutableClock(now);
+        OperationalPoller scheduleAwarePoller = poller(clock, 0);
+        when(balldontlieClient.getGames(anyList())).thenReturn(List.of());
+        when(gameRepository.findNextScheduledStartTime(now.minus(Duration.ofMinutes(15))))
+                .thenReturn(now.plus(Duration.ofMinutes(16)));
+
+        scheduleAwarePoller.poll();
+        clock.advance(Duration.ofMinutes(1));
+        scheduleAwarePoller.poll();
+
+        verify(balldontlieClient, times(2)).getGames(anyList());
     }
 
     @Test
@@ -200,19 +418,59 @@ class OperationalPollerTest {
 
     private OperationalPoller poller(Instant fixedNow, int slateLookaheadDays) {
         Clock clock = Clock.fixed(fixedNow, ZoneOffset.UTC);
+        return poller(clock, slateLookaheadDays);
+    }
+
+    private OperationalPoller poller(Clock clock, int slateLookaheadDays) {
+        return poller(clock, slateLookaheadDays, 0);
+    }
+
+    private OperationalPoller poller(Instant fixedNow, int slateLookaheadDays, int slateLookbackDays) {
+        return poller(Clock.fixed(fixedNow, ZoneOffset.UTC), slateLookaheadDays, slateLookbackDays);
+    }
+
+    private OperationalPoller poller(Clock clock, int slateLookaheadDays, int slateLookbackDays) {
         return new OperationalPoller(
                 balldontlieClient,
                 gameRepository,
-                playRepository,
                 gameWriter,
+                liveGameCycleWriter,
                 new ScoreTaskFactory(),
                 scoreTaskPublisher,
                 notificationEventPublisher,
-                properties(slateLookaheadDays),
+                properties(slateLookaheadDays, slateLookbackDays),
                 new PollerRateLimiter(1000, clock),
                 paRawArchiveUploader,
                 clock
         );
+    }
+
+    private static final class MutableClock extends Clock {
+
+        private Instant instant;
+
+        private MutableClock(Instant instant) {
+            this.instant = instant;
+        }
+
+        void advance(Duration duration) {
+            instant = instant.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
     }
 
     private static PollerProperties properties() {
@@ -220,11 +478,18 @@ class OperationalPollerTest {
     }
 
     private static PollerProperties properties(int slateLookaheadDays) {
+        return properties(slateLookaheadDays, 0);
+    }
+
+    private static PollerProperties properties(int slateLookaheadDays, int slateLookbackDays) {
         return new PollerProperties(
                 true,
                 Duration.ofSeconds(20),
+                Duration.ofSeconds(75),
                 Duration.ofMinutes(10),
-                0,
+                Duration.ofMinutes(15),
+                Duration.ofSeconds(20),
+                slateLookbackDays,
                 slateLookaheadDays,
                 5,
                 Duration.ofSeconds(30),

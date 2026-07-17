@@ -1,18 +1,26 @@
 package com.pulse.scorer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.WatchScoreRepository;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class SurgeDetectorTest {
 
@@ -23,7 +31,9 @@ class SurgeDetectorTest {
     private final SurgeDetector detector = new SurgeDetector(
             watchScoreRepository,
             redisTemplate,
-            TestScoringProperties.version5()
+            TestScoringProperties.version5(),
+            new AfterCommitExecutor(),
+            Duration.ofHours(48)
     );
 
     private final Instant now = Instant.parse("2026-07-08T05:00:00Z");
@@ -33,32 +43,67 @@ class SurgeDetectorTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
+    @AfterEach
+    void cleanUpTransaction() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+        TransactionSynchronizationManager.setActualTransactionActive(false);
+    }
+
     @Test
-    void evaluate_shouldFireOnEntryAndRecordLimits() {
+    void evaluate_shouldConfirmStateAndFireAfterCandidateAccepted() {
         when(valueOperations.get("notify:armed:100")).thenReturn(null);
         when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
-        when(valueOperations.get("notify:surge:count:global")).thenReturn("1");
-        when(valueOperations.increment("notify:surge:count:global")).thenReturn(2L);
+        confirmNextCandidate(1L);
+        AtomicBoolean fired = new AtomicBoolean();
 
-        boolean fired = detector.evaluate(100L, 85, now);
+        detector.evaluate(100L, 85, now, () -> fired.set(true));
 
         assertThat(fired).isTrue();
-        verify(valueOperations).set("notify:armed:100", "0");
-        verify(valueOperations).set("notify:cooldown:100", String.valueOf(now.toEpochMilli()), 15, TimeUnit.MINUTES);
-        verify(valueOperations).increment("notify:surge:count:global");
+        verify(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
+    }
+
+    @Test
+    void evaluate_shouldNotChangeRedisOrFireWhenTransactionRollsBack() {
+        when(valueOperations.get("notify:armed:100")).thenReturn(null);
+        when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
+        AtomicBoolean fired = new AtomicBoolean();
+        beginTransaction();
+
+        detector.evaluate(100L, 85, now, () -> fired.set(true));
+        completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
+
+        assertThat(fired).isFalse();
+        verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
+    }
+
+    @Test
+    void evaluate_shouldUseOneAtomicCommandForGlobalLimitAndStateChange() {
+        when(valueOperations.get("notify:armed:100")).thenReturn("1");
+        when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
+        confirmNextCandidate(0L);
+        AtomicBoolean fired = new AtomicBoolean();
+
+        detector.evaluate(100L, 85, now, () -> fired.set(true));
+
+        assertThat(fired).isFalse();
+        verify(valueOperations, never()).get("notify:surge:count:global");
+        verify(valueOperations, never()).increment("notify:surge:count:global");
+        verify(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
     }
 
     @Test
     void evaluate_shouldNotFireOnRapidRiseBelowAlertScore() {
         when(valueOperations.get("notify:armed:100")).thenReturn("0");
         when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
-        when(watchScoreRepository.findMinWatchScoreSince(100L, now.minusSeconds(300))).thenReturn(63);
+        AtomicBoolean fired = new AtomicBoolean();
 
-        boolean fired = detector.evaluate(100L, 78, now);
+        detector.evaluate(100L, 78, now, () -> fired.set(true));
 
         assertThat(fired).isFalse();
         verify(watchScoreRepository, never()).findMinWatchScoreSince(100L, now.minusSeconds(300));
-        verify(valueOperations, never()).set("notify:armed:100", "0");
+        verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
     }
 
     @Test
@@ -66,68 +111,56 @@ class SurgeDetectorTest {
         when(valueOperations.get("notify:armed:100")).thenReturn("0");
         when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
         when(watchScoreRepository.findMinWatchScoreSince(100L, now.minusSeconds(300))).thenReturn(70);
-        when(valueOperations.get("notify:surge:count:global")).thenReturn("0");
-        when(valueOperations.increment("notify:surge:count:global")).thenReturn(1L);
+        confirmNextCandidate(1L);
+        AtomicBoolean fired = new AtomicBoolean();
 
-        boolean fired = detector.evaluate(100L, 90, now);
+        detector.evaluate(100L, 90, now, () -> fired.set(true));
 
         assertThat(fired).isTrue();
-        verify(valueOperations).set("notify:armed:100", "0");
-        verify(valueOperations).set("notify:cooldown:100", String.valueOf(now.toEpochMilli()), 15, TimeUnit.MINUTES);
     }
 
     @Test
     void evaluate_shouldNotFireDuringGameCooldown() {
         when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(true);
+        AtomicBoolean fired = new AtomicBoolean();
 
-        boolean fired = detector.evaluate(100L, 95, now);
+        detector.evaluate(100L, 95, now, () -> fired.set(true));
 
         assertThat(fired).isFalse();
-        verify(valueOperations, never()).set("notify:armed:100", "0");
-        verify(valueOperations, never()).increment("notify:surge:count:global");
+        verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
     }
 
     @Test
-    void evaluate_shouldPreserveOpportunityWhenGlobalLimitReached() {
+    void evaluate_shouldRearmOnlyAfterCommitWithEmergencyTtl() {
         when(valueOperations.get("notify:armed:100")).thenReturn("1");
         when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
-        when(valueOperations.get("notify:surge:count:global")).thenReturn("3");
+        beginTransaction();
 
-        boolean fired = detector.evaluate(100L, 85, now);
+        detector.evaluate(100L, 69, now, () -> { });
 
-        assertThat(fired).isFalse();
-        verify(valueOperations, never()).set("notify:armed:100", "0");
-        verify(valueOperations, never()).set(
-                "notify:cooldown:100",
-                String.valueOf(now.toEpochMilli()),
-                15,
-                TimeUnit.MINUTES
-        );
-        verify(valueOperations, never()).increment("notify:surge:count:global");
+        verify(valueOperations, never()).set("notify:armed:100", "1", Duration.ofHours(48));
+        completeTransaction(TransactionSynchronization.STATUS_COMMITTED);
+        verify(valueOperations).set("notify:armed:100", "1", Duration.ofHours(48));
     }
 
-    @Test
-    void evaluate_shouldRearmBelowRearmThreshold() {
-        when(valueOperations.get("notify:armed:100")).thenReturn("1");
-        when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
-
-        boolean fired = detector.evaluate(100L, 69, now);
-
-        assertThat(fired).isFalse();
-        verify(valueOperations).set("notify:armed:100", "1");
-        verify(valueOperations, never()).set("notify:armed:100", "0");
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void confirmNextCandidate(Long result) {
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any(Object[].class)))
+                .thenReturn(result);
     }
 
-    @Test
-    void evaluate_shouldSetGlobalWindowOnFirstIncrement() {
-        when(valueOperations.get("notify:armed:100")).thenReturn("1");
-        when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
-        when(valueOperations.get("notify:surge:count:global")).thenReturn(null);
-        when(valueOperations.increment("notify:surge:count:global")).thenReturn(1L);
+    private static void beginTransaction() {
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        TransactionSynchronizationManager.initSynchronization();
+    }
 
-        boolean fired = detector.evaluate(100L, 85, now);
-
-        assertThat(fired).isTrue();
-        verify(redisTemplate).expire("notify:surge:count:global", 15, TimeUnit.MINUTES);
+    private static void completeTransaction(int status) {
+        for (TransactionSynchronization synchronization
+                : TransactionSynchronizationManager.getSynchronizations()) {
+            if (status == TransactionSynchronization.STATUS_COMMITTED) {
+                synchronization.afterCommit();
+            }
+            synchronization.afterCompletion(status);
+        }
     }
 }

@@ -30,14 +30,14 @@ public class PollerRateLimiter {
         this.clock = clock;
     }
 
-    /** 토큰을 얻을 때까지 대기한다. */
+    /** 토큰을 얻을 때까지 대기하며, 인터럽트되면 상태를 복원하고 예외를 전파한다. */
     public void acquire() {
         while (!tryAcquire(clock.instant())) {
             try {
                 Thread.sleep(WAIT_SLICE_MILLIS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return;
+                throw new IllegalStateException("레이트 리미터 대기 중 스레드가 인터럽트되었습니다.", e);
             }
         }
     }

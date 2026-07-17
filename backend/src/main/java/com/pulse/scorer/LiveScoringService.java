@@ -1,9 +1,6 @@
 package com.pulse.scorer;
 
 import com.pulse.common.config.ScoringProperties;
-import com.pulse.common.message.NotificationEvent;
-import com.pulse.common.message.NotificationEvent.NotificationType;
-import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
@@ -18,7 +15,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,7 +42,7 @@ public class LiveScoringService {
     private final SurgeDetector surgeDetector;
     private final TimelineHighlightTrigger timelineHighlightTrigger;
     private final AiGenerationTrigger aiGenerationTrigger;
-    private final NotificationEventPublisher notificationEventPublisher;
+    private final SurgeNotificationPublisher surgeNotificationPublisher;
     private final ScoringProperties props;
 
     @Transactional
@@ -87,11 +83,17 @@ public class LiveScoringService {
             recentPlays = recentPlays.subList(1, recentPlays.size());
         }
 
-        ScoreCalculator.Result result = calculator.calculate(game, recentPlays, task.situation(), seedLeader, observedAt);
-        double baseScore = result.baseScore();
         double importance = importanceCalculator.multiplier(game);
-        double pregameBonus = pregameBonus(game);
-        double watchScore = calculator.clampWatchScore(baseScore * importance + pregameBonus);
+        ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
+                game,
+                recentPlays,
+                task.situation(),
+                seedLeader,
+                observedAt,
+                importance,
+                game.getPregameScore() == null ? 0 : game.getPregameScore()));
+        double baseScore = result.baseScore();
+        double watchScore = result.watchScore();
         int watchScoreRounded = (int) Math.round(watchScore);
 
         List<String> tags = ReasonTags.from(result.signals(), result.fullCountIncluded());
@@ -100,7 +102,7 @@ public class LiveScoringService {
                 .map(WatchScore::getTags)
                 .orElse(List.of());
 
-        persistWatchScore(game, observedAt, latestPlay, result, importance, pregameBonus, watchScoreRounded, tags);
+        persistWatchScore(game, observedAt, latestPlay, result, watchScoreRounded, tags);
         updatePeakBaseScore(game, baseScore);
         gameEventExtractor.extract(gameId, recentPlays, task.plateAppearances(), seedLeader, observedAt);
 
@@ -117,10 +119,10 @@ public class LiveScoringService {
                 observedAt
         );
 
-        if (surgeDetector.evaluate(gameId, watchScoreRounded, observedAt)) {
+        surgeDetector.evaluate(gameId, watchScoreRounded, observedAt, () -> {
             PulseMetrics.increment("pulse.scorer.surge.fired");
-            publishSurge(game, tags, previousTags, observedAt);
-        }
+            surgeNotificationPublisher.publish(gameId, tags, previousTags, observedAt);
+        });
 
         // 급변 순간의 anchor 보호 이벤트를 하이라이트로 표시하고 보호 문구 생성을 요청한다.
         // (scoring.highlight.enabled=false면 no-op)
@@ -143,8 +145,6 @@ public class LiveScoringService {
             Instant observedAt,
             Play latestPlay,
             ScoreCalculator.Result result,
-            double importance,
-            double pregameBonus,
             int watchScoreRounded,
             List<String> tags
     ) {
@@ -155,8 +155,10 @@ public class LiveScoringService {
         record.setInning(latestPlay == null ? game.getPeriod() : latestPlay.getInning());
         record.setInningType(latestPlay == null ? null : latestPlay.getInningType());
         record.setBaseScore((int) Math.round(result.baseScore()));
-        record.setImportanceMultiplier(BigDecimal.valueOf(importance).setScale(2, RoundingMode.HALF_UP));
-        record.setPregameBonus(BigDecimal.valueOf(pregameBonus).setScale(2, RoundingMode.HALF_UP));
+        record.setImportanceMultiplier(BigDecimal.valueOf(result.importanceMultiplier())
+                .setScale(2, RoundingMode.HALF_UP));
+        record.setPregameBonus(BigDecimal.valueOf(result.pregameBonus())
+                .setScale(2, RoundingMode.HALF_UP));
         record.setWatchScore(watchScoreRounded);
         record.setScoringVersion(props.version());
         record.setSignalContributions(result.signals());
@@ -173,31 +175,6 @@ public class LiveScoringService {
             game.setPeakBaseScore(rounded);
             gameRepository.save(game);
         }
-    }
-
-    private double pregameBonus(Game game) {
-        if (game.getPregameScore() == null) {
-            return 0;
-        }
-        return Math.min(game.getPregameScore() / 10.0, props.pregameCarryoverMax());
-    }
-
-    private void publishSurge(Game game, List<String> tags, List<String> previousTags, Instant occurredAt) {
-        long gameId = game.getId();
-        String latestTag = liveSignalPublisher.resolveLatestTag(gameId, tags, previousTags, occurredAt);
-        if (latestTag == null) {
-            latestTag = "경기 흐름 변화";
-        }
-        UUID eventId = UUID.randomUUID();
-        notificationEventPublisher.publish(new NotificationEvent(
-                eventId,
-                NotificationType.SURGE,
-                gameId,
-                "지금 볼 만한 경기가 있어요 — " + latestTag,
-                latestTag,
-                occurredAt
-        ), tags);
-        log.info("SURGE 알림 발행 gameId={} latestTag={}", gameId, latestTag);
     }
 
     private static int leaderOf(Play play) {
