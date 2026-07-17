@@ -1,7 +1,12 @@
 package com.pulse.scorer;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -13,11 +18,13 @@ import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.PlayRepository;
+import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
@@ -53,6 +60,37 @@ class LiveScoringServiceDelayedTaskTest {
                 fixture.game, List.of(), null, 0, OBSERVED_AT, 1.0, 0));
     }
 
+    @Test
+    void handle_shouldUseGameSnapshotForImportanceAndFallbackInning() {
+        TestFixture fixture = new TestFixture();
+        fixture.game.setPeriod(9);
+        ScoreTask.GameSnapshot gameSnapshot = new ScoreTask.GameSnapshot(7, 3, 2, false);
+        when(fixture.importanceCalculator.multiplier(fixture.game, false)).thenReturn(1.1);
+
+        fixture.service.handle(new ScoreTask(
+                GAME_ID, OBSERVED_AT, null, "LIVE", null, List.of(), gameSnapshot));
+
+        verify(fixture.importanceCalculator).multiplier(fixture.game, false);
+        verify(fixture.calculator).calculate(new ScoringInput(
+                fixture.game, List.of(), null, 0, OBSERVED_AT, 1.1, 0, gameSnapshot));
+
+        ArgumentCaptor<WatchScore> recordCaptor = ArgumentCaptor.forClass(WatchScore.class);
+        verify(fixture.watchScoreRepository).save(recordCaptor.capture());
+        assertThat(recordCaptor.getValue().getInning()).isEqualTo(7);
+        verify(fixture.liveSignalPublisher).publishLiveUpdate(
+                eq(GAME_ID),
+                anyDouble(),
+                anyInt(),
+                anyList(),
+                eq(7),
+                isNull(),
+                isNull(),
+                eq("LIVE"),
+                anyList(),
+                eq(OBSERVED_AT));
+        assertThat(fixture.game.getPeriod()).isEqualTo(9);
+    }
+
     private static final class TestFixture {
 
         private final ScoringProperties properties = TestScoringProperties.version5();
@@ -61,6 +99,7 @@ class LiveScoringServiceDelayedTaskTest {
         private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
         private final ScoreCalculator calculator = mock(ScoreCalculator.class);
         private final ImportanceCalculator importanceCalculator = mock(ImportanceCalculator.class);
+        private final LiveSignalPublisher liveSignalPublisher = mock(LiveSignalPublisher.class);
         private final Game game = liveGame();
         private final LiveScoringService service;
 
@@ -79,7 +118,7 @@ class LiveScoringServiceDelayedTaskTest {
                     calculator,
                     importanceCalculator,
                     mock(GameEventExtractor.class),
-                    mock(LiveSignalPublisher.class),
+                    liveSignalPublisher,
                     mock(SurgeDetector.class),
                     mock(TimelineHighlightTrigger.class),
                     mock(AiGenerationTrigger.class),

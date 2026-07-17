@@ -3,6 +3,7 @@ package com.pulse.poller;
 import com.pulse.common.client.BdlDtos.BdlPitch;
 import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.message.ScoreTask.GameSnapshot;
 import com.pulse.common.message.ScoreTask.PitchSnapshot;
 import com.pulse.common.message.ScoreTask.PlateAppearanceSnapshot;
 import com.pulse.domain.Game;
@@ -24,7 +25,9 @@ public class ScoreTaskFactory {
                 observedAt,
                 null,
                 PREGAME_LIFECYCLE,
-                null
+                null,
+                List.of(),
+                gameSnapshot(game)
         );
     }
 
@@ -58,7 +61,8 @@ public class ScoreTaskFactory {
                         .filter(plateAppearance -> plateAppearance.paNumber() != null)
                         .sorted(Comparator.comparing(BdlPlateAppearance::paNumber))
                         .map(ScoreTaskFactory::plateAppearanceSnapshot)
-                        .toList()
+                        .toList(),
+                gameSnapshot(game)
         );
     }
 
@@ -68,7 +72,18 @@ public class ScoreTaskFactory {
                 observedAt,
                 game.getLastPlayOrder(),
                 game.getLifecycleState(),
-                null
+                null,
+                List.of(),
+                gameSnapshot(game)
+        );
+    }
+
+    private static GameSnapshot gameSnapshot(Game game) {
+        return new GameSnapshot(
+                game.getPeriod(),
+                game.getHomeRuns(),
+                game.getAwayRuns(),
+                game.getPostseason()
         );
     }
 

@@ -83,7 +83,10 @@ public class LiveScoringService {
             recentPlays = recentPlays.subList(1, recentPlays.size());
         }
 
-        double importance = importanceCalculator.multiplier(game);
+        ScoreTask.GameSnapshot gameSnapshot = task.gameSnapshot();
+        double importance = gameSnapshot == null
+                ? importanceCalculator.multiplier(game)
+                : importanceCalculator.multiplier(game, gameSnapshot.postseason());
         ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
                 game,
                 recentPlays,
@@ -91,7 +94,8 @@ public class LiveScoringService {
                 seedLeader,
                 observedAt,
                 importance,
-                game.getPregameScore() == null ? 0 : game.getPregameScore()));
+                game.getPregameScore() == null ? 0 : game.getPregameScore(),
+                gameSnapshot));
         double baseScore = result.baseScore();
         double watchScore = result.watchScore();
         int watchScoreRounded = (int) Math.round(watchScore);
@@ -102,7 +106,8 @@ public class LiveScoringService {
                 .map(WatchScore::getTags)
                 .orElse(List.of());
 
-        persistWatchScore(game, observedAt, latestPlay, result, watchScoreRounded, tags);
+        Integer fallbackInning = gameSnapshot == null ? game.getPeriod() : gameSnapshot.period();
+        persistWatchScore(game, observedAt, latestPlay, fallbackInning, result, watchScoreRounded, tags);
         updatePeakBaseScore(game, baseScore);
         gameEventExtractor.extract(gameId, recentPlays, task.plateAppearances(), seedLeader, observedAt);
 
@@ -111,7 +116,7 @@ public class LiveScoringService {
                 watchScore,
                 (int) Math.round(baseScore),
                 tags,
-                latestPlay == null ? game.getPeriod() : latestPlay.getInning(),
+                latestPlay == null ? fallbackInning : latestPlay.getInning(),
                 latestPlay == null ? null : latestPlay.getInningType(),
                 latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder(),
                 game.getLifecycleState(),
@@ -144,6 +149,7 @@ public class LiveScoringService {
             Game game,
             Instant observedAt,
             Play latestPlay,
+            Integer fallbackInning,
             ScoreCalculator.Result result,
             int watchScoreRounded,
             List<String> tags
@@ -152,7 +158,7 @@ public class LiveScoringService {
         record.setGameId(game.getId());
         record.setComputedAt(observedAt);
         record.setPlayOrder(latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder());
-        record.setInning(latestPlay == null ? game.getPeriod() : latestPlay.getInning());
+        record.setInning(latestPlay == null ? fallbackInning : latestPlay.getInning());
         record.setInningType(latestPlay == null ? null : latestPlay.getInningType());
         record.setBaseScore((int) Math.round(result.baseScore()));
         record.setImportanceMultiplier(BigDecimal.valueOf(result.importanceMultiplier())

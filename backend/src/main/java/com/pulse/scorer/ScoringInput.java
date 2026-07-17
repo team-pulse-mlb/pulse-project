@@ -14,8 +14,21 @@ public record ScoringInput(
         int seedLeader,
         Instant computedAt,
         double importanceMultiplier,
-        double pregameScore
+        double pregameScore,
+        ScoreTask.GameSnapshot gameSnapshot
 ) {
+    public ScoringInput(
+            Game game,
+            List<Play> recentPlays,
+            ScoreTask.Situation situation,
+            int seedLeader,
+            Instant computedAt,
+            double importanceMultiplier,
+            double pregameScore
+    ) {
+        this(game, recentPlays, situation, seedLeader, computedAt, importanceMultiplier, pregameScore, null);
+    }
+
     public ScoringInput {
         recentPlays = List.copyOf(recentPlays);
     }

@@ -22,13 +22,17 @@ public class ImportanceCalculator {
     private final ScoringProperties props;
 
     public double multiplier(Game game) {
+        return multiplier(game, game.getPostseason());
+    }
+
+    public double multiplier(Game game, Boolean postseason) {
         ScoringProperties.Importance importance = props.importance();
-        if (Boolean.TRUE.equals(game.getPostseason())) {
+        if (Boolean.TRUE.equals(postseason)) {
             return importance.postseason();
         }
         BigDecimal homePlayoffPercent = playoffPercent(game.getHomeTeamId());
         BigDecimal awayPlayoffPercent = playoffPercent(game.getAwayTeamId());
-        return multiplier(importance, game.getPostseason(), homePlayoffPercent, awayPlayoffPercent);
+        return multiplier(importance, postseason, homePlayoffPercent, awayPlayoffPercent);
     }
 
     public static double multiplier(
