@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,7 @@ public class OperationalPoller {
     private final Clock clock;
     private final PollerBackoff gamesBackoff;
     private final PollerBackoff playsBackoff;
+    private final Map<Long, Instant> lastTaskPublishedAt = new HashMap<>();
 
     private Instant nextGamesPollAt = Instant.EPOCH;
 
@@ -134,6 +136,9 @@ public class OperationalPoller {
                     if (GameLifecycle.LIVE.name().equals(result.currentLifecycle())) {
                         liveGames.put(result.game().getId(), result.game());
                     }
+                    if (result.enteredTerminalState()) {
+                        lastTaskPublishedAt.remove(result.game().getId());
+                    }
                     boolean terminalScoreTaskPublished = result.enteredTerminalState()
                             && drainTerminalGame(result.game(), now);
                     publishTransitionEvents(result, terminalTaskObservedAt(now, terminalScoreTaskPublished));
@@ -167,6 +172,14 @@ public class OperationalPoller {
                     LiveGameCycleWriter.CycleWriteResult result =
                             liveGameCycleWriter.write(game, plays, plateAppearances, now);
                     logCycleResult(game.getId(), result);
+                    if (result.inserted() > 0) {
+                        lastTaskPublishedAt.put(game.getId(), now);
+                        continue;
+                    }
+                }
+                if (heartbeatDue(game.getId(), now)
+                        && liveGameCycleWriter.publishHeartbeat(game, now)) {
+                    lastTaskPublishedAt.put(game.getId(), now);
                 }
             } catch (RuntimeException e) {
                 if (PollerExceptionClassifier.shouldBackoff(e)) {
@@ -178,6 +191,12 @@ public class OperationalPoller {
             }
         }
         playsBackoff.recordSuccess();
+    }
+
+    private boolean heartbeatDue(long gameId, Instant now) {
+        Instant lastPublishedAt = lastTaskPublishedAt.get(gameId);
+        return lastPublishedAt == null
+                || !now.isBefore(lastPublishedAt.plus(properties.heartbeatInterval()));
     }
 
     private boolean drainTerminalGame(Game game, Instant now) {
