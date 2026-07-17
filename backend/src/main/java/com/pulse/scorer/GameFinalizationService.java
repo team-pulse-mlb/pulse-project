@@ -5,12 +5,9 @@ import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.poller.GameLifecycle;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -21,8 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class GameFinalizationService {
 
-    private static final String FINALIZED_KEY_PREFIX = "score:finalized:";
-    private static final String TERMINAL_KEY_PREFIX = "score:terminal:";
     private static final String ARMED_KEY_PREFIX = "notify:armed:";
     private static final String COOLDOWN_KEY_PREFIX = "notify:cooldown:";
 
@@ -32,37 +27,14 @@ public class GameFinalizationService {
     private final AfterCommitExecutor afterCommitExecutor;
     private final TimelineHighlightBackfill timelineHighlightBackfill;
     private final StringRedisTemplate redisTemplate;
-    private final Duration emergencyTtl;
 
-    @Autowired
     public GameFinalizationService(
             GameRepository gameRepository,
             LiveSignalPublisher liveSignalPublisher,
             AiGenerationTrigger aiGenerationTrigger,
             AfterCommitExecutor afterCommitExecutor,
             TimelineHighlightBackfill timelineHighlightBackfill,
-            StringRedisTemplate redisTemplate,
-            @Value("${pulse.scorer.redis-emergency-ttl-ms:172800000}") long emergencyTtlMillis
-    ) {
-        this(
-                gameRepository,
-                liveSignalPublisher,
-                aiGenerationTrigger,
-                afterCommitExecutor,
-                timelineHighlightBackfill,
-                redisTemplate,
-                Duration.ofMillis(emergencyTtlMillis)
-        );
-    }
-
-    GameFinalizationService(
-            GameRepository gameRepository,
-            LiveSignalPublisher liveSignalPublisher,
-            AiGenerationTrigger aiGenerationTrigger,
-            AfterCommitExecutor afterCommitExecutor,
-            TimelineHighlightBackfill timelineHighlightBackfill,
-            StringRedisTemplate redisTemplate,
-            Duration emergencyTtl
+            StringRedisTemplate redisTemplate
     ) {
         this.gameRepository = gameRepository;
         this.liveSignalPublisher = liveSignalPublisher;
@@ -70,7 +42,6 @@ public class GameFinalizationService {
         this.afterCommitExecutor = afterCommitExecutor;
         this.timelineHighlightBackfill = timelineHighlightBackfill;
         this.redisTemplate = redisTemplate;
-        this.emergencyTtl = emergencyTtl;
     }
 
     @Transactional
@@ -88,26 +59,40 @@ public class GameFinalizationService {
 
         Instant observedAt = task.observedAt() == null ? Instant.now() : task.observedAt();
         boolean finalGame = isFinal(task.lifecycleState(), game);
-        // 백필은 자체 멱등이므로 재전달에도 안전하며, 비FINAL 종료 키와 분리한다.
-        if (finalGame) {
+        boolean firstProcessing = claimFirstProcessing(task, observedAt, finalGame);
+        if (finalGame && firstProcessing) {
             timelineHighlightBackfill.backfillIfEmpty(task.gameId(), observedAt, true);
         }
 
-        afterCommitExecutor.execute(() -> finalizeRedisState(task, observedAt, finalGame));
+        afterCommitExecutor.execute(() -> finalizeAfterCommit(task, observedAt, finalGame, firstProcessing));
         log.debug("경기 종료 정리 gameId={} lifecycleState={}", game.getId(), task.lifecycleState());
     }
 
-    private void finalizeRedisState(ScoreTask task, Instant observedAt, boolean finalGame) {
-        redisTemplate.delete(List.of(armedKey(task.gameId()), cooldownKey(task.gameId())));
+    private boolean claimFirstProcessing(ScoreTask task, Instant observedAt, boolean finalGame) {
+        int updatedRows;
+        if (finalGame) {
+            updatedRows = gameRepository.markFinalized(task.gameId(), observedAt);
+        } else if (GameLifecycle.DONE.name().equals(task.lifecycleState())) {
+            updatedRows = gameRepository.markDone(task.gameId(), observedAt);
+        } else if (GameLifecycle.SUSPENDED_POSTPONED.name().equals(task.lifecycleState())) {
+            updatedRows = gameRepository.markSuspendedPostponed(task.gameId(), observedAt);
+        } else {
+            log.debug("DB 종료 처리 기록 대상이 아닌 task skip: gameId={} lifecycleState={}",
+                    task.gameId(), task.lifecycleState());
+            return false;
+        }
+        return updatedRows == 1;
+    }
 
-        String idempotencyKey = finalGame
-                ? finalizedKey(task.gameId())
-                : terminalKey(task.gameId(), task.lifecycleState());
-        Boolean firstProcessing = redisTemplate.opsForValue()
-                .setIfAbsent(idempotencyKey, observedAt.toString(), emergencyTtl);
-        if (!Boolean.TRUE.equals(firstProcessing)) {
-            // TTL 없이 남은 기존 멱등 키도 재전달 시 비상 TTL을 보정한다.
-            redisTemplate.expire(idempotencyKey, emergencyTtl);
+    private void finalizeAfterCommit(
+            ScoreTask task,
+            Instant observedAt,
+            boolean finalGame,
+            boolean firstProcessing
+    ) {
+        // armed·cooldown은 알림 빈도 제어용 캐시이므로 반복 task에서도 정리한다.
+        redisTemplate.delete(List.of(armedKey(task.gameId()), cooldownKey(task.gameId())));
+        if (!firstProcessing) {
             log.debug("이미 종료 정리한 경기 skip: {}", task.gameId());
             return;
         }
@@ -116,20 +101,20 @@ public class GameFinalizationService {
         }
     }
 
+    /**
+     * 종료 후처리 완료 여부를 DB 기록으로 판정한다(복구 러너용).
+     * lifecycle별 기록을 보므로, POSTPONED만 처리된 경기가 재개 후 FINAL 재발행 대상에서 빠지지 않는다.
+     */
     public boolean hasFinalizationRecord(long gameId) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(finalizedKey(gameId)));
+        return gameRepository.findById(gameId)
+                .map(game -> GameLifecycle.DONE.name().equals(game.getLifecycleState())
+                        ? game.getTerminalDoneAt() != null
+                        : game.getFinalizedAt() != null)
+                .orElse(true); // 경기 자체가 없으면 재발행 대상이 아니다.
     }
 
     private static boolean isFinal(String lifecycleState, Game game) {
         return GameLifecycle.FINAL.name().equals(lifecycleState) && game.isFinal();
-    }
-
-    private static String finalizedKey(long gameId) {
-        return FINALIZED_KEY_PREFIX + gameId;
-    }
-
-    private static String terminalKey(long gameId, String lifecycleState) {
-        return TERMINAL_KEY_PREFIX + gameId + ":" + lifecycleState;
     }
 
     private static String armedKey(long gameId) {

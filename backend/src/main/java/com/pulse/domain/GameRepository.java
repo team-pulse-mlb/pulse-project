@@ -5,7 +5,9 @@ import java.util.Collection;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface GameRepository extends JpaRepository<Game, Long> {
 
@@ -31,6 +33,27 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     /** 종료 task 복구용: 최근에 갱신된 terminal 경기만 스캔한다. */
     List<Game> findByLifecycleStateInAndUpdatedAtAfter(Collection<String> lifecycleStates, Instant updatedAfter);
+
+    /** FINAL 후처리 권한을 DB에서 원자적으로 한 번만 획득한다. */
+    @Modifying
+    @Query("update Game game set game.finalizedAt = :processedAt "
+            + "where game.id = :gameId and game.finalizedAt is null")
+    int markFinalized(@Param("gameId") Long gameId, @Param("processedAt") Instant processedAt);
+
+    /** DONE terminal task 처리 기록을 DB에서 원자적으로 남긴다. */
+    @Modifying
+    @Query("update Game game set game.terminalDoneAt = :processedAt "
+            + "where game.id = :gameId and game.terminalDoneAt is null")
+    int markDone(@Param("gameId") Long gameId, @Param("processedAt") Instant processedAt);
+
+    /** SUSPENDED_POSTPONED terminal task 처리 기록을 DB에서 원자적으로 남긴다. */
+    @Modifying
+    @Query("update Game game set game.terminalSuspendedPostponedAt = :processedAt "
+            + "where game.id = :gameId and game.terminalSuspendedPostponedAt is null")
+    int markSuspendedPostponed(
+            @Param("gameId") Long gameId,
+            @Param("processedAt") Instant processedAt
+    );
 
     @Query("""
             select game.id

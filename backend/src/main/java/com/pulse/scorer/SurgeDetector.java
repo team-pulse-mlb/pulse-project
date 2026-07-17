@@ -13,7 +13,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
-/** 급상승(SURGE) 알림 판정과 Redis 히스테리시스 상태를 관리한다. */
+/**
+ * 급상승(SURGE) 알림 판정과 Redis 히스테리시스 상태를 관리한다.
+ * armed·cooldown·전역 발화 수는 알림 빈도 제어용 캐시라 Redis 재시작 시 초기화되어도 허용한다.
+ */
 @Component
 @ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
 public class SurgeDetector {
