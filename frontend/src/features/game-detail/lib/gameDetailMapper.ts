@@ -461,10 +461,9 @@ export function toFinalGameDetailViewModel(
             response.startTime,
         ),
 
-        /*
-         * 현재 종료 경기 상세 응답에는 구장이 없다.
-         */
-        venue: null,
+        venue:
+            response.venue?.trim()
+            || null,
 
         headline:
             response.headline?.trim()

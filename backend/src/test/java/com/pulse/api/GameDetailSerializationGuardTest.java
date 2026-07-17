@@ -346,6 +346,7 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-03T00:05:00Z"),
+                        "Globe Life Field",
 
                         /*
                          * 종료 헤드라인은 아직 생성되지 않았을 수 있다.
@@ -374,6 +375,10 @@ class GameDetailSerializationGuardTest {
                             .isTrue();
                     softly.assertThat(json.has("awayTeam"))
                             .isTrue();
+                    softly.assertThat(json.has("venue"))
+                            .isTrue();
+                    softly.assertThat(json.get("venue").asText())
+                            .isEqualTo("Globe Life Field");
                     softly.assertThat(json.has("headline"))
                             .isTrue();
                     softly.assertThat(
@@ -461,6 +466,7 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-03T00:05:00Z"),
+                        "Globe Life Field",
                         "Texas Rangers가 10-4로 승리한 경기입니다.",
                         new ScoreResponse(
                                 10,
@@ -513,6 +519,10 @@ class GameDetailSerializationGuardTest {
                             .isTrue();
                     softly.assertThat(json.has("awayTeam"))
                             .isTrue();
+                    softly.assertThat(json.has("venue"))
+                            .isTrue();
+                    softly.assertThat(json.get("venue").asText())
+                            .isEqualTo("Globe Life Field");
                     softly.assertThat(json.has("headline"))
                             .isTrue();
                     softly.assertThat(json.has("finalScore"))

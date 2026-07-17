@@ -268,6 +268,8 @@ public class GameQueryService {
                     awayTeam,
                     game.getStartTime(),
                     nullableText(
+                            game.getVenue()),
+                    nullableText(
                             game.getFinalHeadlineRevealed()),
                     score(game),
                     inningScores(game),
@@ -287,6 +289,8 @@ public class GameQueryService {
                 homeTeam,
                 awayTeam,
                 game.getStartTime(),
+                nullableText(
+                        game.getVenue()),
                 nullableText(
                         game.getFinalHeadlineProtected()),
 
@@ -710,6 +714,7 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
+            String venue,
             String headline,
             List<ProtectedTensionPointResponse> tensionCurve)
             implements GameDetailView {}
@@ -727,6 +732,7 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
+            String venue,
             String headline,
             ScoreResponse finalScore,
             InningScoresResponse inningScores,
