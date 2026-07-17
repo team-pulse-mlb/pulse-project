@@ -12,7 +12,9 @@ import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.Play;
+import com.pulse.scorer.ImportanceCalculator;
 import com.pulse.scorer.ScoreCalculator;
+import com.pulse.scorer.ScoringInput;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,19 +44,21 @@ public class GameReplayEngine {
         List<Cycle> cycles = new ArrayList<>();
         ScoreCalculator calculator = new ScoreCalculator(properties);
         double importance = importance(data, properties);
-        double pregameBonus = pregameBonus(data, properties);
+        double pregameScore = pregame(data, properties);
         for (int index = 0; index < rows.size(); index++) {
             PlayRow current = rows.get(index);
             int from = Math.max(0, index + 1 - properties.leadChange().windowPlays());
             List<Play> window = rows.subList(from, index + 1).stream().map(this::play).toList();
             int seed = from == 0 ? 0 : leader(rows.get(from - 1));
-            ScoreCalculator.Result original = calculator.calculate(game(data.game(), current), window,
-                    situation(current), seed, Instant.EPOCH);
+            ScoreCalculator.Result original = calculator.calculate(new ScoringInput(
+                    game(data.game(), current), window, situation(current), seed, Instant.EPOCH,
+                    importance, pregameScore));
             Map<String, Double> signals = new LinkedHashMap<>(original.signals());
             signals.put("recent_score", approximateRecent(rows, index, properties));
             signals.put("lead_change", approximateLead(rows, index, properties));
             double base = signals.values().stream().mapToDouble(Double::doubleValue).sum();
-            cycles.add(cycle(current, index, base, importance, pregameBonus, null));
+            double watchScore = calculator.calculateWatchScore(base, importance, original.pregameBonus());
+            cycles.add(cycle(current, index, base, watchScore, null));
         }
         return cycles;
     }
@@ -64,7 +68,7 @@ public class GameReplayEngine {
         List<PlayRow> observed = new ArrayList<>();
         ScoreCalculator calculator = new ScoreCalculator(properties);
         double importance = importance(data, properties);
-        double pregameBonus = pregameBonus(data, properties);
+        double pregameScore = pregame(data, properties);
         int index = 0;
         while (index < rows.size()) {
             PlayRow first = rows.get(index);
@@ -82,14 +86,14 @@ public class GameReplayEngine {
             int from = Math.max(0, observed.size() - properties.leadChange().windowPlays());
             List<Play> window = observed.subList(from, observed.size()).stream().map(this::play).toList();
             int seed = from == 0 ? 0 : leader(observed.get(from - 1));
-            ScoreCalculator.Result result = calculator.calculate(game(data.game(), current), window,
-                    situation(current), seed, first.observedAt());
+            ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
+                    game(data.game(), current), window, situation(current), seed, first.observedAt(),
+                    importance, pregameScore));
             cycles.add(cycle(
                     current,
                     observed.size() - 1,
                     result.baseScore(),
-                    importance,
-                    pregameBonus,
+                    result.watchScore(),
                     first.observedAt()));
             index = next;
         }
@@ -100,12 +104,10 @@ public class GameReplayEngine {
             PlayRow row,
             int index,
             double base,
-            double importance,
-            double pregameBonus,
+            double watchScore,
             Instant at
     ) {
-        double watch = Math.max(0, Math.min(100, base * importance + pregameBonus));
-        return new Cycle(at, row.playOrder(), base, watch, index, row.source());
+        return new Cycle(at, row.playOrder(), base, watchScore, index, row.source());
     }
 
     double approximateRecent(List<PlayRow> rows, int current, ScoringProperties properties) {
@@ -142,29 +144,11 @@ public class GameReplayEngine {
     }
 
     private double importance(GameData data, ScoringProperties properties) {
-        if (data.game().postseason()) {
-            return properties.importance().postseason();
-        }
-        Boolean home = contending(data.homeStanding(), properties);
-        Boolean away = contending(data.awayStanding(), properties);
-        if (home == null || away == null) {
-            return 1;
-        }
-        if (home && away) {
-            return properties.importance().bothContending();
-        }
-        if (home || away) {
-            return properties.importance().oneContending();
-        }
-        if (below(data.homeStanding(), properties) && below(data.awayStanding(), properties)) {
-            return properties.importance().bothOut();
-        }
-        return 1;
-    }
-
-    private double pregameBonus(GameData data, ScoringProperties properties) {
-        double pregame = pregame(data, properties);
-        return Math.min(pregame / 10.0, properties.pregameCarryoverMax());
+        return ImportanceCalculator.multiplier(
+                properties.importance(),
+                data.game().postseason(),
+                data.homeStanding() == null ? null : data.homeStanding().playoffPercent(),
+                data.awayStanding() == null ? null : data.awayStanding().playoffPercent());
     }
 
     private double pregame(GameData data, ScoringProperties properties) {
@@ -235,12 +219,6 @@ public class GameReplayEngine {
         double value = row.playoffPercent().doubleValue();
         return value >= properties.importance().contentionMinPercent() && value <= properties.importance().contentionMaxPercent();
     }
-    private static boolean below(StandingRow row, ScoringProperties properties) {
-        return row != null
-                && row.playoffPercent() != null
-                && row.playoffPercent().doubleValue() < properties.importance().contentionMinPercent();
-    }
-
     private static double implied(int odds) {
         return odds < 0 ? -odds / (-odds + 100.0) : 100.0 / (odds + 100.0);
     }

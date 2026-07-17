@@ -1,5 +1,6 @@
 package com.pulse.replay.rescore;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,8 @@ record RescoreWatchScoreRow(
         Integer inning,
         String inningType,
         int baseScore,
+        BigDecimal importanceMultiplier,
+        BigDecimal pregameBonus,
         int watchScore,
         int scoringVersion,
         Map<String, Double> signalContributions,

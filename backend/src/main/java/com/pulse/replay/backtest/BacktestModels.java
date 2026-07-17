@@ -5,26 +5,26 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
-final class BacktestModels {
+public final class BacktestModels {
     private BacktestModels() {}
 
-    record GameRow(long gameId, Instant startTime, String status, boolean postseason, Long homeTeamId,
+    public record GameRow(long gameId, Instant startTime, String status, boolean postseason, Long homeTeamId,
                    Long awayTeamId, Integer homeRuns, Integer awayRuns, Integer period, Integer pregameScore,
                    String pregameInputs, String homeTeam, String awayTeam) {}
 
-    record PlayRow(long gameId, long playOrder, String type, Integer inning, String inningType,
+    public record PlayRow(long gameId, long playOrder, String type, Integer inning, String inningType,
                    Integer homeScore, Integer awayScore, Boolean scoringPlay, Integer scoreValue,
                    Integer outs, Integer balls, Integer strikes, Instant observedAt, Boolean backfilled,
                    String source, Boolean runnerOnFirst, Boolean runnerOnSecond, Boolean runnerOnThird) {}
 
-    record StandingRow(BigDecimal playoffPercent, BigDecimal winPercent) {}
-    record OddsRow(Integer homeOdds, Integer awayOdds) {}
-    record GameData(GameRow game, List<PlayRow> plays, StandingRow homeStanding,
+    public record StandingRow(BigDecimal playoffPercent, BigDecimal winPercent) {}
+    public record OddsRow(Integer homeOdds, Integer awayOdds) {}
+    public record GameData(GameRow game, List<PlayRow> plays, StandingRow homeStanding,
                     StandingRow awayStanding, List<OddsRow> odds) {}
 
-    record Cycle(Instant computedAt, long playOrder, double baseScore, double watchScore,
+    public record Cycle(Instant computedAt, long playOrder, double baseScore, double watchScore,
                  int latestPlayIndex, String source) {}
-    record ReplayResult(GameData data, List<Cycle> cycles, int alertCount) {
+    public record ReplayResult(GameData data, List<Cycle> cycles, int alertCount) {
         double peak() { return cycles.stream().mapToDouble(Cycle::watchScore).max().orElse(0); }
         LocalDate date() { return data.game().startTime().atOffset(java.time.ZoneOffset.UTC).toLocalDate(); }
     }
