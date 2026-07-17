@@ -390,6 +390,66 @@ class SpoilerGuardTestCase(unittest.TestCase):
         self.assertTrue(result["spoiler_safe"])
         self.assertEqual(result["violations"], [])
 
+    def test_revealed_total_runs_matches_summary_facts_passes(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+            summary_facts={
+                "totalRuns": 8,
+            },
+        )
+
+        safe_texts = [
+            "홈팀이 5-3으로 승리, 총 8득점이 나온 경기",
+            "홈팀이 5-3으로 승리, 양 팀 합계 8득점이 나온 경기",
+        ]
+
+        for text in safe_texts:
+            with self.subTest(text=text):
+                result = check_spoiler_text(
+                    text,
+                    mode=AiCopyMode.REVEALED,
+                    safe_context=safe_context,
+                )
+
+                self.assertTrue(result["spoiler_safe"])
+                self.assertEqual(result["violations"], [])
+
+    def test_revealed_total_runs_mismatch_is_blocked(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+            summary_facts={
+                "totalRuns": 8,
+            },
+        )
+
+        result = check_spoiler_text(
+            "홈팀이 5-3으로 승리, 총 9득점이 나온 경기",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertIn("TOTAL_RUNS_MISMATCH", result["violations"])
+
+    def test_revealed_total_runs_without_summary_facts_is_blocked(self):
+        safe_context = SafeContext(
+            final_score=FinalScore(home=5, away=3),
+            winner="home",
+        )
+
+        result = check_spoiler_text(
+            "홈팀이 5-3으로 승리, 양 팀 합계 8득점이 나온 경기",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertIn(
+            "TOTAL_RUNS_CONTEXT_MISSING",
+            result["violations"],
+        )
 
     def test_revealed_unsupported_play_result_is_blocked(self):
         safe_context = SafeContext(
@@ -427,4 +487,3 @@ class SpoilerGuardTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-    

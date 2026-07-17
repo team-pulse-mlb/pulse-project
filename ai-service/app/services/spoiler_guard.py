@@ -66,6 +66,13 @@ UNSUPPORTED_RESULT_PATTERNS = (
 )
 
 
+# 공개 FINAL_HEADLINE에서 summaryFacts.totalRuns로 검증할 수 있는 총득점 표현입니다.
+# 예: "총 8득점", "양 팀 합계 8득점"
+REVEALED_TOTAL_RUNS_PATTERN = re.compile(
+    r"(?:총|양\s*팀\s*합계)\s*(\d{1,3})\s*득점(?!권)"
+)
+
+
 # 보호 모드에서 점수 노출을 차단하기 위한 넓은 점수 패턴입니다.
 # "7-8회" 같은 이닝 범위 표현은 점수로 처리하지 않습니다.
 SCORE_PAIR_PATTERN = re.compile(
@@ -259,11 +266,60 @@ def _collect_revealed_unsupported_words(
                 f"FORBIDDEN_WORD:{word}",
             )
 
+    # 총득점 표현은 summaryFacts.totalRuns와 별도로 검증하므로,
+    # 해당 구간만 제거한 뒤 남은 결과 표현을 일반 금지 패턴으로 검사합니다.
+    unsupported_result_text = REVEALED_TOTAL_RUNS_PATTERN.sub("", text)
+
     for pattern, violation_word in UNSUPPORTED_RESULT_PATTERNS:
-        if pattern.search(text) and violation_word not in supported_words:
+        if (
+            pattern.search(unsupported_result_text)
+            and violation_word not in supported_words
+        ):
             _append_violation(
                 violations,
                 f"FORBIDDEN_WORD:{violation_word}",
+            )
+
+
+def _validate_revealed_total_runs(
+    text: str,
+    safe_context: SafeContext | None,
+    violations: list[str],
+) -> None:
+    """
+    공개 모드 문구의 총득점 숫자가 summaryFacts.totalRuns와 일치하는지 검사합니다.
+
+    검증 대상은 "총 N득점"과 "양 팀 합계 N득점" 표현입니다.
+    "N득점"처럼 총득점인지 불명확한 표현은 기존 일반 결과 표현 검증에서 차단합니다.
+    """
+
+    total_runs_matches = REVEALED_TOTAL_RUNS_PATTERN.findall(text)
+    if not total_runs_matches:
+        return
+
+    summary_facts = (
+        getattr(safe_context, "summary_facts", None)
+        if safe_context is not None
+        else None
+    )
+    expected_total_runs = (
+        getattr(summary_facts, "total_runs", None)
+        if summary_facts is not None
+        else None
+    )
+
+    if expected_total_runs is None:
+        _append_violation(
+            violations,
+            "TOTAL_RUNS_CONTEXT_MISSING",
+        )
+        return
+
+    for total_runs_text in total_runs_matches:
+        if int(total_runs_text) != expected_total_runs:
+            _append_violation(
+                violations,
+                "TOTAL_RUNS_MISMATCH",
             )
 
 
@@ -699,6 +755,11 @@ def check_spoiler_text(
             violations=violations,
         )
 
+        _validate_revealed_total_runs(
+            text=normalized_text,
+            safe_context=safe_context,
+            violations=violations,
+        )
         _validate_revealed_score(
             text=normalized_text,
             safe_context=safe_context,
