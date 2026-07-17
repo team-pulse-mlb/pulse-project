@@ -30,6 +30,31 @@ class AiRouterTestCase(unittest.TestCase):
                 "away": 3,
             },
             "winner": "home",
+            "summaryFacts": {
+                "winnerSide": "home",
+                "winnerScore": 5,
+                "loserScore": 3,
+                "walkOff": True,
+            },
+            "verifiedPlays": [
+                {
+                    "playId": 312,
+                    "inning": 9,
+                    "inningType": "bottom",
+                    "batter": {
+                        "id": 660271,
+                        "name": "Shohei Ohtani",
+                    },
+                    "pitcher": {
+                        "id": 592789,
+                        "name": "Logan Webb",
+                    },
+                    "factTags": [
+                        "DECISIVE_SCORE",
+                        "WALK_OFF",
+                    ],
+                }
+            ],
         }
         self.event_safe_context = {
             "eventType": "pressure_scoring_position",
@@ -71,6 +96,8 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(data["safeTitle"], generated_summary["safe_title"])
         self.assertEqual(data["violations"], [])
         self.assertFalse(data["fallbackUsed"])
+        self.assertEqual(data["usedFactIds"], [])
+        self.assertEqual(data["usedPlayIds"], [])
 
     def test_revealed_final_headline_valid_score_and_winner_passes(self):
         payload = {
@@ -82,6 +109,12 @@ class AiRouterTestCase(unittest.TestCase):
 
         generated_summary = {
             "safe_title": "홈팀이 5-3으로 승리",
+            "used_fact_ids": [
+                "summaryFacts.winnerSide",
+                "summaryFacts.winnerScore",
+                "summaryFacts.loserScore",
+            ],
+            "used_play_ids": [],
         }
 
         with patch(
@@ -97,6 +130,132 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(data["contextHash"], self.context_hash)
         self.assertEqual(data["safeTitle"], "홈팀이 5-3으로 승리")
         self.assertEqual(data["violations"], [])
+        self.assertFalse(data["fallbackUsed"])
+        self.assertEqual(
+            data["usedFactIds"],
+            [
+                "summaryFacts.winnerSide",
+                "summaryFacts.winnerScore",
+                "summaryFacts.loserScore",
+            ],
+        )
+        self.assertEqual(data["usedPlayIds"], [])
+
+    def test_revealed_player_name_without_used_play_returns_failure(self):
+        payload = {
+            "gameId": 5059082,
+            "mode": "REVEALED",
+            "contextHash": self.context_hash,
+            "safeContext": self.revealed_safe_context,
+        }
+
+        generated_summary = {
+            "safe_title": "Ohtani가 활약한 경기",
+            "used_fact_ids": [],
+            "used_play_ids": [],
+        }
+
+        with patch(
+            "app.routers.ai_router.generate_spoiler_free_summary",
+            return_value=generated_summary,
+        ):
+            response = self.client.post(
+                "/ai/final-headline",
+                json=payload,
+            )
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+
+        self.assertFalse(data["spoilerSafe"])
+        self.assertIn(
+            "EVIDENCE_PLAYER_PLAY_MISSING:Shohei Ohtani",
+            data["violations"],
+        )
+        self.assertNotIn("safeTitle", data)
+        self.assertEqual(data["usedFactIds"], [])
+        self.assertEqual(data["usedPlayIds"], [])
+        self.assertFalse(data["fallbackUsed"])
+
+    def test_revealed_claim_without_required_fact_id_returns_failure(self):
+        payload = {
+            "gameId": 5059082,
+            "mode": "REVEALED",
+            "contextHash": self.context_hash,
+            "safeContext": self.revealed_safe_context,
+        }
+
+        generated_summary = {
+            "safe_title": "9회 끝내기 장면",
+            "used_fact_ids": [],
+            "used_play_ids": [],
+        }
+
+        with patch(
+            "app.routers.ai_router.generate_spoiler_free_summary",
+            return_value=generated_summary,
+        ):
+            response = self.client.post(
+                "/ai/final-headline",
+                json=payload,
+            )
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+
+        self.assertFalse(data["spoilerSafe"])
+        self.assertIn(
+            (
+                "EVIDENCE_REQUIRED_FACT_MISSING:"
+                "summaryFacts.walkOff"
+            ),
+            data["violations"],
+        )
+        self.assertNotIn("safeTitle", data)
+        self.assertEqual(data["usedFactIds"], [])
+        self.assertEqual(data["usedPlayIds"], [])
+        self.assertFalse(data["fallbackUsed"])
+
+    def test_revealed_final_headline_invalid_evidence_returns_failure_state(self):
+        payload = {
+            "gameId": 5059082,
+            "mode": "REVEALED",
+            "contextHash": self.context_hash,
+            "safeContext": self.revealed_safe_context,
+        }
+
+        generated_summary = {
+            "safe_title": "홈팀이 5-3으로 승리",
+            "used_fact_ids": [
+                "summaryFacts.shutout",
+            ],
+            "used_play_ids": [999],
+        }
+
+        with patch(
+            "app.routers.ai_router.generate_spoiler_free_summary",
+            return_value=generated_summary,
+        ):
+            response = self.client.post("/ai/final-headline", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+
+        self.assertFalse(data["spoilerSafe"])
+        self.assertIn(
+            "EVIDENCE_FACT_UNAVAILABLE:summaryFacts.shutout",
+            data["violations"],
+        )
+        self.assertIn(
+            "EVIDENCE_PLAY_UNKNOWN:999",
+            data["violations"],
+        )
+        self.assertNotIn("safeTitle", data)
+        self.assertEqual(data["usedFactIds"], [])
+        self.assertEqual(data["usedPlayIds"], [])
         self.assertFalse(data["fallbackUsed"])
 
     def test_revealed_final_headline_invalid_score_format_returns_failure_state(self):
@@ -258,6 +417,8 @@ class AiRouterTestCase(unittest.TestCase):
         self.assertEqual(data["safeTitle"], generated_summary["safe_title"])
         self.assertEqual(data["violations"], [])
         self.assertFalse(data["fallbackUsed"])
+        self.assertNotIn("usedFactIds", data)
+        self.assertNotIn("usedPlayIds", data)
 
     def test_event_copy_accepts_protected_situation_context(self):
         payload = {

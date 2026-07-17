@@ -46,7 +46,7 @@ class SpoilerFreeSummaryGenerationError(RuntimeError):
 
 def generate_spoiler_free_summary(
     request: AiCopyRequest,
-) -> dict[str, str]:
+) -> dict[str, object]:
     """
     종료 경기 헤드라인 또는 이벤트 타임라인용 AI 문구를 생성합니다.
 
@@ -80,7 +80,7 @@ def generate_spoiler_free_summary(
 
 def _generate_openai_copy(
     request: AiCopyRequest,
-) -> dict[str, str]:
+) -> dict[str, object]:
     """
     OpenAI Responses API를 호출해 AI 문구 후보를 생성합니다.
 
@@ -114,7 +114,7 @@ def _generate_openai_copy_with_retry(
     request: AiCopyRequest,
     options: dict[str, object],
     sleep_func: Callable[[float], None],
-) -> dict[str, str]:
+) -> dict[str, object]:
     """
     OpenAI 호출과 응답 파싱을 최대 N회 시도합니다.
 
@@ -186,22 +186,7 @@ def _build_response_create_options(
                 "type": "json_schema",
                 "name": "ai_copy_response",
                 "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "safe_title": {
-                            "type": "string",
-                            "description": (
-                                "스포일러 정책을 적용한 "
-                                "FINAL_HEADLINE 또는 EVENT_COPY 한 문장"
-                            ),
-                        },
-                    },
-                    "required": [
-                        "safe_title",
-                    ],
-                    "additionalProperties": False,
-                },
+                "schema": _ai_copy_response_schema(request),
             },
         },
     }
@@ -215,6 +200,66 @@ def _build_response_create_options(
         options["temperature"] = settings.openai_temperature
 
     return options
+
+
+def _ai_copy_response_schema(
+    request: AiCopyRequest,
+) -> dict[str, object]:
+    """
+    요청 목적에 맞는 OpenAI Structured Output JSON Schema를 반환합니다.
+
+    FINAL_HEADLINE:
+    - safe_title
+    - used_fact_ids
+    - used_play_ids
+
+    EVENT_COPY:
+    - safe_title
+    """
+
+    properties: dict[str, object] = {
+        "safe_title": {
+            "type": "string",
+            "description": (
+                "스포일러 정책을 적용한 "
+                "FINAL_HEADLINE 또는 EVENT_COPY 한 문장"
+            ),
+        },
+    }
+    required = ["safe_title"]
+
+    if isinstance(request, FinalHeadlineRequest):
+        properties["used_fact_ids"] = {
+            "type": "array",
+            "description": (
+                "헤드라인 작성에 실제 사용한 summaryFacts 근거 ID 목록"
+            ),
+            "items": {
+                "type": "string",
+            },
+        }
+        properties["used_play_ids"] = {
+            "type": "array",
+            "description": (
+                "헤드라인 작성에 실제 사용한 verifiedPlay playId 목록"
+            ),
+            "items": {
+                "type": "integer",
+            },
+        }
+        required.extend(
+            [
+                "used_fact_ids",
+                "used_play_ids",
+            ]
+        )
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
 
 
 def _supports_reasoning(model: str) -> bool:
@@ -235,7 +280,7 @@ def _supports_temperature(model: str) -> bool:
 
 def _parse_openai_response(
     response: object,
-) -> dict[str, str]:
+) -> dict[str, object]:
     """
     Responses API 상태를 먼저 검사한 뒤 visible output을 파싱합니다.
 
@@ -450,19 +495,14 @@ def _log_ai_copy_retry(
     )
 
 
-def _parse_openai_copy(raw_text: str) -> dict[str, str]:
+def _parse_openai_copy(raw_text: str) -> dict[str, object]:
     """
     OpenAI 응답 문자열을 AI 문구 dict로 변환합니다.
 
-    현재 FINAL_HEADLINE과 EVENT_COPY가 공통으로 사용하는 필드는
-    safe_title 하나입니다.
-
-    필수 문구가 없으면 ai-service가 fallback을 생성하지 않고
-    실패 코드를 router로 전달합니다.
+    FINAL_HEADLINE 응답에 evidence ID가 포함되면 타입을 검증해 보존합니다.
+    EVENT_COPY는 기존처럼 safe_title만 사용할 수 있습니다.
     """
 
-    # OpenAI 응답 본문이 없으면 JSON 파싱 오류와 구분되는
-    # 명확한 실패 상태로 처리합니다.
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise SpoilerFreeSummaryGenerationError("OPENAI_EMPTY_RESPONSE")
 
@@ -478,13 +518,69 @@ def _parse_openai_copy(raw_text: str) -> dict[str, str]:
             "OPENAI_INVALID_RESPONSE_TYPE"
         )
 
-    # FINAL_HEADLINE과 EVENT_COPY 모두 router에서
-    # safe_title을 최종 저장 후보 문구로 사용합니다.
-    safe_title = _require_text_field(data, "safe_title")
-
-    return {
-        "safe_title": safe_title,
+    parsed: dict[str, object] = {
+        "safe_title": _require_text_field(data, "safe_title"),
     }
+
+    if "used_fact_ids" in data:
+        parsed["used_fact_ids"] = _require_string_list_field(
+            data,
+            "used_fact_ids",
+        )
+
+    if "used_play_ids" in data:
+        parsed["used_play_ids"] = _require_integer_list_field(
+            data,
+            "used_play_ids",
+        )
+
+    return parsed
+
+
+def _require_string_list_field(
+    data: dict,
+    field_name: str,
+) -> list[str]:
+    """
+    OpenAI JSON 응답에서 문자열 배열을 검증해 반환합니다.
+    """
+
+    value = data.get(field_name)
+
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item.strip()
+        for item in value
+    ):
+        raise SpoilerFreeSummaryGenerationError(
+            f"OPENAI_RESPONSE_INVALID_FIELD:{field_name}"
+        )
+
+    return [item.strip() for item in value]
+
+
+def _require_integer_list_field(
+    data: dict,
+    field_name: str,
+) -> list[int]:
+    """
+    OpenAI JSON 응답에서 양의 정수 배열을 검증해 반환합니다.
+
+    bool은 Python에서 int의 하위 타입이므로 명시적으로 제외합니다.
+    """
+
+    value = data.get(field_name)
+
+    if not isinstance(value, list) or any(
+        not isinstance(item, int)
+        or isinstance(item, bool)
+        or item <= 0
+        for item in value
+    ):
+        raise SpoilerFreeSummaryGenerationError(
+            f"OPENAI_RESPONSE_INVALID_FIELD:{field_name}"
+        )
+
+    return list(value)
 
 
 def _require_text_field(

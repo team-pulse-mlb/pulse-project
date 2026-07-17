@@ -72,7 +72,9 @@ public class AiFinalHeadlineCopyClient implements FinalHeadlineCopyClient {
                 response.contextHash(),
                 response.safeTitle(),
                 copyViolations(response.violations()),
-                response.fallbackUsed()
+                response.fallbackUsed(),
+                response.usedFactIds(),
+                response.usedPlayIds()
         );
     }
 

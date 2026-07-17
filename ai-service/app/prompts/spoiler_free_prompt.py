@@ -10,6 +10,29 @@ from app.schemas.ai_schema import (
 PROMPT_LANGUAGE = "ko"
 MAX_SAFE_TITLE_LENGTH = 80
 
+# FINAL_HEADLINE usedFactIds에 사용할 수 있는 summaryFacts ID입니다.
+# 값은 final_headline_evidence_guard.py의 검증 계약과 동일해야 합니다.
+FINAL_HEADLINE_ALLOWED_FACT_IDS = (
+    "summaryFacts.winnerSide",
+    "summaryFacts.winnerName",
+    "summaryFacts.loserName",
+    "summaryFacts.winnerScore",
+    "summaryFacts.loserScore",
+    "summaryFacts.firstScoringSide",
+    "summaryFacts.firstScoringInning",
+    "summaryFacts.tyingInning",
+    "summaryFacts.decisiveInning",
+    "summaryFacts.decisiveRuns",
+    "summaryFacts.leadChangeCount",
+    "summaryFacts.comebackWin",
+    "summaryFacts.walkOff",
+    "summaryFacts.shutout",
+    "summaryFacts.extraInnings",
+    "summaryFacts.finalInning",
+    "summaryFacts.scoreGap",
+    "summaryFacts.totalRuns",
+)
+
 
 # 종료 경기 헤드라인과 이벤트 타임라인 문구가 같은 prompt builder를 사용하므로
 # 두 요청 모델을 공통 타입으로 묶는다.
@@ -286,6 +309,89 @@ EVENT_COPY PROTECTED 예시:
     raise ValueError(f"Unsupported AI copy mode: {mode}")
 
 
+def _build_response_instruction(
+    purpose: str,
+    mode: AiCopyMode,
+) -> str:
+    """
+    FINAL_HEADLINE과 EVENT_COPY의 JSON 응답 계약을 반환합니다.
+    """
+
+    if purpose == "EVENT_COPY":
+        return """
+EVENT_COPY 응답 계약:
+- 반환 JSON에는 safe_title 필드만 포함하세요.
+- safe_title은 빈 문자열이면 안 됩니다.
+- used_fact_ids와 used_play_ids를 추가하지 마세요.
+
+반환 형식:
+{
+  "safe_title": "생성한 한 문장"
+}
+""".strip()
+
+    if purpose != "FINAL_HEADLINE":
+        raise ValueError(
+            f"Unsupported AI copy purpose: {purpose}"
+        )
+
+    allowed_fact_ids = ", ".join(
+        FINAL_HEADLINE_ALLOWED_FACT_IDS
+    )
+
+    if mode == AiCopyMode.PROTECTED:
+        mode_instruction = """
+- PROTECTED 모드에서는 결과 근거를 사용하지 마세요.
+- used_fact_ids는 반드시 빈 배열 []로 반환하세요.
+- used_play_ids는 반드시 빈 배열 []로 반환하세요.
+""".strip()
+    elif mode == AiCopyMode.REVEALED:
+        mode_instruction = """
+- used_fact_ids에는 safe_title 작성에 실제 사용한 summaryFacts ID만 넣으세요.
+- 사용하지 않은 fact ID를 단순히 context에 존재한다는 이유로 넣지 마세요.
+- used_play_ids에는 safe_title 작성에 실제 사용한 verifiedPlays의 playId만 넣으세요.
+- revealedEvents의 eventId를 used_play_ids에 넣지 마세요.
+- 존재하지 않는 ID, null인 fact ID, 중복 ID를 넣지 마세요.
+- fact 또는 play를 사용하지 않았다면 해당 배열은 []로 반환하세요.
+- boolean fact는 값이 true인 경우에만 해당 결과 표현의 근거로 사용할 수 있습니다.
+""".strip()
+    else:
+        raise ValueError(
+            f"Unsupported AI copy mode: {mode}"
+        )
+
+    return f"""
+FINAL_HEADLINE 응답 계약:
+- 반환 JSON에는 safe_title, used_fact_ids, used_play_ids 세 필드만 포함하세요.
+- safe_title은 빈 문자열이면 안 됩니다.
+- used_fact_ids는 문자열 배열이어야 합니다.
+- used_play_ids는 양의 정수 배열이어야 합니다.
+- 두 evidence 배열에는 중복 값을 넣지 마세요.
+- 허용된 used_fact_ids: {allowed_fact_ids}
+
+{mode_instruction}
+
+표현별 필수 evidence:
+- 승자 또는 최종 점수를 언급하면 실제 사용한 범위에서 summaryFacts.winnerSide, summaryFacts.winnerScore, summaryFacts.loserScore를 선언하세요.
+- 승자 또는 패자의 팀명을 사용하면 summaryFacts.winnerName 또는 summaryFacts.loserName을 선언하세요.
+- "역전"을 사용하면 summaryFacts.comebackWin을 선언해야 하며 값이 true여야 합니다.
+- "끝내기"를 사용하면 summaryFacts.walkOff를 선언해야 하며 값이 true여야 합니다.
+- "영봉"을 사용하면 summaryFacts.shutout을 선언해야 하며 값이 true여야 합니다.
+- 총득점을 언급하면 summaryFacts.totalRuns를 선언하세요.
+- 연장 승부를 언급하면 summaryFacts.extraInnings를 선언하고, 종료 이닝을 사용했다면 summaryFacts.finalInning도 선언하세요.
+- "결승타", "결정 득점", "결정적 득점"을 사용하면 factTags에 DECISIVE_SCORE가 있는 verifiedPlay의 playId를 used_play_ids에 넣으세요.
+- 선수명을 사용하면 그 선수가 batter 또는 pitcher로 포함된 verifiedPlay의 playId를 used_play_ids에 넣으세요.
+- verifiedPlay의 내용을 사용하지 않았다면 used_play_ids는 []로 반환하세요.
+
+반환 형식:
+{{
+  "safe_title": "생성한 한 문장",
+  "used_fact_ids": [],
+  "used_play_ids": []
+}}
+""".strip()
+
+
 def build_spoiler_free_prompt(request: AiCopyRequest) -> str:
     """
     FINAL_HEADLINE 또는 EVENT_COPY 생성용 프롬프트를 만듭니다.
@@ -323,13 +429,9 @@ def build_spoiler_free_prompt(request: AiCopyRequest) -> str:
 - 문구는 {MAX_SAFE_TITLE_LENGTH}자 이내의 한 문장으로 작성하세요.
 - 요청 언어는 {PROMPT_LANGUAGE}입니다.
 - 설명, 마크다운, 코드 블록 없이 JSON 객체 하나만 반환하세요.
-- 반환 JSON에는 safe_title 필드 하나만 포함하세요.
-- safe_title은 빈 문자열이면 안 됩니다.
 
-반환 형식:
-{{
-  "safe_title": "생성한 한 문장"
-}}
+응답 계약:
+{_build_response_instruction(purpose, request.mode)}
 
 요청 데이터:
 {json.dumps(prompt_payload, ensure_ascii=False, indent=2)}

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from app.schemas.ai_schema import (
     AiCopyMode,
+    EventCopyRequest,
     FinalHeadlineRequest,
     SafeContext,
 )
@@ -193,7 +194,23 @@ class OpenAiServiceTestCase(unittest.TestCase):
         )
         self.assertEqual(
             request_options["text"]["format"]["schema"]["required"],
-            ["safe_title"],
+            [
+                "safe_title",
+                "used_fact_ids",
+                "used_play_ids",
+            ],
+        )
+        self.assertEqual(
+            request_options["text"]["format"]["schema"]["properties"][
+                "used_fact_ids"
+            ]["items"]["type"],
+            "string",
+        )
+        self.assertEqual(
+            request_options["text"]["format"]["schema"]["properties"][
+                "used_play_ids"
+            ]["items"]["type"],
+            "integer",
         )
         self.assertFalse(
             request_options["text"]["format"]["schema"][
@@ -203,6 +220,71 @@ class OpenAiServiceTestCase(unittest.TestCase):
         self.assertEqual(
             result,
             {"safe_title": "후반 긴장감이 이어진 경기"},
+        )
+
+    def test_event_copy_schema_does_not_require_headline_evidence_ids(self):
+        request = EventCopyRequest(
+            game_id=5059041,
+            event_id=91,
+            mode=AiCopyMode.PROTECTED,
+            context_hash="event-91-protected-v1",
+            safe_context=SafeContext(
+                event_type="pressure_bases_loaded",
+                label="만루 승부",
+                inning=7,
+            ),
+        )
+
+        options = openai_service._build_response_create_options(request)
+        schema = options["text"]["format"]["schema"]
+
+        self.assertEqual(schema["required"], ["safe_title"])
+        self.assertNotIn("used_fact_ids", schema["properties"])
+        self.assertNotIn("used_play_ids", schema["properties"])
+
+    def test_parse_openai_copy_preserves_final_headline_evidence_ids(self):
+        result = openai_service._parse_openai_copy(
+            """
+            {
+              "safe_title": "9회 끝내기로 경기를 뒤집었다",
+              "used_fact_ids": [
+                "summaryFacts.comebackWin",
+                "summaryFacts.walkOff"
+              ],
+              "used_play_ids": [312]
+            }
+            """
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "safe_title": "9회 끝내기로 경기를 뒤집었다",
+                "used_fact_ids": [
+                    "summaryFacts.comebackWin",
+                    "summaryFacts.walkOff",
+                ],
+                "used_play_ids": [312],
+            },
+        )
+
+    def test_parse_openai_copy_rejects_invalid_evidence_ids(self):
+        with self.assertRaises(
+            openai_service.SpoilerFreeSummaryGenerationError
+        ) as context:
+            openai_service._parse_openai_copy(
+                """
+                {
+                  "safe_title": "9회 끝내기 승리",
+                  "used_fact_ids": ["summaryFacts.walkOff"],
+                  "used_play_ids": ["312"]
+                }
+                """
+            )
+
+        self.assertEqual(
+            str(context.exception),
+            "OPENAI_RESPONSE_INVALID_FIELD:used_play_ids",
         )
 
     def test_generate_openai_copy_retries_empty_response_once(self):
