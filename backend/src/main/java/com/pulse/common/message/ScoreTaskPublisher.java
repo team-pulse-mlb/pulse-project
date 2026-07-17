@@ -51,7 +51,14 @@ public class ScoreTaskPublisher {
     }
 
     private UUID savePending(ScoreTask task) {
-        ScoreTaskOutbox outbox = outboxRepository.save(ScoreTaskOutbox.pending(task, clock.instant()));
-        return outbox.getOutboxId();
+        ScoreTaskOutbox candidate = ScoreTaskOutbox.pending(task, clock.instant());
+        if (outboxRepository.insertPending(candidate)) {
+            return candidate.getOutboxId();
+        }
+
+        // INSERT 시점의 경쟁에서 진 호출은 유니크 키를 선점한 기존 행을 그대로 재사용한다.
+        return outboxRepository.findByGameIdAndObservedAt(task.gameId(), task.observedAt())
+                .map(ScoreTaskOutbox::getOutboxId)
+                .orElseThrow(() -> new IllegalStateException("경쟁 발행이 저장한 ScoreTask outbox를 찾을 수 없습니다."));
     }
 }

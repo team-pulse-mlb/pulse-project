@@ -31,7 +31,9 @@ public record ScoringProperties(
 
     public record ScoreGap(int gap01, int gap2, int gap3) {}
 
-    public record RecentScore(int perRun, int max, long tauSeconds, Map<String, Double> closenessMultiplier) {
+    // baseBudget은 closeness multiplier 적용 전의 예산이다. 실제 신호 상한이 아니라
+    // multiplier(최대 2.0)에 따라 신호는 baseBudget의 최대 2배까지 커질 수 있다.
+    public record RecentScore(int perRun, int baseBudget, long tauSeconds, Map<String, Double> closenessMultiplier) {
         public double multiplierFor(int gap) {
             return closenessMultiplier.getOrDefault("gap-" + gap, closenessMultiplier.getOrDefault("default", 1.0));
         }

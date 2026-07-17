@@ -214,7 +214,7 @@ services:
     profiles: ["batch"]
     restart: "no"
     environment:
-      # prod 없이 기동하면 base 설정의 ddl-auto: update가 운영 스키마를 건드린다.
+      # 기본 프로파일 ddl-auto가 none이라 prod 누락 시에도 스키마는 안전하지만, 운영 설정 일관성을 위해 prod를 명시한다.
       SPRING_PROFILES_ACTIVE: prod,replay
       PULSE_POLLER_ENABLED: "false"
       PULSE_SCORER_ENABLED: "false"

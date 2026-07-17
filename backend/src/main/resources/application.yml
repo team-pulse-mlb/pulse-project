@@ -22,7 +22,9 @@ spring:
     password: ${POSTGRES_PASSWORD:pulse}
   jpa:
     hibernate:
-      ddl-auto: update    # 3주 프로젝트 기준. 스키마 확정 후 validate 전환 검토
+      # 기본값은 스키마를 건드리지 않는다. 프로파일 없이 운영 DB에 붙어도 안전하도록 none을 유지하고,
+      # 로컬 개발에서 스키마 자동 반영이 필요하면 local 프로파일을 켠다(application-local.yml).
+      ddl-auto: none
     open-in-view: false
     properties:
       hibernate:
@@ -38,6 +40,7 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:pulse}
     password: ${RABBITMQ_PASSWORD:pulse}
+    publisher-confirm-type: correlated
     listener:
       simple:
         default-requeue-rejected: false   # 처리 실패 메시지는 재큐잉 대신 DLQ로
@@ -120,6 +123,8 @@ pulse:
   bdl:
     base-url: https://api.balldontlie.io
     api-key: ${BDL_API_KEY:}
+    connect-timeout: ${PULSE_BDL_CONNECT_TIMEOUT:2s}
+    read-timeout: ${PULSE_BDL_READ_TIMEOUT:10s}
   ai:
     base-url: ${PULSE_AI_BASE_URL:http://localhost:8000}
     event-copy-retry:
@@ -168,6 +173,10 @@ pulse:
     retry-initial-interval: ${PULSE_SCORE_TASK_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
     retry-max-interval: ${PULSE_SCORE_TASK_OUTBOX_RETRY_MAX_INTERVAL:5m}
     batch-size: ${PULSE_SCORE_TASK_OUTBOX_BATCH_SIZE:50}
+    confirm-timeout: ${PULSE_SCORE_TASK_OUTBOX_CONFIRM_TIMEOUT:10s}
+    retention-period: ${PULSE_SCORE_TASK_OUTBOX_RETENTION_PERIOD:7d}
+    cleanup-delay: ${PULSE_SCORE_TASK_OUTBOX_CLEANUP_DELAY:1h}
+    cleanup-batch-size: ${PULSE_SCORE_TASK_OUTBOX_CLEANUP_BATCH_SIZE:500}
   notification-outbox:
     dispatch-delay: ${PULSE_NOTIFICATION_OUTBOX_DISPATCH_DELAY:5s}
     retry-initial-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
@@ -177,7 +186,13 @@ pulse:
     enabled: ${PULSE_SSE_ENABLED:true}
     heartbeat-interval: ${PULSE_SSE_HEARTBEAT_INTERVAL:25s}
     connection-ttl: ${PULSE_SSE_CONNECTION_TTL:60m}
-    max-connections: ${PULSE_SSE_MAX_CONNECTIONS:1000}
+    anonymous-max-connections: ${PULSE_SSE_ANONYMOUS_MAX_CONNECTIONS:1000}
+    authenticated-max-connections: ${PULSE_SSE_AUTHENTICATED_MAX_CONNECTIONS:1000}
+    broadcast-threads: ${PULSE_SSE_BROADCAST_THREADS:8}
+    broadcast-queue-capacity: ${PULSE_SSE_BROADCAST_QUEUE_CAPACITY:1024}
+  home:
+    ranking-cache:
+      ttl: ${PULSE_HOME_RANKING_CACHE_TTL:3s}
 
 server:
   port: 8080

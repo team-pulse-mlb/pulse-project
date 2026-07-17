@@ -197,6 +197,9 @@ public class OperationalPoller {
                     lastTaskPublishedAt.put(game.getId(), now);
                 }
             } catch (RuntimeException e) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw e;
+                }
                 if (PollerExceptionClassifier.shouldBackoff(e)) {
                     handleFailure("plays", playsBackoff, now, e);
                     return;
