@@ -63,7 +63,8 @@ class LiveGameCycleWriterTest {
         Game game = gameWriter.upsertGame(game(), observedAt).game();
         when(scoreTaskOutboxRepository.findByGameIdAndObservedAt(100L, observedAt))
                 .thenReturn(Optional.empty());
-        when(scoreTaskOutboxRepository.save(any(ScoreTaskOutbox.class)))
+        // 경쟁 방지 insert 경로(insertPending)가 outbox 저장 지점이므로 여기서 실패를 일으킨다.
+        when(scoreTaskOutboxRepository.insertPending(any(ScoreTaskOutbox.class)))
                 .thenThrow(new DataIntegrityViolationException("outbox 저장 실패"));
 
         assertThatThrownBy(() -> cycleWriter.write(game, List.of(play(10L)), List.of(), observedAt))
