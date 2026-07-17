@@ -135,6 +135,8 @@ export interface ProtectedLiveGameDetailResponse
     status: 'STATUS_IN_PROGRESS';
     displayMode: 'PROTECTED';
 
+    venue: string | null;
+
     periodLabel: string;
     inning: number | null;
     situation: SituationResponse | null;
@@ -151,6 +153,8 @@ export interface RevealedLiveGameDetailResponse
 
     status: 'STATUS_IN_PROGRESS';
     displayMode: 'REVEALED';
+
+    venue: string | null;
 
     score: ScoreResponse;
     inning: number | null;

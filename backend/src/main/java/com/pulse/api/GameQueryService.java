@@ -99,6 +99,8 @@ public class GameQueryService {
                     homeTeam,
                     awayTeam,
                     game.getStartTime(),
+                    nullableText(
+                            game.getVenue()),
                     score(game),
                     inning,
                     latestPlay == null
@@ -117,6 +119,8 @@ public class GameQueryService {
                 homeTeam,
                 awayTeam,
                 game.getStartTime(),
+                nullableText(
+                        game.getVenue()),
                 periodLabel(game),
                 inning,
                 situation,
@@ -708,6 +712,7 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
+            String venue,
             String periodLabel,
             Integer inning,
             SituationResponse situation,
@@ -725,6 +730,7 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
+            String venue,
             ScoreResponse score,
             Integer inning,
             String inningType,

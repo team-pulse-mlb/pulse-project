@@ -146,6 +146,7 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-02T00:00:00Z"),
+                        "Wrigley Field",
                         "후반",
                         8,
                         new SituationResponse(
@@ -168,6 +169,9 @@ class GameDetailSerializationGuardTest {
                     softly.assertThat(
                                     json.get("displayMode").asText())
                             .isEqualTo("PROTECTED");
+
+                    softly.assertThat(json.get("venue").asText())
+                            .isEqualTo("Wrigley Field");
 
                     /*
                      * 팀 정보와 이닝 숫자, 현재 상황은
@@ -239,6 +243,7 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-02T00:00:00Z"),
+                        "Wrigley Field",
                         new ScoreResponse(
                                 3,
                                 4),
@@ -289,6 +294,9 @@ class GameDetailSerializationGuardTest {
                     softly.assertThat(
                                     json.get("displayMode").asText())
                             .isEqualTo("REVEALED");
+
+                    softly.assertThat(json.get("venue").asText())
+                            .isEqualTo("Wrigley Field");
 
                     /*
                      * 진행 공개 상세에서 사용하는 경기 정보다.
