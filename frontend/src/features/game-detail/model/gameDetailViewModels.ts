@@ -21,7 +21,7 @@ export interface GameDateViewModel {
     dateLabel: string | null;
 
     /**
-     * 예정 경기 정보 카드에서 사용하는 시작 시각이다.
+     * 예정 경기 상단 메타 정보에서 사용하는 시작 시각이다.
      */
     startTimeLabel: string | null;
 }
@@ -80,6 +80,12 @@ export interface ScoringPlayViewModel {
     text: string;
 }
 
+export interface StartingLineupPlayerViewModel {
+    battingOrder: number;
+    playerName: string;
+    position: string | null;
+}
+
 export interface ScheduledGameDetailViewModel
     extends GameDateViewModel {
 
@@ -92,11 +98,14 @@ export interface ScheduledGameDetailViewModel
     homeTeam: GameDetailTeamViewModel;
     awayTeam: GameDetailTeamViewModel;
 
-    venue: string | null;
-
     probablePitchers: {
         home: string | null;
         away: string | null;
+    };
+
+    startingLineups: {
+        home: StartingLineupPlayerViewModel[];
+        away: StartingLineupPlayerViewModel[];
     };
 }
 

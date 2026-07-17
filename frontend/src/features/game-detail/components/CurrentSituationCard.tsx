@@ -77,7 +77,8 @@ interface BaseProps {
 
 /**
  * 1·2·3루 베이스다.
- * 주자가 있으면 빨간색으로 채우고, 없으면 흰색으로 표시한다.
+ * 주자가 있으면 노란색과 주황색이 섞인 점등 효과로 표시하고,
+ * 주자가 없으면 흰색으로 유지한다.
  */
 function Base({
                   occupied,
@@ -88,7 +89,7 @@ function Base({
             aria-hidden="true"
             className={`absolute h-6 w-6 rotate-45 rounded-[4px] border-2 ${
                 occupied
-                    ? 'border-mlb-red bg-mlb-red shadow-[0_4px_12px_rgba(228,0,43,0.35)]'
+                    ? 'border-[#FACC15] bg-[linear-gradient(135deg,#FFF7AE_0%,#FFE55C_52%,#FBBF24_100%)] shadow-[0_2px_6px_rgba(249,115,22,0.3)]'
                     : 'border-[#C9D0DB] bg-white'
             } ${className}`}
         />

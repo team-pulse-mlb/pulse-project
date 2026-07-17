@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Link,
     useLocation,
     useParams,
 } from 'react-router';
 
+import { getMyPreferences } from '../../auth/api/preferenceApi';
 import BoxScoreTable from '../../../shared/components/BoxScoreTable';
 import Card from '../../../shared/components/Card';
 import EmptyState from '../../../shared/components/EmptyState';
@@ -89,6 +90,61 @@ function GameDetailPage() {
             validGameId,
             mode,
         );
+
+    const [
+        favoritePlayerNames,
+        setFavoritePlayerNames,
+    ] = useState<string[]>([]);
+
+    /*
+     * 예정 경기의 선발 투수·라인업에 관심 선수 별표를 표시하기 위해
+     * 로그인 사용자의 관심 선수 이름을 조회한다.
+     */
+    useEffect(() => {
+        if (
+            gameDetailQuery.data?.status
+            !== 'STATUS_SCHEDULED'
+            || !localStorage.getItem('accessToken')
+        ) {
+            return;
+        }
+
+        let ignore = false;
+
+        const loadFavoritePlayers = async () => {
+            try {
+                const preference =
+                    await getMyPreferences();
+
+                if (ignore) {
+                    return;
+                }
+
+                setFavoritePlayerNames(
+                    preference.favoritePlayers
+                        .map(
+                            (player) =>
+                                player.fullName?.trim()
+                                ?? '',
+                        )
+                        .filter(
+                            (name) =>
+                                name.length > 0,
+                        ),
+                );
+            } catch {
+                if (!ignore) {
+                    setFavoritePlayerNames([]);
+                }
+            }
+        };
+
+        void loadFavoritePlayers();
+
+        return () => {
+            ignore = true;
+        };
+    }, [gameDetailQuery.data?.status]);
 
     /**
      * 경기 흐름은 진행 경기와 종료 경기에서만 제공한다.
@@ -196,6 +252,9 @@ function GameDetailPage() {
         return (
             <ScheduledGameDetail
                 data={detail}
+                favoritePlayerNames={
+                    favoritePlayerNames
+                }
             />
         );
     }

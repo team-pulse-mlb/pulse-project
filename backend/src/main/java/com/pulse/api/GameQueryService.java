@@ -138,7 +138,9 @@ public class GameQueryService {
 
     /**
      * 예정 경기 상세에서는 결과성 데이터 없이
-     * 매치업, 시작 시각, 구장, 예상 선발 투수만 반환한다.
+     * 매치업, 시작 시각, 선발 투수와 양 팀 선발 라인업만 반환한다.
+     *
+     * 구장명은 홈·원정 관계를 유추할 수 있으므로 응답에서 제외한다.
      */
     private GameDetailView scheduledGameDetail(Game game) {
         TeamResponse homeTeam =
@@ -160,8 +162,8 @@ public class GameQueryService {
                 homeTeam,
                 awayTeam,
                 game.getStartTime(),
-                nullableText(game.getVenue()),
-                probablePitchers(game));
+                probablePitchers(game),
+                startingLineups(game));
     }
 
     /**
@@ -241,6 +243,110 @@ public class GameQueryService {
         return new ProbablePitchersResponse(
                 homePitcher,
                 awayPitcher);
+    }
+
+    /**
+     * batting_order가 있는 선수만 선발 라인업으로 사용한다.
+     *
+     * 선수 정보가 없거나 타순이 없는 행은 제외하고,
+     * 홈·원정 팀별로 타순 오름차순 정렬해 반환한다.
+     */
+    private StartingLineupsResponse startingLineups(
+            Game game) {
+
+        List<Lineup> battingLineups =
+                lineupRepository
+                        .findByGameId(game.getId())
+                        .stream()
+                        .filter(
+                                lineup ->
+                                        lineup.getBattingOrder()
+                                                != null)
+                        .toList();
+
+        if (battingLineups.isEmpty()) {
+            return new StartingLineupsResponse(
+                    List.of(),
+                    List.of());
+        }
+
+        List<Long> playerIds =
+                battingLineups
+                        .stream()
+                        .map(Lineup::getPlayerId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+
+        Map<Long, Player> playersById =
+                playerRepository
+                        .findAllById(playerIds)
+                        .stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Player::getId,
+                                        Function.identity()));
+
+        List<StartingLineupPlayerResponse> homeLineup =
+                new ArrayList<>();
+
+        List<StartingLineupPlayerResponse> awayLineup =
+                new ArrayList<>();
+
+        for (Lineup lineup : battingLineups) {
+            Player player =
+                    playersById.get(
+                            lineup.getPlayerId());
+
+            String playerName =
+                    playerName(player);
+
+            Integer battingOrder =
+                    lineup.getBattingOrder();
+
+            if (playerName == null
+                    || battingOrder == null) {
+                continue;
+            }
+
+            StartingLineupPlayerResponse response =
+                    new StartingLineupPlayerResponse(
+                            battingOrder,
+                            playerName,
+                            nullableText(
+                                    lineup.getPosition()));
+
+            if (Objects.equals(
+                    lineup.getTeamId(),
+                    game.getHomeTeamId())) {
+
+                homeLineup.add(response);
+                continue;
+            }
+
+            if (Objects.equals(
+                    lineup.getTeamId(),
+                    game.getAwayTeamId())) {
+
+                awayLineup.add(response);
+            }
+        }
+
+        homeLineup.sort(
+                (left, right) ->
+                        Integer.compare(
+                                left.battingOrder(),
+                                right.battingOrder()));
+
+        awayLineup.sort(
+                (left, right) ->
+                        Integer.compare(
+                                left.battingOrder(),
+                                right.battingOrder()));
+
+        return new StartingLineupsResponse(
+                homeLineup,
+                awayLineup);
     }
 
     /**
@@ -691,8 +797,8 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
-            String venue,
-            ProbablePitchersResponse probablePitchers)
+            ProbablePitchersResponse probablePitchers,
+            StartingLineupsResponse startingLineups)
             implements GameDetailView {}
 
     /**
@@ -808,6 +914,15 @@ public class GameQueryService {
     public record ProbablePitchersResponse(
             String home,
             String away) {}
+
+    public record StartingLineupsResponse(
+            List<StartingLineupPlayerResponse> home,
+            List<StartingLineupPlayerResponse> away) {}
+
+    public record StartingLineupPlayerResponse(
+            Integer battingOrder,
+            String playerName,
+            String position) {}
 
     public record ScoringPlayResponse(
             Integer inning,

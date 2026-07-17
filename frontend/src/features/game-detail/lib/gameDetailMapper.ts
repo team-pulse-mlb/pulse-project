@@ -255,10 +255,6 @@ export function toScheduledGameDetailViewModel(
             response.startTime,
         ),
 
-        venue:
-            response.venue?.trim()
-            || null,
-
         probablePitchers: {
             home:
                 response.probablePitchers
@@ -271,6 +267,56 @@ export function toScheduledGameDetailViewModel(
                     .away
                     ?.trim()
                 || null,
+        },
+
+        startingLineups: {
+            home:
+                response.startingLineups.home
+                    .map((player) => ({
+                        battingOrder:
+                            player.battingOrder,
+
+                        playerName:
+                            player.playerName.trim(),
+
+                        position:
+                            player.position?.trim()
+                            || null,
+                    }))
+                    .filter(
+                        (player) =>
+                            player.battingOrder > 0
+                            && player.playerName.length > 0,
+                    )
+                    .sort(
+                        (left, right) =>
+                            left.battingOrder
+                            - right.battingOrder,
+                    ),
+
+            away:
+                response.startingLineups.away
+                    .map((player) => ({
+                        battingOrder:
+                            player.battingOrder,
+
+                        playerName:
+                            player.playerName.trim(),
+
+                        position:
+                            player.position?.trim()
+                            || null,
+                    }))
+                    .filter(
+                        (player) =>
+                            player.battingOrder > 0
+                            && player.playerName.length > 0,
+                    )
+                    .sort(
+                        (left, right) =>
+                            left.battingOrder
+                            - right.battingOrder,
+                    ),
         },
     };
 }

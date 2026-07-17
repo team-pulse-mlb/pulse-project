@@ -111,9 +111,6 @@ class GameQueryServiceTest {
                             assertThat(detail.status())
                                     .isEqualTo(Game.STATUS_SCHEDULED);
 
-                            assertThat(detail.venue())
-                                    .isEqualTo("Test Ballpark");
-
                             assertThat(
                                     detail.probablePitchers().home())
                                     .isEqualTo("Home Starter");
@@ -312,6 +309,117 @@ class GameQueryServiceTest {
                              */
                             assertThat(detail.venue())
                                     .isEqualTo("Wrigley Field");
+                        });
+    }
+
+    @Test
+    void scheduledGame_shouldReturnStartingLineupsForBothTeams() {
+        // given
+        Game game = scheduledGame(401L);
+
+        Lineup awaySecond =
+                startingHitter(
+                        401L,
+                        212L,
+                        2L,
+                        2,
+                        "CF");
+
+        Lineup homeFirst =
+                startingHitter(
+                        401L,
+                        111L,
+                        1L,
+                        1,
+                        "2B");
+
+        Lineup awayFirst =
+                startingHitter(
+                        401L,
+                        211L,
+                        2L,
+                        1,
+                        "SS");
+
+        when(gameRepository.findById(401L))
+                .thenReturn(Optional.of(game));
+
+        when(
+                lineupRepository
+                        .findByGameIdAndIsProbablePitcherTrue(
+                                401L))
+                .thenReturn(List.of());
+
+        when(
+                lineupRepository.findByGameId(401L))
+                .thenReturn(
+                        List.of(
+                                awaySecond,
+                                homeFirst,
+                                awayFirst));
+
+        when(
+                playerRepository.findAllById(
+                        List.of(
+                                212L,
+                                111L,
+                                211L)))
+                .thenReturn(
+                        List.of(
+                                player(
+                                        212L,
+                                        "Away Second"),
+                                player(
+                                        111L,
+                                        "Home First"),
+                                player(
+                                        211L,
+                                        "Away First")));
+
+        // when
+        GameDetailView response =
+                service.getGameDetail(
+                        401L,
+                        null);
+
+        // then
+        assertThat(response)
+                .isInstanceOfSatisfying(
+                        ScheduledGameDetailResponse.class,
+                        detail -> {
+                            assertThat(
+                                    detail.startingLineups()
+                                            .home())
+                                    .hasSize(1);
+
+                            assertThat(
+                                    detail.startingLineups()
+                                            .home()
+                                            .getFirst()
+                                            .playerName())
+                                    .isEqualTo(
+                                            "Home First");
+
+                            assertThat(
+                                    detail.startingLineups()
+                                            .away())
+                                    .hasSize(2);
+
+                            assertThat(
+                                    detail.startingLineups()
+                                            .away()
+                                            .get(0)
+                                            .playerName())
+                                    .isEqualTo(
+                                            "Away First");
+
+                            assertThat(
+                                    detail.startingLineups()
+                                            .away()
+                                            .get(1)
+                                            .playerName())
+                                    .isEqualTo(
+                                            "Away Second");
                         });
     }
 
@@ -586,6 +694,25 @@ class GameQueryServiceTest {
         game.setAwayTeamAbbr("AWY");
 
         return game;
+    }
+
+    private static Lineup startingHitter(
+            long gameId,
+            long playerId,
+            long teamId,
+            int battingOrder,
+            String position) {
+
+        Lineup lineup = new Lineup();
+
+        lineup.setGameId(gameId);
+        lineup.setPlayerId(playerId);
+        lineup.setTeamId(teamId);
+        lineup.setBattingOrder(battingOrder);
+        lineup.setPosition(position);
+        lineup.setIsProbablePitcher(false);
+
+        return lineup;
     }
 
     private static Lineup probablePitcher(

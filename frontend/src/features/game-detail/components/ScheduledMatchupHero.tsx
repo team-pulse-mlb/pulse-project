@@ -10,19 +10,18 @@ interface ScheduledMatchupHeroProps {
  * 예정 경기 상단 매치업 영역이다.
  *
  * 예정 경기에는 공개할 결과가 없으므로 점수나 모드 토글 없이
- * 경기 상태, 날짜, 구장과 팀 매치업만 표시한다.
+ * 경기 상태, 날짜, 경기 시간과 팀 매치업만 표시한다.
  */
 function ScheduledMatchupHero({
                                   data,
                               }: ScheduledMatchupHeroProps) {
     /*
-     * API에서 시작 시각이나 구장이 누락된 경우
-     * 존재하는 정보만 조합해서 표시한다.
+     * API에서 시작 시각이 누락된 경우
+     * 존재하는 날짜 정보만 조합해서 표시한다.
      */
     const metaItems = [
         data.season?.toString() ?? null,
-        data.dateLabel,
-        data.venue,
+        data.startTimeLabel,
     ].filter(
         (value): value is string =>
             value !== null
