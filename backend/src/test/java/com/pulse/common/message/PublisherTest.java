@@ -1,7 +1,9 @@
 package com.pulse.common.message;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -103,5 +105,35 @@ class PublisherTest {
         assertThat(eventLogCaptor.getValue().getEventId()).isEqualTo(eventId);
         assertThat(outboxCaptor.getValue().getEventId()).isEqualTo(eventId);
         assertThat(outboxCaptor.getValue().getStatus()).isEqualTo(NotificationOutbox.STATUS_PENDING);
+    }
+
+    @Test
+    @DisplayName("즉시 발행이 실패해도 예외를 호출자에게 전파하지 않는다 — outbox 재발행으로 복구")
+    void notificationEventPublisher_shouldNotPropagateDispatchFailure() {
+        UUID eventId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-07-08T00:00:00Z");
+        NotificationEvent event = new NotificationEvent(
+                eventId,
+                NotificationType.GAME_START,
+                1L,
+                "관심 팀 경기가 시작됐어요 — BOS @ NYY",
+                null,
+                now
+        );
+        NotificationEventLogRepository eventLogRepository = mock(NotificationEventLogRepository.class);
+        NotificationOutboxRepository outboxRepository = mock(NotificationOutboxRepository.class);
+        NotificationOutboxDispatcher dispatcher = mock(NotificationOutboxDispatcher.class);
+        doThrow(new IllegalStateException("dispatch failed")).when(dispatcher).publishEvent(eventId);
+
+        NotificationEventPublisher publisher = new NotificationEventPublisher(
+                eventLogRepository,
+                outboxRepository,
+                dispatcher,
+                new AfterCommitExecutor(),
+                Clock.fixed(now, ZoneOffset.UTC)
+        );
+
+        assertThatCode(() -> publisher.publish(event)).doesNotThrowAnyException();
+        verify(outboxRepository).save(any(NotificationOutbox.class));
     }
 }
