@@ -2,6 +2,7 @@ package com.pulse.scorer;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -11,14 +12,13 @@ import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.poller.GameLifecycle;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -29,16 +29,13 @@ class GameFinalizationServiceTest {
     private final AiGenerationTrigger aiGenerationTrigger = mock(AiGenerationTrigger.class);
     private final TimelineHighlightBackfill timelineHighlightBackfill = mock(TimelineHighlightBackfill.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-    @SuppressWarnings("unchecked")
-    private final ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
     private final GameFinalizationService service = new GameFinalizationService(
             gameRepository,
             liveSignalPublisher,
             aiGenerationTrigger,
             new AfterCommitExecutor(),
             timelineHighlightBackfill,
-            redisTemplate,
-            Duration.ofHours(48)
+            redisTemplate
     );
 
     private final Instant observedAt = Instant.parse("2026-07-08T04:00:00Z");
@@ -52,23 +49,23 @@ class GameFinalizationServiceTest {
     }
 
     @Test
-    void handle_shouldCreateFinalizedKeyWithTtlAndRequestAiForFinal() {
+    @DisplayName("DB에서 최초 종료 처리를 확정하고 AI 생성을 요청한다")
+    void handle_shouldMarkFinalizedInDatabaseAndRequestAiForFinal() {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game()));
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(
-                "score:finalized:100", observedAt.toString(), Duration.ofHours(48)))
-                .thenReturn(true);
+        when(gameRepository.markFinalized(100L, observedAt)).thenReturn(1);
 
         service.handle(task(GameLifecycle.FINAL.name()));
 
         verify(redisTemplate).delete(List.of("notify:armed:100", "notify:cooldown:100"));
+        verify(gameRepository).markFinalized(100L, observedAt);
         verify(timelineHighlightBackfill).backfillIfEmpty(100L, observedAt, true);
         verify(aiGenerationTrigger).onGameFinalized(100L, observedAt);
     }
 
     @Test
-    void handle_shouldNotCreateRedisIdempotencyStateWhenTransactionRollsBack() {
+    void handle_shouldNotRunAfterCommitWorkWhenTransactionRollsBack() {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game()));
+        when(gameRepository.markFinalized(100L, observedAt)).thenReturn(1);
         beginTransaction();
 
         service.handle(task(GameLifecycle.FINAL.name()));
@@ -83,58 +80,47 @@ class GameFinalizationServiceTest {
         when(gameRepository.findById(100L)).thenReturn(
                 Optional.of(game(Game.STATUS_POSTPONED)),
                 Optional.of(game(Game.STATUS_FINAL)));
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(
-                "score:terminal:100:SUSPENDED_POSTPONED", observedAt.toString(), Duration.ofHours(48)))
-                .thenReturn(true);
-        when(valueOperations.setIfAbsent(
-                "score:finalized:100", observedAt.toString(), Duration.ofHours(48)))
-                .thenReturn(true);
+        when(gameRepository.markSuspendedPostponed(100L, observedAt)).thenReturn(1);
+        when(gameRepository.markFinalized(100L, observedAt)).thenReturn(1);
 
         service.handle(task(GameLifecycle.SUSPENDED_POSTPONED.name()));
         service.handle(task(GameLifecycle.FINAL.name()));
 
-        verify(valueOperations).setIfAbsent(
-                "score:terminal:100:SUSPENDED_POSTPONED", observedAt.toString(), Duration.ofHours(48));
-        verify(valueOperations).setIfAbsent(
-                "score:finalized:100", observedAt.toString(), Duration.ofHours(48));
+        verify(gameRepository).markSuspendedPostponed(100L, observedAt);
+        verify(gameRepository).markFinalized(100L, observedAt);
         verify(aiGenerationTrigger).onGameFinalized(100L, observedAt);
     }
 
     @Test
-    void handle_shouldUseSeparateKeyAndSkipAiForCanceledDoneGame() {
+    void handle_shouldUseSeparateDoneRecordAndSkipAiForCanceledGame() {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game(Game.STATUS_CANCELED)));
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(
-                "score:terminal:100:DONE", observedAt.toString(), Duration.ofHours(48)))
-                .thenReturn(true);
+        when(gameRepository.markDone(100L, observedAt)).thenReturn(1);
 
         service.handle(task(GameLifecycle.DONE.name()));
 
-        verify(valueOperations).setIfAbsent(
-                "score:terminal:100:DONE", observedAt.toString(), Duration.ofHours(48));
-        verify(valueOperations, never()).setIfAbsent(
-                "score:finalized:100", observedAt.toString(), Duration.ofHours(48));
+        verify(gameRepository).markDone(100L, observedAt);
+        verify(gameRepository, never()).markFinalized(100L, observedAt);
         verifyNoInteractions(timelineHighlightBackfill);
         verifyNoInteractions(aiGenerationTrigger);
     }
 
     @Test
-    void handle_shouldRetryLiveStateCleanupForDuplicateFinalTask() {
+    @DisplayName("Redis가 초기화되어도 DB 기록으로 중복 종료 후처리를 막는다")
+    void handle_shouldKeepFinalizationIdempotentAfterRedisReset() {
         when(gameRepository.findById(100L)).thenReturn(Optional.of(game()));
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(
-                "score:finalized:100", observedAt.toString(), Duration.ofHours(48)))
-                .thenReturn(false);
+        when(gameRepository.markFinalized(100L, observedAt)).thenReturn(1, 0);
 
         service.handle(task(GameLifecycle.FINAL.name()));
+        service.handle(task(GameLifecycle.FINAL.name()));
 
-        verify(liveSignalPublisher).removeLiveGame(100L);
-        verify(liveSignalPublisher).evictGameCache(100L);
-        verify(liveSignalPublisher).publishGameSignal(100L);
-        verify(liveSignalPublisher).publishRankingSignal();
-        verify(redisTemplate).expire("score:finalized:100", Duration.ofHours(48));
-        verifyNoInteractions(aiGenerationTrigger);
+        verify(liveSignalPublisher, times(2)).removeLiveGame(100L);
+        verify(liveSignalPublisher, times(2)).evictGameCache(100L);
+        verify(liveSignalPublisher, times(2)).publishGameSignal(100L);
+        verify(liveSignalPublisher, times(2)).publishRankingSignal();
+        verify(gameRepository, times(2)).markFinalized(100L, observedAt);
+        verify(timelineHighlightBackfill).backfillIfEmpty(100L, observedAt, true);
+        verify(aiGenerationTrigger).onGameFinalized(100L, observedAt);
+        verify(redisTemplate, never()).opsForValue();
     }
 
     private ScoreTask task(String lifecycleState) {
