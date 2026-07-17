@@ -111,6 +111,21 @@ class SimulationBaseballDataSourceTest {
                 .isEqualTo(Game.STATUS_IN_PROGRESS);
     }
 
+    @Test
+    void 여러_날짜_조회는_기존_단일_날짜_로직을_재사용한다() {
+        SimulationProperties properties = new SimulationProperties(
+                true, 10L, 9_000_000_010L, List.of(), 1.0, Duration.ofSeconds(40),
+                Duration.ofSeconds(20), "START", null, null, 1000);
+        SimulationBaseballDataSource source = source(properties);
+
+        List<BdlGame> games = source.getGames(List.of(
+                LocalDate.of(2026, 7, 11),
+                LocalDate.of(2026, 7, 12)
+        ));
+
+        assertThat(games).hasSize(1);
+    }
+
     private SimulationBaseballDataSource source(SimulationProperties properties) {
         for (SimulationProperties.ResolvedGameSpec spec : properties.resolvedGames()) {
             when(gameRepository.findById(spec.sourceGameId())).thenReturn(Optional.of(game(spec.sourceGameId())));

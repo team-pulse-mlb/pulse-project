@@ -19,6 +19,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -35,8 +36,13 @@ public class BalldontlieClient implements BaseballDataSource {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public BalldontlieClient(BdlProperties props, ObjectMapper objectMapper) {
-        this.restClient = RestClient.builder()
+        this(props, objectMapper, RestClient.builder());
+    }
+
+    BalldontlieClient(BdlProperties props, ObjectMapper objectMapper, RestClient.Builder restClientBuilder) {
+        this.restClient = restClientBuilder
                 .baseUrl(props.baseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.apiKey())
                 .requestInterceptor((request, body, execution) -> {
@@ -49,6 +55,7 @@ public class BalldontlieClient implements BaseballDataSource {
                         if (status == 429) {
                             PulseMetrics.increment("pulse.bdl.rate.limit", "endpoint", endpoint);
                         }
+                        recordRateLimitRemaining(endpoint, response.getHeaders().getFirst("x-ratelimit-remaining"));
                         return response;
                     } catch (IOException | RuntimeException exception) {
                         PulseMetrics.increment("pulse.bdl.requests", "endpoint", endpoint, "outcome", "exception");
@@ -61,15 +68,40 @@ public class BalldontlieClient implements BaseballDataSource {
 
     /** 특정 날짜의 경기 목록 */
     public List<BdlGame> getGames(LocalDate date) {
+        return getGames(List.of(date));
+    }
+
+    /** 여러 날짜의 경기 목록을 한 요청으로 조회한다. */
+    @Override
+    public List<BdlGame> getGames(List<LocalDate> dates) {
+        if (dates == null || dates.isEmpty()) {
+            return List.of();
+        }
         ListResponse<BdlGame> response = restClient.get()
                 .uri(uri -> uri.path("/mlb/v1/games")
-                        .queryParam("dates[]", date.toString())
+                        .queryParam("dates[]", dates.stream().map(LocalDate::toString).toArray())
                         .queryParam("per_page", PER_PAGE)
                         .build())
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {
                 });
         return response == null || response.data() == null ? List.of() : response.data();
+    }
+
+    private static void recordRateLimitRemaining(String endpoint, String headerValue) {
+        if (headerValue == null) {
+            return;
+        }
+        try {
+            PulseMetrics.gauge(
+                    "pulse.bdl.rate.limit.remaining",
+                    Long.parseLong(headerValue),
+                    "endpoint",
+                    endpoint
+            );
+        } catch (NumberFormatException ignored) {
+            // 숫자가 아닌 헤더는 지표만 생략하고 응답 처리는 계속한다.
+        }
     }
 
     /**

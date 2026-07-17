@@ -27,6 +27,14 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     List<Game> findByLifecycleState(String lifecycleState);
 
+    @Query("""
+            select min(game.startTime)
+            from Game game
+            where game.lifecycleState = 'SCHEDULED'
+              and game.startTime >= :notBefore
+            """)
+    Instant findNextScheduledStartTime(Instant notBefore);
+
     List<Game> findByLifecycleStateIn(Collection<String> lifecycleStates);
 
     /** 종료 task 복구용: 최근에 갱신된 terminal 경기만 스캔한다. */
