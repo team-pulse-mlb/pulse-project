@@ -3,6 +3,7 @@ package com.pulse.poller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -31,6 +32,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 
@@ -102,8 +104,10 @@ class OperationalPollerTest {
     }
 
     @Test
-    void poll_shouldPublishTerminalTaskOnlyWhenLiveGameLeavesLiveState() {
+    void poll_shouldDrainRemainingPlaysBeforePublishingTerminalTask() {
         Game finalGame = game(GameLifecycle.FINAL.name(), 7L);
+        BdlPlay finalPlay = play(8L, 10L);
+        Play latestPlay = persistedPlay(8L, 10L, false, false, false);
         when(balldontlieClient.getGames(now.atZone(ZoneOffset.UTC).toLocalDate()))
                 .thenReturn(List.of(gameDto(Game.STATUS_FINAL)));
         when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
@@ -113,13 +117,58 @@ class OperationalPollerTest {
                         GameLifecycle.FINAL.name(),
                         true
                 ));
+        when(balldontlieClient.getPlays(100L, 7L))
+                .thenReturn(new ListResponse<>(List.of(finalPlay), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of(plateAppearance(1L, 10L))));
+        when(gameWriter.appendPlay(finalGame, finalPlay, now)).thenAnswer(invocation -> {
+            finalGame.setLastPlayOrder(8L);
+            return true;
+        });
+        when(gameWriter.updateRunnerStates(eq(100L), any()))
+                .thenReturn(new PollerRunnerStateMatcher.MatchResult(List.of(), 0, 0));
+        when(playRepository.findByGameIdOrderByPlayOrderDesc(
+                100L,
+                org.springframework.data.domain.PageRequest.of(0, 1)
+        )).thenReturn(List.of(latestPlay));
+
+        poller.poll();
+
+        ArgumentCaptor<ScoreTask> taskCaptor = ArgumentCaptor.forClass(ScoreTask.class);
+        verify(scoreTaskPublisher, times(2)).publish(taskCaptor.capture());
+        assertThat(taskCaptor.getAllValues()).extracting(ScoreTask::lifecycleState)
+                .containsExactly(GameLifecycle.LIVE.name(), GameLifecycle.FINAL.name());
+        assertThat(taskCaptor.getAllValues()).extracting(ScoreTask::lastPlayOrder)
+                .containsExactly(8L, 8L);
+        assertThat(taskCaptor.getAllValues()).extracting(ScoreTask::observedAt)
+                .containsExactly(now, now.plusMillis(1));
+        InOrder inOrder = inOrder(gameWriter, scoreTaskPublisher);
+        inOrder.verify(gameWriter).appendPlay(finalGame, finalPlay, now);
+        inOrder.verify(scoreTaskPublisher).publish(taskCaptor.getAllValues().get(0));
+        inOrder.verify(scoreTaskPublisher).publish(taskCaptor.getAllValues().get(1));
+    }
+
+    @Test
+    void poll_shouldPublishTerminalTaskWhenScheduledGameTransitionsDirectlyToFinal() {
+        Game finalGame = game(GameLifecycle.FINAL.name(), null);
+        when(balldontlieClient.getGames(now.atZone(ZoneOffset.UTC).toLocalDate()))
+                .thenReturn(List.of(gameDto(Game.STATUS_FINAL)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
+                .thenReturn(new PollerGameWriter.GameUpsertResult(
+                        finalGame,
+                        GameLifecycle.SCHEDULED.name(),
+                        GameLifecycle.FINAL.name(),
+                        false
+                ));
+        when(balldontlieClient.getPlays(100L, null))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
 
         poller.poll();
 
         ArgumentCaptor<ScoreTask> taskCaptor = ArgumentCaptor.forClass(ScoreTask.class);
         verify(scoreTaskPublisher).publish(taskCaptor.capture());
+        verify(balldontlieClient, never()).getPlateAppearancesRaw(100L);
         assertThat(taskCaptor.getValue().lifecycleState()).isEqualTo(GameLifecycle.FINAL.name());
-        assertThat(taskCaptor.getValue().situation()).isNull();
     }
 
     @Test

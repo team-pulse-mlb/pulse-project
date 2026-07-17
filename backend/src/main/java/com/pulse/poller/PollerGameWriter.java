@@ -238,8 +238,7 @@ public class PollerGameWriter {
         }
 
         public boolean enteredTerminalState() {
-            return wasLive
-                    && !Objects.equals(previousLifecycle, currentLifecycle)
+            return !Objects.equals(previousLifecycle, currentLifecycle)
                     && (GameLifecycle.FINAL.name().equals(currentLifecycle)
                     || GameLifecycle.DONE.name().equals(currentLifecycle)
                     || GameLifecycle.SUSPENDED_POSTPONED.name().equals(currentLifecycle));

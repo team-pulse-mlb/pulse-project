@@ -61,6 +61,10 @@ public class GameFinalizationService {
         log.debug("경기 종료 정리 gameId={} lifecycleState={}", game.getId(), task.lifecycleState());
     }
 
+    public boolean hasFinalizationRecord(long gameId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(finalizedKey(gameId)));
+    }
+
     private static boolean isFinal(String lifecycleState, Game game) {
         return GameLifecycle.FINAL.name().equals(lifecycleState) && game.isFinal();
     }

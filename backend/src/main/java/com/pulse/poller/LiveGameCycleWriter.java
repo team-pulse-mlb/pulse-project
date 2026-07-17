@@ -29,6 +29,27 @@ public class LiveGameCycleWriter {
             List<BdlPlateAppearance> plateAppearances,
             Instant observedAt
     ) {
+        return write(game, plays, plateAppearances, observedAt, game.getLifecycleState());
+    }
+
+    /** 종료 전환 저장 뒤 drain하더라도 마지막 play task는 라이브 점수 계산 경로로 보낸다. */
+    @Transactional
+    public CycleWriteResult writeTerminalDrain(
+            Game game,
+            List<BdlPlay> plays,
+            List<BdlPlateAppearance> plateAppearances,
+            Instant observedAt
+    ) {
+        return write(game, plays, plateAppearances, observedAt, GameLifecycle.LIVE.name());
+    }
+
+    private CycleWriteResult write(
+            Game game,
+            List<BdlPlay> plays,
+            List<BdlPlateAppearance> plateAppearances,
+            Instant observedAt,
+            String taskLifecycleState
+    ) {
         int inserted = 0;
         for (BdlPlay play : plays) {
             if (gameWriter.appendPlay(game, play, observedAt)) {
@@ -48,7 +69,13 @@ public class LiveGameCycleWriter {
                 .stream()
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("저장된 최신 플레이를 찾을 수 없습니다."));
-        scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, latestPlay, observedAt, plateAppearances));
+        scoreTaskPublisher.publish(scoreTaskFactory.liveTask(
+                game,
+                latestPlay,
+                observedAt,
+                plateAppearances,
+                taskLifecycleState
+        ));
         return new CycleWriteResult(inserted, runnerStateResult);
     }
 
