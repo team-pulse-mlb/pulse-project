@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.config.ScoringProperties;
-import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
@@ -84,7 +83,7 @@ class LiveScoringServiceDelayedTaskTest {
                     mock(SurgeDetector.class),
                     mock(TimelineHighlightTrigger.class),
                     mock(AiGenerationTrigger.class),
-                    mock(NotificationEventPublisher.class),
+                    mock(SurgeNotificationPublisher.class),
                     properties);
         }
     }

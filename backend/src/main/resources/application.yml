@@ -163,6 +163,8 @@ pulse:
       region: ${AWS_REGION:ap-northeast-2}
   scorer:
     enabled: ${PULSE_SCORER_ENABLED:true}
+    # SURGE·종료 멱등 Redis 키의 비상 TTL. 누수 방지용이며 정상 경로는 종료 시 키를 정리한다.
+    redis-emergency-ttl-ms: ${PULSE_SCORER_REDIS_EMERGENCY_TTL_MS:172800000}
     finalization-recovery-delay-ms: ${PULSE_SCORER_FINALIZATION_RECOVERY_DELAY_MS:900000}
     # 복구 스캔 대상을 최근 갱신 terminal 경기로 한정하는 창. finalized 키 비상 TTL보다 짧게 유지한다.
     finalization-recovery-window-ms: ${PULSE_SCORER_FINALIZATION_RECOVERY_WINDOW_MS:86400000}

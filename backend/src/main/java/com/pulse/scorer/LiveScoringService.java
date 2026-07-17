@@ -1,9 +1,6 @@
 package com.pulse.scorer;
 
 import com.pulse.common.config.ScoringProperties;
-import com.pulse.common.message.NotificationEvent;
-import com.pulse.common.message.NotificationEvent.NotificationType;
-import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
@@ -18,7 +15,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,7 +42,7 @@ public class LiveScoringService {
     private final SurgeDetector surgeDetector;
     private final TimelineHighlightTrigger timelineHighlightTrigger;
     private final AiGenerationTrigger aiGenerationTrigger;
-    private final NotificationEventPublisher notificationEventPublisher;
+    private final SurgeNotificationPublisher surgeNotificationPublisher;
     private final ScoringProperties props;
 
     @Transactional
@@ -123,10 +119,10 @@ public class LiveScoringService {
                 observedAt
         );
 
-        if (surgeDetector.evaluate(gameId, watchScoreRounded, observedAt)) {
+        surgeDetector.evaluate(gameId, watchScoreRounded, observedAt, () -> {
             PulseMetrics.increment("pulse.scorer.surge.fired");
-            publishSurge(game, tags, previousTags, observedAt);
-        }
+            surgeNotificationPublisher.publish(gameId, tags, previousTags, observedAt);
+        });
 
         // 급변 순간의 anchor 보호 이벤트를 하이라이트로 표시하고 보호 문구 생성을 요청한다.
         // (scoring.highlight.enabled=false면 no-op)
@@ -179,24 +175,6 @@ public class LiveScoringService {
             game.setPeakBaseScore(rounded);
             gameRepository.save(game);
         }
-    }
-
-    private void publishSurge(Game game, List<String> tags, List<String> previousTags, Instant occurredAt) {
-        long gameId = game.getId();
-        String latestTag = liveSignalPublisher.resolveLatestTag(gameId, tags, previousTags, occurredAt);
-        if (latestTag == null) {
-            latestTag = "경기 흐름 변화";
-        }
-        UUID eventId = UUID.randomUUID();
-        notificationEventPublisher.publish(new NotificationEvent(
-                eventId,
-                NotificationType.SURGE,
-                gameId,
-                "지금 볼 만한 경기가 있어요 — " + latestTag,
-                latestTag,
-                occurredAt
-        ), tags);
-        log.info("SURGE 알림 발행 gameId={} latestTag={}", gameId, latestTag);
     }
 
     private static int leaderOf(Play play) {
