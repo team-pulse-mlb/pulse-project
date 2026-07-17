@@ -156,6 +156,9 @@ pulse:
       region: ${AWS_REGION:ap-northeast-2}
   scorer:
     enabled: ${PULSE_SCORER_ENABLED:true}
+    finalization-recovery-delay-ms: ${PULSE_SCORER_FINALIZATION_RECOVERY_DELAY_MS:900000}
+    # 복구 스캔 대상을 최근 갱신 terminal 경기로 한정하는 창. finalized 키 비상 TTL보다 짧게 유지한다.
+    finalization-recovery-window-ms: ${PULSE_SCORER_FINALIZATION_RECOVERY_WINDOW_MS:86400000}
   score-task-outbox:
     dispatch-delay: ${PULSE_SCORE_TASK_OUTBOX_DISPATCH_DELAY:5s}
     retry-initial-interval: ${PULSE_SCORE_TASK_OUTBOX_RETRY_INITIAL_INTERVAL:5s}

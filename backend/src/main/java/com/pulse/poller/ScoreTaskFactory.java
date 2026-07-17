@@ -38,11 +38,21 @@ public class ScoreTaskFactory {
             Instant observedAt,
             List<BdlPlateAppearance> plateAppearances
     ) {
+        return liveTask(game, latestPlay, observedAt, plateAppearances, game.getLifecycleState());
+    }
+
+    ScoreTask liveTask(
+            Game game,
+            Play latestPlay,
+            Instant observedAt,
+            List<BdlPlateAppearance> plateAppearances,
+            String lifecycleState
+    ) {
         return new ScoreTask(
                 game.getId(),
                 observedAt,
                 latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder(),
-                game.getLifecycleState(),
+                lifecycleState,
                 latestPlay == null ? null : situation(latestPlay),
                 plateAppearances == null ? List.of() : plateAppearances.stream()
                         .filter(plateAppearance -> plateAppearance.paNumber() != null)

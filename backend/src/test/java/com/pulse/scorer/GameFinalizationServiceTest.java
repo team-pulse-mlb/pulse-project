@@ -1,5 +1,6 @@
 package com.pulse.scorer;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,6 +38,13 @@ class GameFinalizationServiceTest {
     );
 
     private final Instant observedAt = Instant.parse("2026-07-08T04:00:00Z");
+
+    @Test
+    void hasFinalizationRecord_shouldUseExplicitFinalizationKey() {
+        when(redisTemplate.hasKey("score:finalized:100")).thenReturn(true);
+
+        assertThat(service.hasFinalizationRecord(100L)).isTrue();
+    }
 
     @Test
     void handle_shouldRemoveLiveStateOnce() {

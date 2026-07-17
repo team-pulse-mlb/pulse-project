@@ -14,10 +14,10 @@ class GameUpsertResultTest {
     }
 
     @Test
-    void enteredTerminalState_shouldRequirePreviousLiveState() {
+    void enteredTerminalState_shouldRequireOnlyLifecycleTransition() {
         assertThat(result(GameLifecycle.LIVE, GameLifecycle.FINAL, true).enteredTerminalState()).isTrue();
         assertThat(result(GameLifecycle.FINAL, GameLifecycle.FINAL, false).enteredTerminalState()).isFalse();
-        assertThat(result(GameLifecycle.SCHEDULED, GameLifecycle.DONE, false).enteredTerminalState()).isFalse();
+        assertThat(result(GameLifecycle.SCHEDULED, GameLifecycle.DONE, false).enteredTerminalState()).isTrue();
     }
 
     private static PollerGameWriter.GameUpsertResult result(

@@ -134,7 +134,9 @@ public class OperationalPoller {
                     if (GameLifecycle.LIVE.name().equals(result.currentLifecycle())) {
                         liveGames.put(result.game().getId(), result.game());
                     }
-                    publishTransitionEvents(result, now);
+                    boolean terminalScoreTaskPublished = result.enteredTerminalState()
+                            && drainTerminalGame(result.game(), now);
+                    publishTransitionEvents(result, terminalTaskObservedAt(now, terminalScoreTaskPublished));
                 }
             }
             gamesBackoff.recordSuccess();
@@ -176,6 +178,33 @@ public class OperationalPoller {
             }
         }
         playsBackoff.recordSuccess();
+    }
+
+    private boolean drainTerminalGame(Game game, Instant now) {
+        try {
+            List<BdlPlay> plays = fetchPlays(game);
+            if (plays.isEmpty()) {
+                return false;
+            }
+            List<BdlPlateAppearance> plateAppearances = fetchPlateAppearances(game.getId(), now);
+            LiveGameCycleWriter.CycleWriteResult result =
+                    liveGameCycleWriter.writeTerminalDrain(game, plays, plateAppearances, now);
+            logCycleResult(game.getId(), result);
+            return result.inserted() > 0;
+        } catch (RuntimeException e) {
+            if (PollerExceptionClassifier.shouldBackoff(e)) {
+                handleFailure("plays", playsBackoff, now, e);
+            } else {
+                log.error("terminal plays drain failed: gameId={}", game.getId(), e);
+                PulseMetrics.increment("pulse.poller.game.skips", "reason", "terminal_drain_failure");
+            }
+            return false;
+        }
+    }
+
+    private static Instant terminalTaskObservedAt(Instant now, boolean scoreTaskPublished) {
+        // 같은 tick의 live/terminal task가 outbox (game_id, observed_at) 고유키에서 충돌하지 않게 한다.
+        return scoreTaskPublished ? now.plusMillis(1) : now;
     }
 
     private List<BdlPlay> fetchPlays(Game game) {
