@@ -145,6 +145,7 @@ class PregamePollerTest {
         return new PollerProperties(
                 true,
                 Duration.ofSeconds(20),
+                Duration.ofSeconds(75),
                 Duration.ofMinutes(10),
                 0,
                 0,

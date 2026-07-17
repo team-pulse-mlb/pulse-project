@@ -101,6 +101,18 @@ public class GameFinalizationService {
         }
     }
 
+    /**
+     * 종료 후처리 완료 여부를 DB 기록으로 판정한다(복구 러너용).
+     * lifecycle별 기록을 보므로, POSTPONED만 처리된 경기가 재개 후 FINAL 재발행 대상에서 빠지지 않는다.
+     */
+    public boolean hasFinalizationRecord(long gameId) {
+        return gameRepository.findById(gameId)
+                .map(game -> GameLifecycle.DONE.name().equals(game.getLifecycleState())
+                        ? game.getTerminalDoneAt() != null
+                        : game.getFinalizedAt() != null)
+                .orElse(true); // 경기 자체가 없으면 재발행 대상이 아니다.
+    }
+
     private static boolean isFinal(String lifecycleState, Game game) {
         return GameLifecycle.FINAL.name().equals(lifecycleState) && game.isFinal();
     }

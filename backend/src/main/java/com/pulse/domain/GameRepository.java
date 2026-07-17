@@ -31,6 +31,9 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     List<Game> findByLifecycleStateIn(Collection<String> lifecycleStates);
 
+    /** 종료 task 복구용: 최근에 갱신된 terminal 경기만 스캔한다. */
+    List<Game> findByLifecycleStateInAndUpdatedAtAfter(Collection<String> lifecycleStates, Instant updatedAfter);
+
     /** FINAL 후처리 권한을 DB에서 원자적으로 한 번만 획득한다. */
     @Modifying
     @Query("update Game game set game.finalizedAt = :processedAt "

@@ -1,5 +1,6 @@
 package com.pulse.scorer;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -46,6 +47,23 @@ class GameFinalizationServiceTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
         TransactionSynchronizationManager.setActualTransactionActive(false);
+    }
+
+    @Test
+    @DisplayName("복구 러너의 완료 판정은 lifecycle별 DB 기록을 따른다")
+    void hasFinalizationRecord_shouldUseDatabaseRecordPerLifecycle() {
+        Game finalized = game();
+        finalized.setLifecycleState(GameLifecycle.FINAL.name());
+        finalized.setFinalizedAt(observedAt);
+        when(gameRepository.findById(100L)).thenReturn(Optional.of(finalized));
+        assertThat(service.hasFinalizationRecord(100L)).isTrue();
+
+        Game pendingFinal = game();
+        pendingFinal.setLifecycleState(GameLifecycle.FINAL.name());
+        // POSTPONED 기록만 있어도 FINAL 재발행 대상에서 빠지지 않아야 한다.
+        pendingFinal.setTerminalSuspendedPostponedAt(observedAt);
+        when(gameRepository.findById(200L)).thenReturn(Optional.of(pendingFinal));
+        assertThat(service.hasFinalizationRecord(200L)).isFalse();
     }
 
     @Test

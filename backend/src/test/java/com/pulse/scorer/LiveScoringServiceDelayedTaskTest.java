@@ -1,7 +1,6 @@
 package com.pulse.scorer;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,7 +16,6 @@ import com.pulse.domain.PlayRepository;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
@@ -51,7 +49,8 @@ class LiveScoringServiceDelayedTaskTest {
         fixture.service.handle(new ScoreTask(GAME_ID, OBSERVED_AT, null, "LIVE", null));
 
         verifyNoInteractions(fixture.playRepository);
-        verify(fixture.calculator).calculate(fixture.game, List.of(), null, 0, OBSERVED_AT);
+        verify(fixture.calculator).calculate(new ScoringInput(
+                fixture.game, List.of(), null, 0, OBSERVED_AT, 1.0, 0));
     }
 
     private static final class TestFixture {
@@ -69,9 +68,8 @@ class LiveScoringServiceDelayedTaskTest {
             when(watchScoreRepository.existsByGameIdAndComputedAt(GAME_ID, OBSERVED_AT)).thenReturn(false);
             when(watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(GAME_ID)).thenReturn(Optional.empty());
             when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
-            when(calculator.calculate(eq(game), any(), eq(null), eq(0), eq(OBSERVED_AT)))
-                    .thenReturn(new ScoreCalculator.Result(Map.of(), 0, false));
-            when(calculator.clampWatchScore(anyDouble())).thenReturn(0.0);
+            when(calculator.calculate(any(ScoringInput.class)))
+                    .thenReturn(new ScoreCalculator.Result(java.util.Map.of(), 0, false));
             when(importanceCalculator.multiplier(game)).thenReturn(1.0);
 
             service = new LiveScoringService(
