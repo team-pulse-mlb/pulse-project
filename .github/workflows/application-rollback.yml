@@ -1,0 +1,101 @@
+# 검증된 과거 배포(SHA)로 운영을 되돌리는 롤백 워크플로.
+# 빌드 없이 해당 SHA의 ECR 이미지와 S3 배포 번들을 재사용하므로,
+# 대상 SHA는 과거 application-deploy가 성공한 커밋이어야 한다.
+name: application-rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "되돌릴 배포의 커밋 SHA (application-deploy 성공 이력이 있는 40자 전체 SHA)"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: application-deploy
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ap-northeast-2
+      BACKEND_REPOSITORY: ${{ vars.BACKEND_ECR_REPOSITORY }}
+      AI_REPOSITORY: ${{ vars.AI_ECR_REPOSITORY }}
+      DEPLOY_BUCKET: ${{ vars.DEPLOY_S3_BUCKET }}
+      INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      RDS_SECRET_ID: ${{ vars.RDS_SECRET_ARN }}
+      RUNTIME_SECRET_ID: ${{ vars.RUNTIME_SECRET_ARN }}
+      BACKTEST_SECRET_ID: ${{ vars.BACKTEST_DB_SECRET_ARN }}
+      TARGET_SHA: ${{ inputs.target_sha }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Verify rollback artifacts exist
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          # 롤백 대상 이미지가 ECR 수명 주기 정리로 지워졌으면 여기서 실패시켜 반쪽 롤백을 막는다.
+          aws ecr describe-images --repository-name "$BACKEND_REPOSITORY" --image-ids imageTag="$TARGET_SHA" > /dev/null
+          aws ecr describe-images --repository-name "$AI_REPOSITORY" --image-ids imageTag="$TARGET_SHA" > /dev/null
+          aws s3api head-object --bucket "$DEPLOY_BUCKET" --key "deploy/$TARGET_SHA/docker-compose.prod.yml" > /dev/null
+          echo "BACKEND_IMAGE=$REGISTRY/$BACKEND_REPOSITORY:$TARGET_SHA" >> "$GITHUB_ENV"
+          echo "AI_IMAGE=$REGISTRY/$AI_REPOSITORY:$TARGET_SHA" >> "$GITHUB_ENV"
+
+      - name: Rollback through SSM
+        run: |
+          jq -n \
+            --arg instance "$INSTANCE_ID" \
+            --arg bucket "$DEPLOY_BUCKET" \
+            --arg sha "$TARGET_SHA" \
+            --arg backend "$BACKEND_IMAGE" \
+            --arg ai "$AI_IMAGE" \
+            --arg rds "$RDS_SECRET_ID" \
+            --arg runtime "$RUNTIME_SECRET_ID" \
+            --arg backtest "$BACKTEST_SECRET_ID" \
+            '{
+              DocumentName: "AWS-RunShellScript",
+              InstanceIds: [$instance],
+              Comment: "PULSE application rollback",
+              TimeoutSeconds: 1200,
+              Parameters: {commands: [
+                "set -euo pipefail",
+                "prefix=s3://" + $bucket + "/deploy/" + $sha,
+                "mkdir -p /home/ubuntu/pulse-runtime /usr/local/lib/pulse /etc/pulse",
+                "aws s3 cp \"$prefix/docker-compose.prod.yml\" /home/ubuntu/pulse-runtime/docker-compose.prod.yml",
+                "aws s3 cp \"$prefix/deploy/sync-secrets.py\" /usr/local/lib/pulse/sync-secrets.py",
+                "aws s3 cp \"$prefix/deploy/deploy-runtime.sh\" /usr/local/bin/pulse-deploy-runtime",
+                "aws s3 cp \"$prefix/deploy/refresh-secrets.sh\" /usr/local/bin/pulse-refresh-secrets",
+                "aws s3 cp \"$prefix/deploy/run-backtest-impact.sh\" /usr/local/bin/pulse-backtest-impact",
+                "aws s3 cp \"$prefix/deploy/pulse-secret-sync.service\" /etc/systemd/system/pulse-secret-sync.service",
+                "aws s3 cp \"$prefix/deploy/pulse-secret-sync.timer\" /etc/systemd/system/pulse-secret-sync.timer",
+                "chmod 755 /usr/local/lib/pulse/sync-secrets.py /usr/local/bin/pulse-deploy-runtime /usr/local/bin/pulse-refresh-secrets /usr/local/bin/pulse-backtest-impact",
+                "printf \"AWS_REGION=ap-northeast-2\\nPULSE_RDS_SECRET_ID=" + $rds + "\\nPULSE_RUNTIME_SECRET_ID=" + $runtime + "\\nPULSE_BACKTEST_SECRET_ID=" + $backtest + "\\n\" > /etc/pulse/secrets.conf",
+                "chmod 600 /etc/pulse/secrets.conf",
+                "systemctl daemon-reload",
+                "/usr/local/bin/pulse-deploy-runtime \"" + $backend + "\" \"" + $ai + "\"",
+                "systemctl enable --now pulse-secret-sync.timer"
+              ]}
+          }' > /tmp/ssm-rollback.json
+          command_id=$(aws ssm send-command --region "$AWS_REGION" --cli-input-json file:///tmp/ssm-rollback.json --query 'Command.CommandId' --output text)
+          status="InProgress"
+          for _ in $(seq 1 120); do
+            status=$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$command_id" --instance-id "$INSTANCE_ID" --query 'Status' --output text)
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut) break ;;
+            esac
+            sleep 10
+          done
+          aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$command_id" --instance-id "$INSTANCE_ID" --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' --output json
+          test "$status" = "Success"

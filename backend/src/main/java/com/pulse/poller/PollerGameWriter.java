@@ -12,9 +12,9 @@ import com.pulse.domain.TeamRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -126,16 +126,22 @@ public class PollerGameWriter {
                         Function.identity(),
                         (left, right) -> right
                 ));
-        for (Play play : plays) {
+        List<Play> changedPlays = plays.stream().filter(play -> {
             PollerRunnerStateMatcher.RunnerStateUpdate update = updatesByOrder.get(play.getPlayOrder());
             if (update == null) {
-                continue;
+                return false;
             }
+            return !Objects.equals(play.getRunnerOnFirst(), update.runnerOnFirst())
+                    || !Objects.equals(play.getRunnerOnSecond(), update.runnerOnSecond())
+                    || !Objects.equals(play.getRunnerOnThird(), update.runnerOnThird());
+        }).toList();
+        for (Play play : changedPlays) {
+            PollerRunnerStateMatcher.RunnerStateUpdate update = updatesByOrder.get(play.getPlayOrder());
             play.setRunnerOnFirst(update.runnerOnFirst());
             play.setRunnerOnSecond(update.runnerOnSecond());
             play.setRunnerOnThird(update.runnerOnThird());
         }
-        playRepository.saveAll(plays);
+        playRepository.saveAll(changedPlays);
         return result;
     }
 
@@ -232,8 +238,7 @@ public class PollerGameWriter {
         }
 
         public boolean enteredTerminalState() {
-            return wasLive
-                    && !Objects.equals(previousLifecycle, currentLifecycle)
+            return !Objects.equals(previousLifecycle, currentLifecycle)
                     && (GameLifecycle.FINAL.name().equals(currentLifecycle)
                     || GameLifecycle.DONE.name().equals(currentLifecycle)
                     || GameLifecycle.SUSPENDED_POSTPONED.name().equals(currentLifecycle));

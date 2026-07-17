@@ -20,7 +20,8 @@ scoring:
     gap-3: 3
   recent-score:
     per-run: 6
-    max: 15
+    # 값 변경 없음 — 설정명 개명(max → base-budget)에 따른 키 이름만 현행화
+    base-budget: 15
     tau-seconds: 180
     closeness-multiplier:
       gap-0: 2.0

@@ -250,6 +250,9 @@ public class PregamePoller {
             List<BdlPlayerSeasonStat> stats = balldontlieClient.getPlayerSeasonStats(season, pitcherIds);
             pregameWriter.upsertPlayerSeasonStats(season, stats, now);
         } catch (RuntimeException e) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw e;
+            }
             log.warn("season stats refresh failed, falling back to cached values: gameId={}", game.getId(), e);
         }
     }

@@ -83,11 +83,17 @@ public class LiveScoringService {
             recentPlays = recentPlays.subList(1, recentPlays.size());
         }
 
-        ScoreCalculator.Result result = calculator.calculate(game, recentPlays, task.situation(), seedLeader, observedAt);
-        double baseScore = result.baseScore();
         double importance = importanceCalculator.multiplier(game);
-        double pregameBonus = pregameBonus(game);
-        double watchScore = calculator.clampWatchScore(baseScore * importance + pregameBonus);
+        ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
+                game,
+                recentPlays,
+                task.situation(),
+                seedLeader,
+                observedAt,
+                importance,
+                game.getPregameScore() == null ? 0 : game.getPregameScore()));
+        double baseScore = result.baseScore();
+        double watchScore = result.watchScore();
         int watchScoreRounded = (int) Math.round(watchScore);
 
         List<String> tags = ReasonTags.from(result.signals(), result.fullCountIncluded());
@@ -96,7 +102,7 @@ public class LiveScoringService {
                 .map(WatchScore::getTags)
                 .orElse(List.of());
 
-        persistWatchScore(game, observedAt, latestPlay, result, importance, pregameBonus, watchScoreRounded, tags);
+        persistWatchScore(game, observedAt, latestPlay, result, watchScoreRounded, tags);
         updatePeakBaseScore(game, baseScore);
         gameEventExtractor.extract(gameId, recentPlays, task.plateAppearances(), seedLeader, observedAt);
 
@@ -139,8 +145,6 @@ public class LiveScoringService {
             Instant observedAt,
             Play latestPlay,
             ScoreCalculator.Result result,
-            double importance,
-            double pregameBonus,
             int watchScoreRounded,
             List<String> tags
     ) {
@@ -151,8 +155,10 @@ public class LiveScoringService {
         record.setInning(latestPlay == null ? game.getPeriod() : latestPlay.getInning());
         record.setInningType(latestPlay == null ? null : latestPlay.getInningType());
         record.setBaseScore((int) Math.round(result.baseScore()));
-        record.setImportanceMultiplier(BigDecimal.valueOf(importance).setScale(2, RoundingMode.HALF_UP));
-        record.setPregameBonus(BigDecimal.valueOf(pregameBonus).setScale(2, RoundingMode.HALF_UP));
+        record.setImportanceMultiplier(BigDecimal.valueOf(result.importanceMultiplier())
+                .setScale(2, RoundingMode.HALF_UP));
+        record.setPregameBonus(BigDecimal.valueOf(result.pregameBonus())
+                .setScale(2, RoundingMode.HALF_UP));
         record.setWatchScore(watchScoreRounded);
         record.setScoringVersion(props.version());
         record.setSignalContributions(result.signals());
@@ -169,13 +175,6 @@ public class LiveScoringService {
             game.setPeakBaseScore(rounded);
             gameRepository.save(game);
         }
-    }
-
-    private double pregameBonus(Game game) {
-        if (game.getPregameScore() == null) {
-            return 0;
-        }
-        return Math.min(game.getPregameScore() / 10.0, props.pregameCarryoverMax());
     }
 
     private static int leaderOf(Play play) {

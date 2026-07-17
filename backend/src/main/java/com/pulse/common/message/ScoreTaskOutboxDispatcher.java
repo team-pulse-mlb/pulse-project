@@ -9,7 +9,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
@@ -71,17 +76,46 @@ public class ScoreTaskOutboxDispatcher {
     private void publish(ScoreTaskOutbox outbox) {
         Instant now = clock.instant();
         try {
-            rabbitTemplate.convertAndSend(RabbitMqConfig.SCORE_TASKS_QUEUE, outbox.getPayload());
+            awaitBrokerConfirm(outbox);
             outbox.markPublished(now);
             log.info("ScoreTask outbox 발행 성공: gameId={} observedAt={} attempts={}",
                     outbox.getGameId(), outbox.getObservedAt(), outbox.getAttemptCount());
-        } catch (RuntimeException exception) {
-            PulseMetrics.increment("pulse.score.task.publish.failures");
-            Duration delay = retryDelay(outbox.getAttemptCount());
-            outbox.recordFailure(now.plus(delay), errorMessage(exception));
-            log.warn("ScoreTask outbox 발행 실패: gameId={} observedAt={} nextAttemptAt={}",
-                    outbox.getGameId(), outbox.getObservedAt(), outbox.getNextAttemptAt(), exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            recordFailure(outbox, now, exception);
+        } catch (RuntimeException | ExecutionException | TimeoutException exception) {
+            recordFailure(outbox, now, exception);
         }
+    }
+
+    private void awaitBrokerConfirm(ScoreTaskOutbox outbox)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        CorrelationData correlationData = new CorrelationData(
+                outbox.getOutboxId() + ":" + UUID.randomUUID()
+        );
+        rabbitTemplate.convertAndSend(
+                RabbitMqConfig.SCORE_TASKS_QUEUE,
+                outbox.getPayload(),
+                correlationData
+        );
+
+        // 콜백에서 트랜잭션 밖의 엔티티를 변경하지 않도록 현재 발행 트랜잭션에서 confirm을 제한 시간만 기다린다.
+        CorrelationData.Confirm confirm = correlationData.getFuture().get(
+                properties.confirmTimeout().toMillis(),
+                TimeUnit.MILLISECONDS
+        );
+        if (!confirm.isAck()) {
+            String reason = confirm.getReason() == null ? "사유 없음" : confirm.getReason();
+            throw new AmqpException("브로커가 ScoreTask 발행을 거부했습니다: " + reason);
+        }
+    }
+
+    private void recordFailure(ScoreTaskOutbox outbox, Instant now, Throwable exception) {
+        PulseMetrics.increment("pulse.score.task.publish.failures");
+        Duration delay = retryDelay(outbox.getAttemptCount());
+        outbox.recordFailure(now.plus(delay), errorMessage(exception));
+        log.warn("ScoreTask outbox 발행 실패: gameId={} observedAt={} nextAttemptAt={}",
+                outbox.getGameId(), outbox.getObservedAt(), outbox.getNextAttemptAt(), exception);
     }
 
     private Duration retryDelay(int attemptCount) {
@@ -98,7 +132,7 @@ public class ScoreTaskOutboxDispatcher {
                 : calculated;
     }
 
-    private String errorMessage(RuntimeException exception) {
+    private String errorMessage(Throwable exception) {
         String message = exception.getMessage();
         if (message == null || message.isBlank()) {
             message = exception.getClass().getSimpleName();

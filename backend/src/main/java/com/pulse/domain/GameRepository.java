@@ -29,6 +29,9 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     List<Game> findByLifecycleStateIn(Collection<String> lifecycleStates);
 
+    /** 종료 task 복구용: 최근에 갱신된 terminal 경기만 스캔한다. */
+    List<Game> findByLifecycleStateInAndUpdatedAtAfter(Collection<String> lifecycleStates, Instant updatedAfter);
+
     @Query("""
             select game.id
             from Game game
