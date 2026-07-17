@@ -15,6 +15,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -148,6 +149,7 @@ class TimelineHighlightBackfill {
         Set<Long> selectedAnchorIds = new HashSet<>();
         List<GameEvent> selectedAnchors = new ArrayList<>();
         Duration cooldown = Duration.ofMinutes(config.cooldownMinutes());
+        Duration riseWindow = Duration.ofMinutes(config.riseWindowMinutes());
 
         for (RiseCandidate riseCandidate : riseCandidates) {
             if (maxPerGame != null && selectedAnchors.size() >= maxPerGame) {
@@ -161,15 +163,19 @@ class TimelineHighlightBackfill {
                 continue;
             }
 
-            Instant windowStart = riseCandidate.time()
-                    .minus(Duration.ofMinutes(config.riseWindowMinutes()));
-            GameEvent anchor = anchorCandidates.stream()
+            Instant windowStart = riseCandidate.time().minus(riseWindow);
+            List<GameEvent> candidatesInWindow = anchorCandidates.stream()
                     .filter(event -> !selectedAnchorIds.contains(event.getId()))
                     .filter(event -> !event.getObservedAt().isBefore(windowStart))
                     .filter(event -> !event.getObservedAt().isAfter(riseCandidate.time()))
-                    .max(Comparator.comparing(GameEvent::getObservedAt)
-                            .thenComparing(GameEvent::getId))
-                    .orElse(null);
+                    .toList();
+            Set<String> avoidTypes = selectedAnchors.stream()
+                    .filter(event -> Duration.between(event.getObservedAt(), riseCandidate.time())
+                            .abs()
+                            .compareTo(riseWindow) <= 0)
+                    .map(GameEvent::getEventType)
+                    .collect(Collectors.toSet());
+            GameEvent anchor = TimelineHighlightAnchorSelector.selectAnchor(candidatesInWindow, avoidTypes);
             if (anchor == null) {
                 continue;
             }
