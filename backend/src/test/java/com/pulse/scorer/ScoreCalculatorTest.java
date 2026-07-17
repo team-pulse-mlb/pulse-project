@@ -146,6 +146,23 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    @DisplayName("recent_score의 base-budget은 multiplier 적용 전 예산이라 신호는 예산을 넘을 수 있다")
+    void recentScoreBaseBudgetIsPreMultiplierBudget() {
+        // 동점(gap-0, multiplier 2.0) 상황에서 방금 나온 대량 득점으로 예산을 소진시킨다.
+        Game game = game(7, 5, 5);
+        Play bigScore = scoringPlay(7, 5, 5, now);
+        bigScore.setScoreValue(5); // 5득점 × per-run 6 = 30 > base-budget 15 → base는 15로 제한
+
+        double recent = signal(game, List.of(bigScore), "recent_score");
+        int baseBudget = testProps().recentScore().baseBudget();
+        double maxMultiplier = testProps().recentScore().multiplierFor(0);
+
+        // 예산은 multiplier 적용 전 기준: 신호는 예산을 넘어 예산×최대배수까지 커질 수 있다.
+        assertThat(recent).isGreaterThan(baseBudget);
+        assertThat(recent).isLessThanOrEqualTo(baseBudget * maxMultiplier);
+    }
+
+    @Test
     @DisplayName("watch_score는 어떤 상황에서도 0~100을 벗어나지 않는다")
     void watchScoreIsClamped() {
         assertThat(calculator.clampWatchScore(-5)).isZero();

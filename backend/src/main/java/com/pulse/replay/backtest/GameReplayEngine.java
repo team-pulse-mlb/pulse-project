@@ -112,7 +112,7 @@ public class GameReplayEngine {
 
     double approximateRecent(List<PlayRow> rows, int current, ScoringProperties properties) {
         double total = 0;
-        double budget = properties.recentScore().max();
+        double budget = properties.recentScore().baseBudget();
         for (int index = current; index >= 0 && current - index < options.backfillRecentScoreWindowPlays() && budget > 0; index--) {
             PlayRow row = rows.get(index);
             if (!Boolean.TRUE.equals(row.scoringPlay())) {

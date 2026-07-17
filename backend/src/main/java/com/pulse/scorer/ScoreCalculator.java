@@ -162,7 +162,7 @@ public class ScoreCalculator {
 
     private double recentScore(List<Play> recentPlays, Instant now) {
         double total = 0;
-        double budget = props.recentScore().max();
+        double budget = props.recentScore().baseBudget();
 
         for (int i = recentPlays.size() - 1; i >= 0 && budget > 0; i--) {
             Play play = recentPlays.get(i);
