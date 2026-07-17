@@ -2,6 +2,7 @@ package com.pulse.poller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
@@ -351,6 +352,124 @@ class OperationalPollerTest {
     }
 
     @Test
+    void poll_shouldProbePreviousPlayOrderAfterConsecutiveEmptyFetches() {
+        OperationalPoller recoveryPoller = poller(2);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 10L);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now))).thenReturn(liveResult(liveGame));
+        when(gameRepository.findByLifecycleState(GameLifecycle.LIVE.name())).thenReturn(List.of(liveGame));
+        when(balldontlieClient.getPlays(100L, 10L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+        when(gameWriter.findRecoveryCursor(100L, 1)).thenReturn(9L);
+        when(balldontlieClient.getPlays(100L, 9L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+
+        verify(gameWriter).findRecoveryCursor(100L, 1);
+        verify(balldontlieClient).getPlays(100L, 9L);
+    }
+
+    @Test
+    void poll_shouldWriteProbeDataAndResetRecoveryState() {
+        OperationalPoller recoveryPoller = poller(2);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 10L);
+        BdlPlay recoveredPlay = play(11L, 10L);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now))).thenReturn(liveResult(liveGame));
+        when(gameRepository.findByLifecycleState(GameLifecycle.LIVE.name())).thenReturn(List.of(liveGame));
+        when(balldontlieClient.getPlays(100L, 10L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+        when(gameWriter.findRecoveryCursor(100L, 1)).thenReturn(9L);
+        when(balldontlieClient.getPlays(100L, 9L))
+                .thenReturn(new ListResponse<>(List.of(recoveredPlay), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
+
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+
+        verify(gameWriter, times(2)).appendPlay(liveGame, recoveredPlay, now);
+        verify(gameWriter, times(2)).findRecoveryCursor(100L, 1);
+        verify(gameWriter, never()).findRecoveryCursor(100L, 2);
+        verify(balldontlieClient, times(2)).getPlateAppearancesRaw(100L);
+    }
+
+    @Test
+    void poll_shouldStepFurtherBackWhenRecoveryProbeIsEmpty() {
+        OperationalPoller recoveryPoller = poller(2);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 10L);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now))).thenReturn(liveResult(liveGame));
+        when(gameRepository.findByLifecycleState(GameLifecycle.LIVE.name())).thenReturn(List.of(liveGame));
+        when(balldontlieClient.getPlays(100L, 10L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+        when(gameWriter.findRecoveryCursor(100L, 1)).thenReturn(9L);
+        when(gameWriter.findRecoveryCursor(100L, 2)).thenReturn(8L);
+        when(balldontlieClient.getPlays(eq(100L), any()))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+
+        verify(balldontlieClient).getPlays(100L, 9L);
+        verify(balldontlieClient).getPlays(100L, 8L);
+    }
+
+    @Test
+    void poll_shouldResetEmptyFetchStreakWhenNormalFetchReturnsPlay() {
+        OperationalPoller recoveryPoller = poller(2);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 10L);
+        BdlPlay fetchedPlay = play(11L, 10L);
+        ListResponse<BdlPlay> emptyResponse =
+                new ListResponse<>(List.of(), new ListResponse.Meta(null, 100));
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now))).thenReturn(liveResult(liveGame));
+        when(gameRepository.findByLifecycleState(GameLifecycle.LIVE.name())).thenReturn(List.of(liveGame));
+        when(balldontlieClient.getPlays(100L, 10L))
+                .thenReturn(
+                        emptyResponse,
+                        new ListResponse<>(List.of(fetchedPlay), new ListResponse.Meta(null, 100)),
+                        emptyResponse
+                );
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
+
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+
+        verify(gameWriter, never()).findRecoveryCursor(eq(100L), anyInt());
+    }
+
+    @Test
+    void poll_shouldNotCountEmptyFetchesBeforeFirstPlay() {
+        OperationalPoller recoveryPoller = poller(2);
+        Game liveGame = game(GameLifecycle.LIVE.name(), null);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), eq(now))).thenReturn(liveResult(liveGame));
+        when(gameRepository.findByLifecycleState(GameLifecycle.LIVE.name())).thenReturn(List.of(liveGame));
+        when(balldontlieClient.getPlays(100L, null))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+        recoveryPoller.poll();
+
+        verify(gameWriter, never()).findRecoveryCursor(eq(100L), anyInt());
+    }
+
+    @Test
     void 사일_슬레이트를_games_한_번으로_조회한다() {
         OperationalPoller fourDaySlatePoller = poller(now, 2, 1);
         when(balldontlieClient.getGames(anyList())).thenReturn(List.of());
@@ -416,9 +535,31 @@ class OperationalPollerTest {
         assertThat(properties(-1).slateLookaheadDays()).isEqualTo(2);
     }
 
+    @Test
+    void properties_shouldUseNineRecoveryTicksWhenConfiguredValueIsNotPositive() {
+        assertThat(properties(0, 0, 0).cursorRecoveryEmptyTicks()).isEqualTo(9);
+    }
+
     private OperationalPoller poller(Instant fixedNow, int slateLookaheadDays) {
         Clock clock = Clock.fixed(fixedNow, ZoneOffset.UTC);
         return poller(clock, slateLookaheadDays);
+    }
+
+    private OperationalPoller poller(int cursorRecoveryEmptyTicks) {
+        Clock clock = Clock.fixed(now, ZoneOffset.UTC);
+        return new OperationalPoller(
+                balldontlieClient,
+                gameRepository,
+                gameWriter,
+                liveGameCycleWriter,
+                new ScoreTaskFactory(),
+                scoreTaskPublisher,
+                notificationEventPublisher,
+                properties(0, 0, cursorRecoveryEmptyTicks),
+                new PollerRateLimiter(1000, clock),
+                paRawArchiveUploader,
+                clock
+        );
     }
 
     private OperationalPoller poller(Clock clock, int slateLookaheadDays) {
@@ -482,6 +623,14 @@ class OperationalPollerTest {
     }
 
     private static PollerProperties properties(int slateLookaheadDays, int slateLookbackDays) {
+        return properties(slateLookaheadDays, slateLookbackDays, 9);
+    }
+
+    private static PollerProperties properties(
+            int slateLookaheadDays,
+            int slateLookbackDays,
+            int cursorRecoveryEmptyTicks
+    ) {
         return new PollerProperties(
                 true,
                 Duration.ofSeconds(20),
@@ -491,6 +640,7 @@ class OperationalPollerTest {
                 Duration.ofSeconds(20),
                 slateLookbackDays,
                 slateLookaheadDays,
+                cursorRecoveryEmptyTicks,
                 5,
                 Duration.ofSeconds(30),
                 Duration.ofMinutes(5),

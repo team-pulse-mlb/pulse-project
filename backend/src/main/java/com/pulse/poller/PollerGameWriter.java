@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -143,6 +144,15 @@ public class PollerGameWriter {
         }
         playRepository.saveAll(changedPlays);
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public Long findRecoveryCursor(long gameId, int stepBack) {
+        List<Play> recentPlays = playRepository.findByGameIdOrderByPlayOrderDesc(
+                gameId,
+                PageRequest.of(0, stepBack + 1)
+        );
+        return recentPlays.size() > stepBack ? recentPlays.get(stepBack).getPlayOrder() : null;
     }
 
     private Game newGame(long gameId, Instant now) {
