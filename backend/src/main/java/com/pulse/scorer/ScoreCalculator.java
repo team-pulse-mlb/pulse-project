@@ -68,14 +68,14 @@ public class ScoreCalculator {
         ScoreTask.Situation situation = input.situation();
         Instant now = input.computedAt();
         Map<String, Double> signals = new LinkedHashMap<>();
-        signals.put("late_or_extra", lateOrExtra(game));
-        signals.put("score_gap", scoreGap(game));
+        signals.put("late_or_extra", lateOrExtra(game, input.gameSnapshot()));
+        signals.put("score_gap", scoreGap(game, input.gameSnapshot()));
         signals.put("recent_score", recentScore(recentPlays, now));
         signals.put("lead_change", leadChange(recentPlays, input.seedLeader()));
         signals.put("big_inning", bigInning(recentPlays));
         signals.put("pressure", pressure(situation));
         signals.put("count_pressure", countPressure(situation));
-        signals.put("early_slugfest", earlySlugfest(game));
+        signals.put("early_slugfest", earlySlugfest(game, input.gameSnapshot()));
 
         double baseScore = signals.values().stream().mapToDouble(Double::doubleValue).sum();
         double pregameBonus = pregameBonus(input.pregameScore());
@@ -129,8 +129,8 @@ public class ScoreCalculator {
         return Math.min(pregameScore / 10.0, props.pregameCarryoverMax());
     }
 
-    private double lateOrExtra(Game game) {
-        Integer period = game.getPeriod();
+    private double lateOrExtra(Game game, ScoreTask.GameSnapshot gameSnapshot) {
+        Integer period = gameSnapshot == null ? game.getPeriod() : gameSnapshot.period();
         if (period == null) {
             return 0;
         }
@@ -146,8 +146,15 @@ public class ScoreCalculator {
         return 0;
     }
 
-    private double scoreGap(Game game) {
-        int gap = game.scoreGap();
+    private double scoreGap(Game game, ScoreTask.GameSnapshot gameSnapshot) {
+        int gap;
+        if (gameSnapshot == null) {
+            gap = game.scoreGap();
+        } else {
+            int homeRuns = gameSnapshot.homeRuns() == null ? 0 : gameSnapshot.homeRuns();
+            int awayRuns = gameSnapshot.awayRuns() == null ? 0 : gameSnapshot.awayRuns();
+            gap = Math.abs(homeRuns - awayRuns);
+        }
         if (gap <= 1) {
             return props.scoreGap().gap01();
         }
@@ -233,12 +240,20 @@ public class ScoreCalculator {
                 && Integer.valueOf(2).equals(situation.strikes());
     }
 
-    private double earlySlugfest(Game game) {
-        Integer period = game.getPeriod();
+    private double earlySlugfest(Game game, ScoreTask.GameSnapshot gameSnapshot) {
+        Integer period = gameSnapshot == null ? game.getPeriod() : gameSnapshot.period();
         if (period == null || period > props.earlySlugfest().maxInning()) {
             return 0;
         }
-        return game.totalRuns() >= props.earlySlugfest().minTotalRuns() ? props.earlySlugfest().bonus() : 0;
+        int totalRuns;
+        if (gameSnapshot == null) {
+            totalRuns = game.totalRuns();
+        } else {
+            int homeRuns = gameSnapshot.homeRuns() == null ? 0 : gameSnapshot.homeRuns();
+            int awayRuns = gameSnapshot.awayRuns() == null ? 0 : gameSnapshot.awayRuns();
+            totalRuns = homeRuns + awayRuns;
+        }
+        return totalRuns >= props.earlySlugfest().minTotalRuns() ? props.earlySlugfest().bonus() : 0;
     }
 
     private int gapOf(Play play) {

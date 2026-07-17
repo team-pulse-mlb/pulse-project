@@ -146,6 +146,34 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    @DisplayName("게임 스냅샷이 있으면 엔티티보다 발행 시점 이닝과 점수를 사용한다")
+    void gameSnapshotOverridesCurrentGameState() {
+        Game game = game(9, 10, 1);
+        ScoreTask.GameSnapshot gameSnapshot = new ScoreTask.GameSnapshot(3, 4, 3, false);
+
+        ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
+                game, List.of(), null, 0, now, 1.0, 0, gameSnapshot));
+
+        assertThat(result.signals().get("late_or_extra")).isZero();
+        assertThat(result.signals().get("score_gap")).isEqualTo(testProps().scoreGap().gap01());
+        assertThat(result.signals().get("early_slugfest")).isEqualTo(testProps().earlySlugfest().bonus());
+    }
+
+    @Test
+    @DisplayName("게임 스냅샷의 null 필드는 엔티티 값으로 대체하지 않는다")
+    void nullableGameSnapshotFieldsDoNotFallBackToCurrentGameState() {
+        Game game = game(9, 10, 1);
+        ScoreTask.GameSnapshot gameSnapshot = new ScoreTask.GameSnapshot(null, null, null, null);
+
+        ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
+                game, List.of(), null, 0, now, 1.0, 0, gameSnapshot));
+
+        assertThat(result.signals().get("late_or_extra")).isZero();
+        assertThat(result.signals().get("score_gap")).isEqualTo(testProps().scoreGap().gap01());
+        assertThat(result.signals().get("early_slugfest")).isZero();
+    }
+
+    @Test
     @DisplayName("recent_score의 base-budget은 multiplier 적용 전 예산이라 신호는 예산을 넘을 수 있다")
     void recentScoreBaseBudgetIsPreMultiplierBudget() {
         // 동점(gap-0, multiplier 2.0) 상황에서 방금 나온 대량 득점으로 예산을 소진시킨다.
