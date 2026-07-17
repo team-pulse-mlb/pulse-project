@@ -46,8 +46,42 @@ class FinalHeadlineEvidenceGuardTestCase(unittest.TestCase):
                         "DECISIVE_SCORE",
                         "COMEBACK_WIN",
                         "WALK_OFF",
+                        "HIT",
                     ],
-                )
+                ),
+                VerifiedPlay(
+                    play_id=313,
+                    scoring_play=True,
+                    fact_tags=[
+                        "TYING_SCORE",
+                        "HIT",
+                    ],
+                ),
+                VerifiedPlay(
+                    play_id=314,
+                    scoring_play=True,
+                    fact_tags=[
+                        "INSURANCE_SCORE",
+                        "HIT",
+                    ],
+                ),
+                VerifiedPlay(
+                    play_id=315,
+                    scoring_play=True,
+                    fact_tags=[
+                        "RUNS_SCORED",
+                        "TRAILS_AFTER",
+                        "CUTS_DEFICIT",
+                    ],
+                ),
+                VerifiedPlay(
+                    play_id=316,
+                    scoring_play=True,
+                    fact_tags=[
+                        "TAKES_LEAD",
+                        "LEADS_AFTER",
+                    ],
+                ),
             ],
         )
 
@@ -231,6 +265,100 @@ class FinalHeadlineEvidenceGuardTestCase(unittest.TestCase):
             "EVIDENCE_REQUIRED_PLAY_TAG_MISSING:DECISIVE_SCORE",
             failing_result["violations"],
         )
+
+    def test_decisive_hit_claim_requires_hit_tag(self):
+        context = SafeContext(
+            verified_plays=[
+                VerifiedPlay(
+                    play_id=900,
+                    fact_tags=[
+                        "DECISIVE_SCORE",
+                    ],
+                )
+            ]
+        )
+
+        result = validate_final_headline_evidence(
+            mode=AiCopyMode.REVEALED,
+            safe_context=context,
+            used_fact_ids=[],
+            used_play_ids=[900],
+            text="9회 결승타",
+        )
+
+        self.assertFalse(result["evidence_safe"])
+        self.assertIn(
+            "EVIDENCE_REQUIRED_PLAY_TAG_MISSING:HIT",
+            result["violations"],
+        )
+
+    def test_additional_flow_claims_pass_with_declared_matching_plays(self):
+        cases = [
+            ("7회 동점타", 313),
+            ("8회 쐐기타", 314),
+            ("한 차례 실점", 315),
+            ("열세에서도 한 점 차로 따라붙었습니다", 315),
+            ("리드를 잡고 앞섰습니다", 316),
+            ("우세를 이어갔습니다", 316),
+        ]
+
+        for text, play_id in cases:
+            with self.subTest(text=text):
+                result = validate_final_headline_evidence(
+                    mode=AiCopyMode.REVEALED,
+                    safe_context=self.safe_context,
+                    used_fact_ids=[],
+                    used_play_ids=[play_id],
+                    text=text,
+                )
+
+                self.assertTrue(result["evidence_safe"])
+                self.assertEqual(result["violations"], [])
+
+    def test_additional_flow_claims_reject_missing_used_play_evidence(self):
+        cases = [
+            (
+                "7회 동점타",
+                "EVIDENCE_REQUIRED_PLAY_TAGS_MISSING:"
+                "TYING_SCORE+HIT",
+            ),
+            (
+                "8회 쐐기",
+                "EVIDENCE_REQUIRED_PLAY_TAG_MISSING:"
+                "INSURANCE_SCORE",
+            ),
+            (
+                "한 차례 실점",
+                "EVIDENCE_REQUIRED_PLAY_TAG_MISSING:"
+                "RUNS_SCORED",
+            ),
+            (
+                "열세에서 따라붙었습니다",
+                "EVIDENCE_REQUIRED_PLAY_TAG_MISSING:"
+                "TRAILS_AFTER",
+            ),
+            (
+                "리드를 잡았습니다",
+                "EVIDENCE_REQUIRED_PLAY_TAG_ANY_MISSING:"
+                "LEAD_CHANGE|TAKES_LEAD|LEADS_AFTER",
+            ),
+        ]
+
+        for text, expected_violation in cases:
+            with self.subTest(text=text):
+                result = validate_final_headline_evidence(
+                    mode=AiCopyMode.REVEALED,
+                    safe_context=self.safe_context,
+                    used_fact_ids=[],
+                    used_play_ids=[],
+                    text=text,
+                )
+
+                self.assertFalse(result["evidence_safe"])
+                self.assertIn(
+                    expected_violation,
+                    result["violations"],
+                )
 
     def test_player_name_linked_to_used_play_passes(self):
         result = validate_final_headline_evidence(

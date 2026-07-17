@@ -38,6 +38,58 @@ DECISIVE_SCORE_CLAIM_PATTERN = re.compile(
 )
 
 
+# 문구가 아래 표현을 사용하면 usedPlayIds의 동일 플레이가
+# 지정된 모든 factTag를 보유해야 합니다.
+FINAL_HEADLINE_PLAY_ALL_TAG_CLAIMS = (
+    (
+        re.compile(r"결승타"),
+        ("HIT",),
+    ),
+    (
+        re.compile(r"동점타"),
+        ("TYING_SCORE", "HIT"),
+    ),
+    (
+        re.compile(r"동점(?!타)"),
+        ("TYING_SCORE",),
+    ),
+    (
+        re.compile(r"쐐기타"),
+        ("INSURANCE_SCORE", "HIT"),
+    ),
+    (
+        re.compile(r"쐐기(?!타)"),
+        ("INSURANCE_SCORE",),
+    ),
+    (
+        re.compile(r"실점"),
+        ("RUNS_SCORED",),
+    ),
+    (
+        re.compile(r"열세"),
+        ("TRAILS_AFTER",),
+    ),
+    (
+        re.compile(r"따라붙"),
+        ("CUTS_DEFICIT",),
+    ),
+)
+
+
+# 문구가 아래 표현을 사용하면 usedPlayIds의 동일 플레이가
+# 지정된 factTag 중 하나 이상을 보유해야 합니다.
+FINAL_HEADLINE_PLAY_ANY_TAG_CLAIMS = (
+    (
+        re.compile(r"리드|우세|앞서"),
+        (
+            "LEAD_CHANGE",
+            "TAKES_LEAD",
+            "LEADS_AFTER",
+        ),
+    ),
+)
+
+
 def _append_violation(
     violations: list[str],
     violation: str,
@@ -253,6 +305,71 @@ def _validate_player_mentions(
         )
 
 
+def _used_play_tag_sets(
+    plays_by_id: dict[int, object],
+    used_play_ids: list[int],
+) -> list[set[str]]:
+    """
+    usedPlayIds에 선언된 플레이들의 factTags를 반환합니다.
+    """
+
+    tag_sets: list[set[str]] = []
+
+    for play_id in used_play_ids:
+        play = plays_by_id.get(play_id)
+
+        if play is None:
+            continue
+
+        tag_sets.append(
+            set(getattr(play, "fact_tags", []) or [])
+        )
+
+    return tag_sets
+
+
+def _append_required_all_tags_violation(
+    violations: list[str],
+    required_tags: tuple[str, ...],
+) -> None:
+    """
+    필요한 모든 플레이 태그가 누락된 위반을 기록합니다.
+    """
+
+    if len(required_tags) == 1:
+        violation = (
+            "EVIDENCE_REQUIRED_PLAY_TAG_MISSING:"
+            f"{required_tags[0]}"
+        )
+    else:
+        violation = (
+            "EVIDENCE_REQUIRED_PLAY_TAGS_MISSING:"
+            + "+".join(required_tags)
+        )
+
+    _append_violation(
+        violations,
+        violation,
+    )
+
+
+def _append_required_any_tags_violation(
+    violations: list[str],
+    required_tags: tuple[str, ...],
+) -> None:
+    """
+    후보 플레이 태그 중 하나도 존재하지 않는 위반을 기록합니다.
+    """
+
+    _append_violation(
+        violations,
+        (
+            "EVIDENCE_REQUIRED_PLAY_TAG_ANY_MISSING:"
+            + "|".join(required_tags)
+        ),
+    )
+
+
 def _validate_text_claim_evidence(
     text: str,
     safe_context: SafeContext | None,
@@ -318,6 +435,49 @@ def _validate_text_claim_evidence(
                 violations,
                 "EVIDENCE_REQUIRED_PLAY_TAG_MISSING:DECISIVE_SCORE",
             )
+
+    used_play_tag_sets = _used_play_tag_sets(
+        plays_by_id=plays_by_id,
+        used_play_ids=used_play_ids,
+    )
+
+    for pattern, required_tags in (
+        FINAL_HEADLINE_PLAY_ALL_TAG_CLAIMS
+    ):
+        if pattern.search(normalized_text) is None:
+            continue
+
+        required_tag_set = set(required_tags)
+
+        if any(
+            required_tag_set.issubset(tag_set)
+            for tag_set in used_play_tag_sets
+        ):
+            continue
+
+        _append_required_all_tags_violation(
+            violations=violations,
+            required_tags=required_tags,
+        )
+
+    for pattern, required_tags in (
+        FINAL_HEADLINE_PLAY_ANY_TAG_CLAIMS
+    ):
+        if pattern.search(normalized_text) is None:
+            continue
+
+        required_tag_set = set(required_tags)
+
+        if any(
+            bool(required_tag_set.intersection(tag_set))
+            for tag_set in used_play_tag_sets
+        ):
+            continue
+
+        _append_required_any_tags_violation(
+            violations=violations,
+            required_tags=required_tags,
+        )
 
     _validate_player_mentions(
         text=normalized_text,

@@ -219,10 +219,11 @@ def _build_purpose_instruction(purpose: str) -> str:
 
     purpose_instructions = {
         "FINAL_HEADLINE": (
-            "종료된 경기의 카드와 상세 화면에 표시할 "
-            "한 문장의 짧은 헤드라인을 생성하세요. "
+            "종료된 MLB 경기의 최종 결과와 가장 중요한 경기 흐름을 "
+            "한 문장으로 압축한 헤드라인을 생성하세요. "
             "safeContext의 경기 흐름, keyMoments, summaryFacts, "
-            "revealedEvents, revealedMoments, verifiedPlays만 사용하세요."
+            "revealedEvents, revealedMoments, verifiedPlays만 사용하세요. "
+            "검증된 흐름 근거가 있는 경우 단순 점수·승패 나열로 끝내지 마세요."
         ),
         "EVENT_COPY": (
             "경기 이벤트 타임라인에 표시할 "
@@ -296,7 +297,8 @@ EVENT_COPY PROTECTED 예시:
 - "5점", "5점 차", 한 팀 점수만 있는 표현, "5:3", "5대3" 형식은 사용하지 마세요.
 - 승패를 언급할 때는 승자 한 팀만 문장의 주어로 사용하세요.
 - 승자 주어는 반드시 "홈팀", "원정팀", teams.home.name, teams.home.abbr, teams.away.name, teams.away.abbr 중 하나를 그대로 사용하세요.
-- 가장 안정적인 표현은 "홈팀이 ..." 또는 "원정팀이 ..."입니다.
+- teams.home.name 또는 teams.away.name이 있으면 "홈팀", "원정팀"보다 실제 팀명을 우선 사용하세요.
+- 정식 팀명이 지나치게 길어 문장이 불필요하게 장황해질 때만 safeContext에 있는 팀 약어를 사용할 수 있습니다.
 - safeContext의 영문 팀명을 한국어로 번역·음역·축약하거나 별칭으로 바꾸지 마세요.
 - 예를 들어 teams.home.name이 "Los Angeles Dodgers"여도 "다저스"를 새로 만들어 사용하지 마세요.
 - 팀 주어 없이 "5-3 승리", "홈런으로 승리"처럼 작성하지 마세요.
@@ -307,6 +309,71 @@ EVENT_COPY PROTECTED 예시:
 """.strip()
 
     raise ValueError(f"Unsupported AI copy mode: {mode}")
+
+
+def _build_final_headline_quality_instruction(
+    purpose: str,
+    mode: AiCopyMode,
+) -> str:
+    """
+    FINAL_HEADLINE 전용 문장 품질 규칙과 조건부 예시를 반환합니다.
+    """
+
+    if purpose != "FINAL_HEADLINE":
+        return ""
+
+    if mode == AiCopyMode.PROTECTED:
+        return """
+FINAL_HEADLINE 작성 품질:
+- 결과를 노출하지 않으면서 경기의 긴장 구간이나 관전 가치를 한 문장으로 요약하세요.
+- safeTags, reasonCodes, keyMoments에 없는 구체적인 사건은 만들지 마세요.
+- 같은 의미의 "긴장감", "흐름", "승부처"를 반복하지 마세요.
+- 최대 길이는 80자이며, 불필요한 수식어 없이 간결하게 작성하세요.
+""".strip()
+
+    if mode != AiCopyMode.REVEALED:
+        raise ValueError(
+            f"Unsupported AI copy mode: {mode}"
+        )
+
+    return """
+FINAL_HEADLINE REVEALED 작성 품질:
+- 최종 승자, 패자 또는 최종 점수와 검증된 핵심 흐름 한 가지를 가능하면 함께 포함하세요.
+- summaryFacts 또는 verifiedPlays에 핵심 흐름 근거가 있는데도 "홈팀이 5-3으로 승리"처럼 결과만 나열하지 마세요.
+- 핵심 흐름 근거가 전혀 없을 때만 최종 결과를 간결하게 작성하세요.
+- 실제 팀명이 safeContext에 있으면 "홈팀", "원정팀"보다 실제 팀명을 우선 사용하세요.
+- 핵심 흐름은 결정 이닝, 역전, 끝내기, 영봉, 연장, 총득점, 검증된 결정 플레이 또는 검증된 선수 중 가장 중요한 한 가지만 선택하세요.
+- 한 문장에 여러 플레이와 수치를 과도하게 나열하지 마세요.
+- "역대급", "최초", "신기록", "구단 역사", "MVP", "영웅" 같은 역사적·평가적 표현은 사용하지 마세요.
+- safeContext에 없는 안타 수, 홈런 수, 타점, 투구 수, 선수 기록을 만들지 마세요.
+- 문장 길이 제한은 최대 80자입니다. 52자 제한을 적용하지 않습니다.
+- 줄바꿈 없이 한 문장으로 작성하세요.
+
+조건부 작성 예시:
+- 후반 결정:
+  summaryFacts.decisiveInning과 decisiveRuns가 존재할 때
+  → "8회 2득점으로 승부를 가른 San Francisco Giants가 Colorado Rockies를 3-1로 꺾었습니다."
+- 역전:
+  summaryFacts.comebackWin=true일 때만
+  → "초반 리드를 내준 San Francisco Giants가 8회 승부를 뒤집어 Colorado Rockies를 3-1로 꺾었습니다."
+- 영봉:
+  summaryFacts.shutout=true일 때만
+  → "Los Angeles Dodgers가 Arizona Diamondbacks를 끝까지 무득점으로 묶고 4-0 승리를 거뒀습니다."
+- 연장:
+  summaryFacts.extraInnings=true이고 finalInning이 존재할 때만
+  → "연장 10회 승부를 가른 Chicago Cubs가 New York Mets를 3-2로 꺾었습니다."
+- 결정 플레이와 선수:
+  verifiedPlays에 DECISIVE_SCORE 태그와 해당 batter가 존재할 때만
+  → "8회 Willy Adames의 결승타로 San Francisco Giants가 Colorado Rockies를 3-1로 꺾었습니다."
+- 타격전:
+  summaryFacts.totalRuns가 실제로 큰 경기이고 해당 숫자를 사용할 때
+  → "양 팀 합계 16득점의 타격전에서 New York Yankees가 Boston Red Sox를 9-7로 꺾었습니다."
+
+예시 사용 주의:
+- 위 예시의 팀명, 점수, 이닝, 선수명, playId를 현재 요청에 그대로 복사하지 마세요.
+- 현재 safeContext에 같은 종류의 검증 근거가 있을 때만 문장 구조를 참고하세요.
+- 예시에 사용된 사실도 실제 출력에서는 used_fact_ids와 used_play_ids에 정확히 선언하세요.
+""".strip()
 
 
 def _build_response_instruction(
@@ -379,7 +446,16 @@ FINAL_HEADLINE 응답 계약:
 - "영봉"을 사용하면 summaryFacts.shutout을 선언해야 하며 값이 true여야 합니다.
 - 총득점을 언급하면 summaryFacts.totalRuns를 선언하세요.
 - 연장 승부를 언급하면 summaryFacts.extraInnings를 선언하고, 종료 이닝을 사용했다면 summaryFacts.finalInning도 선언하세요.
-- "결승타", "결정 득점", "결정적 득점"을 사용하면 factTags에 DECISIVE_SCORE가 있는 verifiedPlay의 playId를 used_play_ids에 넣으세요.
+- "결정 득점", "결정적 득점"을 사용하면 factTags에 DECISIVE_SCORE가 있는 verifiedPlay의 playId를 used_play_ids에 넣으세요.
+- "결승타"를 사용하면 같은 verifiedPlay에 DECISIVE_SCORE와 HIT가 모두 있어야 합니다.
+- "동점"을 사용하면 TYING_SCORE가 있는 verifiedPlay의 playId를 선언하세요.
+- "동점타"를 사용하면 같은 verifiedPlay에 TYING_SCORE와 HIT가 모두 있어야 합니다.
+- "쐐기"를 사용하면 INSURANCE_SCORE가 있는 verifiedPlay의 playId를 선언하세요.
+- "쐐기타"를 사용하면 같은 verifiedPlay에 INSURANCE_SCORE와 HIT가 모두 있어야 합니다.
+- "리드", "우세", "앞서다"를 사용하면 LEAD_CHANGE, TAKES_LEAD, LEADS_AFTER 중 하나가 있는 verifiedPlay의 playId를 선언하세요.
+- "열세"를 사용하면 TRAILS_AFTER가 있는 verifiedPlay의 playId를 선언하세요.
+- "따라붙다"를 사용하면 CUTS_DEFICIT이 있는 verifiedPlay의 playId를 선언하세요.
+- "실점"을 사용하면 RUNS_SCORED가 있는 verifiedPlay의 playId를 선언하세요.
 - 선수명을 사용하면 그 선수가 batter 또는 pitcher로 포함된 verifiedPlay의 playId를 used_play_ids에 넣으세요.
 - verifiedPlay의 내용을 사용하지 않았다면 used_play_ids는 []로 반환하세요.
 
@@ -421,6 +497,9 @@ def build_spoiler_free_prompt(request: AiCopyRequest) -> str:
 
 모드별 규칙:
 {_build_mode_instruction(request.mode, purpose)}
+
+목적별 문장 품질:
+{_build_final_headline_quality_instruction(purpose, request.mode)}
 
 공통 규칙:
 - 아래 JSON의 safeContext에 실제로 포함된 정보만 사용하세요.

@@ -90,7 +90,10 @@ function FinalMatchupHero({
 
                 {data.headline && (
                     <div className="mt-7 border-t border-white/10 pt-5">
-                        <p className="mx-auto max-w-[620px] text-center text-sm font-medium leading-relaxed text-white/75 sm:text-[15px]">
+                        <p
+                            className="mx-auto max-w-[620px] truncate text-center text-sm font-medium leading-relaxed text-white/75 sm:text-[15px]"
+                            title={data.headline}
+                        >
                             {data.headline}
                         </p>
                     </div>

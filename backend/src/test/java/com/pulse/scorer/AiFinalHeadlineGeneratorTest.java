@@ -177,6 +177,73 @@ class AiFinalHeadlineGeneratorTest {
     }
 
     @Test
+    void regenerateRevealedSynchronously_shouldOverwriteOnlyRevealedHeadline() {
+        Game game = finalGame();
+        game.setFinalHeadlineProtected(
+                "기존 보호 헤드라인"
+        );
+        game.setFinalHeadlineRevealed(
+                "기존 공개 헤드라인"
+        );
+
+        when(gameRepository.findById(100L))
+                .thenReturn(Optional.of(game));
+
+        when(
+                finalHeadlineCopyClient.generateFinalHeadline(
+                        100L,
+                        AiCopyMode.REVEALED
+                )
+        ).thenReturn(
+                Optional.of(
+                        result("번역을 반영한 새 공개 헤드라인")
+                )
+        );
+
+        latestContextHash(
+                AiCopyMode.REVEALED,
+                "hash-final"
+        );
+
+        AiFinalHeadlineGenerator.GenerationStatus status =
+                generator.regenerateRevealedSynchronously(
+                        100L
+                );
+
+        assertThat(status)
+                .isEqualTo(
+                        AiFinalHeadlineGenerator
+                                .GenerationStatus
+                                .SAVED
+                );
+
+        assertThat(game.getFinalHeadlineProtected())
+                .isEqualTo("기존 보호 헤드라인");
+
+        assertThat(game.getFinalHeadlineRevealed())
+                .isEqualTo(
+                        "번역을 반영한 새 공개 헤드라인"
+                );
+
+        verify(
+                finalHeadlineCopyClient,
+                never()
+        ).generateFinalHeadline(
+                100L,
+                AiCopyMode.PROTECTED
+        );
+
+        verify(gameRepository)
+                .save(game);
+
+        verify(liveSignalPublisher)
+                .publishGameSignal(100L);
+
+        verify(liveSignalPublisher)
+                .publishRankingSignal();
+    }
+
+    @Test
     void regenerateSynchronously_shouldPreserveExistingHeadlineWhenOneModeFails() {
         Game game = finalGame();
         game.setFinalHeadlineProtected("기존 보호 헤드라인");

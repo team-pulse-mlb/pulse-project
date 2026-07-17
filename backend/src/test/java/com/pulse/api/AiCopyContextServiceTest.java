@@ -301,6 +301,160 @@ class AiCopyContextServiceTest {
     }
 
     @Test
+    void 공개_헤드라인은_추가_경기_흐름_표현용_플레이_태그를_계산한다() {
+        Game game = game(Game.STATUS_FINAL, 5, 3);
+        game.setHomeTeamName("San Francisco Giants");
+        game.setAwayTeamName("Colorado Rockies");
+        game.setPeriod(9);
+        game.setHomeInningScores(
+                List.of(0, 0, 0, 1, 0, 0, 1, 3, 0)
+        );
+        game.setAwayInningScores(
+                List.of(1, 0, 0, 0, 0, 2, 0, 0, 0)
+        );
+
+        when(gameRepository.findById(1L))
+                .thenReturn(Optional.of(game));
+
+        List<Play> plays = new ArrayList<>(
+                List.of(
+                        scoringPlay(
+                                101L,
+                                101L,
+                                1,
+                                "Top",
+                                0,
+                                1,
+                                1
+                        ),
+                        scoringPlay(
+                                102L,
+                                102L,
+                                4,
+                                "Bottom",
+                                1,
+                                1,
+                                1
+                        ),
+                        scoringPlay(
+                                103L,
+                                103L,
+                                6,
+                                "Top",
+                                1,
+                                3,
+                                2
+                        ),
+                        scoringPlay(
+                                104L,
+                                104L,
+                                7,
+                                "Bottom",
+                                2,
+                                3,
+                                1
+                        ),
+                        scoringPlay(
+                                105L,
+                                105L,
+                                8,
+                                "Bottom",
+                                4,
+                                3,
+                                2
+                        ),
+                        scoringPlay(
+                                106L,
+                                106L,
+                                8,
+                                "Bottom",
+                                5,
+                                3,
+                                1
+                        )
+                )
+        );
+
+        plays.get(1).setText(
+                "Tying Batter singled to center."
+        );
+        plays.get(4).setTextKo(
+                "Go Ahead Batter, 좌익수 방면 안타로 2득점."
+        );
+        plays.get(5).setText(
+                "Insurance Batter doubled to left."
+        );
+
+        when(
+                playRepository.findByGameIdOrderByPlayOrderAsc(1L)
+        ).thenReturn(plays);
+
+        FinalHeadlineContext context = service
+                .finalHeadlineContext(
+                        1L,
+                        AiCopyMode.REVEALED
+                )
+                .orElseThrow();
+
+        assertThat(context.verifiedPlays())
+                .filteredOn(
+                        play -> play.playOrder().equals(102L)
+                )
+                .singleElement()
+                .satisfies(
+                        play -> assertThat(play.factTags())
+                                .contains(
+                                        "TYING_SCORE",
+                                        "HIT"
+                                )
+                );
+
+        assertThat(context.verifiedPlays())
+                .filteredOn(
+                        play -> play.playOrder().equals(104L)
+                )
+                .singleElement()
+                .satisfies(
+                        play -> assertThat(play.factTags())
+                                .contains(
+                                        "TRAILS_AFTER",
+                                        "CUTS_DEFICIT"
+                                )
+                );
+
+        assertThat(context.verifiedPlays())
+                .filteredOn(
+                        play -> play.playOrder().equals(105L)
+                )
+                .singleElement()
+                .satisfies(
+                        play -> assertThat(play.factTags())
+                                .contains(
+                                        "LEAD_CHANGE",
+                                        "TAKES_LEAD",
+                                        "LEADS_AFTER",
+                                        "DECISIVE_SCORE",
+                                        "COMEBACK_WIN",
+                                        "HIT"
+                                )
+                );
+
+        assertThat(context.verifiedPlays())
+                .filteredOn(
+                        play -> play.playOrder().equals(106L)
+                )
+                .singleElement()
+                .satisfies(
+                        play -> assertThat(play.factTags())
+                                .contains(
+                                        "LEADS_AFTER",
+                                        "INSURANCE_SCORE",
+                                        "HIT"
+                                )
+                );
+    }
+
+    @Test
     void 플레이_점수_흐름이_최종_점수와_다르면_고급_사실을_추측하지_않는다() {
         Game game = game(Game.STATUS_FINAL, 5, 3);
         game.setPeriod(9);
