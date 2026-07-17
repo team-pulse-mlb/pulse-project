@@ -83,8 +83,8 @@ FROM fixture_players
 ON CONFLICT (player_id) DO NOTHING;
 
 -- 실제 완주 경기 스냅샷을 시뮬레이터 원본으로 두 벌 복제한다.
--- 이 행들은 화면 카드가 아니라 시뮬레이터가 읽을 games+plays 원본이다. 슬레이트(오늘)에
--- 직접 노출되지 않도록 과거 시각의 종료 상태로 적재하고, final_headline 등 파생값은 비운다.
+-- 이 행들은 화면 카드가 아니라 시뮬레이터가 읽을 games+plays 원본이다. 추천 카드의
+-- 최근 종료 경기 보충 대상에 섞이지 않도록 과거 시각의 취소 상태로 적재하고 파생값은 비운다.
 -- 카드·점수·문구는 시뮬레이션 poller가 만드는 target 경기에서 라이브로 생성된다.
 INSERT INTO games (
     game_id, away_inning_scores, away_runs, away_team_abbr, away_team_id,
@@ -110,7 +110,7 @@ SELECT target.game_id,
        CASE WHEN target.reverse_matchup THEN source.away_team_name ELSE source.home_team_name END,
        source.last_play_order,
        source.last_polled_at,
-       'FINAL',
+       'DONE',
        source.observed_at,
        source.peak_base_score,
        source.period,
@@ -119,7 +119,7 @@ SELECT target.game_id,
        source.pregame_score,
        'FIXTURE',
        now() - interval '30 days',
-       'STATUS_FINAL',
+       'STATUS_CANCELED',
        COALESCE(source.updated_at, now()),
        source.venue
 FROM fixture_games source
