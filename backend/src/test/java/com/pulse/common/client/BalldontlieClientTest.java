@@ -7,6 +7,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -28,7 +30,7 @@ class BalldontlieClientTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         client = new BalldontlieClient(
-                new BdlProperties("https://api.example.test", "test-key"),
+                new BdlProperties("https://api.example.test", "test-key", null, null),
                 new ObjectMapper(),
                 builder
         );
@@ -50,8 +52,14 @@ class BalldontlieClientTest {
                 LocalDate.of(2026, 7, 10)
         );
         server.expect(request -> {
-                    var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
-                    assertThat(query.get("dates[]")).containsExactly(
+                    // dates[] 키는 URL 인코딩(dates%5B%5D)될 수 있으므로 디코딩해서 비교한다.
+                    var query = UriComponentsBuilder.fromUri(request.getURI()).build(true).getQueryParams();
+                    var dateValues = query.entrySet().stream()
+                            .filter(entry -> URLDecoder.decode(entry.getKey(), StandardCharsets.UTF_8).equals("dates[]"))
+                            .findFirst()
+                            .map(java.util.Map.Entry::getValue)
+                            .orElse(List.of());
+                    assertThat(dateValues).containsExactly(
                             "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10"
                     );
                     assertThat(query.getFirst("per_page")).isEqualTo("100");

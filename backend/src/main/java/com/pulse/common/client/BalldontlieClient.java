@@ -39,14 +39,15 @@ public class BalldontlieClient implements BaseballDataSource {
 
     @Autowired
     public BalldontlieClient(BdlProperties props, ObjectMapper objectMapper) {
-        this(props, objectMapper, RestClient.builder());
+        // 타임아웃 requestFactory는 운영 경로에서만 지정한다.
+        // 테스트 주입 빌더(MockRestServiceServer 바인딩)의 requestFactory를 덮어쓰지 않기 위함이다.
+        this(props, objectMapper, RestClient.builder().requestFactory(createRequestFactory(props)));
     }
 
     BalldontlieClient(BdlProperties props, ObjectMapper objectMapper, RestClient.Builder restClientBuilder) {
         this.restClient = restClientBuilder
                 .baseUrl(props.baseUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.apiKey())
-                .requestFactory(createRequestFactory(props))
                 .requestInterceptor((request, body, execution) -> {
                     String endpoint = request.getURI().getPath();
                     try {
@@ -68,7 +69,7 @@ public class BalldontlieClient implements BaseballDataSource {
         this.objectMapper = objectMapper;
     }
 
-    private SimpleClientHttpRequestFactory createRequestFactory(BdlProperties props) {
+    private static SimpleClientHttpRequestFactory createRequestFactory(BdlProperties props) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(props.connectTimeout());
         requestFactory.setReadTimeout(props.readTimeout());
