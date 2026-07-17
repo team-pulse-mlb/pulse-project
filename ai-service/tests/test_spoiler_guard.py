@@ -1,6 +1,12 @@
 import unittest
 
-from app.schemas.ai_schema import AiCopyMode, FinalScore, SafeContext
+from app.schemas.ai_schema import (
+    AiCopyMode,
+    FinalScore,
+    SafeContext,
+    SummaryFacts,
+    VerifiedPlay,
+)
 from app.services.spoiler_guard import check_spoiler_text
 
 
@@ -140,6 +146,68 @@ class SpoilerGuardTestCase(unittest.TestCase):
 
         result = check_spoiler_text(
             "홈팀과 원정팀의 접전 끝 원정팀이 3-5로 승리",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertTrue(result["spoiler_safe"])
+        self.assertEqual(result["violations"], [])
+
+    def test_revealed_summary_facts_support_result_claim_words(self):
+        safe_context = SafeContext(
+            summary_facts=SummaryFacts(
+                comeback_win=True,
+                walk_off=True,
+                shutout=True,
+            )
+        )
+
+        for text in [
+            "후반 역전 장면",
+            "9회 끝내기 장면",
+            "영봉 경기",
+        ]:
+            with self.subTest(text=text):
+                result = check_spoiler_text(
+                    text,
+                    mode=AiCopyMode.REVEALED,
+                    safe_context=safe_context,
+                )
+
+                self.assertTrue(result["spoiler_safe"])
+                self.assertEqual(result["violations"], [])
+
+    def test_revealed_false_summary_fact_does_not_support_claim(self):
+        safe_context = SafeContext(
+            summary_facts=SummaryFacts(
+                walk_off=False,
+            )
+        )
+
+        result = check_spoiler_text(
+            "9회 끝내기 장면",
+            mode=AiCopyMode.REVEALED,
+            safe_context=safe_context,
+        )
+
+        self.assertFalse(result["spoiler_safe"])
+        self.assertIn(
+            "FORBIDDEN_WORD:끝내기",
+            result["violations"],
+        )
+
+    def test_revealed_decisive_score_play_supports_walk_off_hit_word(self):
+        safe_context = SafeContext(
+            verified_plays=[
+                VerifiedPlay(
+                    play_id=312,
+                    fact_tags=["DECISIVE_SCORE"],
+                )
+            ]
+        )
+
+        result = check_spoiler_text(
+            "9회 결승타",
             mode=AiCopyMode.REVEALED,
             safe_context=safe_context,
         )

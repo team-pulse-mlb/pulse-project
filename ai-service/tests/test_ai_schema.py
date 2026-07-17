@@ -4,6 +4,7 @@ from app.schemas.ai_schema import (
     AiCopyMode,
     EventCopyRequest,
     FinalHeadlineRequest,
+    FinalHeadlineResponse,
 )
 
 
@@ -184,6 +185,57 @@ class AiSchemaTestCase(unittest.TestCase):
         self.assertEqual(safe_context.verified_plays[0].batter.name, "Shohei Ohtani")
         self.assertIn("TRANSLATED", safe_context.verified_plays[0].fact_tags)
 
+
+    def test_final_headline_response_accepts_evidence_ids(self):
+        payload = {
+            "spoilerSafe": True,
+            "contextHash": "game-5059082-final-revealed-v3",
+            "safeTitle": "9회 끝내기로 경기를 뒤집었다",
+            "violations": [],
+            "fallbackUsed": False,
+            "usedFactIds": [
+                "summaryFacts.comebackWin",
+                "summaryFacts.walkOff",
+                "summaryFacts.decisiveInning",
+            ],
+            "usedPlayIds": [312],
+        }
+
+        response = FinalHeadlineResponse.model_validate(payload)
+
+        self.assertEqual(
+            response.used_fact_ids,
+            [
+                "summaryFacts.comebackWin",
+                "summaryFacts.walkOff",
+                "summaryFacts.decisiveInning",
+            ],
+        )
+        self.assertEqual(response.used_play_ids, [312])
+
+        serialized = response.model_dump(by_alias=True)
+
+        self.assertEqual(
+            serialized["usedFactIds"],
+            [
+                "summaryFacts.comebackWin",
+                "summaryFacts.walkOff",
+                "summaryFacts.decisiveInning",
+            ],
+        )
+        self.assertEqual(serialized["usedPlayIds"], [312])
+
+    def test_final_headline_response_evidence_ids_default_to_empty_lists(self):
+        response = FinalHeadlineResponse(
+            spoiler_safe=True,
+            context_hash="game-5059082-final-protected-v3",
+            safe_title="후반 긴장감이 이어진 경기",
+            violations=[],
+            fallback_used=False,
+        )
+
+        self.assertEqual(response.used_fact_ids, [])
+        self.assertEqual(response.used_play_ids, [])
 
     def test_event_copy_request_accepts_spring_camel_case_payload(self):
         payload = {

@@ -8,6 +8,7 @@ PROTECTED_FORBIDDEN_WORDS = (
     "홈런",
     "역전",
     "끝내기",
+    "영봉",
     "승리",
     "패배",
     "승자",
@@ -44,6 +45,7 @@ REVEALED_UNSUPPORTED_WORDS = (
     "홈런",
     "역전",
     "끝내기",
+    "영봉",
     "리드",
     "우세",
     "열세",
@@ -231,6 +233,22 @@ def _revealed_supported_words(
     if safe_context is None:
         return supported_words
 
+    summary_facts = getattr(
+        safe_context,
+        "summary_facts",
+        None,
+    )
+
+    if summary_facts is not None:
+        if getattr(summary_facts, "comeback_win", None) is True:
+            supported_words.add("역전")
+
+        if getattr(summary_facts, "walk_off", None) is True:
+            supported_words.add("끝내기")
+
+        if getattr(summary_facts, "shutout", None) is True:
+            supported_words.add("영봉")
+
     for play in getattr(safe_context, "verified_plays", []) or []:
         translated_text = getattr(play, "translated_text", None) or ""
         source_text = (getattr(play, "source_text", None) or "").lower()
@@ -244,6 +262,18 @@ def _revealed_supported_words(
 
         if getattr(play, "scoring_play", None) is True:
             supported_words.add("득점")
+
+        fact_tags = set(
+            getattr(play, "fact_tags", []) or []
+        )
+
+        if "DECISIVE_SCORE" in fact_tags:
+            supported_words.update(
+                {
+                    "결승타",
+                    "득점",
+                }
+            )
 
     return supported_words
 

@@ -444,7 +444,34 @@ class AiCopyResponse(ApiBaseModel):
 class FinalHeadlineResponse(AiCopyResponse):
     """
     POST /ai/final-headline 응답 형식입니다.
+
+    used_fact_ids:
+    - 생성 문구가 실제로 사용했다고 선언한 summaryFacts 필드 ID 목록
+
+    used_play_ids:
+    - 생성 문구가 실제로 사용했다고 선언한 verifiedPlay의 playId 목록
     """
+
+    used_fact_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "FINAL_HEADLINE 생성에 실제 사용한 summaryFacts 근거 ID 목록"
+        ),
+        examples=[
+            [
+                "summaryFacts.comebackWin",
+                "summaryFacts.walkOff",
+                "summaryFacts.decisiveInning",
+            ]
+        ],
+    )
+    used_play_ids: list[int] = Field(
+        default_factory=list,
+        description=(
+            "FINAL_HEADLINE 생성에 실제 사용한 verifiedPlay playId 목록"
+        ),
+        examples=[[312]],
+    )
 
 
 class EventCopyResponse(AiCopyResponse):

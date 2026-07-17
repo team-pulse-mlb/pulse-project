@@ -295,6 +295,146 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
         self.assertIn("원정팀이 3-5로 승리", prompt)
         self.assertIn("승자 한 팀만", prompt)
 
+    def test_final_headline_protected_prompt_requires_empty_evidence_arrays(self):
+        request = FinalHeadlineRequest(
+            game_id=5059082,
+            mode=AiCopyMode.PROTECTED,
+            context_hash="game-5059082-final-protected-v1",
+            safe_context=SafeContext(
+                game_status="STATUS_FINAL",
+                inning_phase="경기 종료",
+                safe_tags=["후반 긴장 구간"],
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn("FINAL_HEADLINE 응답 계약", prompt)
+        self.assertIn(
+            "safe_title, used_fact_ids, used_play_ids 세 필드만",
+            prompt,
+        )
+        self.assertIn(
+            "used_fact_ids는 반드시 빈 배열 []",
+            prompt,
+        )
+        self.assertIn(
+            "used_play_ids는 반드시 빈 배열 []",
+            prompt,
+        )
+        self.assertIn('"used_fact_ids": []', prompt)
+        self.assertIn('"used_play_ids": []', prompt)
+        self.assertNotIn(
+            "반환 JSON에는 safe_title 필드 하나만",
+            prompt,
+        )
+
+    def test_final_headline_revealed_prompt_contains_evidence_selection_rules(self):
+        request = FinalHeadlineRequest(
+            game_id=5059082,
+            mode=AiCopyMode.REVEALED,
+            context_hash="game-5059082-final-revealed-v3",
+            safe_context=SafeContext(
+                final_score=FinalScore(
+                    home=5,
+                    away=3,
+                ),
+                winner="home",
+                summary_facts={
+                    "winnerSide": "home",
+                    "winnerScore": 5,
+                    "loserScore": 3,
+                    "comebackWin": True,
+                    "walkOff": True,
+                    "decisiveInning": 9,
+                },
+                verified_plays=[
+                    {
+                        "playId": 312,
+                        "inning": 9,
+                        "inningType": "bottom",
+                        "batter": {
+                            "id": 660271,
+                            "name": "Shohei Ohtani",
+                        },
+                        "factTags": [
+                            "DECISIVE_SCORE",
+                            "COMEBACK_WIN",
+                            "WALK_OFF",
+                        ],
+                    }
+                ],
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn(
+            "safe_title, used_fact_ids, used_play_ids 세 필드만",
+            prompt,
+        )
+        self.assertIn(
+            "summaryFacts.comebackWin",
+            prompt,
+        )
+        self.assertIn(
+            "summaryFacts.walkOff",
+            prompt,
+        )
+        self.assertIn(
+            "summaryFacts.shutout",
+            prompt,
+        )
+        self.assertIn(
+            "summaryFacts.totalRuns",
+            prompt,
+        )
+        self.assertIn(
+            "DECISIVE_SCORE",
+            prompt,
+        )
+        self.assertIn(
+            "batter 또는 pitcher",
+            prompt,
+        )
+        self.assertIn(
+            "실제 사용한 verifiedPlays의 playId",
+            prompt,
+        )
+        self.assertIn(
+            "중복 ID를 넣지 마세요",
+            prompt,
+        )
+        self.assertIn('"used_fact_ids": []', prompt)
+        self.assertIn('"used_play_ids": []', prompt)
+
+    def test_event_copy_prompt_keeps_safe_title_only_contract(self):
+        request = EventCopyRequest(
+            game_id=5059041,
+            event_id=91,
+            mode=AiCopyMode.PROTECTED,
+            context_hash="event-91-protected-v1",
+            safe_context=SafeContext(
+                event_type="pressure_bases_loaded",
+                label="만루 승부",
+                inning=7,
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn("EVENT_COPY 응답 계약", prompt)
+        self.assertIn(
+            "반환 JSON에는 safe_title 필드만 포함",
+            prompt,
+        )
+        self.assertIn(
+            '"safe_title": "생성한 한 문장"',
+            prompt,
+        )
+        self.assertNotIn('"used_fact_ids"', prompt)
+        self.assertNotIn('"used_play_ids"', prompt)
+
     def test_final_headline_protected_prompt_excludes_event_copy_specific_rules(self):
         request = FinalHeadlineRequest(
             game_id=5059082,

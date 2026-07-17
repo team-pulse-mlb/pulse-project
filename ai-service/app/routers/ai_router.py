@@ -20,6 +20,9 @@ from app.services.play_translation_service import (
     PlayTranslationGenerationError,
     generate_play_translation,
 )
+from app.services.final_headline_evidence_guard import (
+    validate_final_headline_evidence,
+)
 from app.services.spoiler_guard import check_spoiler_text
 
 
@@ -93,6 +96,56 @@ def _extract_safe_title(generated_summary: dict) -> str | None:
         return None
 
     return safe_title
+
+
+def _extract_used_fact_ids(
+    generated_summary: dict,
+) -> list[str]:
+    """
+    FINAL_HEADLINE 생성 결과에서 사용한 summaryFacts ID를 추출합니다.
+
+    openai_service parser가 타입을 검증하지만,
+    router 단위 테스트의 mock 응답과 예외 상황도 방어하기 위해
+    문자열 목록이 아니면 빈 목록을 사용합니다.
+    """
+
+    value = generated_summary.get("used_fact_ids", [])
+
+    if not isinstance(value, list):
+        return []
+
+    if any(
+        not isinstance(item, str) or not item.strip()
+        for item in value
+    ):
+        return []
+
+    return [item.strip() for item in value]
+
+
+def _extract_used_play_ids(
+    generated_summary: dict,
+) -> list[int]:
+    """
+    FINAL_HEADLINE 생성 결과에서 사용한 verifiedPlay ID를 추출합니다.
+
+    bool은 Python에서 int의 하위 타입이므로 명시적으로 제외합니다.
+    """
+
+    value = generated_summary.get("used_play_ids", [])
+
+    if not isinstance(value, list):
+        return []
+
+    if any(
+        not isinstance(item, int)
+        or isinstance(item, bool)
+        or item <= 0
+        for item in value
+    ):
+        return []
+
+    return list(value)
 
 
 def _copy_purpose(
@@ -213,6 +266,36 @@ def _generate_checked_copy(
             violations=violations,
         )
 
+    used_fact_ids: list[str] = []
+    used_play_ids: list[int] = []
+
+    if isinstance(request, FinalHeadlineRequest):
+        used_fact_ids = _extract_used_fact_ids(generated_summary)
+        used_play_ids = _extract_used_play_ids(generated_summary)
+
+        evidence_result = validate_final_headline_evidence(
+            mode=request.mode,
+            safe_context=request.safe_context,
+            used_fact_ids=used_fact_ids,
+            used_play_ids=used_play_ids,
+            text=safe_title,
+        )
+
+        if not evidence_result["evidence_safe"]:
+            violations = evidence_result["violations"]
+
+            _log_copy_failure(
+                event_name="FINAL_HEADLINE_EVIDENCE_REJECTED",
+                request=request,
+                violations=violations,
+            )
+
+            return _build_failed_response(
+                response_type=response_type,
+                context_hash=request.context_hash,
+                violations=violations,
+            )
+
     # 요청 모드와 검증 기준이 되는 safeContext를 함께 전달해
     # PROTECTED / REVEALED별 정책과 실제 결과 일치 검사를 적용합니다.
     guard_result = check_spoiler_text(
@@ -238,13 +321,21 @@ def _generate_checked_copy(
 
     _log_copy_success(request)
 
-    return response_type(
-        spoiler_safe=True,
-        context_hash=request.context_hash,
-        safe_title=safe_title,
-        violations=[],
-        fallback_used=False,
-    )
+    response_values: dict[str, object] = {
+        "spoiler_safe": True,
+        "context_hash": request.context_hash,
+        "safe_title": safe_title,
+        "violations": [],
+        "fallback_used": False,
+    }
+
+    # evidence 계약은 FINAL_HEADLINE에만 적용합니다.
+    # EVENT_COPY 응답 구조에는 usedFactIds/usedPlayIds를 포함하지 않습니다.
+    if isinstance(request, FinalHeadlineRequest):
+        response_values["used_fact_ids"] = used_fact_ids
+        response_values["used_play_ids"] = used_play_ids
+
+    return response_type(**response_values)
 
 
 def _translation_failure_violations(
