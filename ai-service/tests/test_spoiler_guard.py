@@ -201,7 +201,10 @@ class SpoilerGuardTestCase(unittest.TestCase):
             verified_plays=[
                 VerifiedPlay(
                     play_id=312,
-                    fact_tags=["DECISIVE_SCORE"],
+                    fact_tags=[
+                        "DECISIVE_SCORE",
+                        "HIT",
+                    ],
                 )
             ]
         )
@@ -214,6 +217,103 @@ class SpoilerGuardTestCase(unittest.TestCase):
 
         self.assertTrue(result["spoiler_safe"])
         self.assertEqual(result["violations"], [])
+
+    def test_revealed_verified_play_tags_support_additional_flow_words(self):
+        safe_context = SafeContext(
+            winner="home",
+            verified_plays=[
+                VerifiedPlay(
+                    play_id=401,
+                    scoring_play=True,
+                    fact_tags=[
+                        "TYING_SCORE",
+                        "HIT",
+                    ],
+                ),
+                VerifiedPlay(
+                    play_id=402,
+                    scoring_play=True,
+                    fact_tags=[
+                        "INSURANCE_SCORE",
+                        "HIT",
+                    ],
+                ),
+                VerifiedPlay(
+                    play_id=403,
+                    scoring_play=True,
+                    fact_tags=[
+                        "RUNS_SCORED",
+                        "TRAILS_AFTER",
+                        "CUTS_DEFICIT",
+                    ],
+                ),
+                VerifiedPlay(
+                    play_id=404,
+                    scoring_play=True,
+                    fact_tags=[
+                        "TAKES_LEAD",
+                        "LEADS_AFTER",
+                    ],
+                ),
+            ],
+        )
+
+        safe_texts = [
+            "7회 동점타",
+            "8회 쐐기타",
+            "한 차례 실점을 허용했습니다",
+            "득점 후에도 열세였습니다",
+            "한 점 차로 따라붙었습니다",
+            "리드를 잡고 앞서기 시작했습니다",
+            "우세를 이어갔습니다",
+        ]
+
+        for text in safe_texts:
+            with self.subTest(text=text):
+                result = check_spoiler_text(
+                    text,
+                    mode=AiCopyMode.REVEALED,
+                    safe_context=safe_context,
+                )
+
+                self.assertTrue(result["spoiler_safe"])
+                self.assertEqual(result["violations"], [])
+
+    def test_revealed_additional_flow_words_without_tags_are_blocked(self):
+        safe_context = SafeContext(
+            winner="home",
+            verified_plays=[
+                VerifiedPlay(
+                    play_id=499,
+                    fact_tags=[],
+                )
+            ],
+        )
+
+        unsafe_words = [
+            "동점타",
+            "쐐기",
+            "실점",
+            "열세",
+            "따라붙",
+            "리드",
+            "우세",
+            "앞서",
+        ]
+
+        for word in unsafe_words:
+            with self.subTest(word=word):
+                result = check_spoiler_text(
+                    f"{word} 장면",
+                    mode=AiCopyMode.REVEALED,
+                    safe_context=safe_context,
+                )
+
+                self.assertFalse(result["spoiler_safe"])
+                self.assertIn(
+                    f"FORBIDDEN_WORD:{word}",
+                    result["violations"],
+                )
 
     def test_revealed_single_team_point_is_blocked(self):
         safe_context = SafeContext(

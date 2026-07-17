@@ -51,6 +51,7 @@ REVEALED_UNSUPPORTED_WORDS = (
     "열세",
     "결승타",
     "동점타",
+    "동점",
     "쐐기",
     "실점",
     "점수 차",
@@ -104,7 +105,8 @@ STANDALONE_POINT_PATTERN = re.compile(
 
 # 문구에 승패 또는 최종 결과 주장이 존재하는지 확인합니다.
 RESULT_MARKER_PATTERN = re.compile(
-    r"승리|패배|승자|패자|이긴|이겼|이김|졌다|패한|무승부|승패|동점"
+    r"승리|패배|승자|패자|이긴|이겼|이김|졌다|패한|무승부|승패"
+    r"|동점(?:으로)?\s*(?:끝|종료|마무리)"
 )
 
 
@@ -267,13 +269,48 @@ def _revealed_supported_words(
             getattr(play, "fact_tags", []) or []
         )
 
+        if {
+            "DECISIVE_SCORE",
+            "HIT",
+        }.issubset(fact_tags):
+            supported_words.add("결승타")
+
         if "DECISIVE_SCORE" in fact_tags:
+            supported_words.add("득점")
+
+        if "TYING_SCORE" in fact_tags:
+            supported_words.add("동점")
+
+        if {
+            "TYING_SCORE",
+            "HIT",
+        }.issubset(fact_tags):
+            supported_words.add("동점타")
+
+        if "INSURANCE_SCORE" in fact_tags:
+            supported_words.add("쐐기")
+
+        if (
+            "LEAD_CHANGE" in fact_tags
+            or "TAKES_LEAD" in fact_tags
+            or "LEADS_AFTER" in fact_tags
+        ):
             supported_words.update(
                 {
-                    "결승타",
-                    "득점",
+                    "리드",
+                    "우세",
+                    "앞서",
                 }
             )
+
+        if "TRAILS_AFTER" in fact_tags:
+            supported_words.add("열세")
+
+        if "CUTS_DEFICIT" in fact_tags:
+            supported_words.add("따라붙")
+
+        if "RUNS_SCORED" in fact_tags:
+            supported_words.add("실점")
 
     return supported_words
 

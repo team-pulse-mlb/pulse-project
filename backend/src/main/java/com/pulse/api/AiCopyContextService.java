@@ -243,9 +243,143 @@ public class AiCopyContextService implements AiCopyContextReader {
             previousNonTiedLeader = currentLeader;
         }
 
-        ScoreSnapshot decisiveSnapshot = decisiveSnapshot(verifiedSnapshots, winnerSide);
-        Integer decisiveInning = decisiveSnapshot == null ? null : decisiveSnapshot.inning();
-        Integer decisiveRuns = decisiveRuns(game, decisiveSnapshot, winnerSide);
+        /*
+         * 각 득점 플레이 직전·직후 점수를 비교해
+         * 리드 획득, 격차 축소, 득점 후 우세·열세를 확정합니다.
+         */
+        Set<Long> takesLeadPlayOrders = new LinkedHashSet<>();
+        Set<Long> leadsAfterPlayOrders = new LinkedHashSet<>();
+        Set<Long> trailsAfterPlayOrders = new LinkedHashSet<>();
+        Set<Long> cutsDeficitPlayOrders = new LinkedHashSet<>();
+
+        for (ScoreSnapshot snapshot : verifiedSnapshots) {
+            String scoringSide = scoringSide(snapshot);
+            Long playOrder = snapshot.playOrder();
+
+            if (scoringSide == null || playOrder == null) {
+                continue;
+            }
+
+            String previousLeader = leader(
+                    snapshot.previousHomeScore(),
+                    snapshot.previousAwayScore()
+            );
+            String currentLeader = leader(
+                    snapshot.homeScore(),
+                    snapshot.awayScore()
+            );
+
+            int previousScoringTeamScore =
+                    "home".equals(scoringSide)
+                            ? snapshot.previousHomeScore()
+                            : snapshot.previousAwayScore();
+            int previousOpponentScore =
+                    "home".equals(scoringSide)
+                            ? snapshot.previousAwayScore()
+                            : snapshot.previousHomeScore();
+            int currentScoringTeamScore =
+                    "home".equals(scoringSide)
+                            ? snapshot.homeScore()
+                            : snapshot.awayScore();
+            int currentOpponentScore =
+                    "home".equals(scoringSide)
+                            ? snapshot.awayScore()
+                            : snapshot.homeScore();
+
+            if (scoringSide.equals(currentLeader)) {
+                leadsAfterPlayOrders.add(playOrder);
+
+                if (!scoringSide.equals(previousLeader)) {
+                    takesLeadPlayOrders.add(playOrder);
+                }
+
+                continue;
+            }
+
+            if (currentLeader == null) {
+                continue;
+            }
+
+            trailsAfterPlayOrders.add(playOrder);
+
+            int previousDeficit =
+                    previousOpponentScore - previousScoringTeamScore;
+            int currentDeficit =
+                    currentOpponentScore - currentScoringTeamScore;
+
+            if (previousDeficit > currentDeficit
+                    && currentDeficit > 0) {
+                cutsDeficitPlayOrders.add(playOrder);
+            }
+        }
+
+        ScoreSnapshot decisiveSnapshot = decisiveSnapshot(
+                verifiedSnapshots,
+                winnerSide
+        );
+        Integer decisiveInning =
+                decisiveSnapshot == null
+                        ? null
+                        : decisiveSnapshot.inning();
+        Integer decisiveRuns = decisiveRuns(
+                game,
+                decisiveSnapshot,
+                winnerSide
+        );
+
+        /*
+         * 결승 득점 이후 승리 팀이 리드를 더 벌린 득점을
+         * INSURANCE_SCORE로 확정합니다.
+         */
+        Set<Long> insuranceScorePlayOrders =
+                new LinkedHashSet<>();
+
+        if (decisiveSnapshot != null
+                && decisiveSnapshot.playOrder() != null
+                && winnerSide != null) {
+            for (ScoreSnapshot snapshot : verifiedSnapshots) {
+                if (snapshot.playOrder() == null
+                        || snapshot.playOrder()
+                        <= decisiveSnapshot.playOrder()
+                        || !winnerSide.equals(scoringSide(snapshot))
+                        || !winnerSide.equals(
+                                leader(
+                                        snapshot.homeScore(),
+                                        snapshot.awayScore()
+                                )
+                        )) {
+                    continue;
+                }
+
+                int previousWinnerScore =
+                        "home".equals(winnerSide)
+                                ? snapshot.previousHomeScore()
+                                : snapshot.previousAwayScore();
+                int previousLoserScore =
+                        "home".equals(winnerSide)
+                                ? snapshot.previousAwayScore()
+                                : snapshot.previousHomeScore();
+                int currentWinnerScore =
+                        "home".equals(winnerSide)
+                                ? snapshot.homeScore()
+                                : snapshot.awayScore();
+                int currentLoserScore =
+                        "home".equals(winnerSide)
+                                ? snapshot.awayScore()
+                                : snapshot.homeScore();
+
+                int previousMargin =
+                        previousWinnerScore - previousLoserScore;
+                int currentMargin =
+                        currentWinnerScore - currentLoserScore;
+
+                if (currentMargin > previousMargin) {
+                    insuranceScorePlayOrders.add(
+                            snapshot.playOrder()
+                    );
+                }
+            }
+        }
 
         Boolean comebackWin = verifiedSnapshots.isEmpty() || winnerSide == null
                 ? null
@@ -288,10 +422,19 @@ public class AiCopyContextService implements AiCopyContextReader {
 
         return new GameFlowAnalysis(
                 summaryFacts,
-                firstScoringSnapshot == null ? null : firstScoringSnapshot.playOrder(),
+                firstScoringSnapshot == null
+                        ? null
+                        : firstScoringSnapshot.playOrder(),
                 tyingPlayOrders,
                 leadChangePlayOrders,
-                decisiveSnapshot == null ? null : decisiveSnapshot.playOrder()
+                takesLeadPlayOrders,
+                leadsAfterPlayOrders,
+                trailsAfterPlayOrders,
+                cutsDeficitPlayOrders,
+                decisiveSnapshot == null
+                        ? null
+                        : decisiveSnapshot.playOrder(),
+                insuranceScorePlayOrders
         );
     }
 
@@ -635,6 +778,35 @@ public class AiCopyContextService implements AiCopyContextReader {
         return play.getPlayOrder() == null ? play.getId() : play.getPlayOrder();
     }
 
+    /**
+     * 원문 또는 검수된 한국어 번역에서 실제 안타 결과를 확인합니다.
+     *
+     * <p>단순 득점 플레이만으로 결승타·동점타·적시타를
+     * 추측하지 않도록 별도 HIT 근거를 생성합니다.</p>
+     */
+    private static boolean isHitPlay(
+            Play play
+    ) {
+        String sourceText =
+                play.getText() == null
+                        ? ""
+                        : play.getText().toLowerCase(Locale.ROOT);
+        String translatedText =
+                play.getTextKo() == null
+                        ? ""
+                        : play.getTextKo();
+
+        return sourceText.contains("singled")
+                || sourceText.contains("doubled")
+                || sourceText.contains("tripled")
+                || sourceText.contains("homered")
+                || sourceText.contains("home run")
+                || translatedText.contains("안타")
+                || translatedText.contains("2루타")
+                || translatedText.contains("3루타")
+                || translatedText.contains("홈런");
+    }
+
     private static List<String> factTags(
             Play play,
             GameFlowAnalysis gameFlow
@@ -646,19 +818,29 @@ public class AiCopyContextService implements AiCopyContextReader {
             tags.add("SCORING_PLAY");
         }
 
-        if (play.getScoreValue() != null && play.getScoreValue() > 0) {
+        if (play.getScoreValue() != null
+                && play.getScoreValue() > 0) {
             tags.add("RUNS_SCORED");
         }
 
-        if (play.getHomeScore() != null || play.getAwayScore() != null) {
+        if (play.getHomeScore() != null
+                || play.getAwayScore() != null) {
             tags.add("SCORE_AFTER");
         }
 
-        if (play.getTextKo() != null && !play.getTextKo().isBlank()) {
+        if (play.getTextKo() != null
+                && !play.getTextKo().isBlank()) {
             tags.add("TRANSLATED");
         }
 
-        if (Objects.equals(gameFlow.firstScoringPlayOrder(), playOrder)) {
+        if (isHitPlay(play)) {
+            tags.add("HIT");
+        }
+
+        if (Objects.equals(
+                gameFlow.firstScoringPlayOrder(),
+                playOrder
+        )) {
             tags.add("FIRST_SCORE");
         }
 
@@ -670,14 +852,43 @@ public class AiCopyContextService implements AiCopyContextReader {
             tags.add("LEAD_CHANGE");
         }
 
-        if (Objects.equals(gameFlow.decisivePlayOrder(), playOrder)) {
+        if (gameFlow.takesLeadPlayOrders().contains(playOrder)) {
+            tags.add("TAKES_LEAD");
+        }
+
+        if (gameFlow.leadsAfterPlayOrders().contains(playOrder)) {
+            tags.add("LEADS_AFTER");
+        }
+
+        if (gameFlow.trailsAfterPlayOrders().contains(playOrder)) {
+            tags.add("TRAILS_AFTER");
+        }
+
+        if (gameFlow.cutsDeficitPlayOrders().contains(playOrder)) {
+            tags.add("CUTS_DEFICIT");
+        }
+
+        if (Objects.equals(
+                gameFlow.decisivePlayOrder(),
+                playOrder
+        )) {
             tags.add("DECISIVE_SCORE");
-            if (Boolean.TRUE.equals(gameFlow.summaryFacts().comebackWin())) {
+
+            if (Boolean.TRUE.equals(
+                    gameFlow.summaryFacts().comebackWin()
+            )) {
                 tags.add("COMEBACK_WIN");
             }
-            if (Boolean.TRUE.equals(gameFlow.summaryFacts().walkOff())) {
+
+            if (Boolean.TRUE.equals(
+                    gameFlow.summaryFacts().walkOff()
+            )) {
                 tags.add("WALK_OFF");
             }
+        }
+
+        if (gameFlow.insuranceScorePlayOrders().contains(playOrder)) {
+            tags.add("INSURANCE_SCORE");
         }
 
         return List.copyOf(tags);
@@ -1027,23 +1238,47 @@ public class AiCopyContextService implements AiCopyContextReader {
             Long firstScoringPlayOrder,
             Set<Long> tyingPlayOrders,
             Set<Long> leadChangePlayOrders,
-            Long decisivePlayOrder
+            Set<Long> takesLeadPlayOrders,
+            Set<Long> leadsAfterPlayOrders,
+            Set<Long> trailsAfterPlayOrders,
+            Set<Long> cutsDeficitPlayOrders,
+            Long decisivePlayOrder,
+            Set<Long> insuranceScorePlayOrders
     ) {
         private GameFlowAnalysis {
-            tyingPlayOrders = immutableSet(tyingPlayOrders);
-            leadChangePlayOrders = immutableSet(leadChangePlayOrders);
+            tyingPlayOrders =
+                    immutableSet(tyingPlayOrders);
+            leadChangePlayOrders =
+                    immutableSet(leadChangePlayOrders);
+            takesLeadPlayOrders =
+                    immutableSet(takesLeadPlayOrders);
+            leadsAfterPlayOrders =
+                    immutableSet(leadsAfterPlayOrders);
+            trailsAfterPlayOrders =
+                    immutableSet(trailsAfterPlayOrders);
+            cutsDeficitPlayOrders =
+                    immutableSet(cutsDeficitPlayOrders);
+            insuranceScorePlayOrders =
+                    immutableSet(insuranceScorePlayOrders);
         }
 
         private Set<Long> importantPlayOrders() {
             Set<Long> result = new LinkedHashSet<>();
+
             if (decisivePlayOrder != null) {
                 result.add(decisivePlayOrder);
             }
+
+            result.addAll(insuranceScorePlayOrders);
             result.addAll(leadChangePlayOrders);
             result.addAll(tyingPlayOrders);
+            result.addAll(cutsDeficitPlayOrders);
+            result.addAll(takesLeadPlayOrders);
+
             if (firstScoringPlayOrder != null) {
                 result.add(firstScoringPlayOrder);
             }
+
             return Collections.unmodifiableSet(result);
         }
 
@@ -1053,7 +1288,10 @@ public class AiCopyContextService implements AiCopyContextReader {
             if (values == null || values.isEmpty()) {
                 return Set.of();
             }
-            return Collections.unmodifiableSet(new LinkedHashSet<>(values));
+
+            return Collections.unmodifiableSet(
+                    new LinkedHashSet<>(values)
+            );
         }
     }
 

@@ -255,6 +255,10 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
             prompt,
         )
         self.assertIn(
+            '"홈팀", "원정팀"보다 실제 팀명을 우선 사용',
+            prompt,
+        )
+        self.assertIn(
             "영문 팀명을 한국어로 번역·음역·축약하거나 별칭으로 바꾸지 마세요",
             prompt,
         )
@@ -267,6 +271,109 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
             prompt,
         )
 
+
+    def test_final_headline_revealed_prompt_contains_quality_rules_and_examples(self):
+        request = FinalHeadlineRequest(
+            game_id=5059082,
+            mode=AiCopyMode.REVEALED,
+            context_hash="game-5059082-final-quality-v1",
+            safe_context=SafeContext(
+                teams={
+                    "home": {
+                        "name": "San Francisco Giants",
+                        "abbr": "SF",
+                    },
+                    "away": {
+                        "name": "Colorado Rockies",
+                        "abbr": "COL",
+                    },
+                },
+                final_score=FinalScore(
+                    home=3,
+                    away=1,
+                ),
+                winner="home",
+                summary_facts={
+                    "winnerSide": "home",
+                    "winnerName": "San Francisco Giants",
+                    "loserName": "Colorado Rockies",
+                    "winnerScore": 3,
+                    "loserScore": 1,
+                    "decisiveInning": 8,
+                    "decisiveRuns": 2,
+                    "comebackWin": True,
+                },
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn(
+            "최종 승자, 패자 또는 최종 점수와 검증된 핵심 흐름 한 가지",
+            prompt,
+        )
+        self.assertIn(
+            '결과만 나열하지 마세요',
+            prompt,
+        )
+        self.assertIn(
+            '"홈팀", "원정팀"보다 실제 팀명을 우선 사용',
+            prompt,
+        )
+        self.assertIn(
+            '"역대급", "최초", "신기록"',
+            prompt,
+        )
+        self.assertIn("조건부 작성 예시", prompt)
+        self.assertIn("후반 결정", prompt)
+        self.assertIn("역전", prompt)
+        self.assertIn("영봉", prompt)
+        self.assertIn("연장", prompt)
+        self.assertIn("결정 플레이와 선수", prompt)
+        self.assertIn("타격전", prompt)
+        self.assertIn(
+            "현재 safeContext에 같은 종류의 검증 근거가 있을 때만",
+            prompt,
+        )
+
+    def test_final_headline_quality_rules_keep_eighty_character_limit(self):
+        request = FinalHeadlineRequest(
+            game_id=5059082,
+            mode=AiCopyMode.REVEALED,
+            context_hash="game-5059082-final-length-v1",
+            safe_context=SafeContext(
+                final_score=FinalScore(
+                    home=5,
+                    away=3,
+                ),
+                winner="home",
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertIn('"maxLength": 80', prompt)
+        self.assertIn("최대 80자", prompt)
+        self.assertIn("52자 제한을 적용하지 않습니다", prompt)
+
+    def test_event_copy_prompt_excludes_final_headline_quality_examples(self):
+        request = EventCopyRequest(
+            game_id=5059041,
+            event_id=91,
+            mode=AiCopyMode.REVEALED,
+            context_hash="event-91-revealed-v1",
+            safe_context=SafeContext(
+                event_type="home_run",
+                label="홈런",
+                inning=8,
+            ),
+        )
+
+        prompt = build_spoiler_free_prompt(request)
+
+        self.assertNotIn("FINAL_HEADLINE REVEALED 작성 품질", prompt)
+        self.assertNotIn("조건부 작성 예시", prompt)
+        self.assertNotIn("결정 플레이와 선수", prompt)
 
     def test_final_headline_revealed_prompt_contains_score_format_rules(self):
         request = FinalHeadlineRequest(
@@ -391,6 +498,34 @@ class SpoilerFreePromptTestCase(unittest.TestCase):
         )
         self.assertIn(
             "DECISIVE_SCORE",
+            prompt,
+        )
+        self.assertIn(
+            "DECISIVE_SCORE와 HIT",
+            prompt,
+        )
+        self.assertIn(
+            "TYING_SCORE와 HIT",
+            prompt,
+        )
+        self.assertIn(
+            "INSURANCE_SCORE",
+            prompt,
+        )
+        self.assertIn(
+            "LEAD_CHANGE, TAKES_LEAD, LEADS_AFTER",
+            prompt,
+        )
+        self.assertIn(
+            "TRAILS_AFTER",
+            prompt,
+        )
+        self.assertIn(
+            "CUTS_DEFICIT",
+            prompt,
+        )
+        self.assertIn(
+            "RUNS_SCORED",
             prompt,
         )
         self.assertIn(
