@@ -4,8 +4,7 @@
 #
 # 전제 조건:
 # - 저장소 루트에 `.env`가 있어야 한다.
-# - `pulse-postgres`가 실행 중이어야 한다.
-# - 백엔드를 한 번 실행해 JPA 엔티티 기준 로컬 스키마를 먼저 생성한다.
+# - 로컬 Docker Compose 전체 스택이 실행 중이어야 한다.
 #
 # 작업 내용:
 # - 팀·선수와 시뮬레이터 원본 경기(games+plays)를 PostgreSQL에 재적재한다.
@@ -35,6 +34,13 @@ fi
 set -a
 source "$ENV_FILE"
 set +a
+
+COMPOSE_FILE="$PROJECT_DIR/infra/local/docker-compose.yml"
+
+# 기존 로컬 컨테이너가 local 프로파일 없이 생성됐어도 최신 설정으로 재생성해
+# 픽스처 적재 전에 JPA 엔티티 기준 스키마가 준비되도록 한다.
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" \
+  up -d --force-recreate --wait pulse-api
 
 for fixture_file in \
   teams.csv \

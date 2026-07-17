@@ -108,7 +108,7 @@ pulse:
     # 다중 경기 데모 연출. simulation.enabled=true일 때만 쓰인다(운영은 prod에서 false 고정).
     # source-game-id는 seed-dev-slate.sh가 적재한 원본(플레이 100개 이상)이다.
     games:
-      - { source-game-id: 8800000004, target-game-id: 14059224001, start-offset: 6m, preset: SURGE }   # 진행
+      - { source-game-id: 8800000004, target-game-id: 14059224001, start-offset: 6m, preset: START }   # 진행
       - { source-game-id: 8800000006, target-game-id: 14059226001, start-offset: -3h, preset: START }  # 예정
       - { source-game-id: 8800000006, target-game-id: 14059226002, start-offset: 0s, preset: FINISH }  # 곧 종료
     speed: ${PULSE_SIMULATION_SPEED:1}
