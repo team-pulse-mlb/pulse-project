@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -31,7 +32,7 @@ class PublisherTest {
         ScoreTaskOutboxRepository outboxRepository = mock(ScoreTaskOutboxRepository.class);
         ScoreTaskOutboxDispatcher dispatcher = mock(ScoreTaskOutboxDispatcher.class);
         when(outboxRepository.findByGameIdAndObservedAt(1L, now)).thenReturn(Optional.empty());
-        when(outboxRepository.save(any(ScoreTaskOutbox.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(outboxRepository.insertPending(any(ScoreTaskOutbox.class))).thenReturn(true);
 
         new ScoreTaskPublisher(
                 outboxRepository,
@@ -41,11 +42,33 @@ class PublisherTest {
         ).publish(task);
 
         ArgumentCaptor<ScoreTaskOutbox> outboxCaptor = ArgumentCaptor.forClass(ScoreTaskOutbox.class);
-        verify(outboxRepository).save(outboxCaptor.capture());
+        verify(outboxRepository).insertPending(outboxCaptor.capture());
         verify(dispatcher).publishTask(outboxCaptor.getValue().getOutboxId());
         assertThat(outboxCaptor.getValue().getPayload()).isEqualTo(task);
         assertThat(outboxCaptor.getValue().getStatus()).isEqualTo(ScoreTaskOutbox.STATUS_PENDING);
         assertThat(outboxCaptor.getValue().getNextAttemptAt()).isEqualTo(now);
+    }
+
+    @Test
+    @DisplayName("동시 발행이 insert를 먼저 선점하면 기존 ScoreTask outbox를 재사용한다")
+    void scoreTaskPublisher_shouldReuseExistingOutboxWhenConcurrentInsertWins() {
+        Instant now = Instant.parse("2026-07-08T00:00:00Z");
+        ScoreTask task = new ScoreTask(1L, now, null, "LIVE", null);
+        ScoreTaskOutbox existing = ScoreTaskOutbox.pending(task, now.minusSeconds(1));
+        ScoreTaskOutboxRepository outboxRepository = mock(ScoreTaskOutboxRepository.class);
+        ScoreTaskOutboxDispatcher dispatcher = mock(ScoreTaskOutboxDispatcher.class);
+        when(outboxRepository.findByGameIdAndObservedAt(1L, now))
+                .thenReturn(Optional.empty(), Optional.of(existing));
+        when(outboxRepository.insertPending(any(ScoreTaskOutbox.class))).thenReturn(false);
+
+        new ScoreTaskPublisher(
+                outboxRepository,
+                dispatcher,
+                new AfterCommitExecutor(),
+                Clock.fixed(now, ZoneOffset.UTC)
+        ).publish(task);
+
+        verify(dispatcher).publishTask(existing.getOutboxId());
     }
 
     @Test
