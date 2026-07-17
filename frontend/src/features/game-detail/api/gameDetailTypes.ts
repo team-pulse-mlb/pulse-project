@@ -135,8 +135,6 @@ export interface ProtectedLiveGameDetailResponse
     status: 'STATUS_IN_PROGRESS';
     displayMode: 'PROTECTED';
 
-    venue: string | null;
-
     periodLabel: string;
     inning: number | null;
     situation: SituationResponse | null;
@@ -178,7 +176,6 @@ export interface ProtectedFinalGameDetailResponse
     status: 'STATUS_FINAL';
     displayMode: 'PROTECTED';
 
-    venue: string | null;
     headline: string | null;
     tensionCurve: ProtectedTensionPointResponse[];
 }

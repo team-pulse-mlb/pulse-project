@@ -146,7 +146,6 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-02T00:00:00Z"),
-                        "Wrigley Field",
                         "후반",
                         8,
                         new SituationResponse(
@@ -170,8 +169,8 @@ class GameDetailSerializationGuardTest {
                                     json.get("displayMode").asText())
                             .isEqualTo("PROTECTED");
 
-                    softly.assertThat(json.get("venue").asText())
-                            .isEqualTo("Wrigley Field");
+                    softly.assertThat(json.has("venue"))
+                            .isFalse();
 
                     /*
                      * 팀 정보와 이닝 숫자, 현재 상황은
@@ -354,7 +353,6 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-03T00:05:00Z"),
-                        "Globe Life Field",
 
                         /*
                          * 종료 헤드라인은 아직 생성되지 않았을 수 있다.
@@ -384,9 +382,7 @@ class GameDetailSerializationGuardTest {
                     softly.assertThat(json.has("awayTeam"))
                             .isTrue();
                     softly.assertThat(json.has("venue"))
-                            .isTrue();
-                    softly.assertThat(json.get("venue").asText())
-                            .isEqualTo("Globe Life Field");
+                            .isFalse();
                     softly.assertThat(json.has("headline"))
                             .isTrue();
                     softly.assertThat(

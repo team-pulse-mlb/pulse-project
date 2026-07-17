@@ -259,13 +259,6 @@ class GameQueryServiceTest {
                             assertThat(detail.displayMode())
                                     .isEqualTo(DisplayMode.PROTECTED);
 
-                            /*
-                             * Game의 구장이 보호 LIVE DTO까지
-                             * 연결되는지 검증한다.
-                             */
-                            assertThat(detail.venue())
-                                    .isEqualTo("Wrigley Field");
-
                             assertThat(detail.inning())
                                     .isEqualTo(8);
 

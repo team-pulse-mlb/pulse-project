@@ -319,8 +319,10 @@ export function toLiveGameDetailViewModel(
         ),
 
         venue:
-            response.venue?.trim()
-            || null,
+            response.displayMode === 'REVEALED'
+                ? response.venue?.trim()
+                    || null
+                : null,
 
         inning: response.inning,
 
@@ -461,8 +463,10 @@ export function toFinalGameDetailViewModel(
         ),
 
         venue:
-            response.venue?.trim()
-            || null,
+            response.displayMode === 'REVEALED'
+                ? response.venue?.trim()
+                    || null
+                : null,
 
         headline:
             response.headline?.trim()
