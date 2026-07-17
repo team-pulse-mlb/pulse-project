@@ -65,7 +65,8 @@ public class AiCopyContextService implements AiCopyContextReader {
             Map.entry("full_count_two_out",
                     Set.of("outs", "balls", "strikes", "runnerOnFirst", "runnerOnSecond", "runnerOnThird")),
             Map.entry("long_at_bat", Set.of("pitchNumber")),
-            Map.entry("pitcher_instability", Set.of("pitcherPitchCount"))
+            Map.entry("pitcher_instability", Set.of("pitcherPitchCount")),
+            Map.entry("hard_contact", Set.of("outs", "runnerOnFirst", "runnerOnSecond", "runnerOnThird"))
     );
 
     private final GameRepository gameRepository;

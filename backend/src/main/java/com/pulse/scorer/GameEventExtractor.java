@@ -270,6 +270,12 @@ public class GameEventExtractor {
         if (maxExitVelocity > 0) {
             payload.put("exitVelocity", maxExitVelocity);
         }
+        if (plateAppearance.outs() != null) {
+            payload.put("outs", plateAppearance.outs());
+        }
+        payload.put("runnerOnFirst", plateAppearance.runnerOnFirst());
+        payload.put("runnerOnSecond", plateAppearance.runnerOnSecond());
+        payload.put("runnerOnThird", plateAppearance.runnerOnThird());
         appendPlateAppearanceIfAbsent(
                 gameId,
                 EVENT_HARD_CONTACT,

@@ -137,7 +137,7 @@
 ### 이벤트 AI 문구 생성·저장 규칙
 
 - scorer는 이벤트 영속 직후가 아니라 추천 점수 급변 순간의 anchor 보호 이벤트에만 `is_timeline_highlight=true`를 표시하고 `POST /ai/event-copy`를 `mode=PROTECTED`로 비동기 요청한다(상세는 `AI_COPY.md` §2). 공개 모드 이벤트 문구는 생성하지 않는다.
-- 경기 종료 시점에 하이라이트가 0건이면 절대 점수 조건만 완화한 백필로 급변 anchor를 최대 2건 소급 표시한다. 완화 후에도 급변이 없거나 급변 윈도에 보호 이벤트가 없으면 타임라인은 비워 둔다(결과성 사건만으로 급변한 순간은 노출하지 않는다).
+- 경기 종료 시점에 하이라이트가 0건이면 절대 점수 조건만 완화한 백필로 급변 anchor를 `scoring.highlight.backfill-max-per-game` 건까지 소급 표시한다. 완화 후에도 급변이 없거나 급변 윈도에 보호 이벤트가 없으면 타임라인은 비워 둔다(결과성 사건만으로 급변한 순간은 노출하지 않는다).
 - `spoilerSafe=true`, `fallbackUsed=false`, `contextHash` 일치 응답만 저장한다. 타임아웃, 검수 실패, `contextHash` 불일치 시 저장하지 않는다.
 - 저장 컬럼은 `game_events.copy_protected`, `copy_protected_context_hash`다. 모두 nullable이다. 기존 공개 이벤트 문구 컬럼은 더 이상 생성·조회하지 않는다.
 - 저장 성공 시 scorer는 `game_updated`를 재발행한다. 클라이언트는 기존 재조회 흐름으로 정적 라벨이 AI 문구로 교체되는 경험을 제공한다.

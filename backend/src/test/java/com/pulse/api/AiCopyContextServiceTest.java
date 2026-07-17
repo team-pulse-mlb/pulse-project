@@ -91,9 +91,12 @@ class AiCopyContextServiceTest {
         assertThat(AiCopyContextService.projectProtectedEvidence("pitcher_instability", Map.of(
                 "pitcherPitchCount", 102, "velocityDropMph", 2.4)))
                 .containsExactlyInAnyOrderEntriesOf(Map.of("pitcherPitchCount", 102));
-        // 강한 타구는 타구질(결과 암시)뿐이라 보호 상황 근거가 없다
+        // 강한 타구는 아웃카운트·주자 상황만 남기고 타구질(결과 암시)은 제외한다
         assertThat(AiCopyContextService.projectProtectedEvidence("hard_contact", Map.of(
-                "isBarrel", true, "exitVelocity", 112))).isEmpty();
+                "isBarrel", true, "exitVelocity", 112,
+                "outs", 1, "runnerOnFirst", true, "runnerOnSecond", false, "runnerOnThird", false)))
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        "outs", 1, "runnerOnFirst", true, "runnerOnSecond", false, "runnerOnThird", false));
     }
 
     @Test

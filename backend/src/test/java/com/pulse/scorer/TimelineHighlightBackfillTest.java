@@ -228,6 +228,43 @@ class TimelineHighlightBackfillTest {
     }
 
     @Test
+    @DisplayName("윈도에 여러 유형이 있으면 최근 이벤트보다 정보량이 큰 유형을 anchor로 고른다")
+    void prefersHigherInformationTypeOverRecency() {
+        GameEvent pressure = event(91L, 2, "pressure_bases_loaded");
+        GameEvent hardContact = event(92L, 4, "hard_contact");
+        prepare(List.of(score(0, 26), score(5, 38)), List.of(pressure, hardContact));
+
+        int marked = backfill(ENABLED).backfillIfEmpty(GAME_ID, NOW, false);
+
+        assertThat(marked).isEqualTo(1);
+        assertThat(pressure.isTimelineHighlight()).isTrue();
+        assertThat(hardContact.isTimelineHighlight()).isFalse();
+        verify(gameEventRepository).save(pressure);
+    }
+
+    @Test
+    @DisplayName("시간상 인접한 급변끼리는 같은 유형의 anchor를 반복 선정하지 않는다")
+    void avoidsSameTypeForAdjacentRises() {
+        // 운영 기본값처럼 윈도(12분)가 쿨다운(5분)보다 길어 인접 급변이 생기는 조건
+        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 12, 5, 8);
+        GameEvent longAtBatLate = event(92L, 17, "long_at_bat");
+        GameEvent longAtBatEarly = event(91L, 5, "long_at_bat");
+        GameEvent hardContact = event(93L, 4, "hard_contact");
+        prepare(
+                List.of(score(0, 10), score(6, 40), score(12, 15), score(18, 45)),
+                List.of(hardContact, longAtBatEarly, longAtBatLate)
+        );
+
+        int marked = backfill(config).backfillIfEmpty(GAME_ID, NOW, false);
+
+        assertThat(marked).isEqualTo(2);
+        assertThat(longAtBatLate.isTimelineHighlight()).isTrue();
+        // 인접 급변에서 long_at_bat이 이미 선택됐으므로 우선순위가 낮아도 다른 유형을 고른다
+        assertThat(hardContact.isTimelineHighlight()).isTrue();
+        assertThat(longAtBatEarly.isTimelineHighlight()).isFalse();
+    }
+
+    @Test
     @DisplayName("문구 생성 요청이 꺼져 있으면 하이라이트만 표시한다")
     void copyGenerationDisabledDoesNotRequestCopy() {
         prepare(

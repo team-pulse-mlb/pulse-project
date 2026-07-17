@@ -16,6 +16,7 @@ import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,13 +49,31 @@ class TimelineHighlightTriggerTest {
     }
 
     private GameEvent anchorEvent() {
+        return protectedEvent(91L, "full_count_two_out", NOW);
+    }
+
+    private static GameEvent protectedEvent(long id, String eventType, Instant observedAt) {
         GameEvent event = new GameEvent();
-        event.setId(91L);
+        event.setId(id);
         event.setGameId(GAME_ID);
-        event.setEventType("full_count_two_out");
+        event.setEventType(eventType);
         event.setSpoilerLevel(GameEvent.SPOILER_PROTECTED_SAFE);
-        event.setObservedAt(NOW);
+        event.setObservedAt(observedAt);
         return event;
+    }
+
+    private void stubAnchorCandidates(List<GameEvent> candidates) {
+        when(gameEventRepository
+                .findByGameIdAndSpoilerLevelAndTimelineHighlightFalseAndObservedAtGreaterThanEqualOrderByObservedAtAscIdAsc(
+                        anyLong(), anyString(), any()))
+                .thenReturn(candidates);
+    }
+
+    private void stubLatestHighlightType(String eventType) {
+        GameEvent latestHighlight = protectedEvent(1L, eventType, NOW.minusSeconds(3600));
+        latestHighlight.setTimelineHighlight(true);
+        when(gameEventRepository.findFirstByGameIdAndTimelineHighlightTrueOrderByObservedAtDescIdDesc(GAME_ID))
+                .thenReturn(Optional.of(latestHighlight));
     }
 
     @Test
@@ -106,10 +125,7 @@ class TimelineHighlightTriggerTest {
     @DisplayName("급변했지만 보호 이벤트가 없으면 하이라이트를 만들지 않는다")
     void noAnchorSkips() {
         armRise();
-        when(gameEventRepository
-                .findFirstByGameIdAndSpoilerLevelAndTimelineHighlightFalseAndObservedAtGreaterThanEqualOrderByObservedAtDescIdDesc(
-                        anyLong(), anyString(), any()))
-                .thenReturn(Optional.empty());
+        stubAnchorCandidates(List.of());
 
         trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
 
@@ -122,10 +138,7 @@ class TimelineHighlightTriggerTest {
     void marksAnchorAndRequestsCopy() {
         armRise();
         GameEvent anchor = anchorEvent();
-        when(gameEventRepository
-                .findFirstByGameIdAndSpoilerLevelAndTimelineHighlightFalseAndObservedAtGreaterThanEqualOrderByObservedAtDescIdDesc(
-                        anyLong(), anyString(), any()))
-                .thenReturn(Optional.of(anchor));
+        stubAnchorCandidates(List.of(anchor));
 
         trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
 
@@ -133,5 +146,63 @@ class TimelineHighlightTriggerTest {
         verify(gameEventRepository).save(anchor);
         verify(aiGenerationTrigger).onGameEventPersisted(
                 eq(GAME_ID), eq(91L), eq(AiGenerationTrigger.MODE_PROTECTED), eq(NOW));
+    }
+
+    @Test
+    @DisplayName("윈도에 여러 유형이 있으면 최근 이벤트보다 정보량이 큰 유형을 anchor로 고른다")
+    void prefersHigherInformationTypeOverRecency() {
+        armRise();
+        GameEvent pressure = protectedEvent(91L, "pressure_bases_loaded", NOW.minusSeconds(300));
+        GameEvent hardContact = protectedEvent(92L, "hard_contact", NOW);
+        stubAnchorCandidates(List.of(pressure, hardContact));
+
+        trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
+
+        assertThat(pressure.isTimelineHighlight()).isTrue();
+        assertThat(hardContact.isTimelineHighlight()).isFalse();
+        verify(gameEventRepository).save(pressure);
+    }
+
+    @Test
+    @DisplayName("직전 하이라이트와 같은 유형은 회피하고 차순위 유형을 고른다")
+    void avoidsSameTypeAsLatestHighlight() {
+        armRise();
+        stubLatestHighlightType("hard_contact");
+        GameEvent hardContact = protectedEvent(91L, "hard_contact", NOW);
+        GameEvent longAtBat = protectedEvent(92L, "long_at_bat", NOW.minusSeconds(300));
+        stubAnchorCandidates(List.of(longAtBat, hardContact));
+
+        trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
+
+        assertThat(longAtBat.isTimelineHighlight()).isTrue();
+        assertThat(hardContact.isTimelineHighlight()).isFalse();
+        verify(gameEventRepository).save(longAtBat);
+    }
+
+    @Test
+    @DisplayName("윈도에 직전 하이라이트와 같은 유형뿐이면 그대로 anchor로 허용한다")
+    void fallsBackToSameTypeWhenNoAlternative() {
+        armRise();
+        stubLatestHighlightType("hard_contact");
+        GameEvent hardContact = protectedEvent(91L, "hard_contact", NOW);
+        stubAnchorCandidates(List.of(hardContact));
+
+        trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
+
+        assertThat(hardContact.isTimelineHighlight()).isTrue();
+        verify(gameEventRepository).save(hardContact);
+    }
+
+    @Test
+    @DisplayName("보호 라벨을 산출할 수 없는 이벤트는 anchor 후보에서 제외한다")
+    void excludesUnlabeledEvents() {
+        armRise();
+        GameEvent unknown = protectedEvent(91L, "unknown_event", NOW);
+        stubAnchorCandidates(List.of(unknown));
+
+        trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
+
+        verify(gameEventRepository, never()).save(any());
+        verify(aiGenerationTrigger, never()).onGameEventPersisted(anyLong(), anyLong(), anyString(), any());
     }
 }
