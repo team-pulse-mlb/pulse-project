@@ -33,10 +33,20 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-15T00:05:00Z"),
-                        "Globe Life Field",
                         new ProbablePitchersResponse(
                                 "Home Starter",
-                                "Away Starter"));
+                                "Away Starter"),
+                        new StartingLineupsResponse(
+                                List.of(
+                                        new StartingLineupPlayerResponse(
+                                                1,
+                                                "Home Batter",
+                                                "2B")),
+                                List.of(
+                                        new StartingLineupPlayerResponse(
+                                                1,
+                                                "Away Batter",
+                                                "SS"))));
 
         JsonNode json =
                 objectMapper.valueToTree(response);
@@ -65,8 +75,10 @@ class GameDetailSerializationGuardTest {
                     softly.assertThat(json.has("startTime"))
                             .isTrue();
                     softly.assertThat(json.has("venue"))
-                            .isTrue();
+                            .isFalse();
                     softly.assertThat(json.has("probablePitchers"))
+                            .isTrue();
+                    softly.assertThat(json.has("startingLineups"))
                             .isTrue();
 
                     JsonNode probablePitchers =
