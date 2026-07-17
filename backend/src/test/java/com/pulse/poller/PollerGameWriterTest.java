@@ -133,6 +133,18 @@ class PollerGameWriterTest {
         assertThat(plays.get(2).getRunnerOnThird()).isTrue();
     }
 
+    @Test
+    void findRecoveryCursor_shouldReturnRequestedPreviousOrderOrNull() {
+        Game game = writer.upsertGame(game(Game.STATUS_IN_PROGRESS), observedAt).game();
+        writer.appendPlay(game, play(10L, 7L), observedAt);
+        writer.appendPlay(game, play(11L, 8L), observedAt);
+        writer.appendPlay(game, play(12L, 9L), observedAt);
+
+        assertThat(writer.findRecoveryCursor(100L, 1)).isEqualTo(11L);
+        assertThat(writer.findRecoveryCursor(100L, 2)).isEqualTo(10L);
+        assertThat(writer.findRecoveryCursor(100L, 3)).isNull();
+    }
+
     private static BdlGame game(String status) {
         return new BdlGame(
                 100L,

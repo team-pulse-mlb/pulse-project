@@ -13,6 +13,7 @@ public record PollerProperties(
         Duration scheduledGamesInterval,
         int slateLookbackDays,
         int slateLookaheadDays,
+        int cursorRecoveryEmptyTicks,
         int maxPlayPagesPerGame,
         Duration initialBackoff,
         Duration maxBackoff,
@@ -36,6 +37,7 @@ public record PollerProperties(
         scheduledGamesInterval = scheduledGamesInterval == null ? Duration.ofSeconds(20) : scheduledGamesInterval;
         slateLookbackDays = slateLookbackDays < 0 ? 1 : slateLookbackDays;
         slateLookaheadDays = slateLookaheadDays < 0 ? 2 : slateLookaheadDays;
+        cursorRecoveryEmptyTicks = cursorRecoveryEmptyTicks <= 0 ? 9 : cursorRecoveryEmptyTicks;
         maxPlayPagesPerGame = maxPlayPagesPerGame <= 0 ? 5 : maxPlayPagesPerGame;
         initialBackoff = initialBackoff == null ? Duration.ofSeconds(30) : initialBackoff;
         maxBackoff = maxBackoff == null ? Duration.ofMinutes(5) : maxBackoff;

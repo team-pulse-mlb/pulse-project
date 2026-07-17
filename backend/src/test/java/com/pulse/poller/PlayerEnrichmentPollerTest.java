@@ -109,6 +109,7 @@ class PlayerEnrichmentPollerTest {
                 Duration.ofSeconds(20),
                 0,
                 0,
+                9,
                 5,
                 Duration.ofSeconds(30),
                 Duration.ofMinutes(5),

@@ -50,6 +50,8 @@ public class OperationalPoller {
     private final PollerBackoff gamesBackoff;
     private final PollerBackoff playsBackoff;
     private final Map<Long, Instant> lastTaskPublishedAt = new HashMap<>();
+    private final Map<Long, Integer> emptyFetchStreaks = new HashMap<>();
+    private final Map<Long, Integer> recoveryStepBacks = new HashMap<>();
 
     private Instant nextGamesPollAt = Instant.EPOCH;
 
@@ -138,6 +140,8 @@ public class OperationalPoller {
                 }
                 if (result.enteredTerminalState()) {
                     lastTaskPublishedAt.remove(result.game().getId());
+                    emptyFetchStreaks.remove(result.game().getId());
+                    recoveryStepBacks.remove(result.game().getId());
                 }
                 boolean terminalScoreTaskPublished = result.enteredTerminalState()
                         && drainTerminalGame(result.game(), now);
@@ -182,6 +186,16 @@ public class OperationalPoller {
         for (Game game : liveGames) {
             try {
                 List<BdlPlay> plays = fetchPlays(game);
+                if (plays.isEmpty() && game.getLastPlayOrder() != null) {
+                    int emptyFetchStreak = emptyFetchStreaks.merge(game.getId(), 1, Integer::sum);
+                    if (emptyFetchStreak >= properties.cursorRecoveryEmptyTicks()) {
+                        emptyFetchStreaks.remove(game.getId());
+                        plays = probeRecoveryCursor(game);
+                    }
+                } else if (!plays.isEmpty()) {
+                    emptyFetchStreaks.remove(game.getId());
+                    recoveryStepBacks.remove(game.getId());
+                }
                 if (!plays.isEmpty()) {
                     List<BdlPlateAppearance> plateAppearances = fetchPlateAppearances(game.getId(), now);
                     LiveGameCycleWriter.CycleWriteResult result =
@@ -245,13 +259,36 @@ public class OperationalPoller {
     }
 
     private List<BdlPlay> fetchPlays(Game game) {
-        Long cursor = game.getLastPlayOrder();
+        return fetchPlays(game.getId(), game.getLastPlayOrder());
+    }
+
+    private List<BdlPlay> probeRecoveryCursor(Game game) {
+        int stepBack = recoveryStepBacks.merge(game.getId(), 1, Integer::sum);
+        Long probeCursor = gameWriter.findRecoveryCursor(game.getId(), stepBack);
+        log.warn(
+                "plays cursor recovery probe: gameId={}, currentCursor={}, probeCursor={}, stepBack={}",
+                game.getId(),
+                game.getLastPlayOrder(),
+                probeCursor,
+                stepBack
+        );
+        List<BdlPlay> plays = fetchPlays(game.getId(), probeCursor);
+        String result = plays.isEmpty() ? "empty" : "data";
+        PulseMetrics.increment("pulse.poller.cursor.recovery.probes", "result", result);
+        if (!plays.isEmpty()) {
+            recoveryStepBacks.remove(game.getId());
+        }
+        return plays;
+    }
+
+    private List<BdlPlay> fetchPlays(long gameId, Long initialCursor) {
+        Long cursor = initialCursor;
         List<BdlPlay> collected = new ArrayList<>();
         int pages = 0;
 
         while (pages < properties.maxPlayPagesPerGame()) {
             rateLimiter.acquire();
-            ListResponse<BdlPlay> response = balldontlieClient.getPlays(game.getId(), cursor);
+            ListResponse<BdlPlay> response = balldontlieClient.getPlays(gameId, cursor);
             List<BdlPlay> plays = response == null || response.data() == null ? List.of() : response.data();
             for (BdlPlay play : plays) {
                 collected.add(play);
