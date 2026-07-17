@@ -76,6 +76,26 @@ docker compose -f docker-compose.prod.yml logs --tail=100 pulse-api pulse-poller
 
 문제가 있으면 `.env`의 `PULSE_APP_IMAGE`를 직전 태그로 되돌리고 다시 실행한다.
 
+### ECR 이미지 보존
+
+`pulse-backend`·`pulse-ai-service` 저장소에는 [`ecr/lifecycle-policy.json`](ecr/lifecycle-policy.json) 수명 주기 정책을 적용한다.
+
+- 커밋 SHA 태그 이미지는 최근 10개만 보존하고 나머지는 만료한다.
+- 태그가 없는 이미지는 push 1일 후 만료한다.
+
+따라서 `application-rollback` 워크플로로 되돌릴 수 있는 대상은 **최근 10회 배포**로 제한된다. 그보다 오래된 SHA를 지정하면 워크플로의 "Verify rollback artifacts exist" 단계가 이미지 부재로 실패하며, 이는 반쪽 롤백을 막는 의도된 동작이다.
+
+정책 변경 후에는 두 저장소에 다시 적용한다.
+
+```bash
+aws ecr put-lifecycle-policy --repository-name pulse-backend \
+  --region ap-northeast-2 \
+  --lifecycle-policy-text file://infra/prod/ecr/lifecycle-policy.json
+aws ecr put-lifecycle-policy --repository-name pulse-ai-service \
+  --region ap-northeast-2 \
+  --lifecycle-policy-text file://infra/prod/ecr/lifecycle-policy.json
+```
+
 ## 장애 대응
 
 1. 발견 시각, 영향 기능, 배포 이미지 태그를 먼저 기록한다.
