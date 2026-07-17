@@ -9,6 +9,8 @@ public record PollerProperties(
         Duration tickInterval,
         Duration heartbeatInterval,
         Duration idleGamesInterval,
+        Duration scheduledGamesNearThreshold,
+        Duration scheduledGamesInterval,
         int slateLookbackDays,
         int slateLookaheadDays,
         int maxPlayPagesPerGame,
@@ -29,6 +31,9 @@ public record PollerProperties(
         tickInterval = tickInterval == null ? Duration.ofSeconds(20) : tickInterval;
         heartbeatInterval = heartbeatInterval == null ? Duration.ofSeconds(75) : heartbeatInterval;
         idleGamesInterval = idleGamesInterval == null ? Duration.ofMinutes(10) : idleGamesInterval;
+        scheduledGamesNearThreshold = scheduledGamesNearThreshold == null
+                ? Duration.ofMinutes(15) : scheduledGamesNearThreshold;
+        scheduledGamesInterval = scheduledGamesInterval == null ? Duration.ofSeconds(20) : scheduledGamesInterval;
         slateLookbackDays = slateLookbackDays < 0 ? 1 : slateLookbackDays;
         slateLookaheadDays = slateLookaheadDays < 0 ? 2 : slateLookaheadDays;
         maxPlayPagesPerGame = maxPlayPagesPerGame <= 0 ? 5 : maxPlayPagesPerGame;

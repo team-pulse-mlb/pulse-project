@@ -147,6 +147,8 @@ pulse:
     # 동시 라이브 15경기 기준 분당 약 12건의 RabbitMQ task 증가이며 외부 API 호출은 늘지 않는다.
     heartbeat-interval: ${PULSE_POLLER_HEARTBEAT_INTERVAL:75s}
     idle-games-interval: ${PULSE_POLLER_IDLE_GAMES_INTERVAL:10m}
+    scheduled-games-near-threshold: ${PULSE_POLLER_SCHEDULED_GAMES_NEAR_THRESHOLD:15m}
+    scheduled-games-interval: ${PULSE_POLLER_SCHEDULED_GAMES_INTERVAL:20s}
     slate-lookback-days: ${PULSE_POLLER_SLATE_LOOKBACK_DAYS:1}
     slate-lookahead-days: ${PULSE_POLLER_SLATE_LOOKAHEAD_DAYS:2}
     max-play-pages-per-game: ${PULSE_POLLER_MAX_PLAY_PAGES_PER_GAME:5}
