@@ -167,6 +167,9 @@ public class OperationalPoller {
                     logCycleResult(game.getId(), result);
                 }
             } catch (RuntimeException e) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw e;
+                }
                 if (PollerExceptionClassifier.shouldBackoff(e)) {
                     handleFailure("plays", playsBackoff, now, e);
                     return;
