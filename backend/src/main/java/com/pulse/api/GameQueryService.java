@@ -1,6 +1,7 @@
 package com.pulse.api;
 
 import com.pulse.domain.*;
+import com.pulse.scorer.TensionCurveQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,7 @@ public class GameQueryService {
     private final PlayRepository playRepository;
     private final PlayerRepository playerRepository;
     private final LineupRepository lineupRepository;
+    private final TensionCurveQueryService tensionCurveQueryService;
 
     /**
      * 경기 상태와 사용자가 선택한 공개 모드에 맞는 상세 응답을 반환한다.
@@ -274,12 +276,7 @@ public class GameQueryService {
                     score(game),
                     inningScores(game),
                     scoringSummary(game.getId()),
-
-                    /*
-                     * 경기 흐름 그래프는 추후 디자인과 데이터 구조를
-                     * 함께 재작업하므로 현재 단계에서는 빈 배열을 반환한다.
-                     */
-                    List.of());
+                    revealedTensionCurve(game.getId()));
         }
 
         return new ProtectedFinalGameDetailResponse(
@@ -293,12 +290,48 @@ public class GameQueryService {
                         game.getVenue()),
                 nullableText(
                         game.getFinalHeadlineProtected()),
+                protectedTensionCurve(game.getId()));
+    }
 
-                /*
-                 * 보호 모드 경기 흐름도 추후 작업 전까지
-                 * 빈 배열로 반환한다.
-                 */
-                List.of());
+    /**
+     * 보호 모드 긴장 곡선은 이닝 단위만 노출한다.
+     *
+     * 서버가 watch_scores의 base_score 이력을 1~5 단계로 양자화한
+     * 결과만 DTO로 옮기며, 원 점수나 이벤트 마커는 포함하지 않는다.
+     */
+    private List<ProtectedTensionPointResponse> protectedTensionCurve(
+            long gameId) {
+
+        return tensionCurveQueryService
+                .getProtectedCurve(gameId)
+                .stream()
+                .map(
+                        point ->
+                                new ProtectedTensionPointResponse(
+                                        point.inning(),
+                                        point.level()))
+                .toList();
+    }
+
+    /**
+     * 공개 모드 긴장 곡선은 하프이닝 단위까지 허용한다.
+     *
+     * 그래프는 점수 이력의 양자화 레벨만 사용하고,
+     * 경기 흐름 목록과 연결되는 이벤트 정보는 포함하지 않는다.
+     */
+    private List<RevealedTensionPointResponse> revealedTensionCurve(
+            long gameId) {
+
+        return tensionCurveQueryService
+                .getRevealedCurve(gameId)
+                .stream()
+                .map(
+                        point ->
+                                new RevealedTensionPointResponse(
+                                        point.inning(),
+                                        point.inningType(),
+                                        point.level()))
+                .toList();
     }
 
     /**
