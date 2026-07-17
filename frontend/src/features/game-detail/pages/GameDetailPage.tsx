@@ -29,6 +29,7 @@ import {
 import { toGameDetailViewModel } from '../lib/gameDetailMapper';
 import { toTimelineEvents } from '../lib/gameEventMapper';
 import { toRecentPlayViewModels } from '../lib/gameRecentPlayMapper';
+import { useGameDetailRealtime } from '../hooks/useGameDetailRealtime';
 
 function GameDetailPage() {
     const { gameId } =
@@ -90,6 +91,20 @@ function GameDetailPage() {
             validGameId,
             mode,
         );
+
+    /*
+     * LIVE 경기에서만 SSE와 10초 보조 갱신을 활성화한다.
+     *
+     * 상세 재조회 결과가 FINAL로 바뀌면 enabled가 false가 되어
+     * 연결과 반복 갱신이 자동으로 정리된다.
+     */
+    useGameDetailRealtime({
+        gameId: validGameId,
+        mode,
+        enabled:
+            gameDetailQuery.data?.status
+            === 'STATUS_IN_PROGRESS',
+    });
 
     const [
         favoritePlayerNames,
