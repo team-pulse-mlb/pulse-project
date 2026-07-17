@@ -20,17 +20,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      registry: ${{ steps.ecr.outputs.registry }}
+      backend_digest: ${{ steps.image_digests.outputs.backend_digest }}
+      ai_digest: ${{ steps.image_digests.outputs.ai_digest }}
     env:
       AWS_REGION: ap-northeast-2
       BACKEND_REPOSITORY: ${{ vars.BACKEND_ECR_REPOSITORY }}
       AI_REPOSITORY: ${{ vars.AI_ECR_REPOSITORY }}
       DEPLOY_BUCKET: ${{ vars.DEPLOY_S3_BUCKET }}
-      INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
-      RDS_SECRET_ID: ${{ vars.RDS_SECRET_ARN }}
-      RUNTIME_SECRET_ID: ${{ vars.RUNTIME_SECRET_ARN }}
-      BACKTEST_SECRET_ID: ${{ vars.BACKTEST_DB_SECRET_ARN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,14 +65,54 @@ jobs:
           docker build -t "$REGISTRY/$AI_REPOSITORY:$GITHUB_SHA" ai-service
           docker push "$REGISTRY/$BACKEND_REPOSITORY:$GITHUB_SHA"
           docker push "$REGISTRY/$AI_REPOSITORY:$GITHUB_SHA"
-          echo "BACKEND_IMAGE=$REGISTRY/$BACKEND_REPOSITORY:$GITHUB_SHA" >> "$GITHUB_ENV"
-          echo "AI_IMAGE=$REGISTRY/$AI_REPOSITORY:$GITHUB_SHA" >> "$GITHUB_ENV"
+
+      - name: Resolve image digests
+        id: image_digests
+        run: |
+          backend_digest=$(aws ecr describe-images --repository-name "$BACKEND_REPOSITORY" --image-ids imageTag="$GITHUB_SHA" --query 'imageDetails[0].imageDigest' --output text)
+          ai_digest=$(aws ecr describe-images --repository-name "$AI_REPOSITORY" --image-ids imageTag="$GITHUB_SHA" --query 'imageDetails[0].imageDigest' --output text)
+          test -n "$backend_digest" && test "$backend_digest" != "None"
+          test -n "$ai_digest" && test "$ai_digest" != "None"
+          echo "backend_digest=$backend_digest" >> "$GITHUB_OUTPUT"
+          echo "ai_digest=$ai_digest" >> "$GITHUB_OUTPUT"
 
       - name: Upload deployment bundle
         run: |
           prefix="deploy/$GITHUB_SHA"
           aws s3 cp infra/docker-compose.prod.yml "s3://$DEPLOY_BUCKET/$prefix/docker-compose.prod.yml"
           aws s3 sync infra/prod/deploy/ "s3://$DEPLOY_BUCKET/$prefix/deploy/" --delete
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ap-northeast-2
+      BACKEND_REPOSITORY: ${{ vars.BACKEND_ECR_REPOSITORY }}
+      AI_REPOSITORY: ${{ vars.AI_ECR_REPOSITORY }}
+      DEPLOY_BUCKET: ${{ vars.DEPLOY_S3_BUCKET }}
+      INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      RDS_SECRET_ID: ${{ vars.RDS_SECRET_ARN }}
+      RUNTIME_SECRET_ID: ${{ vars.RUNTIME_SECRET_ARN }}
+      BACKTEST_SECRET_ID: ${{ vars.BACKTEST_DB_SECRET_ARN }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify deployment artifacts exist
+        env:
+          REGISTRY: ${{ needs.build.outputs.registry }}
+          BACKEND_DIGEST: ${{ needs.build.outputs.backend_digest }}
+          AI_DIGEST: ${{ needs.build.outputs.ai_digest }}
+        run: |
+          # 검증된 이미지와 배포 번들이 사라졌다면 배포를 시작하기 전에 실패시켜 불완전한 배포를 막는다.
+          aws ecr describe-images --repository-name "$BACKEND_REPOSITORY" --image-ids imageDigest="$BACKEND_DIGEST" > /dev/null
+          aws ecr describe-images --repository-name "$AI_REPOSITORY" --image-ids imageDigest="$AI_DIGEST" > /dev/null
+          aws s3api head-object --bucket "$DEPLOY_BUCKET" --key "deploy/$GITHUB_SHA/docker-compose.prod.yml" > /dev/null
+          echo "BACKEND_IMAGE=$REGISTRY/$BACKEND_REPOSITORY@$BACKEND_DIGEST" >> "$GITHUB_ENV"
+          echo "AI_IMAGE=$REGISTRY/$AI_REPOSITORY@$AI_DIGEST" >> "$GITHUB_ENV"
 
       - name: Deploy through SSM
         run: |
