@@ -41,14 +41,20 @@ class OperationalPollerTest {
     private final PlayRepository playRepository = mock(PlayRepository.class);
     private final PollerGameWriter gameWriter = mock(PollerGameWriter.class);
     private final ScoreTaskPublisher scoreTaskPublisher = mock(ScoreTaskPublisher.class);
+    private final LiveGameCycleWriter liveGameCycleWriter = new LiveGameCycleWriter(
+            gameWriter,
+            playRepository,
+            new ScoreTaskFactory(),
+            scoreTaskPublisher
+    );
     private final NotificationEventPublisher notificationEventPublisher = mock(NotificationEventPublisher.class);
     private final PaRawArchiveUploader paRawArchiveUploader = mock(PaRawArchiveUploader.class);
     private final Instant now = Instant.parse("2026-07-08T00:00:00Z");
     private final OperationalPoller poller = new OperationalPoller(
             balldontlieClient,
             gameRepository,
-            playRepository,
             gameWriter,
+            liveGameCycleWriter,
             new ScoreTaskFactory(),
             scoreTaskPublisher,
             notificationEventPublisher,
@@ -129,6 +135,8 @@ class OperationalPollerTest {
                 .thenReturn(liveResult(firstGame), liveResult(secondGame));
         when(balldontlieClient.getPlays(100L, 1L))
                 .thenReturn(new ListResponse<>(List.of(firstPlay), new ListResponse.Meta(null, 100)));
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
         when(gameWriter.appendPlay(firstGame, firstPlay, now)).thenThrow(new RuntimeException("저장 실패"));
         when(balldontlieClient.getPlays(200L, 1L))
                 .thenReturn(new ListResponse<>(List.of(secondPlay), new ListResponse.Meta(null, 100)));
@@ -203,8 +211,8 @@ class OperationalPollerTest {
         return new OperationalPoller(
                 balldontlieClient,
                 gameRepository,
-                playRepository,
                 gameWriter,
+                liveGameCycleWriter,
                 new ScoreTaskFactory(),
                 scoreTaskPublisher,
                 notificationEventPublisher,

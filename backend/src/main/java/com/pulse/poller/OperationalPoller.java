@@ -13,8 +13,6 @@ import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
-import com.pulse.domain.Play;
-import com.pulse.domain.PlayRepository;
 import com.pulse.poller.PollerGameWriter.GameUpsertResult;
 import java.time.Clock;
 import java.time.Instant;
@@ -28,7 +26,6 @@ import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -39,8 +36,8 @@ public class OperationalPoller {
 
     private final BaseballDataSource balldontlieClient;
     private final GameRepository gameRepository;
-    private final PlayRepository playRepository;
     private final PollerGameWriter gameWriter;
+    private final LiveGameCycleWriter liveGameCycleWriter;
     private final ScoreTaskFactory scoreTaskFactory;
     private final ScoreTaskPublisher scoreTaskPublisher;
     private final NotificationEventPublisher notificationEventPublisher;
@@ -57,8 +54,8 @@ public class OperationalPoller {
     public OperationalPoller(
             BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
-            PlayRepository playRepository,
             PollerGameWriter gameWriter,
+            LiveGameCycleWriter liveGameCycleWriter,
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
@@ -69,8 +66,8 @@ public class OperationalPoller {
         this(
                 balldontlieClient,
                 gameRepository,
-                playRepository,
                 gameWriter,
+                liveGameCycleWriter,
                 scoreTaskFactory,
                 scoreTaskPublisher,
                 notificationEventPublisher,
@@ -84,8 +81,8 @@ public class OperationalPoller {
     OperationalPoller(
             BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
-            PlayRepository playRepository,
             PollerGameWriter gameWriter,
+            LiveGameCycleWriter liveGameCycleWriter,
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
@@ -96,8 +93,8 @@ public class OperationalPoller {
     ) {
         this.balldontlieClient = balldontlieClient;
         this.gameRepository = gameRepository;
-        this.playRepository = playRepository;
         this.gameWriter = gameWriter;
+        this.liveGameCycleWriter = liveGameCycleWriter;
         this.scoreTaskFactory = scoreTaskFactory;
         this.scoreTaskPublisher = scoreTaskPublisher;
         this.notificationEventPublisher = notificationEventPublisher;
@@ -162,11 +159,12 @@ public class OperationalPoller {
 
         for (Game game : liveGames) {
             try {
-                int inserted = pollPlays(game, now);
-                if (inserted > 0) {
-                    List<BdlPlateAppearance> plateAppearances = syncPlateAppearances(game.getId(), now);
-                    latestPlay(game.getId()).ifPresent(play ->
-                            scoreTaskPublisher.publish(scoreTaskFactory.liveTask(game, play, now, plateAppearances)));
+                List<BdlPlay> plays = fetchPlays(game);
+                if (!plays.isEmpty()) {
+                    List<BdlPlateAppearance> plateAppearances = fetchPlateAppearances(game.getId(), now);
+                    LiveGameCycleWriter.CycleWriteResult result =
+                            liveGameCycleWriter.write(game, plays, plateAppearances, now);
+                    logCycleResult(game.getId(), result);
                 }
             } catch (RuntimeException e) {
                 if (PollerExceptionClassifier.shouldBackoff(e)) {
@@ -180,9 +178,9 @@ public class OperationalPoller {
         playsBackoff.recordSuccess();
     }
 
-    private int pollPlays(Game game, Instant observedAt) {
+    private List<BdlPlay> fetchPlays(Game game) {
         Long cursor = game.getLastPlayOrder();
-        int inserted = 0;
+        List<BdlPlay> collected = new ArrayList<>();
         int pages = 0;
 
         while (pages < properties.maxPlayPagesPerGame()) {
@@ -190,8 +188,8 @@ public class OperationalPoller {
             ListResponse<BdlPlay> response = balldontlieClient.getPlays(game.getId(), cursor);
             List<BdlPlay> plays = response == null || response.data() == null ? List.of() : response.data();
             for (BdlPlay play : plays) {
-                if (gameWriter.appendPlay(game, play, observedAt)) {
-                    inserted++;
+                collected.add(play);
+                if (play.order() != null) {
                     cursor = play.order();
                 }
             }
@@ -203,25 +201,29 @@ public class OperationalPoller {
             pages++;
         }
 
-        if (inserted > 0) {
-            log.info("plays poll completed: gameId={}, inserted={}", game.getId(), inserted);
-        }
-        return inserted;
+        return collected;
     }
 
-    private List<BdlPlateAppearance> syncPlateAppearances(long gameId, Instant observedAt) {
+    private List<BdlPlateAppearance> fetchPlateAppearances(long gameId, Instant observedAt) {
         rateLimiter.acquire();
         PlateAppearancesRaw fetch = balldontlieClient.getPlateAppearancesRaw(gameId);
         paRawArchiveUploader.upload(gameId, fetch.response(), observedAt);
-        PollerRunnerStateMatcher.MatchResult result = gameWriter.updateRunnerStates(gameId, fetch.data());
+        return fetch.data();
+    }
+
+    private void logCycleResult(long gameId, LiveGameCycleWriter.CycleWriteResult result) {
+        if (result.inserted() == 0) {
+            return;
+        }
+        log.info("plays poll completed: gameId={}, inserted={}", gameId, result.inserted());
+        PollerRunnerStateMatcher.MatchResult runnerStateResult = result.runnerStateResult();
         log.info(
                 "plate appearances matched: gameId={}, updates={}, unmatchedPlateAppearances={}, unmatchedGroups={}",
                 gameId,
-                result.updates().size(),
-                result.unmatchedPlateAppearances(),
-                result.unmatchedGroups()
+                runnerStateResult.updates().size(),
+                runnerStateResult.unmatchedPlateAppearances(),
+                runnerStateResult.unmatchedGroups()
         );
-        return fetch.data();
     }
 
     private void publishTransitionEvents(GameUpsertResult result, Instant now) {
@@ -265,12 +267,6 @@ public class OperationalPoller {
             dates.add(today.plusDays(offset));
         }
         return dates;
-    }
-
-    private java.util.Optional<Play> latestPlay(long gameId) {
-        return playRepository.findByGameIdOrderByPlayOrderDesc(gameId, PageRequest.of(0, 1))
-                .stream()
-                .findFirst();
     }
 
     private void handleFailure(String target, PollerBackoff backoff, Instant now, RuntimeException e) {
