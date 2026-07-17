@@ -55,33 +55,48 @@ public class HomeQueryService {
     private final PersonalizationCalculator personalizationCalculator;
     private final Optional<UserPreferenceReader> userPreferenceReader;
     private final StringRedisTemplate redisTemplate;
+    private final AnonymousHomeRankingCache anonymousRankingCache;
 
     public HomeRankingResponse getRanking(int count) {
         return getRanking(count, null);
     }
 
     public HomeRankingResponse getRanking(int count, String username) {
-        Instant now = Instant.now();
         int safeCount = rankingLimit(count);
+        if (username == null || username.isBlank()) {
+            return anonymousRankingCache.get(safeCount, () -> loadRanking(safeCount, null));
+        }
+        return loadRanking(safeCount, username);
+    }
+
+    private HomeRankingResponse loadRanking(int safeCount, String username) {
+        Instant now = Instant.now();
         UserPreferences preferences = preferencesFor(username);
         Map<Long, Double> liveScores = rankingService.topLive(MAX_RANKING_LOOKUP);
-        List<Game> liveCandidates = liveScores.keySet().stream()
-                .map(gameId -> gameRepository.findById(gameId)
+        List<Long> rankedGameIds = List.copyOf(liveScores.keySet());
+        Map<Long, Game> rankedGames = gameRepository.findAllById(rankedGameIds).stream()
+                .collect(Collectors.toMap(Game::getId, Function.identity()));
+        rankedGameIds.stream()
+                .filter(gameId -> !Optional.ofNullable(rankedGames.get(gameId))
                         .filter(Game::isLive)
-                        .orElseGet(() -> {
-                            rankingService.removeLive(gameId);
-                            return null;
-                        }))
+                        .isPresent())
+                .forEach(rankingService::removeLive);
+        List<Game> liveCandidates = rankedGameIds.stream()
+                .map(rankedGames::get)
                 .filter(java.util.Objects::nonNull)
+                .filter(Game::isLive)
                 .toList();
         Map<Long, Set<Long>> liveLineups = lineupPlayerIdsByGame(liveCandidates, preferences);
-        List<RankingLiveGameCard> live = liveCandidates.stream()
+        List<Game> selectedLive = liveCandidates.stream()
                 .sorted(personalizedComparator(
                         game -> liveScores.getOrDefault(game.getId(), -1.0),
                         liveLineups,
                         preferences))
                 .limit(safeCount)
-                .map(this::toRankingLiveCard)
+                .toList();
+        Map<Long, String> latestTags = latestTagsByGame(selectedLive);
+        List<RankingLiveGameCard> live = selectedLive.stream()
+                .map(game -> toRankingLiveCard(game, latestTags.get(game.getId())))
                 .toList();
 
         int remaining = safeCount - live.size();
@@ -126,9 +141,12 @@ public class HomeQueryService {
 
         int scheduledReserve = scheduledCandidates.isEmpty() ? 0 : 1;
         int finishedLimit = Math.max(0, remaining - scheduledReserve);
-        List<RankingFinishedGameCard> finished = finishedCandidates.stream()
+        List<Game> selectedFinished = finishedCandidates.stream()
                 .limit(finishedLimit)
-                .map(this::toRankingFinishedCard)
+                .toList();
+        Map<Long, String> keyMoments = keyMomentsByGame(selectedFinished);
+        List<RankingFinishedGameCard> finished = selectedFinished.stream()
+                .map(game -> toRankingFinishedCard(game, keyMoments.get(game.getId())))
                 .toList();
 
         remaining -= finished.size();
@@ -181,12 +199,12 @@ public class HomeQueryService {
         return new HomeSlateResponse(slateDate, games);
     }
 
-    private RankingLiveGameCard toRankingLiveCard(Game game) {
+    private RankingLiveGameCard toRankingLiveCard(Game game, String latestTag) {
         return new RankingLiveGameCard(
                 game.getId(),
                 matchup(game),
                 game.getPeriod(),
-                latestTag(game)
+                latestTag
         );
     }
 
@@ -203,13 +221,52 @@ public class HomeQueryService {
         );
     }
 
-    private RankingFinishedGameCard toRankingFinishedCard(Game game) {
+    private RankingFinishedGameCard toRankingFinishedCard(Game game, String keyMoment) {
         return new RankingFinishedGameCard(
                 game.getId(),
                 matchup(game),
                 headline(game),
-                keyMoment(game)
+                keyMoment
         );
+    }
+
+    private Map<Long, String> latestTagsByGame(List<Game> games) {
+        Map<Long, String> result = new HashMap<>();
+        List<Long> missingGameIds = games.stream()
+                .map(Game::getId)
+                .filter(gameId -> {
+                    String cached = valueOf(redisTemplate.opsForHash().get(liveCacheKey(gameId), "latestTag"));
+                    if (cached == null || cached.isBlank()) {
+                        return true;
+                    }
+                    result.put(gameId, cached);
+                    return false;
+                })
+                .toList();
+        if (!missingGameIds.isEmpty()) {
+            watchScoreRepository.findLatestByGameIdIn(missingGameIds).forEach(score -> {
+                List<String> tags = score.getTags();
+                if (tags != null && !tags.isEmpty()) {
+                    result.put(score.getGameId(), tags.get(tags.size() - 1));
+                }
+            });
+        }
+        return result;
+    }
+
+    private Map<Long, String> keyMomentsByGame(List<Game> games) {
+        if (games.isEmpty()) {
+            return Map.of();
+        }
+        return gameEventRepository.findLatestByGameIdInAndSpoilerLevel(
+                        games.stream().map(Game::getId).toList(),
+                        GameEvent.SPOILER_PROTECTED_SAFE)
+                .stream()
+                .collect(Collectors.toMap(
+                        GameEvent::getGameId,
+                        event -> GameEventLabelPolicy.protectedLabel(
+                                event.getSpoilerLevel(), event.getEventType()),
+                        (left, right) -> left));
     }
 
     private SlateGameCard toSlateCard(Game game, ProbablePitchersResponse probablePitchers) {

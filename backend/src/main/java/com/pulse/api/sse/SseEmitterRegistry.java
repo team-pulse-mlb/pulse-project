@@ -1,6 +1,6 @@
 package com.pulse.api.sse;
 
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -10,8 +10,14 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * SSE 연결 관리 창구입니다.
@@ -37,7 +43,6 @@ import java.util.concurrent.ConcurrentMap;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @ConditionalOnWebApplication(
         type = ConditionalOnWebApplication.Type.SERVLET
 )
@@ -49,6 +54,7 @@ import java.util.concurrent.ConcurrentMap;
 public class SseEmitterRegistry {
 
     private final SseProperties properties;
+    private final ThreadPoolExecutor broadcastExecutor;
 
     /**
      * 현재 살아 있는 전체 SSE 연결입니다.
@@ -76,6 +82,18 @@ public class SseEmitterRegistry {
     private final ConcurrentMap<SseEmitter, Long> emitterOwners =
             new ConcurrentHashMap<>();
 
+    public SseEmitterRegistry(SseProperties properties) {
+        this.properties = properties;
+        this.broadcastExecutor = new ThreadPoolExecutor(
+                properties.broadcastThreads(),
+                properties.broadcastThreads(),
+                0L,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(properties.broadcastQueueCapacity()),
+                broadcastThreadFactory(),
+                new ThreadPoolExecutor.AbortPolicy());
+    }
+
     /**
      * 비로그인 SSE 연결을 생성하고 등록합니다.
      *
@@ -88,8 +106,8 @@ public class SseEmitterRegistry {
      *
      * @return 새 SSE 연결
      */
-    public SseEmitter subscribe() {
-        validateConnectionLimit();
+    public synchronized SseEmitter subscribe() {
+        validateAnonymousConnectionLimit();
 
         SseEmitter emitter =
                 createEmitter();
@@ -118,8 +136,8 @@ public class SseEmitterRegistry {
      * @param userId 로그인 사용자 PK
      * @return 새 SSE 연결
      */
-    public SseEmitter subscribe(long userId) {
-        validateConnectionLimit();
+    public synchronized SseEmitter subscribe(long userId) {
+        validateAuthenticatedConnectionLimit();
 
         SseEmitter emitter =
                 createEmitter();
@@ -222,13 +240,24 @@ public class SseEmitterRegistry {
             String eventName,
             String jsonPayload
     ) {
+        int rejectedCount = 0;
         for (SseEmitter emitter : emitters) {
-            send(
-                    emitter,
-                    SseEmitter.event()
-                            .name(eventName)
-                            .data(jsonPayload)
-            );
+            try {
+                broadcastExecutor.execute(() -> send(
+                        emitter,
+                        SseEmitter.event()
+                                .name(eventName)
+                                .data(jsonPayload)
+                ));
+            } catch (RejectedExecutionException exception) {
+                rejectedCount++;
+            }
+        }
+        if (rejectedCount > 0) {
+            log.warn(
+                    "SSE broadcast 큐가 가득 차 일부 전송을 건너뜁니다. eventName={}, rejectedCount={}",
+                    eventName,
+                    rejectedCount);
         }
     }
 
@@ -319,12 +348,38 @@ public class SseEmitterRegistry {
     /**
      * 설정된 최대 연결 수를 초과했는지 검사합니다.
      */
-    private void validateConnectionLimit() {
-        if (emitters.size() >= properties.maxConnections()) {
+    private void validateAnonymousConnectionLimit() {
+        if (activeAnonymousConnectionCount() >= properties.anonymousMaxConnections()) {
             throw new SseConnectionLimitExceededException(
-                    properties.maxConnections()
+                    properties.anonymousMaxConnections()
             );
         }
+    }
+
+    private void validateAuthenticatedConnectionLimit() {
+        if (emitterOwners.size() >= properties.authenticatedMaxConnections()) {
+            throw new SseConnectionLimitExceededException(
+                    properties.authenticatedMaxConnections()
+            );
+        }
+    }
+
+    int activeAnonymousConnectionCount() {
+        return emitters.size() - emitterOwners.size();
+    }
+
+    @PreDestroy
+    void shutdownBroadcastExecutor() {
+        broadcastExecutor.shutdownNow();
+    }
+
+    private static ThreadFactory broadcastThreadFactory() {
+        AtomicInteger sequence = new AtomicInteger();
+        return task -> {
+            Thread thread = new Thread(task, "sse-broadcast-" + sequence.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        };
     }
 
     /**
@@ -386,7 +441,7 @@ public class SseEmitterRegistry {
     /**
      * SSE 연결을 모든 관리 자료구조에서 제거합니다.
      */
-    private void removeEmitter(
+    private synchronized void removeEmitter(
             SseEmitter emitter
     ) {
         emitters.remove(emitter);
