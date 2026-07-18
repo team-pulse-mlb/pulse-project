@@ -50,6 +50,8 @@ public class OperationalPoller {
     private final PollerBackoff gamesBackoff;
     private final PollerBackoff playsBackoff;
     private final Map<Long, Instant> lastTaskPublishedAt = new HashMap<>();
+    private final Map<Long, Instant> lastNewPlayAt = new HashMap<>();
+    private final Map<Long, Instant> nextQuietPlaysPollAt = new HashMap<>();
     private final Map<Long, Integer> emptyFetchStreaks = new HashMap<>();
     private final Map<Long, Integer> recoveryStepBacks = new HashMap<>();
 
@@ -140,6 +142,8 @@ public class OperationalPoller {
                 }
                 if (result.enteredTerminalState()) {
                     lastTaskPublishedAt.remove(result.game().getId());
+                    lastNewPlayAt.remove(result.game().getId());
+                    nextQuietPlaysPollAt.remove(result.game().getId());
                     emptyFetchStreaks.remove(result.game().getId());
                     recoveryStepBacks.remove(result.game().getId());
                 }
@@ -185,6 +189,20 @@ public class OperationalPoller {
 
         for (Game game : liveGames) {
             try {
+                Instant lastNewPlay = lastNewPlayAt.computeIfAbsent(game.getId(), ignored -> now);
+                boolean quiet = !now.isBefore(lastNewPlay.plus(properties.quietThreshold()));
+                Instant nextQuietPollAt = nextQuietPlaysPollAt.get(game.getId());
+                if (quiet && nextQuietPollAt != null && now.isBefore(nextQuietPollAt)) {
+                    PulseMetrics.increment("pulse.poller.quiet.skips");
+                    if (heartbeatDue(game.getId(), now)
+                            && liveGameCycleWriter.publishHeartbeat(game, now)) {
+                        lastTaskPublishedAt.put(game.getId(), now);
+                    }
+                    continue;
+                }
+                if (quiet) {
+                    nextQuietPlaysPollAt.put(game.getId(), now.plus(properties.quietPlaysInterval()));
+                }
                 List<BdlPlay> plays = fetchPlays(game);
                 if (plays.isEmpty() && game.getLastPlayOrder() != null) {
                     int emptyFetchStreak = emptyFetchStreaks.merge(game.getId(), 1, Integer::sum);
@@ -203,6 +221,8 @@ public class OperationalPoller {
                     logCycleResult(game.getId(), result);
                     if (result.inserted() > 0) {
                         lastTaskPublishedAt.put(game.getId(), now);
+                        lastNewPlayAt.put(game.getId(), now);
+                        nextQuietPlaysPollAt.remove(game.getId());
                         continue;
                     }
                 }

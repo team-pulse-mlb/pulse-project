@@ -308,6 +308,124 @@ class OperationalPollerTest {
     }
 
     @Test
+    void poll_shouldFetchPlaysOnEveryTickBeforeQuietThreshold() {
+        MutableClock clock = new MutableClock(now);
+        OperationalPoller quietPoller = poller(clock, 0);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), any(Instant.class)))
+                .thenReturn(liveResult(liveGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+
+        quietPoller.poll();
+        clock.advance(Duration.ofMinutes(9).plusSeconds(59));
+        quietPoller.poll();
+
+        verify(balldontlieClient, times(2)).getPlays(100L, 1L);
+    }
+
+    @Test
+    void poll_shouldThrottlePlaysAfterQuietThreshold() {
+        MutableClock clock = new MutableClock(now);
+        OperationalPoller quietPoller = poller(clock, 0);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), any(Instant.class)))
+                .thenReturn(liveResult(liveGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+
+        quietPoller.poll();
+        clock.advance(Duration.ofMinutes(10));
+        quietPoller.poll();
+        clearInvocations(balldontlieClient);
+
+        clock.advance(Duration.ofSeconds(20));
+        quietPoller.poll();
+        verify(balldontlieClient, never()).getPlays(100L, 1L);
+
+        clock.advance(Duration.ofMinutes(4).plusSeconds(40));
+        quietPoller.poll();
+        verify(balldontlieClient).getPlays(100L, 1L);
+    }
+
+    @Test
+    void poll_shouldResumeEveryTickWhenQuietPollInsertsNewPlay() {
+        MutableClock clock = new MutableClock(now);
+        OperationalPoller quietPoller = poller(clock, 0);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
+        BdlPlay fetchedPlay = play(2L, 10L);
+        Play latestPlay = persistedPlay(2L, 10L, false, false, false);
+        ListResponse<BdlPlay> emptyResponse =
+                new ListResponse<>(List.of(), new ListResponse.Meta(null, 100));
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), any(Instant.class)))
+                .thenReturn(liveResult(liveGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenReturn(
+                        emptyResponse,
+                        emptyResponse,
+                        new ListResponse<>(List.of(fetchedPlay), new ListResponse.Meta(null, 100))
+                );
+        when(balldontlieClient.getPlays(100L, 2L)).thenReturn(emptyResponse);
+        when(balldontlieClient.getPlateAppearancesRaw(100L))
+                .thenReturn(new BdlDtos.PlateAppearancesRaw(null, List.of()));
+        when(gameWriter.appendPlay(liveGame, fetchedPlay, now.plus(Duration.ofMinutes(15))))
+                .thenAnswer(invocation -> {
+                    liveGame.setLastPlayOrder(2L);
+                    return true;
+                });
+        when(gameWriter.updateRunnerStates(100L, List.of()))
+                .thenReturn(new PollerRunnerStateMatcher.MatchResult(List.of(), 0, 0));
+        when(playRepository.findByGameIdOrderByPlayOrderDesc(
+                100L,
+                org.springframework.data.domain.PageRequest.of(0, 1)
+        )).thenReturn(List.of(latestPlay));
+
+        quietPoller.poll();
+        clock.advance(Duration.ofMinutes(10));
+        quietPoller.poll();
+        clock.advance(Duration.ofMinutes(5));
+        quietPoller.poll();
+        clearInvocations(balldontlieClient);
+
+        clock.advance(Duration.ofSeconds(20));
+        quietPoller.poll();
+
+        verify(balldontlieClient).getPlays(100L, 2L);
+    }
+
+    @Test
+    void poll_shouldPublishHeartbeatOnQuietSkipTick() {
+        MutableClock clock = new MutableClock(now);
+        LiveGameCycleWriter cycleWriter = mock(LiveGameCycleWriter.class);
+        OperationalPoller quietPoller = poller(clock, cycleWriter);
+        Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
+        when(balldontlieClient.getGames(anyList()))
+                .thenReturn(List.of(gameDto(Game.STATUS_IN_PROGRESS)));
+        when(gameWriter.upsertGame(any(BdlGame.class), any(Instant.class)))
+                .thenReturn(liveResult(liveGame));
+        when(balldontlieClient.getPlays(100L, 1L))
+                .thenReturn(new ListResponse<>(List.of(), new ListResponse.Meta(null, 100)));
+        when(cycleWriter.publishHeartbeat(any(Game.class), any(Instant.class))).thenReturn(true);
+
+        quietPoller.poll();
+        clock.advance(Duration.ofMinutes(10));
+        quietPoller.poll();
+        clearInvocations(balldontlieClient, cycleWriter);
+
+        clock.advance(Duration.ofSeconds(75));
+        quietPoller.poll();
+
+        verify(balldontlieClient, never()).getPlays(100L, 1L);
+        verify(cycleWriter).publishHeartbeat(liveGame, now.plus(Duration.ofMinutes(11).plusSeconds(15)));
+    }
+
+    @Test
     void poll_shouldPublishOnlyRegularTaskWhenNewPlayExists() {
         Game liveGame = game(GameLifecycle.LIVE.name(), 1L);
         BdlPlay fetchedPlay = play(2L, 10L);
@@ -566,6 +684,22 @@ class OperationalPollerTest {
         return poller(clock, slateLookaheadDays, 0);
     }
 
+    private OperationalPoller poller(Clock clock, LiveGameCycleWriter cycleWriter) {
+        return new OperationalPoller(
+                balldontlieClient,
+                gameRepository,
+                gameWriter,
+                cycleWriter,
+                new ScoreTaskFactory(),
+                scoreTaskPublisher,
+                notificationEventPublisher,
+                properties(),
+                new PollerRateLimiter(1000, clock),
+                paRawArchiveUploader,
+                clock
+        );
+    }
+
     private OperationalPoller poller(Instant fixedNow, int slateLookaheadDays, int slateLookbackDays) {
         return poller(Clock.fixed(fixedNow, ZoneOffset.UTC), slateLookaheadDays, slateLookbackDays);
     }
@@ -635,6 +769,8 @@ class OperationalPollerTest {
                 true,
                 Duration.ofSeconds(20),
                 Duration.ofSeconds(75),
+                Duration.ofMinutes(10),
+                Duration.ofMinutes(5),
                 Duration.ofMinutes(10),
                 Duration.ofMinutes(15),
                 Duration.ofSeconds(20),
