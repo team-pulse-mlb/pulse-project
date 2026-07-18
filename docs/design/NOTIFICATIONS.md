@@ -6,12 +6,12 @@
 
 | 유형 | 조건 | 대상 | 빈도 제한 | 전달 |
 |---|---|---|---|---|
-| 급상승 경기 알림 (`SURGE`) | `watch_score` 85 이상 진입 **그리고** 최근 5분 내 +15 이상 상승. 발화 후 70 미만으로 내려가야 재무장(히스테리시스) | 전역(관심 팀 무관), `notify_surge_enabled`로 개인별 차단 가능 | 전체 15분 1회 | 인앱 토스트 + 알림 센터 |
+| 급상승 경기 알림 (`SURGE`) | `watch_score`가 진입 임계(`alert-score`) 이상이면서, 재무장 상태이거나 최근 5분 내 `alert-rise-score` 이상 상승. 발화 후 재무장 임계(`alert-rearm-score`) 미만으로 내려가야 다시 무장(히스테리시스) | 전역(관심 팀 무관), `notify_surge_enabled`로 개인별 차단 가능 | 경기당 쿨다운 15분 + 전역 15분 창 최대 3건 | 인앱 토스트 + 알림 센터 |
 | 관심 팀 경기 시작 (`GAME_START`) | 관심 팀 경기의 진행 중 전환 감지 | `user_favorite_teams`에 홈·원정 팀이 있고 `notify_game_start`를 켠 사용자 | 경기당 1회 | 인앱 토스트 + 알림 센터 |
 | 경기 전환 안내 | 다른 경기의 `watch_score`가 현재 경기보다 20점 이상 높고 70 이상 | 상세 화면 조회 중인 사용자 | 같은 후보 경기 15분 1회 | 상세 화면 토스트 (알림 파이프라인이 아니라 상세 응답의 `switchSuggestion` 필드) |
 
 - 급상승 판정은 scorer가, 경기 시작 판정은 poller가 하고, 사용자별 전달·저장은 api가 한다.
-- 임계(85)·재무장(70)·급등 조건은 사용자별 설정이 아니라 `scoring.yml` 전역 상수다.
+- 진입·재무장·급등 임계와 쿨다운·전역 한도는 사용자별 설정이 아니라 `scoring.yml`(`thresholds.alert-*`) 전역 상수다. 값은 백테스트·운영 관측으로 조정하므로 문서에는 키 이름만 기준으로 둔다.
 - 관심 선수는 알림 조건으로 사용하지 않는다. 관심 선수 정보는 정렬 가산과 상세 화면 표시로만 제공한다.
 - 보호 문구는 SPOILER_POLICY.md §6 금지 표현을 포함하지 않는다.
 
@@ -54,7 +54,7 @@ flowchart LR
 - 중복 전달을 전제로 `(event_id, user_id)` 유니크 제약으로 멱등 처리한다.
 - 발행 측은 같은 `event_id`의 `notification_events` 원본과 `notification_outbox` PENDING 행을 한 트랜잭션으로 영속한다. 커밋 직후 `notify.events` 발행을 시도하고, 실패하면 지수 백오프로 재발행한다. 애플리케이션 재시작 뒤에도 PENDING 행을 다시 조회한다.
 - 발행 성공 직후 outbox 상태 갱신 전에 장애가 나면 같은 `event_id`가 중복 전달될 수 있다. 소비자는 `(event_id, user_id)` 유니크 제약으로 중복을 무시한다.
-- 전역 15분 1회 레이트리밋은 발행 측(scorer)이 Redis 키로 관리한다.
+- 경기별 쿨다운(`notify:cooldown:{gameId}`)과 전역 15분 창 발화 한도(`notify:surge:count:global`)는 발행 측(scorer)이 Redis 키로 관리한다.
 - 경기 전환 안내는 알림 파이프라인을 타지 않는다. 상세 API 응답의 `switchSuggestion: { gameId, matchup, latestTag }`와 서버 조립 `message`로 제공한다.
 
 ## 4. 이벤트 스키마 (RabbitMQ `notify.events`)

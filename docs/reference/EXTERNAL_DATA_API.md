@@ -47,12 +47,12 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 | `/mlb/v1/plate_appearances` | 타석 결과, 주자 상황, pitch 단위 Statcast 전체 | 상세 신호(득점권·투수 흔들림·강한 타구), 태그·알림 판단 |
 | `/mlb/v1/lineups` | 타순, 포지션, probable pitcher | pregame_score 선발 매치업, 관심 선수 선발 여부, 타순 확정 감지 |
 | `/mlb/v1/stats` | 경기별 선수 타격·투구·수비 통합 스탯 | 종료 후 경기 분석, 이벤트 검증 |
-| `/mlb/v1/season_stats` | 선수 시즌 누적 스탯 (WAR 포함) | 선발 매치업 강도(ERA/WAR), 스타 선수 가산 |
-| `/mlb/v1/teams/season_stats` | 팀 시즌 누적 스탯 (QS, CG, SHO 포함) | 경기 성격 분류(난타전/투수전) |
+| `/mlb/v1/season_stats` | 선수 시즌 누적 스탯 (WAR 포함) | 선발 매치업 강도(시즌 ERA). WAR 등 다지표 합성은 미사용(SCORING.md §8) |
+| `/mlb/v1/teams/season_stats` | 팀 시즌 누적 스탯 (QS, CG, SHO 포함) | 미사용(문구 고도화 단계 소재, 저장하지 않음) |
 | `/mlb/v1/standings` | 순위, 승패, 승률, games behind, 매직넘버, 최근 10경기 등 | 경기 중요도 보정, pregame_score |
 | `/mlb/v1/players` (+`/active`) | 선수 정보, 포지션, 팀, 신체·드래프트 정보 | 선수 마스터 적재, 관심 선수 검색·등록 |
 | `/mlb/v1/teams` | 팀 정보, 리그, 디비전 | 팀 마스터 적재 |
-| `/mlb/v1/player_injuries` | 부상자 명단, 복귀 예정일, 코멘트 | 관심 선수 결장 파악, 알림 억제, 선발 변경 보조 |
+| `/mlb/v1/player_injuries` | 부상자 명단, 복귀 예정일, 코멘트 | 후속 범위(관심 선수 부상 표시). 현재 미사용 |
 | `/mlb/v1/players/splits` | 상황별 선수 성적(구장/타순/카운트/상대 등 9개 카테고리) | 고급 매치업 문구 소재 |
 | `/mlb/v1/players/versus` | 타자 vs 상대팀 개별 투수 전적 | 관심 선수 매치업 표시 |
 | pitch type stats 계열 (4종) | 구종별 투수/타자 성적 (경기/시즌 단위) | 구종 매치업(고급 단계) |
@@ -98,7 +98,7 @@ GOAT 플랜 기준 호출 한도는 `600 req/min`(평균 10 req/sec)이다.
 - `next_cursor` = 마지막 play의 `order` → **저장한 마지막 order를 cursor로 넘기면 증분 수집 1콜로 끝**.
 - **벽시계 타임스탬프 없음** → 시간 감쇠 신호는 폴러의 `observed_at` 기준으로 계산.
 - 필터는 `game_id` 단수만 지원 — 경기당 1콜 필요.
-- 진행 중 경기에서도 폴링 주기(~10초)마다 새 play가 연속 유입된다.
+- 진행 중 경기에서도 폴링 주기(~20초)마다 새 play가 연속 유입된다.
 
 **필드**
 

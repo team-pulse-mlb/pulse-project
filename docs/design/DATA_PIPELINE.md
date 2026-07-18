@@ -14,12 +14,10 @@ flowchart LR
     START(("시작")) -->|"① 일정 발견"| SCHEDULED["SCHEDULED<br/>예정"]
     SCHEDULED -->|"② T-36h"| FAR["PREGAME_FAR<br/>선발 확인"]
     FAR -->|"③ T-6h"| NEAR["PREGAME_NEAR<br/>타순·배당 수집"]
-    NEAR -->|"④ 경기 시작 감지"| LIVE["LIVE<br/>10초 수집"]
-    LIVE -->|"⑤ 새 play 없음 10분+"| SUSPENDED["SUSPENDED<br/>수집 완화"]
-    SUSPENDED -->|"⑥ 새 play 재개"| LIVE
-    LIVE -->|"⑦ 종료 감지"| FINAL["FINAL<br/>종료 정리"]
-    SCHEDULED -->|"⑧ 연기·취소"| DONE["DONE<br/>종결"]
-    LIVE -->|"⑨ 원본 STATUS_POSTPONED"| POSTPONED["SUSPENDED_POSTPONED<br/>보류"]
+    NEAR -->|"④ 경기 시작 감지"| LIVE["LIVE<br/>20초 수집"]
+    LIVE -->|"⑤ 종료 감지"| FINAL["FINAL<br/>종료 정리"]
+    SCHEDULED -->|"⑥ 연기·취소"| DONE["DONE<br/>종결"]
+    LIVE -->|"⑦ 원본 STATUS_POSTPONED"| POSTPONED["SUSPENDED_POSTPONED<br/>보류"]
     POSTPONED -->|"재개 감지"| LIVE
     POSTPONED -->|"종료 확정"| FINAL
     POSTPONED -->|"취소 확정"| DONE
@@ -28,22 +26,20 @@ flowchart LR
     class SCHEDULED,FAR,NEAR main
     class LIVE live
     class FINAL,DONE done
-    class SUSPENDED,POSTPONED hold
+    class POSTPONED hold
 ```
 
 ### 상태 번호별 의미와 수집
 
 | 번호 | 상태 | poller가 하는 일 | 주기 |
 |---|---|---|---|
-| ① | 상시 (모든 경기 대상, `SCHEDULED` 포함) | `/games`로 어제·오늘 경기를 확인해 신규 경기, 상태 전이, 연기·취소를 감지한다. 특정 경기의 상태가 아니라 시스템 전체에 라이브 경기가 있는지로 주기가 갈린다. | `/games`: 라이브 경기 1개 이상이면 10초, 0개면 10분 |
+| ① | 상시 (모든 경기 대상, `SCHEDULED` 포함) | `/games`로 어제·오늘 경기를 확인해 신규 경기, 상태 전이, 연기·취소를 감지한다. 특정 경기의 상태가 아니라 시스템 전체에 라이브 경기가 있는지로 주기가 갈린다. | `/games`: 라이브 경기 1개 이상이면 20초, 0개면 10분 |
 | ② | `PREGAME_FAR` (T-36h~T-6h) | 선발 예상 투수 등장을 확인한다. | `/lineups`: 1시간 |
 | ③ | `PREGAME_NEAR` (T-6h~시작) | `/lineups`는 타순 확정을, `/odds`는 `pregame_score`의 접전 기대 재료를 모은다. | `/lineups`: 15분 · `/odds`: 30분 |
-| ④ | `LIVE` | `/games`는 ①과 같은 사이클로 점수·이닝을 갱신하고, `/plays`는 cursor 증분, `/plate_appearances`는 전체 재조회 후 dedupe한다. 경기별 `/plays`·`/plate_appearances` 호출은 워커 6~8개로 병렬 실행해 한 라운드 지연을 줄인다. 수집 후 RabbitMQ로 계산 요청을 보낸다. LIVE 전이 감지 시 `GAME_START` 알림 이벤트를 발행한다. | `/games`: 10초 · `/plays`: 10초 · `/plate_appearances`: 10초 |
-| ⑤ | `SUSPENDED` | 새 play가 없으면 `/plays` 수집만 낮추고, ①의 `/games`로 재개를 감지한다. | `/plays`: 5분 |
-| ⑥ | `LIVE` 재개 | 새 play 감지 시 ④의 주기로 복귀한다. | `/plays`: 10초 |
-| ⑦ | `FINAL` | 경기 종료를 감지하면 `lifecycleState=FINAL`을 실은 종료 ScoreTask를 발행한다. 라이브 랭킹(`score:rank:live`) 제거·`signal:ranking` 발행은 scorer가 수행한다. 별도 재분석은 하지 않는다. | 감지 시 1회 |
-| ⑧ | `DONE` | 연기·취소를 감지하면 `lifecycleState=DONE`을 실은 종료 ScoreTask를 발행한다. 랭킹 제거는 scorer가 수행한다. | 감지 시 1회 |
-| ⑨ | `SUSPENDED_POSTPONED` | 라이브 중 원본 `STATUS_POSTPONED`(서스펜디드 게임)를 감지하면 `lifecycleState=SUSPENDED_POSTPONED`을 실은 종료 ScoreTask를 발행한다. scorer는 라이브 랭킹에서 제거한다. 이후 재개(`STATUS_IN_PROGRESS`)·종료(`STATUS_FINAL`)·취소(`STATUS_CANCELED`)를 ①의 감시로 받아 각 상태로 보낸다. `DONE`이나 `FINAL`로 바로 보내지 않는 이유: 재개 시 이력이 끊기거나 종료 경기로 잘못 노출되는 것을 막기 위해서다. | 감지 시 1회, 이후 ① 주기 |
+| ④ | `LIVE` | `/games`는 ①과 같은 사이클로 점수·이닝을 갱신하고, `/plays`는 cursor 증분, `/plate_appearances`는 전체 재조회 후 dedupe한다. 경기별 `/plays`·`/plate_appearances` 호출은 워커 6~8개로 병렬 실행해 한 라운드 지연을 줄인다. 수집 후 RabbitMQ로 계산 요청을 보낸다. LIVE 전이 감지 시 `GAME_START` 알림 이벤트를 발행한다. | `/games`: 20초 · `/plays`: 20초 · `/plate_appearances`: 20초 |
+| ⑤ | `FINAL` | 경기 종료를 감지하면 `lifecycleState=FINAL`을 실은 종료 ScoreTask를 발행한다. 라이브 랭킹(`score:rank:live`) 제거·`signal:ranking` 발행은 scorer가 수행한다. 별도 재분석은 하지 않는다. | 감지 시 1회 |
+| ⑥ | `DONE` | 연기·취소를 감지하면 `lifecycleState=DONE`을 실은 종료 ScoreTask를 발행한다. 랭킹 제거는 scorer가 수행한다. | 감지 시 1회 |
+| ⑦ | `SUSPENDED_POSTPONED` | 라이브 중 원본 `STATUS_POSTPONED`(서스펜디드 게임)를 감지하면 `lifecycleState=SUSPENDED_POSTPONED`을 실은 종료 ScoreTask를 발행한다. scorer는 라이브 랭킹에서 제거한다. 이후 재개(`STATUS_IN_PROGRESS`)·종료(`STATUS_FINAL`)·취소(`STATUS_CANCELED`)를 ①의 감시로 받아 각 상태로 보낸다. `DONE`이나 `FINAL`로 바로 보내지 않는 이유: 재개 시 이력이 끊기거나 종료 경기로 잘못 노출되는 것을 막기 위해서다. | 감지 시 1회, 이후 ① 주기 |
 
 **일정 룩어헤드**: ①의 어제·오늘(UTC) 감시와 별도로, 향후 2~3일 일정을 저빈도(6~12시간 주기)로 동기화해 미래 경기와 시작 시각을 미리 확보한다. balldontlie `/games`는 최소 7일 뒤까지 일정을 제공하고, 미래 경기도 `date`에 실제 시작 시각(UTC ISO 8601)을 담는다. 확보한 시작 시각으로 `SCHEDULED → PREGAME_FAR`(T-36h) `→ PREGAME_NEAR`(T-6h) 전이 시점을 예약한다. 시작 시각은 확정 전 변동될 수 있으므로 룩어헤드 동기화마다 갱신하고, 시작 시각 미정(TBD) 경기는 전이 예약을 보류한 뒤 다음 동기화에서 재확인한다.
 
@@ -53,7 +49,7 @@ flowchart LR
 
 ## 2. 호출 예산과 레이트리밋 대응
 
-- **호출 예산(최악 기준)**: 동시 라이브 15경기 시 한 라운드는 `/games` 1회 + `/plays` 15경기 + `/plate_appearances` 15경기 = 31회다. 10초 목표 주기와 실행 여유 시간을 반영하면 분당 약 150회 수준이며, 한도 600 req/min의 약 1/4이다.
+- **호출 예산(최악 기준)**: 동시 라이브 15경기 시 한 라운드는 `/games` 1회 + `/plays` 15경기 + `/plate_appearances` 15경기 = 31회다. 20초 주기 기준 분당 약 93회 수준이며, 한도 600 req/min의 약 1/6이다.
 - **병렬화 영향**: 경기별 호출 병렬화는 라운드 지연을 줄이는 변경이며 분당 호출 수 자체를 늘리지 않는다. 한도는 분당 창 기준이므로 워커 6~8개 병렬 실행만으로는 별도 버스트 완화가 필요하지 않다.
 - **429 대응**: 응답의 `Retry-After`(초)를 그대로 신뢰해 대기하고 해당 사이클을 건너뛴다. 회복 후 우선순위는 `/games` > `/plays` > `/plate_appearances`다(상태 전이 감지 > 증분 수집 > 전체 재조회).
 - **일 배치 시각**: `/standings`와 시즌 스탯 캐시는 매일 슬레이트 시작 전 1회(약 10:00 UTC), `/teams`·`/players` 마스터는 일 1회 upsert한다.
@@ -93,14 +89,14 @@ flowchart LR
 | ⑤ | 추천 태그 생성 | 화면에 보여줄 짧은 이유 태그를 만든다. 예: `접전 흐름`, `득점권 압박`, `후반 긴장 구간` |
 | ⑥ | Redis 갱신 + 신호 | 실시간 랭킹을 갱신하고 `signal:ranking`·`signal:game:{id}` 채널로 재조회 신호를 발행한다. api가 이를 SSE로 중계한다. |
 | ⑦ | PostgreSQL 저장 | 점수 이력과 흥미 순간 이벤트(`game_events`)를 남긴다. 이벤트는 라이브 중 임계 통과 시 추출·영속하며 종료 후 재계산하지 않는다. |
-| ⑧ | 급상승 알림 판정 | 히스테리시스(85 진입 발화 / 70 미만 재무장)와 급등 조건(최근 5분 +15 이상)을 통과하면 `notify.events`로 알림 이벤트를 발행한다. 판정이 scorer에 있는 이유: 점수 이력과 히스테리시스 상태를 가진 유일한 곳이기 때문이다. |
+| ⑧ | 급상승 알림 판정 | 임계 진입·급등 조건(히스테리시스 포함, 정확한 조건과 상수는 NOTIFICATIONS.md·`scoring.yml`)을 통과하면 `notify.events`로 알림 이벤트를 발행한다. 판정이 scorer에 있는 이유: 점수 이력과 히스테리시스 상태를 가진 유일한 곳이기 때문이다. |
 | ⑨ | AI 문구 트리거 | 경기 종료 정리 시 `FINAL_HEADLINE`을 보호/공개 모드별 `safeContext`와 `contextHash`로 ai-service에 비동기 생성을 요청한다. |
 
 scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: `score:rank:live`에서 제거, `signal:ranking` 발행, 종료 헤드라인(`FINAL_HEADLINE`) 생성 트리거. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
 
 ## 4. 사용자 응답 흐름
 
-종료 경기 AI 헤드라인 생성은 응답 경로에 없다. 계산 파이프라인이 종료 정리 시 미리 만들고, API는 PostgreSQL과 읽기 캐시를 조회한다. AI 헤드라인이 아직 없으면 API는 LLM 응답을 기다리지 않고 `headline=null`을 반환한다.
+종료 경기 AI 헤드라인 생성은 응답 경로에 없다. 계산 파이프라인이 종료 정리 시 미리 만들고, API는 PostgreSQL을 조회한다. AI 헤드라인이 아직 없으면 API는 LLM 응답을 기다리지 않고 `headline=null`을 반환한다.
 
 ```mermaid
 flowchart LR
@@ -130,9 +126,9 @@ flowchart LR
 | 번호 | 단계 | 설명 |
 |---|---|---|
 | ① | 요청 | 프론트는 `pulse-api`만 호출한다. 상세는 현재 모드(`PROTECTED`/`REVEALED`)를 파라미터로 보낸다. |
-| ② | Redis 조회 | 라이브 랭킹과 현재 상태 캐시를 빠르게 읽는다. 종료 문구는 PostgreSQL을 기준으로 읽고 필요하면 Redis 읽기 캐시를 사용한다. |
+| ② | Redis 조회 | 라이브 랭킹과 현재 상태 캐시를 빠르게 읽는다. 종료 문구는 PostgreSQL에서 읽는다. |
 | ③ | 상세 조회 | 경기 상세와 점수 이력은 PostgreSQL에서 읽는다. `경기 흐름`은 보호 모드에서 `game_events`, 공개 모드에서 번역된 `plays`를 읽는다. |
 | ④ | 보호 모드 DTO 생성 | 스포일러가 될 수 있는 필드는 서버에서 제거한다. 직렬화 가드 테스트도 같은 금지 필드 목록을 확인한다. |
 | ⑤ | 문구 조회 | 종료 경기의 검수를 통과한 AI 헤드라인이 있으면 사용하고, 없으면 `headline=null`을 반환한다. 예정 경기는 AI 문구를 조회하지 않는다. |
 | ⑥ | 화면 응답 | 개인화(관심 팀/선수 가산)는 이 시점에 서버가 적용한다. 공용 랭킹은 하나만 유지한다. |
-| ⑦ | SSE 신호 | payload에 데이터를 싣지 않는 재조회 신호만 보낸다. 클라이언트는 신호 수신 즉시 재조회하므로 체감은 푸시와 동일하고, 스포일러 필터링 지점은 REST 한 곳에 유지된다. |
+| ⑦ | SSE 신호 | payload에 데이터를 싣지 않는 재조회 신호만 보낸다. 클라이언트는 신호 수신 즉시 재조회해 갱신하고, 스포일러 필터링 지점은 REST 한 곳에 유지된다. |

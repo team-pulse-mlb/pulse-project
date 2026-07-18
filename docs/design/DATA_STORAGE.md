@@ -17,7 +17,7 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 | `odds_snapshots` | 경기 전 스냅샷 | 벤더별 배당. `FIRST_SEEN`·`PREGAME_FINAL` 두 개만, 시작 전 관측만 허용 |
 | `watch_scores` | append 로그 | `base_score`, `watch_score`, 신호별 기여, 추천 태그 |
 | `users` · `refresh_tokens` | 계정 | 인증 정보, 리프레시 토큰 상태 |
-| `user_settings` · `user_favorite_teams` | 사용자 설정 | 알림·전환 설정, 관심 팀 |
+| `user_settings` · `user_favorite_teams` · `user_favorite_players` | 사용자 설정 | 알림·전환 설정, 관심 팀·선수 |
 | `notification_events` · `user_notifications` | 알림 | 전역 이벤트 원본 1행 + 사용자별 수신함(읽음 상태, 7일 보관) |
 
 ### Redis
@@ -26,9 +26,8 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 |---|---|
 | `score:rank:live` | 진행 중 경기의 `watch_score` 랭킹 (ZSET) |
 | `game:{id}:live` | 현재 점수, 이닝, 노출 태그 캐시 |
-| `game:{id}:copy:FINAL_HEADLINE:{mode}` | 종료 경기 AI 헤드라인 읽기 캐시 |
-| `notify:*`, `switch:cooldown:*` | 알림 히스테리시스·레이트리밋·전환 안내 쿨다운 |
-| (pub/sub) `signal:ranking`, `signal:game:{id}` | 재조회 신호 채널 |
+| `notify:*`, `switch:cooldown:*` | 알림 히스테리시스·쿨다운·전역 발화 한도·전환 안내 쿨다운 |
+| (pub/sub) `signal:ranking`, `signal:game:{id}`, `signal:notification:{userId}` | 재조회 신호 채널 |
 
 ## 2. 원천별 저장 정책
 

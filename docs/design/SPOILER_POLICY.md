@@ -141,7 +141,7 @@
 - `spoilerSafe=true`, `fallbackUsed=false`, `contextHash` 일치 응답만 저장한다. 타임아웃, 검수 실패, `contextHash` 불일치 시 저장하지 않는다.
 - 저장 컬럼은 `game_events.copy_protected`, `copy_protected_context_hash`다. 모두 nullable이다. 기존 공개 이벤트 문구 컬럼은 더 이상 생성·조회하지 않는다.
 - 저장 성공 시 scorer는 `game_updated`를 재발행한다. 클라이언트는 기존 재조회 흐름으로 정적 라벨이 AI 문구로 교체되는 경험을 제공한다.
-- 이벤트 문구 소비는 `game_events` 직접 조회를 원천으로 한다. `AiCopyReader`는 `FINAL_HEADLINE` 전용이다.
+- 이벤트 문구 소비는 `game_events` 직접 조회를 원천으로 한다. 종료 헤드라인은 `games.final_headline_*` 직접 조회로 제공한다(AI_COPY.md §6).
 
 ### 보호 모드 `경기 흐름` 노출 규칙
 

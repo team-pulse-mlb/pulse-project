@@ -36,7 +36,7 @@
 | 정리 기준 | `refresh_tokens` 행은 `expires_at` 경과 후에만 배치 삭제한다. 폐기 행도 만료 전에는 재사용 감지 근거로 보존한다 |
 | 배포 설정 | 로컬은 쿠키 `Secure=false`, 배포 HTTPS 환경은 `Secure=true`로 전환한다 |
 
-현재 PR #15의 SecurityConfig는 개발 중 다른 기능 연결을 막지 않기 위해 `/api/members/me`만 인증을 강제하고 나머지는 임시 `permitAll`로 둔다. 위 표의 로그인 필요 API는 통합 전 보호 범위로 다시 잠근다.
+§1 표에서 로그인 `필요`로 표시한 API는 SecurityConfig가 인증을 강제하고, 나머지는 비로그인 접근을 허용한다.
 
 `POST /api/members/email/**`(§1)로 통일한 이메일 인증 관련 경로는 아래 정책을 따른다.
 
@@ -46,7 +46,7 @@
 | 인증 완료 상태 유지 | 인증 성공 후 30분간 유지한다. 회원가입은 이 시간 안에 완료해야 한다 |
 | 메일 발송 실패 | 인증번호를 저장하지 않는다(발급 자체를 실패로 처리) |
 
-### 1.2 대표 응답 예시 (mock 개발 기준)
+### 1.2 대표 응답 예시
 
 정렬은 서버가 적용해 내려주며, 응답에 점수·순위 숫자는 포함하지 않는다.
 
@@ -90,7 +90,7 @@
 }
 ```
 
-`status`·`displayMode`는 `GameQueryService`가 이미 사용 중인 필드명이다(`gameState`/`mode`가 아님). `homeTeam`/`awayTeam`은 `{ id, name, abbr }` 객체이며, 보호 모드에서도 매치업 식별을 위해 노출한다(팀 우세·점수는 미포함). `inning`은 이닝 숫자만 노출하고 초/말(`inningType`)은 보호 모드 어떤 필드에도 포함하지 않는다.
+경기 상세 응답의 상태·모드 필드명은 `status`·`displayMode`이고, 홈 목록 카드의 상태 필드명은 `gameState`다(위 `GET /api/games` 예시). `homeTeam`/`awayTeam`은 `{ id, name, abbr, logoUrl }` 객체이며, 보호 모드에서도 매치업 식별을 위해 노출한다(팀 우세·점수는 미포함). `inning`은 이닝 숫자만 노출하고 초/말(`inningType`)은 보호 모드 어떤 필드에도 포함하지 않는다.
 
 ```jsonc
 // GET /api/games/{id}?mode=protected (진행 중)
@@ -211,104 +211,7 @@
 
 최근 플레이 API는 `plays`의 `type=Play Result` 중 화면 필수값이 있는 전체 건을 `play_order DESC`로 반환한다. 진행 중·종료 경기 모두 건수 제한을 두지 않으며, 타석 결과 필터는 메모리 필터가 아니라 DB 조회 조건으로 적용한다. `text`는 프론트가 그대로 표시하는 완성 문구다. 저장된 한국어 번역이 있으면 `translated=true`로 반환하고, 아직 없으면 원문을 `translated=false`로 임시 반환한다. 보호 모드와 알 수 없는 `mode`는 빈 목록을 반환한다.
 
-### POST `/ai/play-translation`
-
-단일 MLB play result 원문을 한국어로 번역한다.
-
-이 API는 공개 모드 최근 플레이 표시용이며, 현재는 `REVEALED` 모드와 `targetLanguage=ko`만 허용한다.
-
-#### Request
-
-```json
-{
-  "gameId": 5059041,
-  "playId": 312,
-  "mode": "REVEALED",
-  "contextHash": "play-312-v1",
-  "sourceText": "Soto singled to center.",
-  "targetLanguage": "ko"
-}
-```
-
-#### Success Response
-
-번역 생성과 번역 검수 guard를 모두 통과한 경우 `translatedText`를 반환한다.
-
-```json
-{
-  "translatedText": "Soto, 중견수 방면 안타",
-  "violations": [],
-  "fallbackUsed": false,
-  "contextHash": "play-312-v1"
-}
-```
-
-#### Guard Failure Response
-
-번역문이 원문 `sourceText`의 핵심 사실을 보존하지 못한 경우 `translatedText`를 반환하지 않는다.
-
-예를 들어 원문이 `single`인데 AI 번역문이 `홈런`으로 생성된 경우 guard 실패로 처리한다.
-
-```json
-{
-  "violations": [
-    "MISSING_EVENT:SINGLE",
-    "ADDED_RESULT:HOME_RUN"
-  ],
-  "fallbackUsed": false,
-  "contextHash": "play-312-v1"
-}
-```
-
-`response_model_exclude_none=true` 정책으로 인해 실패 응답에서는 `translatedText` 필드가 제외된다.
-
-#### Failure Policy
-
-- ai-service는 fallback 번역을 생성하지 않는다.
-- 생성 실패, 응답 필드 누락, guard 실패 모두 `fallbackUsed=false`를 반환한다.
-- 실패 응답에서는 `contextHash`를 그대로 반환한다.
-- 실패 응답에서는 저장 가능한 번역문이 없으므로 `translatedText`를 반환하지 않는다.
-
-#### Main Violations
-
-| Code | Meaning |
-| --- | --- |
-| `SOURCE_TEXT_EMPTY` | 원문이 비어 있음 |
-| `TRANSLATED_TEXT_EMPTY` | 번역문이 비어 있음 |
-| `MULTIPLE_SENTENCES` | 번역문이 여러 문장으로 생성됨 |
-| `MISSING_PLAYER_NAME:{name}` | 원문 선수명이 번역문에서 누락됨 |
-| `ADDED_PLAYER_NAME:{name}` | 원문에 없는 영문 선수명이 번역문에 추가됨 |
-| `MISSING_NUMBER:{number}` | 원문 숫자가 번역문에서 누락됨 |
-| `ADDED_NUMBER:{number}` | 원문 또는 용어집 규칙으로 설명되지 않는 숫자가 번역문에 추가됨 |
-| `MISSING_EVENT:{outcomeCode}` | YAML 용어집에 매칭된 이벤트의 필수 한국어 표현이 번역문에 보존되지 않음 |
-| `MISSING_EVENT:SINGLE` | 원문 single 이벤트가 안타로 보존되지 않음 |
-| `MISSING_EVENT:DOUBLE` | 원문 double 이벤트가 2루타로 보존되지 않음 |
-| `MISSING_EVENT:TRIPLE` | 원문 triple 이벤트가 3루타로 보존되지 않음 |
-| `MISSING_EVENT:HOME_RUN` | 원문 home run 이벤트가 홈런으로 보존되지 않음 |
-| `MISSING_EVENT:STRIKEOUT` | 원문 strikeout 이벤트가 삼진으로 보존되지 않음 |
-| `MISSING_EVENT:STRIKEOUT_SWINGING` | 원문 swinging strikeout 세부 정보가 보존되지 않음 |
-| `MISSING_EVENT:STRIKEOUT_LOOKING` | 원문 looking strikeout 세부 정보가 보존되지 않음 |
-| `MISSING_DIRECTION:{directionId}` | YAML `direction_patterns`에 매칭된 타구 방향 표현이 번역문에 보존되지 않음 |
-| `MISSING_DIRECTION:LEFT` | 좌측 방향 표현이 보존되지 않음 |
-| `MISSING_DIRECTION:CENTER` | 중앙 방향 표현이 보존되지 않음 |
-| `MISSING_DIRECTION:RIGHT` | 우측 방향 표현이 보존되지 않음 |
-| `MISSING_DIRECTION:LEFT_CENTER` | 좌중간 방향 표현이 보존되지 않음 |
-| `MISSING_DIRECTION:RIGHT_CENTER` | 우중간 방향 표현이 보존되지 않음 |
-| `MISSING_DIRECTION:LEFT_FIELD_LINE` | 좌익선상 방향 표현이 보존되지 않음 |
-| `MISSING_DIRECTION:RIGHT_FIELD_LINE` | 우익선상 방향 표현이 보존되지 않음 |
-| `MISSING_DIRECTION:UP_THE_MIDDLE` | 중앙으로 빠지는 타구 방향 표현이 보존되지 않음 |
-| `MISSING_POSITION:{positionId}` | YAML `position_patterns`에 매칭된 수비 위치가 번역문에 보존되지 않음 |
-| `MISSING_POSITION:THIRD_BASEMAN` | 3루수 수비 위치가 번역문에 보존되지 않음 |
-| `ADDED_RESULT:HOME_RUN` | 원문에 없는 홈런 결과가 추가됨 |
-| `ADDED_RESULT:COME_BACK` | 원문에 없는 역전 표현이 추가됨 |
-| `ADDED_RESULT:WALK_OFF` | 원문에 없는 끝내기 표현이 추가됨 |
-| `ADDED_RESULT:WIN` | 원문에 없는 승리 표현이 추가됨 |
-| `ADDED_RESULT:LOSS` | 원문에 없는 패배 표현이 추가됨 |
-| `ADDED_RESULT:SCORE` | 원문에 없는 득점 표현이 추가됨 |
-| `ADDED_RESULT:RUN_ALLOWED` | 원문에 없는 실점 표현이 추가됨 |
-| `ADDED_RESULT:LEAD` | 원문에 없는 리드 표현이 추가됨 |
-| `ADDED_COMMENTARY:{expression}` | YAML `global_forbidden_expressions`에 등록된 평가·감정·해설 표현이 번역문에 포함됨 |
-
+scorer → ai-service 내부 HTTP 계약(`POST /ai/final-headline`·`/ai/event-copy`·`/ai/play-translation`)의 요청·응답·검수 위반 코드는 [AI_COPY.md](AI_COPY.md) §5를 단일 기준으로 따른다.
 
 ### 1.3 관심 선수 검색·등록 계약
 
@@ -361,14 +264,13 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 | 인터페이스 | 제공 → 사용 | 시그니처·내용 |
 |---|---|---|
 | domain 읽기 | 예은 → 전원 | JPA 엔티티 읽기 전용. 스키마 변경은 예은만 |
-| `ScoreQueryService` | 예은 → 민석 | `getLatestSignals(gameId)` → `{ latestTag, phase, situation, updatedAt }`. **점수 숫자는 계약에 없음** |
-| `AiCopyReader` | 창현 → 전원 | `getCopy(gameId, purpose, mode)` — `FINAL_HEADLINE` 전용. 검수 통과 헤드라인이 있으면 문구를 반환하고, 저장된 문구가 없거나 미생성이면 `null`을 반환한다. |
+| 종료 헤드라인 조회 | 예은·민석 공통 | `games.final_headline_protected`·`final_headline_revealed` 직접 조회. 전용 리더 인터페이스는 두지 않으며, 저장된 문구가 없으면 응답 `headline=null` |
 | 보호 이벤트 문구 조회 | 예은 → 민석 | `game_events.copy_protected` 직접 조회. 보호 모드 이벤트 API가 단일 원천이다. |
 | 최근 플레이 번역 조회 | 예은 → 민석 | `plays.text_ko` 우선, 없으면 `plays.text` 폴백. 공개 모드 최근 플레이 API가 단일 원천이다. |
 | `UserPreferenceReader` | 윤호 → 예은(홈 가산)·api(알림 fan-out, 전환 쿨다운) | 이메일로 관심 팀 ID 집합·관심 선수 ID 집합·알림 설정 조회. 홈 가산은 관심 팀 1개 이상 일치 시 +10, 라인업의 관심 선수 1명 이상 일치 시 +5이며 각 조건은 개수와 무관하게 한 번만 반영한다. |
 | `SseEventPublisher` | api 공통 | 이벤트 3종 발행 단일 창구 |
-| AI 생성 트리거 | 창현 → 예은(scorer) | `FINAL_HEADLINE`, `EVENT_COPY` 비동기 생성 요청 인터페이스. ai-service 호출, `contextHash` 검증(모드별 해시 컬럼), 검수 통과 문구 저장 담당 |
-| `AiCopyContextReader` | 예은 → 창현 | `finalHeadlineContext(gameId, mode)`·`eventCopyContext(gameId, eventId, mode)` — safeContext 필드와 `contextHash`(SHA-256, 예은 측 정규화 계산)를 반환. 빈 값은 "생성 대상 아님". 외부 REST GET 컨텍스트 API는 폐기. 상세는 `AI_COPY.md` §4.0 |
+| AI 생성 트리거 | 창현 → 예은(scorer) | `FINAL_HEADLINE`·`EVENT_COPY`·`PLAY_TRANSLATION` 비동기 생성 요청 인터페이스(`com.pulse.ai` 클라이언트). ai-service 호출, `contextHash` 검증, 검수 통과 문구 저장 담당 |
+| `AiCopyContextReader` | 예은 → 창현 | `finalHeadlineContext(gameId, mode)`·`eventCopyContext(gameId, eventId, mode)`·`playTranslationContext(gameId, playId)` — safeContext 필드와 `contextHash`(SHA-256, 예은 측 정규화 계산)를 반환. 빈 값은 "생성 대상 아님". 외부 REST GET 컨텍스트 API는 폐기. 상세는 `AI_COPY.md` §4.0 |
 | `notify.events` | scorer·poller → 윤호 | 알림 이벤트. 서버가 고정 템플릿으로 완성한 `message` 전달 |
 
 ## 5. 메시징·캐시 명세
@@ -381,9 +283,10 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 | `notify.events` (+`.dlq`) | 알림 이벤트 | 동일. 소비 측 멱등 처리 전제 |
 
 ```jsonc
-// ScoreTask (score.tasks) — 라이브 재계산 task: lifecycleState=LIVE, situation 포함
+// ScoreTask (score.tasks) — 라이브 재계산 task: lifecycleState=LIVE, situation·gameSnapshot 포함
 { "gameId": 5059041, "observedAt": "2026-07-06T02:11:00Z",
   "lastPlayOrder": 217414761, "lifecycleState": "LIVE",
+  "gameSnapshot": { "period": 7, "homeRuns": 3, "awayRuns": 4, "postseason": false },
   "situation": {
     "outs": 2, "balls": 3, "strikes": 2,
     "runnerOnFirst": true, "runnerOnSecond": true, "runnerOnThird": true,
@@ -411,6 +314,7 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 - `situation`은 nullable이다. 종료 task·구버전 task·현재 타석 없음이면 `null`이며, scorer는 null-safe로 해당 신호를 0점 처리한다. `runnerOn*`이 모두 `false`인 상태("압박 없음")와 `situation=null`("계산 불가")을 구분한다.
 - `scoringPosition` = `runnerOnSecond || runnerOnThird`, `basesLoaded` = 세 주자 모두 점유. scorer가 재유도할 수 있으나 계약에 명시해 소비 측 파싱을 단순화한다.
 - `plateAppearances`: PA 원본 전체가 아니라 이벤트 추출에 필요한 사실만 전달한다. 결과·설명 원문은 포함하지 않는다. scorer는 이 값으로 긴 타석·투수 흔들림·강한 타구 이벤트를 판정한다.
+- `gameSnapshot`: 폴링 시점의 이닝·양 팀 득점·포스트시즌 여부 스냅샷. scorer가 계산 시점 기준 신호(후반/점수 차 등)를 산출하는 입력이다. nullable이며 구버전 task에도 안전해야 한다.
 - 하위호환: scorer는 `situation`과 `plateAppearances` 유무와 무관하게 동작해야 하며, poller·scorer 배포 순서나 브로커에 남은 구버전 task에 안전하다. `plateAppearances` 누락·null은 빈 목록으로 처리한다.
 - `PREGAME` task: poller가 경기 전 입력이 갱신될 때(선발 확정·변경, `odds_snapshots` 기록, `standings` 일 배치 반영, `PREGAME_NEAR` 진입) 발행한다. scorer는 DB의 `lineups`·`odds_snapshots`·`standings`·`player_season_stats`만 읽어 `pregame_score`를 계산하고 `games.pregame_score`·`pregame_inputs`를 덮어쓴다. 최신 입력 기준 재계산이므로 중복·재전달에 멱등이며, `watch_scores`에는 행을 남기지 않는다. 선발 시즌 스탯의 온디맨드 외부 조회는 poller가 task 발행 전에 수행해 `player_season_stats`에 적재한다(외부 API 호출은 poller로 한정).
 
@@ -426,13 +330,13 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 |---|---|---|
 | `score:rank:live` | ZSET | 진행 중 경기 랭킹 (member=game_id, score=watch_score) |
 | `game:{id}:live` | HASH | 현재 점수·이닝·최신 태그 캐시 (내부 전용) |
-| `game:{id}:copy:FINAL_HEADLINE:{mode}` | STRING | 종료 경기 AI 헤드라인 읽기 캐시. 원본은 `games.final_headline_protected`·`games.final_headline_revealed` |
 | `notify:armed:{gameId}` | STRING | 급상승 히스테리시스 상태 |
-| `notify:cooldown:global` | STRING | 전역 15분 레이트리밋 |
+| `notify:cooldown:{gameId}` | STRING | 급상승 경기별 쿨다운(15분) |
+| `notify:surge:count:global` | STRING | 전역 15분 창 발화 수(한도 3건) |
 | `switch:cooldown:{userId}:{gameId}` | STRING | 전환 안내 쿨다운 |
 | `sse:token:{token}` | STRING | SSE 연결용 1회용 토큰 (TTL 60초) |
-| (pub/sub) `signal:ranking`, `signal:game:{id}` | 채널 | 재조회 신호. api가 SSE로 중계 |
+| (pub/sub) `signal:ranking`, `signal:game:{id}`, `signal:notification:{userId}` | 채널 | 재조회 신호. api가 SSE로 중계 |
 
-보호 이벤트 문구(`EVENT_COPY`)와 최근 플레이 번역(`PLAY_TRANSLATION`)은 Redis 캐시를 두지 않고 각각 `game_events`, `plays`에서 직접 조회한다.
+AI 문구(헤드라인·이벤트 문구·플레이 번역)는 Redis 캐시를 두지 않고 각각 `games`, `game_events`, `plays`에서 직접 조회한다.
 
-라이프사이클 정리: 경기가 LIVE에서 이탈하면(`FINAL`·`DONE`·`SUSPENDED_POSTPONED`) scorer가 poller의 종료 ScoreTask(`lifecycleState`)를 받아 `score:rank:live`에서 해당 경기를 제거하고 `signal:ranking`을 발행한다. `game:{id}:live`·`game:{id}:copy:FINAL_HEADLINE:*`는 TTL로 소멸한다.
+라이프사이클 정리: 경기가 LIVE에서 이탈하면(`FINAL`·`DONE`·`SUSPENDED_POSTPONED`) scorer가 poller의 종료 ScoreTask(`lifecycleState`)를 받아 `score:rank:live`에서 해당 경기를 제거하고 `signal:ranking`을 발행한다. `game:{id}:live`는 TTL로 소멸한다.
