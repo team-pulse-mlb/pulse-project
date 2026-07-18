@@ -7,7 +7,7 @@
 | 홈 추천 정렬 | 진행 중 경기를 `watch_score` 순으로 정렬한다. |
 | 예정 경기 정렬 | 예정 경기를 `pregame_score` 순으로 정렬한다. |
 | 종료 경기 정렬 | 종료 경기를 라이브 중 기록된 최고 점수(`peak_base_score`) 순으로 정렬한다. |
-| 알림 판단 | 임계 진입(85)과 급등 조건을 알림 트리거로 사용한다. |
+| 알림 판단 | 임계 진입과 급등 조건을 알림 트리거로 사용한다(조건·상수는 NOTIFICATIONS.md). |
 | 경기 전환 안내 | 현재 보는 경기보다 점수가 높은 경기를 안내한다. |
 
 ## 2. 핵심 원칙
@@ -63,9 +63,9 @@ watch_score = clamp(raw_watch_score, 0, 100)
 | 후반/연장 | 7~8회 / 9회 / 연장 | +6 / +12 / +18 | `/games.period` |
 | 점수 차 | 0~1점 / 2점 / 3점 / 4점 이상 | +15 / +9 / +3 / +0 | `/games` 팀별 runs |
 | 최근 득점 | min(득점×6, 15) × 접전 배율 × exp(-경과초/180) | 최대 +30 (동점 시) | `/plays.scoring_play`, `score_value`, observed_at |
-| 리드 변경 | 앞선 팀이 바뀐 뒤 +9 × exp(-경과초/300) | 최대 +9 | `/plays.home_score`, `away_score`, observed_at |
+| 리드 변경 | 최근 play 윈도(기본 16개) 안에 앞선 팀이 바뀐 경우 | +14 | `/plays.home_score`, `away_score` |
 | 빅이닝 | 현재 이닝에 득점 play 2개 이상 | +9 | `/plays.scoring_play`, `inning` |
-| 압박 | 현재 타석 만루 / 2루 또는 3루 주자 | +6 / +4 | `ScoreTask.situation` (원천 `/plate_appearances.runner_on_*`) |
+| 압박 | 현재 타석 만루 / 2루 또는 3루 주자 | +9 / +6 | `ScoreTask.situation` (원천 `/plate_appearances.runner_on_*`) |
 | 카운트/아웃 | 풀카운트 +3, 2아웃 +3 (합산 최대 +5) | +3~+5 | `ScoreTask.situation` (원천 `/plays.balls`, `strikes`, `outs`) |
 | 초반 난타 | 1~3회이고 양 팀 득점 합 7점 이상 | +5 | `/games` 이닝별 점수 |
 
@@ -85,7 +85,7 @@ watch_score = clamp(raw_watch_score, 0, 100)
 
 ### 4.3 시간 감쇠
 
-이벤트성 신호(최근 득점, 리드 변경)는 폴러가 기록한 최초 관측 시각(observed_at) 기준으로 지수 감쇠한다. 폴링 주기가 감쇠 계산의 오차 상한이 된다.
+최근 득점 신호는 폴러가 기록한 최초 관측 시각(observed_at) 기준으로 지수 감쇠한다. 폴링 주기가 감쇠 계산의 오차 상한이 된다. 리드 변경 신호는 시간이 아니라 최근 play 개수 윈도로 소멸한다.
 
 ### 4.4 경기 중요도 보정
 
