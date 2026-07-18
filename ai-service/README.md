@@ -11,7 +11,7 @@ FastAPI 기반 AI 문구 생성 서비스다. backend에서 스포일러 없는 
 | Swagger UI | `/docs` |
 | OpenAPI JSON | `/openapi.json` |
 
-저장 조건, `contextHash` 검증과 스포일러 정책은 [`docs/design/AI_COPY.md`](../docs/design/AI_COPY.md)를 따른다.
+저장 조건, `contextHash` 검증과 스포일러 정책은 [`docs/design/policy/AI_COPY.md`](../docs/design/policy/AI_COPY.md)를 따른다.
 
 ## 원칙
 
