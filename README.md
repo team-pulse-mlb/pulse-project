@@ -38,6 +38,20 @@
 | 실시간 | Server-Sent Events(SSE) |
 | Infra | Docker Compose, AWS EC2·RDS·S3 |
 
+## 저장소 구조
+
+```text
+pulse-project/
+├── frontend/      # React 웹 애플리케이션
+├── backend/       # 수집·점수화·랭킹·REST API
+├── ai-service/    # AI 문구 생성·스포일러 검수
+├── raw-archive/   # 원본 데이터 수집·백필·분석
+├── infra/         # 인프라 구성(local: 로컬 개발용, prod: AWS 운영)
+└── docs/          # 제품·설계·가이드·팀 문서
+```
+
+전체 문서 색인은 [docs/README.md](docs/README.md)를 따른다. 로컬 실행은 [로컬 인프라 가이드](docs/guide/LOCAL_ENV.md)를 따른다.
+
 ## 전체 아키텍처
 
 ```mermaid
@@ -198,40 +212,3 @@ flowchart LR
 ```
 
 판정 조건과 이벤트 스키마는 [NOTIFICATIONS.md](docs/policy/NOTIFICATIONS.md)를 따른다.
-
-## 저장소 구조
-
-```text
-pulse-project/
-├── frontend/      # React 웹 애플리케이션
-├── backend/       # 수집·점수화·랭킹·REST API
-├── ai-service/    # AI 문구 생성·스포일러 검수
-├── raw-archive/   # 원본 데이터 수집·백필·분석
-├── infra/         # 인프라 구성(local: 로컬 개발용, prod: AWS 운영)
-└── docs/          # 제품·설계·가이드·팀 문서
-```
-
-전체 문서 색인은 [docs/README.md](docs/README.md)를 따른다.
-
-## 빠른 로컬 실행
-
-Docker Desktop을 사용한다.
-
-### 1. 환경 변수 준비
-
-`.env.example`을 복사해 저장소 루트에 `.env`를 만들고, 파일 안 주석에 따라 값을 채운다.
-
-### 2. 실행
-
-Docker Desktop을 켠 뒤 저장소 루트에서 실행한다.
-`8080` 포트를 사용하는 기존 백엔드는 먼저 종료한다.
-
-```bash
-docker compose -f infra/local/docker-compose.yml --env-file .env up -d --build --wait
-```
-
-- 프론트엔드: `http://localhost:5173`
-- 백엔드: `http://localhost:8080`
-- ai-service: `http://localhost:8000`
-- 상태 확인: `docker compose -f infra/local/docker-compose.yml --env-file .env ps`
-- 경기 시뮬레이션은 [라이브 시뮬레이터 가이드](docs/guide/LIVE_SIMULATOR.md)를 따른다.
