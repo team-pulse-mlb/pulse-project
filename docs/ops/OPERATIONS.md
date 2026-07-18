@@ -40,7 +40,7 @@ cd /home/ubuntu/pulse-runtime
 docker compose -f docker-compose.prod.yml ps
 ```
 
-Prometheus·Grafana 접근과 지표 조회 방법은 [`docs/ops/OBSERVABILITY.md`](../../docs/ops/OBSERVABILITY.md)를 따른다.
+Prometheus·Grafana 접근과 지표 조회 방법은 [`docs/ops/OBSERVABILITY.md`](OBSERVABILITY.md)를 따른다.
 
 ## 배포
 
@@ -78,7 +78,7 @@ docker compose -f docker-compose.prod.yml logs --tail=100 pulse-api pulse-poller
 
 ### ECR 이미지 보존
 
-`pulse-backend`·`pulse-ai-service` 저장소에는 [`ecr/lifecycle-policy.json`](ecr/lifecycle-policy.json) 수명 주기 정책을 적용한다.
+`pulse-backend`·`pulse-ai-service` 저장소에는 [`ecr/lifecycle-policy.json`](../../infra/prod/ecr/lifecycle-policy.json) 수명 주기 정책을 적용한다.
 
 - 커밋 SHA 태그 이미지는 최근 10개만 보존하고 나머지는 만료한다.
 - 태그가 없는 이미지는 push 1일 후 만료한다.
@@ -135,7 +135,7 @@ docker exec pulse-rabbitmq rabbitmqctl list_queues name messages_ready messages_
 - scorer가 느리면 RabbitMQ 소비자 수, 큐 적체, RDS 연결, GC·메모리 로그를 확인한다.
 - 처리 중인 메시지, 큐, outbox를 임의로 삭제하지 않는다.
 
-상세 PromQL과 경보 기준은 [`docs/ops/OBSERVABILITY.md`](../../docs/ops/OBSERVABILITY.md)를 따른다.
+상세 PromQL과 경보 기준은 [`docs/ops/OBSERVABILITY.md`](OBSERVABILITY.md)를 따른다.
 
 ### 복구 완료 기준
 
@@ -227,11 +227,11 @@ aws ssm create-document \
 
 백테스트 임시 입출력은 기존 `DEPLOY_S3_BUCKET`의 `backtest/pr/` prefix를 사용한다. `BACKTEST_DB_SECRET_ARN`은 배포 워크플로가 EC2의 `/etc/pulse/secrets.conf`에 식별자만 기록한다. 시크릿 값은 GitHub에 전달하지 않는다. 기존 `EC2_INSTANCE_ID`도 백테스트 워크플로가 함께 사용한다.
 
-준비가 끝나면 `tune:` 제목의 내부 PR에서 `scoring.yml`만 변경해 실행한다. 결과는 PR 코멘트와 GitHub Actions 아티팩트에만 남고 저장소 파일은 추가로 변경하지 않는다. 자세한 실행 조건과 판독 기준은 [`docs/policy/BACKTEST.md`](../../docs/policy/BACKTEST.md)를 따른다.
+준비가 끝나면 `tune:` 제목의 내부 PR에서 `scoring.yml`만 변경해 실행한다. 결과는 PR 코멘트와 GitHub Actions 아티팩트에만 남고 저장소 파일은 추가로 변경하지 않는다. 자세한 실행 조건과 판독 기준은 [`docs/policy/BACKTEST.md`](../policy/BACKTEST.md)를 따른다.
 
 ## 프론트엔드·API HTTPS
 
-프론트엔드는 S3 + CloudFront(OAC)로 서빙한다. 리소스·배포 절차는 [`FRONTEND.md`](FRONTEND.md), API를 `api.pulsemlb.com`으로 HTTPS화하는 절차는 [`API_HTTPS.md`](API_HTTPS.md) 참고.
+프론트엔드는 S3 + CloudFront(OAC)로 서빙한다. 리소스·배포 절차는 [`FRONTEND.md`](../../infra/prod/FRONTEND.md), API를 `api.pulsemlb.com`으로 HTTPS화하는 절차는 [`API_HTTPS.md`](../../infra/prod/API_HTTPS.md) 참고.
 
 ## 시크릿
 

@@ -1,7 +1,7 @@
 # PULSE 운영 Docker Compose (EC2)
 #
 # 같은 backend 이미지를 역할 게이트 환경 변수만 바꿔 pulse-api / pulse-poller / pulse-scorer
-# 3개 서비스로 재사용한다. 배포 절차와 환경 변수 목록은 infra/prod/README.md를 따른다.
+# 3개 서비스로 재사용한다. 배포 절차와 환경 변수 목록은 docs/ops/OPERATIONS.md를 따른다.
 #
 # 배치 기준: EC2에 이 파일과 prod/ 디렉터리, .env를 같은 위치에 두고 실행한다.
 #   docker compose -f docker-compose.prod.yml up -d
@@ -238,7 +238,7 @@ services:
 
   # ---- 일회성 배치 (docker compose --profile batch run --rm ...) ----
   # 상시 기동하지 않으며 run으로만 실행한다. 파라미터는 JAVA_OPTS의 -D 시스템 프로퍼티로 넘긴다.
-  # 실행 예시는 infra/prod/README.md의 "일회성 배치" 절을 따른다.
+  # 실행 예시는 docs/ops/OPERATIONS.md의 "일회성 배치" 절을 따른다.
   # 배치는 동시에 1개만 실행한다는 전제로 mem_limit 640m(2026-07-18 실측 배치 RSS 피크 437MB).
 
   pulse-replay:
