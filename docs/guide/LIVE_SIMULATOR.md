@@ -1,6 +1,4 @@
-# backend 실행·검증 가이드
-
-## 시뮬레이터 실행
+# 라이브 시뮬레이터 가이드
 
 연출할 예정·진행·곧 종료 경기는 `application.yml`의 `pulse.simulation.games`에 고정돼 있다. 기본 20배속에서 진행 경기는 약 9분간 재생되고, 곧 종료 경기는 종료 전이 후 실제 ai-service 호출 결과를 홈 카드에 표시한다.
 
@@ -22,14 +20,4 @@ bash backend/scripts/run-simulation.sh
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --env-file .env up -d --force-recreate --wait pulse-api
-```
-
-## 테스트와 빌드
-
-JDK 21에서 실행한다.
-
-```bash
-cd backend
-./gradlew test
-./gradlew clean build
 ```

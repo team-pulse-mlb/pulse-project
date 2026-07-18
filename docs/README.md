@@ -66,16 +66,14 @@
 | 문서 | 문서 범위 |
 |---|---|
 | [OBSERVABILITY.md](ops/OBSERVABILITY.md) | Prometheus 지표 정의, Grafana 조회·경보 기준 |
-
-운영 배포·장애 대응 런북은 [infra/prod/README.md](../infra/prod/README.md)를 따른다.
+| [OPERATIONS.md](ops/OPERATIONS.md) | 운영 리소스 구성, 배포 절차, 컨테이너 점검·장애 대응 런북 |
 
 ## guide — 실행·검증 가이드
 
 | 문서 | 문서 범위 |
 |---|---|
-| [BACKEND.md](guide/BACKEND.md) | backend 시뮬레이터 실행, 테스트·빌드 |
+| [LIVE_SIMULATOR.md](guide/LIVE_SIMULATOR.md) | 로컬 경기 시뮬레이터 실행 |
 | [FRONTEND.md](guide/FRONTEND.md) | frontend 개발 기준, 검증, 배포 경로 |
-| [AI_SERVICE.md](guide/AI_SERVICE.md) | ai-service API 문서 위치, 동작 원칙 |
 | [LOCAL_ENV.md](guide/LOCAL_ENV.md) | 로컬 Docker 스택 구성·상태 확인·초기화 |
 | [RAW_ARCHIVE.md](guide/RAW_ARCHIVE.md) | 원본 수집기 상태 확인, 백필, 배포 |
 
