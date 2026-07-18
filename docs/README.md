@@ -1,12 +1,13 @@
 # PULSE 문서 색인
 
-`docs/`는 문서 종류별 4개 폴더로 구성한다. 각 문서는 한 주제만 다룬다.
+`docs/`는 문서 종류별 5개 폴더로 구성한다. 각 문서는 한 주제만 다룬다.
 
 | 폴더 | 종류 |
 |---|---|
 | `product/` | 무엇을 만드는가 — 기획과 기능 범위 |
 | `design/` | 어떻게 만드는가 — 시스템 설계 |
 | `reference/` | 외부 데이터 실측 레퍼런스 |
+| `testing/` | 테스트 범위와 검증 기록 |
 | `team/` | 팀 규칙과 운영 |
 
 ## product — 기획
@@ -40,6 +41,14 @@
 | 문서 | 문서 범위 |
 |---|---|
 | [EXTERNAL_DATA_API.md](reference/EXTERNAL_DATA_API.md) | balldontlie MLB API의 호출 제한, 실제 제공 데이터, 등장 시점 |
+
+## testing — 테스트
+
+| 문서 | 문서 범위 |
+|---|---|
+| [UNIT_TESTS.md](testing/UNIT_TESTS.md) | 모듈별 단위 테스트 클래스, 핵심 시나리오, 실행 방법·작성 원칙 |
+| [INTEGRATION_TESTS.md](testing/INTEGRATION_TESTS.md) | DB·HTTP·Spring 컨텍스트 통합 범위와 테스트 인프라 |
+| [FUNCTIONAL_TESTS.md](testing/FUNCTIONAL_TESTS.md) | 사용자 주요 흐름의 기능 테스트 체크리스트 |
 
 ## team — 규칙·운영
 
