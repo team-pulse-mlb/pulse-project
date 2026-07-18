@@ -1,5 +1,6 @@
 package com.pulse.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.pulse.domain.*;
 import com.pulse.scorer.TensionCurveQueryService;
 import lombok.RequiredArgsConstructor;
@@ -777,6 +778,16 @@ public class GameQueryService {
      * 경기 상태와 공개 모드에 따라 서로 다른 DTO를 반환하기 위한
      * 공통 응답 타입이다.
      */
+    @Schema(
+            description = "경기 상태와 표시 모드에 따라 달라지는 경기 상세 응답",
+            oneOf = {
+                    ScheduledGameDetailResponse.class,
+                    ProtectedGameDetailResponse.class,
+                    RevealedGameDetailResponse.class,
+                    ProtectedFinalGameDetailResponse.class,
+                    RevealedFinalGameDetailResponse.class
+            }
+    )
     public sealed interface GameDetailView
             permits ScheduledGameDetailResponse,
             ProtectedGameDetailResponse,

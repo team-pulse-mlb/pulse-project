@@ -283,15 +283,23 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
 
 ## 5. scorer ↔ ai-service HTTP 계약
 
-| 항목 | `POST /ai/final-headline` | `POST /ai/event-copy` | `POST /ai/play-translation` |
-|---|---|---|---|
-| 요청 | `gameId`, `mode`(`PROTECTED`/`REVEALED`), `contextHash`, `safeContext` | `gameId`, `eventId`, `mode=PROTECTED`, `contextHash`, `safeContext` | `gameId`, `playId`, `mode=REVEALED`, `contextHash`, `sourceText`, `targetLanguage=ko` |
-| 응답 | `spoilerSafe`, `safeTitle`, `violations`, `fallbackUsed`, `contextHash` | `spoilerSafe`, `safeTitle`, `violations`, `fallbackUsed`, `contextHash` | `translatedText`, `violations`, `fallbackUsed`, `contextHash` |
-| 저장 위치 | `games.final_headline_*` | `game_events.copy_protected`, `copy_protected_context_hash` | `plays.text_ko`, `text_ko_context_hash` |
-| 저장 책임 | scorer | scorer | scorer |
+내부 HTTP API의 경로, 요청·응답 필드, 필수값, enum, 예시는 FastAPI가 생성하는 OpenAPI를 단일 기준으로 사용한다.
+
+| 문서 | 경로 |
+|---|---|
+| Swagger UI | ai-service `/docs` |
+| OpenAPI JSON | ai-service `/openapi.json` |
+
+스키마를 변경할 때는 `ai-service/app/schemas/ai_schema.py`의 Pydantic 모델과 `ai-service/app/routers/ai_router.py`의 `response_model`을 먼저 수정한다. 이 문서에는 요청·응답 JSON 예시를 중복 작성하지 않는다.
+
+| API | 저장 위치 | 저장 책임 |
+|---|---|---|
+| 종료 헤드라인 생성 | `games.final_headline_*` | scorer |
+| 보호 이벤트 문구 생성 | `game_events.copy_protected`, `copy_protected_context_hash` | scorer |
+| 공개 플레이 번역 | `plays.text_ko`, `text_ko_context_hash` | scorer |
 
 - 요청 직렬화: `mode=PROTECTED` 요청의 `safeContext`에는 금지 필드 키가 존재하지 않아야 한다(§4). 헤드라인의 모드별 직렬화 결과를 검증하는 테스트를 둔다. `PLAY_TRANSLATION`은 `mode=REVEALED`만 허용한다.
-- 응답 필드는 `violations: []`, `fallbackUsed: false` 같은 기본값도 생략하지 않는다.
+- 응답의 `violations`, `fallbackUsed`, `contextHash`는 성공·실패와 무관하게 반환한다.
 - 검수 기준: `mode=PROTECTED` 응답은 결과·방향성 표현(SPOILER_POLICY.md §6)이 포함되면 `spoilerSafe=false`로 반려한다. 공개 헤드라인은 `safeContext`로 전달한 실제 결과 범위 안의 언급만 허용한다. 플레이 번역은 비어 있지 않아야 하며 원문의 이름·숫자·결과를 보존하고 설명을 추가하지 않아야 한다.
 - 범위 밖 계약: 알림·토스트·`switchSuggestion` 문구는 LLM을 사용하지 않는다. 태그별 고정 템플릿으로 서버가 완성 문자열을 조립한다.
 - 타임아웃: Spring Boot → ai-service 호출은 8초, ai-service → OpenAI 호출은 목적별 설정으로 더 짧게 제한한다(문구 생성·플레이 번역 3초, 공통 기본 6초). OpenAI 응답 이후 JSON 파싱·스포일러 검수·응답 반환 시간이 필요하므로 ai-service 내부 timeout을 Spring Boot 호출 timeout보다 짧게 둔다.
@@ -300,59 +308,9 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
 - 저장 조건: 헤드라인·이벤트 문구는 `spoilerSafe=true`, `fallbackUsed=false`, `contextHash` 일치인 응답만 저장한다. 플레이 번역은 `translatedText`가 비어 있지 않고 `fallbackUsed=false`, `contextHash` 일치일 때만 저장한다.
 - stale write 방지: 응답의 `contextHash`가 대상의 최신 context 해시와 일치할 때만 저장한다. 이벤트 문구는 `eventId`·`gameId`·`mode=PROTECTED`, 플레이 번역은 `playId`·`gameId`·원문 해시가 모두 일치해야 한다.
 
-### 5.1 응답 필드
+### 5.1 응답 처리 원칙
 
-`passed`/`text`/`reason` 같은 공통 필드 대신 응답 필드를 명확히 고정한다.
-
-```jsonc
-// FINAL_HEADLINE, mode=PROTECTED
-{
-  "spoilerSafe": true,
-  "safeTitle": "7회 만루 승부가 등장한, 끝까지 긴장감이 이어진 경기입니다.",
-  "violations": [],
-  "fallbackUsed": false,
-  "contextHash": "..."
-}
-
-// EVENT_COPY, mode=PROTECTED
-{
-  "spoilerSafe": true,
-  "safeTitle": "7회 만루 상황에서 긴 승부가 이어졌습니다.",
-  "violations": [],
-  "fallbackUsed": false,
-  "contextHash": "..."
-}
-
-// FINAL_HEADLINE, mode=REVEALED
-{
-  "spoilerSafe": true,
-  "safeTitle": "LAD가 SF를 5-3으로 이긴 경기입니다.",
-  "violations": [],
-  "fallbackUsed": false,
-  "contextHash": "..."
-}
-
-// PLAY_TRANSLATION, mode=REVEALED
-{
-  "translatedText": "Marsh가 루킹 삼진을 당했습니다.",
-  "violations": [],
-  "fallbackUsed": false,
-  "contextHash": "..."
-}
-```
-
-보호 모드 문구는 이닝 숫자와 보호 표기만 사용한다. "중반 이후 득점권 승부가 반복되며 흐름이 크게 출렁인 경기입니다."처럼 결과·방향·팀 유불리를 드러내지 않는 표현만 허용한다.
-
-검수 실패나 생성 실패 시에는 생성 문구 필드를 비우거나 생략하고, 실패 상태와 위반 항목을 반환한다. 생성 실패 사유도 `violations`에 코드 형태로 넣어 Spring Boot가 저장 금지 사유를 남길 수 있게 한다.
-
-```jsonc
-{
-  "spoilerSafe": false,
-  "violations": ["FORBIDDEN_WORD:홈런"],
-  "fallbackUsed": false,
-  "contextHash": "..."
-}
-```
+보호 모드 문구는 이닝 숫자와 보호 표기만 사용하며 결과·방향·팀 유불리를 드러내지 않는다. 검수 실패나 생성 실패 시 생성 문구 필드는 비우거나 생략하고 실패 상태와 위반 코드를 반환한다. Spring Boot는 위반 코드를 저장 금지 사유로 기록할 수 있다.
 
 ### 5.2 violations 코드 패턴
 

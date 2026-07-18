@@ -108,6 +108,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // 5173 관련 오류 임시 해결
 
+                        // REST 계약 문서는 인증 없이 확인할 수 있도록 공개합니다.
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
+                        ).permitAll()
+
                         // 회원가입 Step 2 관심팀 선택 화면에서 사용하는 팀 목록 조회 API
                         // 로그인 전에도 호출해야 하므로 GET 요청은 공개 허용
                         .requestMatchers(HttpMethod.GET, "/api/teams").permitAll()

@@ -3,6 +3,10 @@ package com.pulse.api.notification;
 import com.pulse.api.notification.dto.NotificationReadRequest;
 import com.pulse.api.notification.dto.NotificationReadResponse;
 import com.pulse.api.notification.dto.NotificationResponse;
+import com.pulse.common.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -27,6 +31,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/me/notifications")
 @RequiredArgsConstructor
+@Tag(name = "알림", description = "현재 사용자의 알림 목록과 읽음 상태")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class NotificationController {
 
     /**
@@ -43,6 +49,7 @@ public class NotificationController {
      * @param authentication 현재 로그인한 사용자의 인증 정보
      * @return 최신순 알림 목록
      */
+    @Operation(summary = "내 알림 목록 조회", description = "최근 7일 알림을 최신순으로 반환한다.")
     @GetMapping
     public List<NotificationResponse> getMyNotifications(
             Authentication authentication
@@ -68,6 +75,10 @@ public class NotificationController {
      * @param request 읽음 처리 요청
      * @return 실제로 읽음 처리된 개수
      */
+    @Operation(
+            summary = "내 알림 읽음 처리",
+            description = "all=true이면 모든 미읽음 알림을, false이면 notificationIds의 알림만 처리한다."
+    )
     @PostMapping("/read")
     public NotificationReadResponse markAsRead(
             Authentication authentication,
