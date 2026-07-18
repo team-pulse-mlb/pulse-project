@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Configuration;
                 description = """
                         스포일러 프리 MLB 관전 타이밍 추천 서비스의 REST API 명세입니다.
                         보호 모드와 공개 모드의 응답 차이는 각 경기 API 설명과 응답 스키마를 따릅니다.
-                        SSE 연결 정책과 내부 메시지·캐시 계약은 docs/design/api/API_CONTRACTS.md를 참조합니다.
+                        SSE 연결 정책과 내부 메시지·캐시 계약은 docs/api/API_CONTRACTS.md를 참조합니다.
                         """,
                 license = @License(name = "Private")
         )

@@ -30,16 +30,60 @@
 | `com.pulse.domain` | JPA 엔티티와 Repository | 전 기능에서 읽기 전용 사용 |
 | `com.pulse.common` | 설정, 외부 클라이언트, 공통 DTO | 전 기능에서 공통 기반으로 사용 |
 
+```text
+MLB API → poller → PostgreSQL → RabbitMQ → scorer → Redis → REST API·SSE
+```
+
+### 기능별 주요 파일
+
+| 기능 | 진입점 | 로직 구현 |
+|---|---|---|
+| 홈 경기 목록 | `api/home/HomeGameController.java` | `api/home/HomeQueryService.java` |
+| 실시간 추천 순위 | `api/home/HomeRankingController.java` | `ranking/RankingService.java` |
+| 경기 상세·펄스 그래프 | `api/GameController.java` | `api/GameQueryService.java`, `scorer/TensionCurveQueryService.java` |
+| SSE | `api/sse/SseController.java` | `api/sse/RedisSignalRelay.java` |
+| 점수 계산 | `scorer/ScoreTaskListener.java` | `scorer/LiveScoringService.java`, `scorer/ScoreCalculator.java` |
+| 경기 수집 | `poller/` | `common/client/` |
+| 알림 발행 | `scorer/SurgeDetector.java` | `common/message/NotificationOutboxDispatcher.java` |
+
 ## 3. frontend 폴더 구조
 
 폴더 내부에서는 컴포넌트, API 호출, 상태 관리를 분리한다.
 
 대상 폴더는 `features/home`, `features/game-detail`, `features/ai-copy`, `features/auth`, `features/notification`, `shared`, `app`이다.
 
+```text
+src/
+├── app/                    라우터·레이아웃·프로바이더
+├── features/
+│   ├── auth/               회원·인증·관심 설정
+│   ├── game-detail/        경기 상세·표시 모드
+│   ├── home/               홈·추천 순위
+│   └── notification/       알림 센터
+├── shared/
+│   ├── api/                HTTP 클라이언트
+│   ├── components/         공통 UI
+│   ├── hooks/              SSE 등 공통 훅
+│   ├── lib/                쿼리 키·QueryClient
+│   └── styles/             디자인 토큰·전역 스타일
+└── main.tsx                애플리케이션 시작 파일
+```
+
+### 기능별 주요 파일
+
+| 기능 | 화면 | 데이터·공통 코드 |
+|---|---|---|
+| 앱 시작·라우팅 | `src/main.tsx`, `src/app/router/root.tsx` | `src/app/providers.tsx` |
+| 홈 | `src/features/home/pages/HomePage.tsx` | `hooks/useHomeQueries.ts`, `api/homeApi.ts` |
+| 경기 상세 | `src/features/game-detail/pages/GameDetailPage.tsx` | `components/TensionCurve.tsx`, `components/EventTimeline.tsx` |
+| SSE | `src/shared/hooks/useSse.ts` | `src/shared/lib/queryKeys.ts` |
+| HTTP 요청 | 기능별 `api/*.ts` | `src/shared/api/httpClient.ts` |
+| 공통 스타일 | 기능별 컴포넌트 | `src/shared/styles/global.css` |
+
 ## 4. ai-service·raw-archive·infra 경계
 
 | 영역 | 경계 |
 |---|---|
 | `ai-service/` | FastAPI 기반 문구 생성·스포일러 검수 서비스다. scorer가 응답 경로 밖에서 비동기 문구 생성을 요청하고, 검수 통과 문구는 Redis 또는 PostgreSQL 저장 경로로 전달된다. |
-| `raw-archive/` | S3 임시 아카이브 도구다. 개발·데이터 파악·백테스트용 임시 수집에 한정하며, 운영 DB 이전 완료 후 폐기 예정이다. |
+| `raw-archive/` | S3 임시 아카이브 도구다. 개발·데이터 파악·백테스트용 임시 수집에 한정하며, 운영 DB 이전 완료 후 폐기 예정이다. 하위는 `live-collector/`(Lambda 라이브 수집기), `backfill/`(과거 시즌 일회성 적재), `deploy/`(AWS 수집기 배포), `analysis/`(수집 데이터 분석)로 나뉜다. |
 | `infra/` | `infra/local`은 로컬 개발용 Compose(PostgreSQL·Redis·RabbitMQ·앱 컨테이너), `infra/docker-compose.prod.yml`·`infra/prod`는 운영 Compose와 배포·운영 절차다. |
