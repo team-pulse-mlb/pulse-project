@@ -1,6 +1,6 @@
 # 관측성
 
-Prometheus 지표 정의와 Grafana 조회·경보 기준을 관리한다. 배포, 컨테이너 점검, 장애 복구 절차는 [`infra/prod/README.md`](../../infra/prod/README.md)를 따른다.
+Prometheus 지표 정의와 Grafana 조회·경보 기준을 관리한다. 배포, 컨테이너 점검, 장애 복구 절차는 [`OPERATIONS.md`](OPERATIONS.md)를 따른다.
 
 ## 접근
 
@@ -166,7 +166,7 @@ poller·scorer는 실패 카운터를 시작 시 `0`으로 등록한다. 배포 
 
 ## 관련 문서
 
-- [`infra/prod/README.md`](../../infra/prod/README.md): 배포, 컨테이너 점검, 장애 대응·복구
-- [`DATA_PIPELINE.md`](DATA_PIPELINE.md): 상태별 폴링, 호출 예산, 429 대응
-- [`MESSAGING.md`](MESSAGING.md): RabbitMQ, outbox, 재전달·멱등 계약
-- [`NOTIFICATIONS.md`](NOTIFICATIONS.md): 알림 판정, outbox, fan-out 계약
+- [`OPERATIONS.md`](OPERATIONS.md): 배포, 컨테이너 점검, 장애 대응·복구
+- [`DATA_PIPELINE.md`](../data/DATA_PIPELINE.md): 상태별 폴링, 호출 예산, 429 대응
+- [`MESSAGING.md`](../data/MESSAGING.md): RabbitMQ, outbox, 재전달·멱등 계약
+- [`NOTIFICATIONS.md`](../policy/NOTIFICATIONS.md): 알림 판정, outbox, fan-out 계약

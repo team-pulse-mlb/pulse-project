@@ -86,13 +86,13 @@ public record ScoringProperties(
         public TensionCurve {
             levelBoundaries = List.copyOf(levelBoundaries);
             if (levelBoundaries.size() != 4) {
-                throw new IllegalArgumentException("긴장 곡선 경계값은 4개여야 합니다.");
+                throw new IllegalArgumentException("경기 긴장도 그래프 경계값은 4개여야 합니다.");
             }
             for (int index = 0; index < levelBoundaries.size(); index++) {
                 int boundary = levelBoundaries.get(index);
                 if (boundary < 0 || boundary > 100
                         || (index > 0 && boundary <= levelBoundaries.get(index - 1))) {
-                    throw new IllegalArgumentException("긴장 곡선 경계값은 0~100 사이에서 오름차순이어야 합니다.");
+                    throw new IllegalArgumentException("경기 긴장도 그래프 경계값은 0~100 사이에서 오름차순이어야 합니다.");
                 }
             }
         }

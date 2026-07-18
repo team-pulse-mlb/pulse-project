@@ -1,6 +1,27 @@
-# 로컬 인프라
+# 로컬 인프라 가이드
 
-로컬 개발용 전체 스택 구성이다.
+로컬 개발용 전체 스택 구성이다. Docker Desktop을 사용한다.
+
+## 빠른 실행
+
+### 1. 환경 변수 준비
+
+`.env.example`을 복사해 저장소 루트에 `.env`를 만들고, 파일 안 주석에 따라 값을 채운다.
+
+### 2. 실행
+
+Docker Desktop을 켠 뒤 저장소 루트에서 실행한다.
+`8080` 포트를 사용하는 기존 백엔드는 먼저 종료한다.
+
+```bash
+docker compose -f infra/local/docker-compose.yml --env-file .env up -d --build --wait
+```
+
+- 프론트엔드: `http://localhost:5173`
+- 백엔드: `http://localhost:8080`
+- ai-service: `http://localhost:8000`
+- 상태 확인: `docker compose -f infra/local/docker-compose.yml --env-file .env ps`
+- 경기 시뮬레이션은 [LIVE_SIMULATOR.md](LIVE_SIMULATOR.md)를 따른다.
 
 ## 구성
 

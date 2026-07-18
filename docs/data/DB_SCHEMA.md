@@ -377,7 +377,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 **키·인덱스** — PK `player_id` · idx(`team_id`), idx(`full_name`)
 
-> 시딩 원천은 poller 파이프라인(추적 경기의 스텁·보강)과 관심 선수 등록([AUTH_POLICY.md](AUTH_POLICY.md) §2)이다. 후자로 추적 경기에 없던 선수도 행으로 존재할 수 있다. 관심 선수 등록 행은 `full_name`이 채워져 있어 `full_name IS NULL` 대상 보강 배치의 갱신 범위 밖이다.
+> 시딩 원천은 poller 파이프라인(추적 경기의 스텁·보강)과 관심 선수 등록([AUTH_POLICY.md](../api/AUTH_POLICY.md) §2)이다. 후자로 추적 경기에 없던 선수도 행으로 존재할 수 있다. 관심 선수 등록 행은 `full_name`이 채워져 있어 `full_name IS NULL` 대상 보강 배치의 갱신 범위 밖이다.
 
 ## D. 경기 전 계산 입력
 

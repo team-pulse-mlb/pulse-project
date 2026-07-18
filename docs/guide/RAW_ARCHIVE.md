@@ -1,18 +1,6 @@
-# PULSE 원본 데이터 아카이브
+# 원본 데이터 아카이브 가이드
 
-balldontlie MLB API 원본 응답을 S3에 gzip JSON으로 저장하는 도구 모음이다.
-
-## 폴더 구조
-
-```text
-raw-archive/
-├── live-collector/     Lambda 라이브 수집기
-├── backfill/           과거 시즌 일회성 적재
-├── deploy/             AWS 수집기 배포
-└── analysis/           수집 데이터 분석
-```
-
-배포와 백필 명령은 실제 AWS 리소스와 운영 버킷을 변경한다.
+balldontlie MLB API 원본 응답을 S3에 gzip JSON으로 저장하는 도구 모음이다. 배포와 백필 명령은 실제 AWS 리소스와 운영 버킷을 변경한다.
 
 ## 수집 상태 확인
 

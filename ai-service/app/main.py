@@ -7,7 +7,7 @@ app = FastAPI(
     description=(
         "PULSE 백엔드가 전달한 제한된 경기 컨텍스트로 문구를 생성하고 "
         "스포일러·근거 보존 규칙을 검수하는 내부 API입니다. "
-        "저장 조건과 contextHash 검증 정책은 docs/design/AI_COPY.md를 따릅니다."
+        "저장 조건과 contextHash 검증 정책은 docs/policy/AI_COPY.md를 따릅니다."
     ),
     version="0.1.0",
     openapi_tags=[
