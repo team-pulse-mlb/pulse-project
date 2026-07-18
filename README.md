@@ -90,7 +90,7 @@ docker compose -f infra/local/docker-compose.yml --env-file .env up -d --build -
 | 구분 | 문서 |
 |---|---|
 | 제품 | [기능 명세](docs/product/FEATURE_SPEC.md), [사용자 흐름](docs/product/USER_FLOW.md), [프로젝트 제안](docs/product/PROJECT_PROPOSAL.md) |
-| 설계 | [아키텍처](docs/design/ARCHITECTURE.md), [데이터 파이프라인](docs/design/DATA_PIPELINE.md), [API 계약](docs/design/API_CONTRACTS.md), [스포일러 정책](docs/design/SPOILER_POLICY.md), [DB 스키마](docs/design/DB_SCHEMA.md) |
+| 설계 | [아키텍처](docs/design/ARCHITECTURE.md), [데이터 파이프라인](docs/design/DATA_PIPELINE.md), [API 계약 안내](docs/design/API_CONTRACTS.md), [SSE 계약](docs/design/SSE.md), [메시징 계약](docs/design/MESSAGING.md), [스포일러 정책](docs/design/SPOILER_POLICY.md), [DB 스키마](docs/design/DB_SCHEMA.md) |
 | 협업 | [개발 규칙](docs/team/CONVENTIONS.md), [역할과 일정](docs/team/ROLES_AND_SCHEDULE.md) |
 | 전체 | [문서 안내](docs/README.md) |
 

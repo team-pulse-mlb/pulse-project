@@ -29,9 +29,14 @@
 | [SCORING.md](design/SCORING.md) | watch/pregame/peak 점수 공식, 신호 정의, 결측 처리 |
 | [BACKTEST.md](design/BACKTEST.md) | 가중치 백테스트 재생·지표·튜닝·영향 리포트 |
 | [SPOILER_POLICY.md](design/SPOILER_POLICY.md) | 보호/공개 모드, 화면별 노출·금지 필드, 태그·이벤트 표기 |
-| [NOTIFICATIONS.md](design/NOTIFICATIONS.md) | 알림 판정 조건, 파이프라인, 이벤트 스키마·fan-out |
+| [NOTIFICATIONS.md](design/NOTIFICATIONS.md) | 알림·경기 전환 추천 조건, 파이프라인, 이벤트 스키마·fan-out |
 | [AI_COPY.md](design/AI_COPY.md) | AI 문구 생성 트리거, 컨텍스트·HTTP 계약, 검수·저장 |
-| [API_CONTRACTS.md](design/API_CONTRACTS.md) | REST/SSE 명세, 모듈 인터페이스, 메시징·캐시 스키마 |
+| [API_CONTRACTS.md](design/API_CONTRACTS.md) | REST 계약 기준과 주제별 계약 문서 색인 |
+| [AUTH_POLICY.md](design/AUTH_POLICY.md) | 인증 토큰·이메일 인증, 관심 선수 검색·등록 정책 |
+| [SSE.md](design/SSE.md) | SSE 이벤트, 연결·인증·재연결 정책 |
+| [MESSAGING.md](design/MESSAGING.md) | RabbitMQ 큐, ScoreTask, outbox·멱등 계약 |
+| [REDIS_KEYS.md](design/REDIS_KEYS.md) | Redis 키 이름·타입·라이프사이클 |
+| [MODULE_INTERFACES.md](design/MODULE_INTERFACES.md) | 팀 간 Java 인터페이스와 제공·사용 경계 |
 | [TECH_STACK.md](design/TECH_STACK.md) | 기술 스택 선정 이유, 배포 토폴로지, 기각 목록 |
 | [PROJECT_STRUCTURE.md](design/PROJECT_STRUCTURE.md) | 레포 폴더·패키지 구조와 의존 방향 |
 | [OBSERVABILITY.md](design/OBSERVABILITY.md) | Prometheus 지표 정의, Grafana 조회·경보 기준 |

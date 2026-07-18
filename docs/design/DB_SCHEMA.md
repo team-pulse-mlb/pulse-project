@@ -377,7 +377,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 **키·인덱스** — PK `player_id` · idx(`team_id`), idx(`full_name`)
 
-> 시딩 원천은 poller 파이프라인(추적 경기의 스텁·보강)과 관심 선수 등록([API_CONTRACTS.md](API_CONTRACTS.md) §2.2)이다. 후자로 추적 경기에 없던 선수도 행으로 존재할 수 있다. 관심 선수 등록 행은 `full_name`이 채워져 있어 `full_name IS NULL` 대상 보강 배치의 갱신 범위 밖이다.
+> 시딩 원천은 poller 파이프라인(추적 경기의 스텁·보강)과 관심 선수 등록([AUTH_POLICY.md](AUTH_POLICY.md) §2)이다. 후자로 추적 경기에 없던 선수도 행으로 존재할 수 있다. 관심 선수 등록 행은 `full_name`이 채워져 있어 `full_name IS NULL` 대상 보강 배치의 갱신 범위 밖이다.
 
 ## D. 경기 전 계산 입력
 
@@ -473,14 +473,7 @@ api의 notification 소비자가 설정 켠 사용자에게 fan-out해 저장한
 
 ### E-2. Redis 키 (실시간 조회 전용)
 
-핵심 키만 요약한다.
-
-| 키 | 타입 | 내용 |
-|---|---|---|
-| `score:rank:live` | `ZSET` | 진행 중 경기 `watch_score` 랭킹 (member=`game_id`, score=`watch_score`) |
-| `game:{id}:live` | `HASH` | 현재 점수·이닝·노출 태그 캐시 (내부 전용) |
-
-종료 경기 AI 헤드라인은 Redis 캐시 없이 `games.final_headline_protected`·`games.final_headline_revealed`를 직접 조회한다.
+Redis 키의 이름, 타입, 내용, 라이프사이클은 [REDIS_KEYS.md](REDIS_KEYS.md)를 따른다.
 
 ### E-3. S3 원본 레이아웃 (개발·백테스트 전용)
 
