@@ -283,7 +283,7 @@ class HistoricalScoreReplayServiceTest {
                 new ScoringProperties.ScoreGap(15, 9, 3),
                 new ScoringProperties.RecentScore(6, 15, 180,
                         Map.of("gap-0", 2.0, "gap-1", 1.5, "gap-2", 1.2, "default", 1.0)),
-                new ScoringProperties.LeadChange(9, 12),
+                new ScoringProperties.LeadChange(9, 12, 300),
                 new ScoringProperties.BigInning(9, 2),
                 new ScoringProperties.CountPressure(3, 3, 5),
                 new ScoringProperties.Pressure(6, 4),

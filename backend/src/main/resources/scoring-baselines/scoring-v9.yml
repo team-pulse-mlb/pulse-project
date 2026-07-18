@@ -1,3 +1,4 @@
+# v9 기준 스냅샷 — 수정 금지
 # PULSE 추천 점수 상수
 #
 # 규칙
@@ -6,7 +7,7 @@
 # - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
 
 scoring:
-  version: 10
+  version: 9
 
   # 기본 신호 (랭킹에 사용)
   late-inning:
@@ -30,7 +31,6 @@ scoring:
   lead-change:
     bonus: 14
     window-plays: 16
-    tau-seconds: 300
   big-inning:
     bonus: 9
     min-scoring-plays: 2

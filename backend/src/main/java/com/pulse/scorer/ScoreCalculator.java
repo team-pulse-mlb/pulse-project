@@ -71,7 +71,7 @@ public class ScoreCalculator {
         signals.put("late_or_extra", lateOrExtra(game, input.gameSnapshot()));
         signals.put("score_gap", scoreGap(game, input.gameSnapshot()));
         signals.put("recent_score", recentScore(recentPlays, now));
-        signals.put("lead_change", leadChange(recentPlays, input.seedLeader()));
+        signals.put("lead_change", leadChange(recentPlays, input.seedLeader(), now));
         signals.put("big_inning", bigInning(recentPlays));
         signals.put("pressure", pressure(situation));
         signals.put("count_pressure", countPressure(situation));
@@ -190,8 +190,9 @@ public class ScoreCalculator {
         return total;
     }
 
-    private double leadChange(List<Play> recentPlays, int seedLeader) {
+    private double leadChange(List<Play> recentPlays, int seedLeader, Instant now) {
         int lastLeader = seedLeader;
+        Play latestLeadChange = null;
         for (Play play : recentPlays) {
             if (play.getHomeScore() == null || play.getAwayScore() == null) {
                 continue;
@@ -199,12 +200,22 @@ public class ScoreCalculator {
             int leader = Integer.signum(play.getHomeScore() - play.getAwayScore());
             if (leader != 0) {
                 if (lastLeader != 0 && leader != lastLeader) {
-                    return props.leadChange().bonus();
+                    latestLeadChange = play;
                 }
                 lastLeader = leader;
             }
         }
-        return 0;
+        if (latestLeadChange == null) {
+            return 0;
+        }
+        // tau-seconds가 없는 구버전 설정(v9 이하 baseline)은 윈도 내 고정 보너스 동작을 유지한다.
+        if (latestLeadChange.getFetchedAt() == null || props.leadChange().tauSeconds() <= 0) {
+            return props.leadChange().bonus();
+        }
+        double ageSeconds = Math.max(0, Duration.between(latestLeadChange.getFetchedAt(), now).getSeconds());
+        double decay = Math.exp(-ageSeconds / props.leadChange().tauSeconds());
+
+        return props.leadChange().bonus() * decay;
     }
 
     private double bigInning(List<Play> recentPlays) {

@@ -1,6 +1,7 @@
 package com.pulse.scorer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
@@ -53,23 +54,81 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    @DisplayName("리드 변경이 있으면 없을 때보다 점수가 높다")
-    void leadChangeAddsBonus() {
+    @DisplayName("리드 변경 직후에는 보너스를 그대로 적용한다")
+    void leadChangeImmediatelyAddsFullBonus() {
         Game game = game(8, 4, 5);
         // 4-3 (홈 리드) → 4-5 (원정 리드): 리드 변경
         List<Play> withLeadChange = List.of(
                 play(8, 4, 3, now.minusSeconds(300)),
-                scoringPlay(8, 4, 5, now.minusSeconds(60)));
-        // 계속 원정 리드
-        List<Play> withoutLeadChange = List.of(
-                play(8, 3, 5, now.minusSeconds(300)),
-                play(8, 3, 5, now.minusSeconds(60)));
+                scoringPlay(8, 4, 5, now));
 
         double changed = signal(game, withLeadChange, "lead_change");
-        double unchanged = signal(game, withoutLeadChange, "lead_change");
 
-        assertThat(changed).isGreaterThan(unchanged);
-        assertThat(unchanged).isZero();
+        assertThat(changed).isEqualTo(testProps().leadChange().bonus());
+    }
+
+    @Test
+    @DisplayName("리드 변경 후 tau가 지나면 보너스가 약 0.368배로 감쇠한다")
+    void leadChangeDecaysAfterTau() {
+        Game game = game(8, 4, 5);
+        List<Play> plays = List.of(
+                play(8, 4, 3, now.minusSeconds(600)),
+                scoringPlay(8, 4, 5, now.minusSeconds(300)));
+
+        double changed = signal(game, plays, "lead_change");
+        double expected = testProps().leadChange().bonus() * Math.exp(-1);
+
+        assertThat(changed).isCloseTo(expected, within(0.01));
+    }
+
+    @Test
+    @DisplayName("가장 최근 리드 변경 시각을 기준으로 감쇠한다")
+    void leadChangeUsesMostRecentChange() {
+        Game game = game(8, 5, 4);
+        List<Play> plays = List.of(
+                play(8, 3, 2, now.minusSeconds(600)),
+                scoringPlay(8, 3, 4, now.minusSeconds(300)),
+                scoringPlay(8, 5, 4, now));
+
+        double changed = signal(game, plays, "lead_change");
+
+        assertThat(changed).isEqualTo(testProps().leadChange().bonus());
+    }
+
+    @Test
+    @DisplayName("리드 변경이 탐색 윈도 밖이면 보너스를 적용하지 않는다")
+    void leadChangeOutsideWindowAddsNoBonus() {
+        Game game = game(8, 3, 4);
+        Play[] allPlays = new Play[testProps().leadChange().windowPlays() + 2];
+        allPlays[0] = play(8, 3, 2, now.minusSeconds(1400));
+        allPlays[1] = scoringPlay(8, 3, 4, now.minusSeconds(1300));
+        for (int index = 2; index < allPlays.length; index++) {
+            allPlays[index] = play(8, 3, 4, now.minusSeconds(1200 - index));
+        }
+        List<Play> recentWindow = List.of(allPlays)
+                .subList(allPlays.length - testProps().leadChange().windowPlays(), allPlays.length);
+
+        ScoreCalculator.Result result = calculator.calculate(game, recentWindow, null, -1, now);
+
+        assertThat(result.signals().get("lead_change")).isZero();
+    }
+
+    @Test
+    @DisplayName("리드 변경 시각이 없으면 감쇠 없이 보너스를 적용한다")
+    void leadChangeWithoutFetchedAtAddsFullBonus() {
+        Game game = game(8, 4, 5);
+        // 득점 플래그 없이 점수 역전만 담은 play로 리드 변경 감쇠 방어 로직만 검증한다.
+        Play changedLeader = play(8, 4, 5, now);
+        changedLeader.setFetchedAt(null);
+
+        ScoreCalculator.Result result = calculator.calculate(
+                game,
+                List.of(play(8, 4, 3, now.minusSeconds(60)), changedLeader),
+                null,
+                0,
+                now);
+
+        assertThat(result.signals().get("lead_change")).isEqualTo(testProps().leadChange().bonus());
     }
 
     @Test
