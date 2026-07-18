@@ -1,0 +1,93 @@
+{
+  "conditions" : {
+    "backfillApproximation" : "최근 득점 15 plays 선형 감쇠, 리드 변경 25 plays 윈도",
+    "gameCount" : 3,
+    "to" : "2026-07-17",
+    "from" : "2026-07-04",
+    "sources" : {
+      "OPERATIONAL" : 1222
+    },
+    "candidateVersion" : 10,
+    "baselineVersion" : 9,
+    "alertLimit" : "실측 시각 source는 전역 한도 적용, S3_BACKFILL은 시간 기반 알림 제어 미적용"
+  },
+  "rankCorrelation" : {
+    "spearman" : 1.0,
+    "kendallTauB" : 1.0
+  },
+  "topChanges" : [ {
+    "gameId" : 14059224001,
+    "teams" : "LAD@ARI",
+    "baselinePeak" : 44.0,
+    "candidatePeak" : 44.0,
+    "baselineRank" : 1,
+    "candidateRank" : 1
+  }, {
+    "gameId" : 14059226001,
+    "teams" : "ARI@LAD",
+    "baselinePeak" : 24.0,
+    "candidatePeak" : 24.0,
+    "baselineRank" : 2,
+    "candidateRank" : 2
+  }, {
+    "gameId" : 14059226002,
+    "teams" : "ARI@LAD",
+    "baselinePeak" : 21.0,
+    "candidatePeak" : 21.0,
+    "baselineRank" : 3,
+    "candidateRank" : 3
+  } ],
+  "auc" : {
+    "baseline" : 0.5352564102564102,
+    "candidate" : 0.5352564102564102,
+    "delta" : 0.0
+  },
+  "sortingQuality" : {
+    "baseline" : 0.0,
+    "candidate" : 0.0,
+    "delta" : 0.0
+  },
+  "alerts" : {
+    "baseline" : {
+      "total" : 0,
+      "dailyAverage" : 0.0,
+      "dailyMax" : 0,
+      "perGame" : {
+        "14059224001" : 0,
+        "14059226001" : 0,
+        "14059226002" : 0
+      }
+    },
+    "candidate" : {
+      "total" : 0,
+      "dailyAverage" : 0.0,
+      "dailyMax" : 0,
+      "perGame" : {
+        "14059224001" : 0,
+        "14059226001" : 0,
+        "14059226002" : 0
+      }
+    },
+    "dailyAverageDelta" : 0.0
+  },
+  "games" : [ {
+    "candidatePeak" : 44.0,
+    "gameId" : 14059224001,
+    "baselinePeak" : 44.0,
+    "candidateAlerts" : 0,
+    "baselineAlerts" : 0
+  }, {
+    "candidatePeak" : 24.0,
+    "gameId" : 14059226001,
+    "baselinePeak" : 24.0,
+    "candidateAlerts" : 0,
+    "baselineAlerts" : 0
+  }, {
+    "candidatePeak" : 21.0,
+    "gameId" : 14059226002,
+    "baselinePeak" : 21.0,
+    "candidateAlerts" : 0,
+    "baselineAlerts" : 0
+  } ],
+  "guardFlags" : [ ]
+}
