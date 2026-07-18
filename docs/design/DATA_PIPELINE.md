@@ -36,10 +36,12 @@ flowchart LR
 | ① | 상시 (모든 경기 대상, `SCHEDULED` 포함) | `/games`로 어제·오늘 경기를 확인해 신규 경기, 상태 전이, 연기·취소를 감지한다. 특정 경기의 상태가 아니라 시스템 전체에 라이브 경기가 있는지로 주기가 갈린다. | `/games`: 라이브 경기 1개 이상이면 20초, 0개면 10분 |
 | ② | `PREGAME_FAR` (T-36h~T-6h) | 선발 예상 투수 등장을 확인한다. | `/lineups`: 1시간 |
 | ③ | `PREGAME_NEAR` (T-6h~시작) | `/lineups`는 타순 확정을, `/odds`는 `pregame_score`의 접전 기대 재료를 모은다. | `/lineups`: 15분 · `/odds`: 30분 |
-| ④ | `LIVE` | `/games`는 ①과 같은 사이클로 점수·이닝을 갱신하고, `/plays`는 cursor 증분, `/plate_appearances`는 전체 재조회 후 dedupe한다. 경기별 `/plays`·`/plate_appearances` 호출은 워커 6~8개로 병렬 실행해 한 라운드 지연을 줄인다. 수집 후 RabbitMQ로 계산 요청을 보낸다. LIVE 전이 감지 시 `GAME_START` 알림 이벤트를 발행한다. | `/games`: 20초 · `/plays`: 20초 · `/plate_appearances`: 20초 |
+| ④ | `LIVE` | `/games`는 ①과 같은 사이클로 점수·이닝을 갱신하고, `/plays`는 cursor 증분, `/plate_appearances`는 전체 재조회 후 dedupe한다. 경기별 `/plays`·`/plate_appearances` 호출은 워커 6~8개로 병렬 실행해 한 라운드 지연을 줄인다. 수집 후 RabbitMQ로 계산 요청을 보낸다. LIVE 전이 감지 시 `GAME_START` 알림 이벤트를 발행한다. 새 play가 장기간 없으면 아래 수집 완화 규칙을 적용한다. | `/games`: 20초 · `/plays`: 20초 · `/plate_appearances`: 20초 |
 | ⑤ | `FINAL` | 경기 종료를 감지하면 `lifecycleState=FINAL`을 실은 종료 ScoreTask를 발행한다. 라이브 랭킹(`score:rank:live`) 제거·`signal:ranking` 발행은 scorer가 수행한다. 별도 재분석은 하지 않는다. | 감지 시 1회 |
 | ⑥ | `DONE` | 연기·취소를 감지하면 `lifecycleState=DONE`을 실은 종료 ScoreTask를 발행한다. 랭킹 제거는 scorer가 수행한다. | 감지 시 1회 |
 | ⑦ | `SUSPENDED_POSTPONED` | 라이브 중 원본 `STATUS_POSTPONED`(서스펜디드 게임)를 감지하면 `lifecycleState=SUSPENDED_POSTPONED`을 실은 종료 ScoreTask를 발행한다. scorer는 라이브 랭킹에서 제거한다. 이후 재개(`STATUS_IN_PROGRESS`)·종료(`STATUS_FINAL`)·취소(`STATUS_CANCELED`)를 ①의 감시로 받아 각 상태로 보낸다. `DONE`이나 `FINAL`로 바로 보내지 않는 이유: 재개 시 이력이 끊기거나 종료 경기로 잘못 노출되는 것을 막기 위해서다. | 감지 시 1회, 이후 ① 주기 |
+
+**라이브 수집 완화(quiet)**: 새 play가 `quiet-threshold`(기본 10분) 이상 없는 LIVE 경기는 우천 중단 등으로 보고 `/plays`·`/plate_appearances` 폴링을 `quiet-plays-interval`(기본 5분) 주기로 낮춘다. ①의 `/games` 폴링과 하트비트 ScoreTask 발행(점수 감쇠 반영)은 기존 주기를 유지하므로 상태 전이는 계속 20초 단위로 감지된다. 새 play가 저장되면 즉시 20초 주기로 복귀한다. 상수는 `pulse.poller.quiet-*` 설정으로 관리한다.
 
 **일정 룩어헤드**: ①의 어제·오늘(UTC) 감시와 별도로, 향후 2~3일 일정을 저빈도(6~12시간 주기)로 동기화해 미래 경기와 시작 시각을 미리 확보한다. balldontlie `/games`는 최소 7일 뒤까지 일정을 제공하고, 미래 경기도 `date`에 실제 시작 시각(UTC ISO 8601)을 담는다. 확보한 시작 시각으로 `SCHEDULED → PREGAME_FAR`(T-36h) `→ PREGAME_NEAR`(T-6h) 전이 시점을 예약한다. 시작 시각은 확정 전 변동될 수 있으므로 룩어헤드 동기화마다 갱신하고, 시작 시각 미정(TBD) 경기는 전이 예약을 보류한 뒤 다음 동기화에서 재확인한다.
 
