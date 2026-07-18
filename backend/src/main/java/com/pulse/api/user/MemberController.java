@@ -1,6 +1,9 @@
 package com.pulse.api.user;
 
 import com.pulse.api.user.dto.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -19,12 +22,17 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @Validated  // @RequestParam에 붙인 검증 어노테이션을 작동시키는 역할
 @CrossOrigin(origins = "http://localhost:5173") // 임시 리엑트 연결 허용(로그인 창 미완성)
+@Tag(name = "회원", description = "회원가입과 이메일 인증")
 public class MemberController {
 
     private final MemberService memberService;
     private final EmailVerificationService emailVerificationService;
 
     // 회원가입 처리
+    @Operation(
+            summary = "회원가입",
+            description = "이메일 인증 완료 후 회원, 관심 팀과 알림 설정을 생성한다."
+    )
     @PostMapping("/signup")
     public ResponseEntity<SignupResponse> signup(
             @Valid @RequestBody SignupRequest request
@@ -49,6 +57,10 @@ public class MemberController {
 
 
     // 이메일 인증번호 발급
+    @Operation(
+            summary = "이메일 인증번호 발급",
+            description = "유효기간 5분인 인증번호를 발송하며 재발급 시 이전 번호를 폐기한다."
+    )
     @PostMapping("/email/code/send")
     public ResponseEntity<EmailCodeSendResponse> sendEmailCode(
             @Valid @RequestBody EmailCodeSendRequest request
@@ -61,6 +73,10 @@ public class MemberController {
 
 
     // 이메일 인증번호 확인
+    @Operation(
+            summary = "이메일 인증번호 확인",
+            description = "인증 성공 상태는 30분 동안 유지된다."
+    )
     @PostMapping("/email/code/verify")
     public ResponseEntity<EmailCodeVerifyResponse> verifyEmailCode(
             @Valid @RequestBody EmailCodeVerifyRequest request
@@ -73,8 +89,10 @@ public class MemberController {
 
 
     // 이메일 중복 처리
+    @Operation(summary = "이메일 사용 가능 여부 확인")
     @GetMapping("/email/check")
     public ResponseEntity<EmailCheckResponse> checkEmail(
+            @Parameter(description = "확인할 이메일", example = "user@example.com")
             @RequestParam
             @NotBlank(message = "이메일을 입력해 주세요.")
             @Email(message = "올바른 이메일 형식으로 입력해 주세요.")

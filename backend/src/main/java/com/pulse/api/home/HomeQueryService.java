@@ -1,5 +1,6 @@
 package com.pulse.api.home;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
@@ -621,6 +622,14 @@ public class HomeQueryService {
     ) {
     }
 
+    @Schema(
+            description = "경기 상태에 따라 필드가 달라지는 홈 슬레이트 카드",
+            oneOf = {
+                    SlateLiveGameCard.class,
+                    SlateScheduledGameCard.class,
+                    SlateFinishedGameCard.class
+            }
+    )
     public interface SlateGameCard {
         long gameId();
 

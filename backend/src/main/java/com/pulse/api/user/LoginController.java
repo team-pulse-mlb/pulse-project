@@ -3,6 +3,10 @@ package com.pulse.api.user;
 import com.pulse.api.user.dto.*;
 import com.pulse.api.user.security.cookie.RefreshTokenCookieProperties;
 import com.pulse.api.user.security.jwt.JwtProperties;
+import com.pulse.common.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -18,6 +22,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/members")
+@Tag(name = "인증", description = "로그인, JWT 재발급과 로그아웃")
 public class LoginController {
 
     private final LoginService loginService;
@@ -35,6 +40,10 @@ public class LoginController {
     /**
      * 이메일과 비밀번호 로그인
      */
+    @Operation(
+            summary = "로그인",
+            description = "액세스 토큰을 응답하고 리프레시 토큰을 HttpOnly 쿠키로 설정한다."
+    )
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request
@@ -58,6 +67,10 @@ public class LoginController {
 
 
     // 토큰 재발급
+    @Operation(
+            summary = "토큰 재발급",
+            description = "refreshToken 쿠키를 회전하고 새 액세스 토큰을 응답한다."
+    )
     @PostMapping("/refresh")
     public ResponseEntity<TokenRefreshResponse> refreshAccessToken(
             @CookieValue(   // @CookieValue는 요청 쿠키에서 refreshToken 값을 꺼내오는 역할
@@ -93,6 +106,10 @@ public class LoginController {
 
 
     // 로그아웃 처리
+    @Operation(
+            summary = "로그아웃",
+            description = "refreshToken을 폐기하고 해당 쿠키를 만료시킨다."
+    )
     @PostMapping("/logout")
     public ResponseEntity<LogoutResponse> logout(
             @CookieValue(
@@ -121,6 +138,10 @@ public class LoginController {
 
 
     // 테스트용
+    @Operation(
+            summary = "현재 사용자 조회",
+            security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    )
     @GetMapping("/me")
     public ResponseEntity<MeResponse> me(
             Authentication authentication   // 우리가 JwtAuthenticationFilter에서 넣어준 인증 정보

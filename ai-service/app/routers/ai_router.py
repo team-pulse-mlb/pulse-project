@@ -34,7 +34,7 @@ router = APIRouter(
 )
 
 
-@router.get("/test")
+@router.get("/test", include_in_schema=False)
 def ai_test():
     return {
         "status": "ok",
@@ -438,6 +438,12 @@ def _log_play_translation_success(
     "/final-headline",
     response_model=FinalHeadlineResponse,
     response_model_exclude_none=True,
+    summary="종료 경기 헤드라인 생성",
+    description=(
+        "보호 또는 공개 모드의 제한된 컨텍스트로 종료 경기 헤드라인을 생성하고 "
+        "스포일러 및 근거 일치 여부를 검수합니다."
+    ),
+    response_description="생성·검수 결과와 요청 contextHash",
 )
 def final_headline(request: FinalHeadlineRequest):
     """
@@ -461,6 +467,12 @@ def final_headline(request: FinalHeadlineRequest):
     "/event-copy",
     response_model=EventCopyResponse,
     response_model_exclude_none=True,
+    summary="보호 이벤트 문구 생성",
+    description=(
+        "보호 모드 타임라인 하이라이트의 안전한 라벨과 상황 근거로 "
+        "스포일러 없는 한 문장 설명을 생성합니다."
+    ),
+    response_description="생성·검수 결과와 요청 contextHash",
 )
 def event_copy(request: EventCopyRequest):
     """
@@ -480,6 +492,12 @@ def event_copy(request: EventCopyRequest):
     "/play-translation",
     response_model=PlayTranslationResponse,
     response_model_exclude_none=True,
+    summary="공개 플레이 문구 번역",
+    description=(
+        "공개 모드의 단일 Play Result 원문을 선수명·숫자·야구 결과를 보존해 "
+        "한국어로 번역하고 추가 해설 여부를 검수합니다."
+    ),
+    response_description="번역·검수 결과와 요청 contextHash",
 )
 def play_translation(request: PlayTranslationRequest):
     """
