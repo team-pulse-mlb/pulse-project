@@ -25,7 +25,7 @@ public record BacktestProperties(
     public BacktestProperties {
         gameIds = gameIds == null ? List.of() : List.copyOf(gameIds);
         sources = sources == null ? List.of() : List.copyOf(sources);
-        outputDir = outputDir == null || outputDir.isBlank() ? "build/backtest" : outputDir;
+        outputDir = outputDir == null || outputDir.isBlank() ? "../docs/backtest" : outputDir;
         backfillRecentScoreWindowPlays = positive(backfillRecentScoreWindowPlays, 15);
         backfillLeadChangeWindowPlays = positive(backfillLeadChangeWindowPlays, 25);
         aucHorizonPlays = positive(aucHorizonPlays, 12);
