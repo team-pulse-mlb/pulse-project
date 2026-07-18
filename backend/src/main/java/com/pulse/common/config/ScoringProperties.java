@@ -39,7 +39,7 @@ public record ScoringProperties(
         }
     }
 
-    public record LeadChange(int bonus, int windowPlays) {}
+    public record LeadChange(int bonus, int windowPlays, long tauSeconds) {}
 
     public record BigInning(int bonus, int minScoringPlays) {}
 
