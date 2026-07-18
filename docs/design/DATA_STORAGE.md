@@ -22,12 +22,13 @@ Redis = 지금 화면에 필요한 최신 상태 — 잃어도 재계산 가능
 
 ### Redis
 
-| 키 | 내용 |
+| 데이터 | 내용 |
 |---|---|
-| `score:rank:live` | 진행 중 경기의 `watch_score` 랭킹 (ZSET) |
-| `game:{id}:live` | 현재 점수, 이닝, 노출 태그 캐시 |
-| `notify:*`, `switch:cooldown:*` | 알림 히스테리시스·쿨다운·전역 발화 한도·전환 안내 쿨다운 |
-| (pub/sub) `signal:ranking`, `signal:game:{id}`, `signal:notification:{userId}` | 재조회 신호 채널 |
+| 라이브 조회 | 진행 중 경기 랭킹과 현재 상태 캐시 |
+| 단기 상태 | 알림 히스테리시스·쿨다운·전역 발화 한도·전환 안내 쿨다운 |
+| pub/sub | 랭킹·경기·알림 재조회 신호 채널 |
+
+구체적인 키 이름, 타입, 라이프사이클은 [REDIS_KEYS.md](REDIS_KEYS.md)를 따른다.
 
 ## 2. 원천별 저장 정책
 

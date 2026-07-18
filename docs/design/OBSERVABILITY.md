@@ -168,5 +168,5 @@ poller·scorer는 실패 카운터를 시작 시 `0`으로 등록한다. 배포 
 
 - [`infra/prod/README.md`](../../infra/prod/README.md): 배포, 컨테이너 점검, 장애 대응·복구
 - [`DATA_PIPELINE.md`](DATA_PIPELINE.md): 상태별 폴링, 호출 예산, 429 대응
-- [`API_CONTRACTS.md`](API_CONTRACTS.md): RabbitMQ, outbox, 재전달·멱등 계약
+- [`MESSAGING.md`](MESSAGING.md): RabbitMQ, outbox, 재전달·멱등 계약
 - [`NOTIFICATIONS.md`](NOTIFICATIONS.md): 알림 판정, outbox, fan-out 계약
