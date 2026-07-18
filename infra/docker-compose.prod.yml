@@ -22,7 +22,12 @@ x-app-logging: &app-logging
     max-size: "10m"
     max-file: "3"
 
-# backend 이미지 공통 골격. 역할별 env·힙 상한은 각 서비스에서 지정한다.
+# backend 이미지 공통 골격. 역할별 env·힙 상한·메모리 상한은 각 서비스에서 지정한다.
+# 메모리 상한 근거: 2026-07-18 라이브 15경기(02:00~16:00 KST) 1분 간격 실측.
+#   호스트 피크 2,540MB/3,831MB, 컨테이너 RSS 피크 api 481·poller 489·scorer 471MB,
+#   JVM 힙 피크 api 116/512·poller 118/256·scorer 102/384MB, 재시작·컨테이너 스왑 0.
+#   상한은 실측 피크 + JVM 이론 상한(Xmx+Metaspace+코드캐시+스레드스택)을 덮는 값으로 잡는다.
+#   상시 컨테이너 상한 합계 3,328MB < 호스트 3,831MB(스왑 2GB 별도).
 x-app-base: &app-base
   image: ${PULSE_APP_IMAGE:?PULSE_APP_IMAGE required}
   env_file: .env
@@ -49,8 +54,13 @@ services:
       RABBITMQ_HOST: rabbitmq
       MANAGEMENT_SERVER_PORT: "8081"
       MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
-      # t3.medium(4GB) 기준 초기값. 측정 후 조정한다(WORK_PLAN 2-2).
+      # 2026-07-18 실측: 힙 피크 116MB/512MB, RSS 피크 481MB. 현행 유지.
       JAVA_OPTS: "-Xmx512m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC -Xss512k"
+      # RDS db.t3.micro(max_connections≈112) 예산: api 10 + poller 5 + scorer 8 = 23.
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "10"
+      # SSE는 비동기 전송이라 요청 스레드를 점유하지 않는다. 기본 200은 과대해 축소.
+      SERVER_TOMCAT_THREADS_MAX: "50"
+    mem_limit: 768m
     ports:
       # 공개 진입점은 호스트 nginx(80/443)이며 API 포트는 로컬 프록시에서만 접근한다.
       - "127.0.0.1:8080:8080"
@@ -74,7 +84,12 @@ services:
       RABBITMQ_HOST: rabbitmq
       MANAGEMENT_SERVER_PORT: "8081"
       MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+      # 2026-07-18 실측: 힙 피크 118MB/256MB, RSS 피크 489MB. 현행 유지.
       JAVA_OPTS: "-Xmx256m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
+      # 폴러는 HTTP 트래픽이 없고 actuator 스크레이프만 받는다.
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+      SERVER_TOMCAT_THREADS_MAX: "20"
+    mem_limit: 640m
     depends_on:
       pulse-api:
         condition: service_healthy
@@ -97,7 +112,12 @@ services:
       RABBITMQ_HOST: rabbitmq
       MANAGEMENT_SERVER_PORT: "8081"
       MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+      # 2026-07-18 실측: 힙 피크 102MB/384MB, RSS 피크 471MB. 현행 유지.
       JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
+      # 스코어러는 RabbitMQ 소비가 주 작업이라 HTTP 스레드는 actuator 몫만 필요.
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "8"
+      SERVER_TOMCAT_THREADS_MAX: "20"
+    mem_limit: 704m
     depends_on:
       pulse-api:
         condition: service_healthy
@@ -115,6 +135,8 @@ services:
     container_name: pulse-redis
     restart: unless-stopped
     logging: *app-logging
+    # 2026-07-18 실측 RSS 피크 10MB.
+    mem_limit: 128m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -130,6 +152,8 @@ services:
     hostname: rabbitmq
     restart: unless-stopped
     logging: *app-logging
+    # 2026-07-18 실측 RSS 피크 188MB.
+    mem_limit: 384m
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER required}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD required}
@@ -150,6 +174,8 @@ services:
     container_name: pulse-prometheus
     restart: unless-stopped
     logging: *app-logging
+    # 2026-07-18 실측 RSS 피크 148MB(보존 15d).
+    mem_limit: 256m
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=15d"
@@ -170,6 +196,8 @@ services:
     container_name: pulse-grafana
     restart: unless-stopped
     logging: *app-logging
+    # 2026-07-18 실측 RSS 피크 89MB.
+    mem_limit: 192m
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD required}
@@ -194,6 +222,8 @@ services:
     container_name: pulse-ai-service
     restart: unless-stopped
     logging: *app-logging
+    # 2026-07-18 실측 RSS 피크 133MB.
+    mem_limit: 256m
     environment:
       # 키가 없어도 헬스 서버는 기동하고, 실제 생성 요청은 ai-service가 명시적으로 실패 처리한다.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -209,11 +239,13 @@ services:
   # ---- 일회성 배치 (docker compose --profile batch run --rm ...) ----
   # 상시 기동하지 않으며 run으로만 실행한다. 파라미터는 JAVA_OPTS의 -D 시스템 프로퍼티로 넘긴다.
   # 실행 예시는 infra/prod/README.md의 "일회성 배치" 절을 따른다.
+  # 배치는 동시에 1개만 실행한다는 전제로 mem_limit 640m(2026-07-18 실측 배치 RSS 피크 437MB).
 
   pulse-replay:
     <<: *app-base
     profiles: ["batch"]
     restart: "no"
+    mem_limit: 640m
     environment:
       # 기본 프로파일 ddl-auto가 none이라 prod 누락 시에도 스키마는 안전하지만, 운영 설정 일관성을 위해 prod를 명시한다.
       SPRING_PROFILES_ACTIVE: prod,replay
@@ -230,6 +262,7 @@ services:
     <<: *app-base
     profiles: ["batch"]
     restart: "no"
+    mem_limit: 640m
     environment:
       # rescore 프로파일이 ddl-auto none·flyway off·scorer off를 자체 지정한다.
       SPRING_PROFILES_ACTIVE: rescore
@@ -243,6 +276,7 @@ services:
     <<: *app-base
     profiles: ["batch"]
     restart: "no"
+    mem_limit: 640m
     environment:
       SPRING_PROFILES_ACTIVE: prod,headline-backfill
       PULSE_POLLER_ENABLED: "false"
@@ -264,6 +298,7 @@ services:
     <<: *app-base
     profiles: ["batch"]
     restart: "no"
+    mem_limit: 640m
     environment:
       SPRING_PROFILES_ACTIVE: prod,ai-copy-reprocess
       PULSE_POLLER_ENABLED: "false"
@@ -286,6 +321,7 @@ services:
     image: ${PULSE_APP_IMAGE:?PULSE_APP_IMAGE required}
     profiles: ["batch"]
     restart: "no"
+    mem_limit: 640m
     env_file:
       - path: ${PULSE_BACKTEST_ENV_FILE:-/tmp/pulse-backtest-not-configured.env}
         required: false
