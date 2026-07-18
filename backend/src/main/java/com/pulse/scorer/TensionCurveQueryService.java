@@ -10,7 +10,7 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
- * 종료 경기 상세에 제공할 긴장 곡선을 점수 이력에서 산출한다.
+ * 종료 경기 상세에 제공할 경기 긴장도 그래프을 점수 이력에서 산출한다.
  * 원 점수는 노출하지 않고 구간별 최대값을 1~5 단계로 변환한다.
  */
 @Service

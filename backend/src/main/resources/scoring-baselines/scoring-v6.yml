@@ -82,7 +82,7 @@ scoring:
     long-at-bat-pitches: 8
     max-events-per-type-per-game: 8
 
-  # 종료 경기 긴장 곡선(base_score 0~100을 1~5 단계로 양자화)
+  # 종료 경기 경기 긴장도 그래프(base_score 0~100을 1~5 단계로 양자화)
   tension-curve:
     level-boundaries: [20, 40, 60, 80]
 
