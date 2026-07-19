@@ -10,6 +10,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class GameReplayEngineTest {
+    @Test void 깨진_경기전_입력_JSON은_예외_없이_영점으로_처리한다() {
+        GameReplayEngine engine = new GameReplayEngine(options(), new ObjectMapper());
+
+        assertThat(engine.starterScore(123L, "{broken-json")).isZero();
+    }
+
     @Test void 백필_득점은_15_play_동안_선형_감쇠한다() {
         ScoringProperties scoring = new ScoringConstantsLoader().loadBaseline("6");
         GameReplayEngine engine = new GameReplayEngine(options(), new ObjectMapper());
