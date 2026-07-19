@@ -8,7 +8,7 @@
 | `architecture/` | 전체 구조와 기술 선택 |
 | `api/` | 외부 계약 — REST·SSE·인증 |
 | `data/` | 데이터 흐름·저장과 외부 데이터 레퍼런스 |
-| `policy/` | 도메인 정책 — 점수·스포일러·알림·AI 문구 |
+| `policy/` | 도메인 정책 — 점수·스포일러·알림·AI 문구·관심 선수 |
 | `ops/` | 운영·관측 |
 | `guide/` | 모듈별 실행·검증 가이드 |
 | `testing/` | 테스트 범위와 검증 기록 |
@@ -38,7 +38,7 @@
 |---|---|
 | [API_CONTRACTS.md](api/API_CONTRACTS.md) | REST 계약 기준과 주제별 계약 문서 색인 |
 | [SSE.md](api/SSE.md) | SSE 이벤트, 연결·인증·재연결 정책 |
-| [AUTH_POLICY.md](api/AUTH_POLICY.md) | 인증 토큰·이메일 인증, 관심 선수 검색·등록 정책 |
+| [AUTH.md](api/AUTH.md) | 인증 토큰·이메일 인증 정책 |
 
 ## data — 데이터 흐름·저장
 
@@ -57,9 +57,9 @@
 |---|---|
 | [SCORING.md](policy/SCORING.md) | watch/pregame/peak 점수 공식, 신호 정의, 결측 처리 |
 | [SPOILER_POLICY.md](policy/SPOILER_POLICY.md) | 보호/공개 모드, 화면별 노출·금지 필드, 태그·이벤트 표기 |
-| [BACKTEST.md](policy/BACKTEST.md) | 가중치 백테스트 재생·지표·튜닝·영향 리포트 |
 | [AI_COPY.md](policy/AI_COPY.md) | AI 문구 생성 트리거, 컨텍스트·HTTP 계약, 검수·저장 |
 | [NOTIFICATIONS.md](policy/NOTIFICATIONS.md) | 알림·경기 전환 추천 조건, 파이프라인, 이벤트 스키마·fan-out |
+| [FAVORITE_PLAYERS.md](policy/FAVORITE_PLAYERS.md) | 관심 선수 검색·등록 책임 분리, 마스터 upsert·동시성 안전장치 |
 
 ## ops — 운영·관측
 
@@ -84,6 +84,12 @@
 | [UNIT_TESTS.md](testing/UNIT_TESTS.md) | 모듈별 단위 테스트 클래스, 핵심 시나리오, 실행 방법·작성 원칙 |
 | [INTEGRATION_TESTS.md](testing/INTEGRATION_TESTS.md) | DB·HTTP·Spring 컨텍스트 통합 범위와 테스트 인프라 |
 | [FUNCTIONAL_TESTS.md](testing/FUNCTIONAL_TESTS.md) | 사용자 주요 흐름의 기능 테스트 체크리스트 |
+
+## backtest — 백테스트
+
+| 문서 | 문서 범위 |
+|---|---|
+| [BACKTEST.md](backtest/BACKTEST.md) | 가중치 백테스트 재생·지표·튜닝·영향 리포트 |
 
 ## team — 규칙·운영
 
