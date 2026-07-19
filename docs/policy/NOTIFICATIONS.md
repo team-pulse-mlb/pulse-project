@@ -31,24 +31,7 @@
 
 판정은 데이터를 가진 곳(scorer·poller)에서, 전달은 사용자를 아는 곳(api)에서 한다.
 
-```mermaid
-flowchart LR
-    classDef app fill:#eef6ff,stroke:#4f83cc,color:#172033
-    classDef mw fill:#fff7df,stroke:#d99a00,color:#172033
-    classDef store fill:#edf7ed,stroke:#3f8f46,color:#172033
-    classDef signal fill:#fff0f3,stroke:#d64568,color:#172033
-
-    S["scorer<br/>SURGE 판정"] -->|"NotificationEvent"| Q["RabbitMQ<br/>notify.events"]
-    P["poller<br/>GAME_START 판정"] -->|"NotificationEvent"| Q
-    Q --> C["api<br/>notification 소비자"]
-    C -->|"설정 켠 사용자 필터"| F["user_notifications<br/>insert (멱등)"]
-    F --> SSE["SSE<br/>notification_created 푸시"]
-
-    class S,P,C app
-    class Q mw
-    class F store
-    class SSE signal
-```
+![알림 판정·전달 파이프라인](../image/notification-pipeline.svg)
 
 - 채널이 RabbitMQ인 이유: 알림은 one-shot이라 유실되면 복구 경로가 없다. 재조회 신호와 달리 "다음 사이클에 자연 복구"가 성립하지 않는다.
 - 중복 전달을 전제로 `(event_id, user_id)` 유니크 제약으로 멱등 처리한다.

@@ -20,32 +20,23 @@
 
 ## 3. 전체 관계도 (ERD)
 
-```mermaid
-erDiagram
-    teams ||--o{ players : "소속"
-    teams ||--o{ games : "홈·원정"
-    teams ||--o{ standings : "일별 순위"
-    players ||--o{ lineups : "출전"
-    players ||--o{ player_season_stats : "시즌 스탯"
-    games ||--o{ plays : "play 로그"
-    games ||--o{ watch_scores : "점수 이력"
-    games ||--o{ game_events : "흥미 순간 이벤트"
-    games ||--o{ lineups : "라인업"
-    games ||--o{ odds_snapshots : "배당 스냅샷"
-    games ||--o{ notification_events : "알림 발화"
-    games ||--o{ score_task_outbox : "점수 작업 발행"
-    users ||--o| user_settings : "설정"
-    users ||--o{ user_favorite_teams : "관심 팀"
-    teams ||--o{ user_favorite_teams : "관심 팀"
-    users ||--o{ user_favorite_players : "관심 선수"
-    players ||--o{ user_favorite_players : "관심 선수"
-    users ||--o{ refresh_tokens : "토큰"
-    users ||--o{ user_notifications : "수신함"
-    notification_events ||--|| notification_outbox : "발행 상태"
-    notification_events ||--o{ user_notifications : "fan-out"
-```
+테이블 수가 많아 단일 관계도는 선이 얽혀 가독성이 떨어지므로, 테이블 그룹 기준으로 세 개로 나눈다. `teams`·`players`·`games`는 여러 그룹에서 참조하는 허브 테이블이라 본체가 있는 3-1 외 다이어그램에도 참조로 등장한다.
 
-관심 팀은 `user_favorite_teams`, 관심 선수는 `user_favorite_players` 조인 테이블로 관리한다.
+### 3-1. 경기 데이터 수집 (마스터 · 원본 · 경기 전 입력)
+
+![경기 데이터 수집 ERD](../image/db-game-data.svg)
+
+### 3-2. 점수 계산 산출 · 작업
+
+3-1의 `games`·`plays`를 입력으로 scorer가 만드는 산출물과 점수 작업 대기열이다.
+
+![점수 계산 산출·작업 ERD](../image/db-scoring.svg)
+
+### 3-3. 사용자 · 알림
+
+`teams`·`players`·`games`는 3-1의 테이블을 참조한다. 관심 팀은 `user_favorite_teams`, 관심 선수는 `user_favorite_players` 조인 테이블로 관리한다.
+
+![사용자·알림 ERD](../image/db-user-notification.svg)
 
 ## 4. 테이블 개요
 

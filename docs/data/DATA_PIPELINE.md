@@ -4,30 +4,7 @@
 
 `PREGAME_FAR`·`PREGAME_NEAR` 같은 이름은 별도 시스템이 아니라 `pulse-poller` 안에서 수집 강도를 정하기 위한 기준이다. ①은 개별 경기의 상태가 아니라 전체 슬레이트를 상시 감시하는 동작이며, 이 감시로 `SCHEDULED` 경기를 발견하고 이후 모든 상태 전이를 감지한다.
 
-```mermaid
-flowchart LR
-    classDef main fill:#eef6ff,stroke:#4f83cc,color:#172033
-    classDef live fill:#fff7df,stroke:#d99a00,color:#172033
-    classDef done fill:#edf7ed,stroke:#3f8f46,color:#172033
-    classDef hold fill:#fff0f3,stroke:#d64568,color:#172033
-
-    START(("시작")) -->|"① 일정 발견"| SCHEDULED["SCHEDULED<br/>예정"]
-    SCHEDULED -->|"② T-36h"| FAR["PREGAME_FAR<br/>선발 확인"]
-    FAR -->|"③ T-6h"| NEAR["PREGAME_NEAR<br/>타순·배당 수집"]
-    NEAR -->|"④ 경기 시작 감지"| LIVE["LIVE<br/>20초 수집"]
-    LIVE -->|"⑤ 종료 감지"| FINAL["FINAL<br/>종료 정리"]
-    SCHEDULED -->|"⑥ 연기·취소"| DONE["DONE<br/>종결"]
-    LIVE -->|"⑦ 원본 STATUS_POSTPONED"| POSTPONED["SUSPENDED_POSTPONED<br/>보류"]
-    POSTPONED -->|"재개 감지"| LIVE
-    POSTPONED -->|"종료 확정"| FINAL
-    POSTPONED -->|"취소 확정"| DONE
-    DONE -.->|"재편성 재관측 시 재진입"| SCHEDULED
-
-    class SCHEDULED,FAR,NEAR main
-    class LIVE live
-    class FINAL,DONE done
-    class POSTPONED hold
-```
+![경기 상태별 수집 흐름](../image/game-state-collection.svg)
 
 ### 상태 번호별 의미와 수집
 
@@ -58,27 +35,7 @@ flowchart LR
 
 ## 3. 계산 흐름
 
-```mermaid
-flowchart LR
-    classDef app fill:#eef6ff,stroke:#4f83cc,color:#172033
-    classDef mw fill:#fff7df,stroke:#d99a00,color:#172033
-    classDef store fill:#edf7ed,stroke:#3f8f46,color:#172033
-    classDef signal fill:#fff0f3,stroke:#d64568,color:#172033
-
-    A["① poller<br/>라이브 데이터 수집"] --> B["② RabbitMQ<br/>score.tasks 발행"]
-    B --> C["③ scorer<br/>메시지 소비"]
-    C --> D["④ watch_score 계산"]
-    D --> E["⑤ 추천 태그 생성"]
-    E --> G["⑥ Redis 랭킹 갱신<br/>+ 재조회 신호 발행"]
-    D --> H["⑦ PostgreSQL<br/>이력 저장"]
-    D --> I["⑧ 급상승 알림 판정<br/>→ notify.events"]
-    C --> J["⑨ 종료 task 처리 시<br/>AI 문구 생성 트리거"]
-
-    class A,C,D,E app
-    class B,G mw
-    class H store
-    class I,J signal
-```
+![점수 계산 흐름](../image/scoring-flow.svg)
 
 ### 계산 번호별 설명
 
@@ -100,28 +57,7 @@ scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 S
 
 종료 경기 AI 헤드라인 생성은 응답 경로에 없다. 계산 파이프라인이 종료 정리 시 미리 만들고, API는 PostgreSQL을 조회한다. AI 헤드라인이 아직 없으면 API는 LLM 응답을 기다리지 않고 `headline=null`을 반환한다.
 
-```mermaid
-flowchart LR
-    classDef fe fill:#f3eefe,stroke:#7c5cd1,color:#172033
-    classDef app fill:#eef6ff,stroke:#4f83cc,color:#172033
-    classDef mw fill:#fff7df,stroke:#d99a00,color:#172033
-    classDef store fill:#edf7ed,stroke:#3f8f46,color:#172033
-    classDef signal fill:#fff0f3,stroke:#d64568,color:#172033
-
-    A["① React<br/>랭킹/상세 요청"] --> B["② pulse-api<br/>Redis 조회"]
-    B --> C["③ 필요하면<br/>PostgreSQL 상세 조회"]
-    C --> D["④ 보호 모드 DTO 생성<br/>(금지 필드 제거)"]
-    D --> E["⑤ 종료 AI 문구 조회<br/>없으면 headline=null"]
-    E --> F["⑥ React에 응답<br/>(관심 팀/선수 가산 정렬)"]
-    B -.-> G["⑦ SSE 재조회 신호<br/>ranking_changed 등 3종"]
-    G -.->|"신호 수신 즉시 재조회"| A
-
-    class A fe
-    class B mw
-    class C store
-    class D,E,F app
-    class G signal
-```
+![사용자 응답 흐름](../image/user-response-flow.svg)
 
 ### 응답 번호별 설명
 
