@@ -1,6 +1,5 @@
 package com.pulse.api.home;
 
-import com.pulse.api.home.HomeQueryService.HomeSlateResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;

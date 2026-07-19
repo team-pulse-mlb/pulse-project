@@ -2,7 +2,6 @@ package com.pulse.api.home;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
