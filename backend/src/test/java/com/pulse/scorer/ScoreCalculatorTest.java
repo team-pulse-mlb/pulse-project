@@ -9,6 +9,7 @@ import com.pulse.domain.Game;
 import com.pulse.domain.Play;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +19,20 @@ import org.junit.jupiter.api.Test;
  */
 class ScoreCalculatorTest {
 
+    /** 운영 DB 아카이브 집계 RE24 테이블(versions/v10.md 실험 기록). 키는 <1루><2루><3루> 비트, 값은 [0,1,2아웃] 기대 득점. */
+    private static final Map<String, List<Double>> RE24_TABLE = Map.of(
+            "000", List.of(0.61, 0.32, 0.12),
+            "100", List.of(1.09, 0.65, 0.26),
+            "010", List.of(1.34, 0.82, 0.37),
+            "110", List.of(1.64, 1.07, 0.54),
+            "001", List.of(1.15, 0.95, 0.52),
+            "101", List.of(2.16, 1.32, 0.61),
+            "011", List.of(2.68, 1.42, 0.48),
+            "111", List.of(3.09, 1.87, 0.85));
+
     private final ScoreCalculator calculator = new ScoreCalculator(testProps());
+    private final ScoreCalculator re24Calculator = new ScoreCalculator(
+            TestScoringProperties.version5(new ScoringProperties.Pressure(6, 4, 3.0, RE24_TABLE)));
     private final Instant now = Instant.parse("2026-07-02T03:00:00Z");
 
     @Test
@@ -191,6 +205,59 @@ class ScoreCalculatorTest {
                 .get("count_pressure");
 
         assertThat(pressure).isEqualTo(testProps().countPressure().max());
+    }
+
+    @Test
+    @DisplayName("RE24 설정 시 만루 0아웃 압박은 기대 득점 × 스케일이다")
+    void re24PressureUsesExpectedRunsTimesScale() {
+        Game game = game(9, 2, 2);
+        ScoreTask.Situation basesLoadedNoOuts = ScoreTask.Situation.of(0, null, null, true, true, true);
+
+        double pressure = re24Calculator.calculate(game, List.of(), basesLoadedNoOuts, now)
+                .signals()
+                .get("pressure");
+
+        assertThat(pressure).isCloseTo(3.09 * 3.0, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("RE24 설정 시 주자 없는 2아웃도 소량의 압박 점수를 받는다")
+    void re24PressureScoresEmptyBases() {
+        Game game = game(9, 2, 2);
+        ScoreTask.Situation emptyTwoOuts = ScoreTask.Situation.of(2, null, null, false, false, false);
+
+        double pressure = re24Calculator.calculate(game, List.of(), emptyTwoOuts, now)
+                .signals()
+                .get("pressure");
+
+        assertThat(pressure).isCloseTo(0.12 * 3.0, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("RE24 설정이 있어도 아웃카운트가 없으면 기존 2단계 로직으로 대체한다")
+    void re24PressureFallsBackWithoutOuts() {
+        Game game = game(9, 2, 2);
+        ScoreTask.Situation basesLoadedUnknownOuts = ScoreTask.Situation.of(null, null, null, true, true, true);
+
+        double pressure = re24Calculator.calculate(game, List.of(), basesLoadedUnknownOuts, now)
+                .signals()
+                .get("pressure");
+
+        assertThat(pressure).isEqualTo(testProps().pressure().basesLoaded());
+    }
+
+    @Test
+    @DisplayName("RE24 미설정(v10 이하) 상수는 기존 만루·득점권 동작을 유지한다")
+    void legacyPressureKeepsTwoStepBehavior() {
+        Game game = game(9, 2, 2);
+        ScoreTask.Situation basesLoaded = ScoreTask.Situation.of(1, null, null, true, true, true);
+        ScoreTask.Situation scoringPosition = ScoreTask.Situation.of(1, null, null, false, true, false);
+
+        double loaded = calculator.calculate(game, List.of(), basesLoaded, now).signals().get("pressure");
+        double risp = calculator.calculate(game, List.of(), scoringPosition, now).signals().get("pressure");
+
+        assertThat(loaded).isEqualTo(testProps().pressure().basesLoaded());
+        assertThat(risp).isEqualTo(testProps().pressure().scoringPosition());
     }
 
     @Test

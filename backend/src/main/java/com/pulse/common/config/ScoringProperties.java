@@ -45,7 +45,18 @@ public record ScoringProperties(
 
     public record CountPressure(int fullCount, int twoOuts, int max) {}
 
-    public record Pressure(int basesLoaded, int scoringPosition) {}
+    /**
+     * RE24(주자-아웃 24상태 기대 득점) 테이블 기반 연속값을 지원한다.
+     * re24 키는 <1루><2루><3루> 점유 비트 문자열, 값은 [0아웃, 1아웃, 2아웃] 기대 득점이다.
+     * re24가 없거나 re24Scale이 0 이하인 상수(현행 v10 포함)는 만루·득점권 2단계로 동작한다.
+     * 보조 생성자를 두면 Spring 값 객체 바인딩이 생성자를 결정하지 못하므로 canonical 생성자만 둔다.
+     */
+    public record Pressure(
+            int basesLoaded,
+            int scoringPosition,
+            double re24Scale,
+            Map<String, List<Double>> re24
+    ) {}
 
     public record EarlySlugfest(int bonus, int maxInning, int minTotalRuns) {}
 
