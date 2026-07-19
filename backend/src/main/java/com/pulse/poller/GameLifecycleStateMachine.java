@@ -1,6 +1,7 @@
 package com.pulse.poller;
 
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import java.time.Duration;
 import java.time.Instant;
 import org.springframework.stereotype.Component;

@@ -6,10 +6,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
-import com.pulse.poller.GameLifecycle;
 import com.pulse.ranking.RankingService;
 import java.util.List;
 import java.util.Optional;

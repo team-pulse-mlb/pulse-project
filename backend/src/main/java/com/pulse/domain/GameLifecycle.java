@@ -1,4 +1,4 @@
-package com.pulse.poller;
+package com.pulse.domain;
 
 public enum GameLifecycle {
     SCHEDULED,

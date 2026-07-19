@@ -1,10 +1,10 @@
 package com.pulse.scorer;
 
+import com.pulse.common.message.ScoreTaskFactory;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import com.pulse.domain.GameRepository;
-import com.pulse.poller.GameLifecycle;
-import com.pulse.poller.ScoreTaskFactory;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;

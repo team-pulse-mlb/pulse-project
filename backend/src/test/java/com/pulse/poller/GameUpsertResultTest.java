@@ -3,6 +3,7 @@ package com.pulse.poller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import org.junit.jupiter.api.Test;
 
 class GameUpsertResultTest {
