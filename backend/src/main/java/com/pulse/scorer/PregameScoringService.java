@@ -17,12 +17,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -30,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
-@RequiredArgsConstructor
 @Slf4j
 public class PregameScoringService {
 
@@ -44,7 +41,23 @@ public class PregameScoringService {
     private final OddsSnapshotRepository oddsSnapshotRepository;
     private final StandingRepository standingRepository;
     private final PlayerSeasonStatRepository playerSeasonStatRepository;
-    private final ScoringProperties props;
+    private final PregameScoreFormulas formulas;
+
+    public PregameScoringService(
+            GameRepository gameRepository,
+            LineupRepository lineupRepository,
+            OddsSnapshotRepository oddsSnapshotRepository,
+            StandingRepository standingRepository,
+            PlayerSeasonStatRepository playerSeasonStatRepository,
+            ScoringProperties props
+    ) {
+        this.gameRepository = gameRepository;
+        this.lineupRepository = lineupRepository;
+        this.oddsSnapshotRepository = oddsSnapshotRepository;
+        this.standingRepository = standingRepository;
+        this.playerSeasonStatRepository = playerSeasonStatRepository;
+        this.formulas = new PregameScoreFormulas(props);
+    }
 
     @Transactional
     public void handle(ScoreTask task) {
@@ -77,15 +90,14 @@ public class PregameScoringService {
         if (oddsChoice.isPresent()) {
             OddsChoice choice = oddsChoice.get();
             List<Double> probabilities = choice.snapshots().stream()
-                    .map(this::normalizedHomeProbability)
+                    .map(snapshot -> formulas.normalizedHomeProbability(
+                            snapshot.getMoneylineHomeOdds(), snapshot.getMoneylineAwayOdds()))
                     .flatMap(Optional::stream)
                     .sorted()
                     .toList();
             if (!probabilities.isEmpty()) {
-                double median = median(probabilities);
-                double score = props.pregame().closenessMax()
-                        * Math.max(0, 1 - Math.abs(median - 0.5)
-                        / props.pregame().closenessImpliedProbabilitySpan());
+                double median = formulas.median(probabilities);
+                double score = formulas.closenessFromProbabilities(probabilities);
                 return new ComponentScore(score, choice.source(), Map.of("homeProbability", round(median)));
             }
         }
@@ -94,8 +106,7 @@ public class PregameScoringService {
         Optional<Double> awayWinPercent = winPercent(game.getAwayTeamId());
         if (homeWinPercent.isPresent() && awayWinPercent.isPresent()) {
             double gap = Math.abs(homeWinPercent.get() - awayWinPercent.get());
-            double score = props.pregame().closenessMax()
-                    * Math.max(0, 1 - gap / props.pregame().closenessWinPercentSpan());
+            double score = formulas.closenessFromWinPercent(homeWinPercent.get(), awayWinPercent.get());
             return new ComponentScore(score, SOURCE_WIN_PERCENT, Map.of("winPercentGap", round(gap)));
         }
         return new ComponentScore(0, SOURCE_MISSING, Map.of());
@@ -116,19 +127,6 @@ public class PregameScoringService {
         return Optional.empty();
     }
 
-    private Optional<Double> normalizedHomeProbability(OddsSnapshot snapshot) {
-        if (snapshot.getMoneylineHomeOdds() == null || snapshot.getMoneylineAwayOdds() == null) {
-            return Optional.empty();
-        }
-        double home = impliedProbability(snapshot.getMoneylineHomeOdds());
-        double away = impliedProbability(snapshot.getMoneylineAwayOdds());
-        double total = home + away;
-        if (total <= 0) {
-            return Optional.empty();
-        }
-        return Optional.of(home / total);
-    }
-
     private ComponentScore starterMatchup(Game game, int season) {
         List<Lineup> pitchers = lineupRepository.findByGameIdAndIsProbablePitcherTrue(game.getId());
         List<Long> pitcherIds = new ArrayList<>();
@@ -138,15 +136,10 @@ public class PregameScoringService {
             score += playerSeasonStatRepository.findById(new PlayerSeasonStatId(season, pitcher.getPlayerId()))
                     .map(PlayerSeasonStat::getPitchingEra)
                     .map(BigDecimal::doubleValue)
-                    .map(this::starterScore)
+                    .map(formulas::starterScoreFromEra)
                     .orElse(0.0);
         }
         return new ComponentScore(score, "PROBABLE_PITCHERS", Map.of("playerIds", pitcherIds));
-    }
-
-    private double starterScore(double era) {
-        double ratio = (props.pregame().matchupEraBaseline() - era) / props.pregame().matchupEraSpan();
-        return props.pregame().matchupPerStarterMax() * clamp01(ratio);
     }
 
     private ComponentScore contention(Game game) {
@@ -158,11 +151,12 @@ public class PregameScoringService {
 
         boolean home = homeContending.get();
         boolean away = awayContending.get();
+        double score = formulas.contentionScore(home, away);
         if (home && away) {
-            return new ComponentScore(props.pregame().contentionBoth(), "BOTH_CONTENDING", Map.of());
+            return new ComponentScore(score, "BOTH_CONTENDING", Map.of());
         }
         if (home || away) {
-            return new ComponentScore(props.pregame().contentionOne(), "ONE_CONTENDING", Map.of());
+            return new ComponentScore(score, "ONE_CONTENDING", Map.of());
         }
         return new ComponentScore(0, "NOT_CONTENDING", Map.of());
     }
@@ -174,8 +168,7 @@ public class PregameScoringService {
         return standingRepository.findTopByTeamIdOrderBySnapshotDateDesc(teamId)
                 .map(Standing::getPlayoffPercent)
                 .map(BigDecimal::doubleValue)
-                .map(value -> value >= props.importance().contentionMinPercent()
-                        && value <= props.importance().contentionMaxPercent());
+                .map(formulas::contending);
     }
 
     private Optional<Double> winPercent(Long teamId) {
@@ -220,26 +213,6 @@ public class PregameScoringService {
 
     private static int clampScore(double value) {
         return (int) Math.round(Math.max(0, Math.min(100, value)));
-    }
-
-    private static double impliedProbability(int moneyline) {
-        if (moneyline < 0) {
-            return -moneyline / (-moneyline + 100.0);
-        }
-        return 100.0 / (moneyline + 100.0);
-    }
-
-    private static double median(List<Double> values) {
-        List<Double> sorted = values.stream().sorted(Comparator.naturalOrder()).toList();
-        int middle = sorted.size() / 2;
-        if (sorted.size() % 2 == 1) {
-            return sorted.get(middle);
-        }
-        return (sorted.get(middle - 1) + sorted.get(middle)) / 2.0;
-    }
-
-    private static double clamp01(double value) {
-        return Math.max(0, Math.min(1, value));
     }
 
     private static double round(double value) {

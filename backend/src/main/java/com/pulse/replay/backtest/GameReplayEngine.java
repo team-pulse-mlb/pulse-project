@@ -13,6 +13,7 @@ import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.Play;
 import com.pulse.scorer.ImportanceCalculator;
+import com.pulse.scorer.PregameScoreFormulas;
 import com.pulse.scorer.ScoreCalculator;
 import com.pulse.scorer.ScoringInput;
 import java.time.Instant;
@@ -21,9 +22,13 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class GameReplayEngine {
+    private static final Logger log = LoggerFactory.getLogger(GameReplayEngine.class);
     private static final Set<String> STATE_SIGNAL_KEYS = Set.of(
             "late_or_extra",
             "score_gap",
@@ -171,75 +176,61 @@ public class GameReplayEngine {
     }
 
     private double pregame(GameData data, ScoringProperties properties) {
-        double closeness = oddsCloseness(data, properties);
+        PregameScoreFormulas formulas = new PregameScoreFormulas(properties);
+        double closeness = oddsCloseness(data, formulas);
         if (Double.isNaN(closeness)) {
-            closeness = winPercentCloseness(data, properties);
+            closeness = winPercentCloseness(data, formulas);
         }
-        double contention = contentionScore(data, properties);
-        double starter = starterScore(data.game().pregameInputs());
+        double contention = contentionScore(data, formulas);
+        double starter = starterScore(data.game().gameId(), data.game().pregameInputs());
         return Math.max(0, Math.min(100, closeness + contention + starter));
     }
 
-    private double oddsCloseness(GameData data, ScoringProperties properties) {
-        List<Double> probabilities = data.odds().stream().filter(o -> o.homeOdds() != null && o.awayOdds() != null)
-                .map(odds -> {
-                    double home = implied(odds.homeOdds());
-                    double away = implied(odds.awayOdds());
-                    return home / (home + away);
-                })
+    private double oddsCloseness(GameData data, PregameScoreFormulas formulas) {
+        List<Double> probabilities = data.odds().stream()
+                .map(odds -> formulas.normalizedHomeProbability(odds.homeOdds(), odds.awayOdds()))
+                .flatMap(Optional::stream)
                 .sorted().toList();
         if (probabilities.isEmpty()) {
             return Double.NaN;
         }
-        int middle = probabilities.size() / 2;
-        double median = probabilities.size() % 2 == 1 ? probabilities.get(middle)
-                : (probabilities.get(middle - 1) + probabilities.get(middle)) / 2;
-        return properties.pregame().closenessMax() * Math.max(0,
-                1 - Math.abs(median - 0.5) / properties.pregame().closenessImpliedProbabilitySpan());
+        return formulas.closenessFromProbabilities(probabilities);
     }
 
-    private double winPercentCloseness(GameData data, ScoringProperties properties) {
+    private double winPercentCloseness(GameData data, PregameScoreFormulas formulas) {
         if (data.homeStanding() == null || data.awayStanding() == null
                 || data.homeStanding().winPercent() == null || data.awayStanding().winPercent() == null) {
             return 0;
         }
-        double gap = Math.abs(data.homeStanding().winPercent().doubleValue() - data.awayStanding().winPercent().doubleValue());
-        return properties.pregame().closenessMax() * Math.max(0, 1 - gap / properties.pregame().closenessWinPercentSpan());
+        return formulas.closenessFromWinPercent(
+                data.homeStanding().winPercent().doubleValue(),
+                data.awayStanding().winPercent().doubleValue());
     }
 
-    private double contentionScore(GameData data, ScoringProperties properties) {
-        Boolean home = contending(data.homeStanding(), properties);
-        Boolean away = contending(data.awayStanding(), properties);
-        if (home == null || away == null) {
-            return 0;
-        }
-        if (home && away) {
-            return properties.pregame().contentionBoth();
-        }
-        return home || away ? properties.pregame().contentionOne() : 0;
+    private double contentionScore(GameData data, PregameScoreFormulas formulas) {
+        Boolean home = contending(data.homeStanding(), formulas);
+        Boolean away = contending(data.awayStanding(), formulas);
+        return formulas.contentionScore(home, away);
     }
 
-    private double starterScore(String json) {
+    double starterScore(long gameId, String json) {
         if (json == null || json.isBlank()) {
             return 0;
         }
         try {
             JsonNode node = objectMapper.readTree(json).path("components").path("starterMatchup").path("score");
             return node.isNumber() ? node.doubleValue() : 0;
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            log.warn("경기 전 선발 점수 입력 JSON 파싱 실패 gameId={}", gameId, exception);
             return 0;
         }
     }
 
-    private static Boolean contending(StandingRow row, ScoringProperties properties) {
+    private static Boolean contending(StandingRow row, PregameScoreFormulas formulas) {
         if (row == null || row.playoffPercent() == null) {
             return null;
         }
-        double value = row.playoffPercent().doubleValue();
-        return value >= properties.importance().contentionMinPercent() && value <= properties.importance().contentionMaxPercent();
-    }
-    private static double implied(int odds) {
-        return odds < 0 ? -odds / (-odds + 100.0) : 100.0 / (odds + 100.0);
+        return formulas.contending(row.playoffPercent().doubleValue());
     }
 
     private static int value(Integer value) {
