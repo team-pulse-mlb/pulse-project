@@ -90,6 +90,7 @@
 | 문서 | 문서 범위 |
 |---|---|
 | [BACKTEST.md](backtest/BACKTEST.md) | 가중치 백테스트 재생·지표·튜닝·영향 리포트 |
+| [HISTORY.md](backtest/HISTORY.md) | scoring.yml 버전 이력 색인(상세는 `versions/v<N>.md`) |
 
 ## team — 규칙·운영
 
