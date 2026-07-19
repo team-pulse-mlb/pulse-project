@@ -1,18 +1,22 @@
-package com.pulse.domain;
+package com.pulse.common.message;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.pulse.domain.ScoreTaskOutbox;
+import com.pulse.domain.ScoreTaskOutboxInsertRepository;
 import java.sql.Timestamp;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
 
-public class ScoreTaskOutboxInsertRepositoryImpl implements ScoreTaskOutboxInsertRepository {
+@Repository
+public class ScoreTaskOutboxJdbcInsertRepository implements ScoreTaskOutboxInsertRepository {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
 
-    public ScoreTaskOutboxInsertRepositoryImpl(
+    public ScoreTaskOutboxJdbcInsertRepository(
             JdbcTemplate jdbcTemplate,
             ObjectProvider<ObjectMapper> objectMapperProvider
     ) {

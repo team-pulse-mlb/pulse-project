@@ -12,8 +12,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface ScoreTaskOutboxRepository extends JpaRepository<ScoreTaskOutbox, UUID>,
-        ScoreTaskOutboxInsertRepository {
+public interface ScoreTaskOutboxRepository extends JpaRepository<ScoreTaskOutbox, UUID> {
 
     Optional<ScoreTaskOutbox> findByGameIdAndObservedAt(Long gameId, Instant observedAt);
 

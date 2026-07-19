@@ -15,6 +15,7 @@ import com.pulse.domain.NotificationEventLogRepository;
 import com.pulse.domain.NotificationOutbox;
 import com.pulse.domain.NotificationOutboxRepository;
 import com.pulse.domain.ScoreTaskOutbox;
+import com.pulse.domain.ScoreTaskOutboxInsertRepository;
 import com.pulse.domain.ScoreTaskOutboxRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -32,19 +33,21 @@ class PublisherTest {
         Instant now = Instant.parse("2026-07-08T00:00:00Z");
         ScoreTask task = new ScoreTask(1L, now, null, "LIVE", null);
         ScoreTaskOutboxRepository outboxRepository = mock(ScoreTaskOutboxRepository.class);
+        ScoreTaskOutboxInsertRepository outboxInsertRepository = mock(ScoreTaskOutboxInsertRepository.class);
         ScoreTaskOutboxDispatcher dispatcher = mock(ScoreTaskOutboxDispatcher.class);
         when(outboxRepository.findByGameIdAndObservedAt(1L, now)).thenReturn(Optional.empty());
-        when(outboxRepository.insertPending(any(ScoreTaskOutbox.class))).thenReturn(true);
+        when(outboxInsertRepository.insertPending(any(ScoreTaskOutbox.class))).thenReturn(true);
 
         new ScoreTaskPublisher(
                 outboxRepository,
+                outboxInsertRepository,
                 dispatcher,
                 new AfterCommitExecutor(),
                 Clock.fixed(now, ZoneOffset.UTC)
         ).publish(task);
 
         ArgumentCaptor<ScoreTaskOutbox> outboxCaptor = ArgumentCaptor.forClass(ScoreTaskOutbox.class);
-        verify(outboxRepository).insertPending(outboxCaptor.capture());
+        verify(outboxInsertRepository).insertPending(outboxCaptor.capture());
         verify(dispatcher).publishTask(outboxCaptor.getValue().getOutboxId());
         assertThat(outboxCaptor.getValue().getPayload()).isEqualTo(task);
         assertThat(outboxCaptor.getValue().getStatus()).isEqualTo(ScoreTaskOutbox.STATUS_PENDING);
@@ -58,13 +61,15 @@ class PublisherTest {
         ScoreTask task = new ScoreTask(1L, now, null, "LIVE", null);
         ScoreTaskOutbox existing = ScoreTaskOutbox.pending(task, now.minusSeconds(1));
         ScoreTaskOutboxRepository outboxRepository = mock(ScoreTaskOutboxRepository.class);
+        ScoreTaskOutboxInsertRepository outboxInsertRepository = mock(ScoreTaskOutboxInsertRepository.class);
         ScoreTaskOutboxDispatcher dispatcher = mock(ScoreTaskOutboxDispatcher.class);
         when(outboxRepository.findByGameIdAndObservedAt(1L, now))
                 .thenReturn(Optional.empty(), Optional.of(existing));
-        when(outboxRepository.insertPending(any(ScoreTaskOutbox.class))).thenReturn(false);
+        when(outboxInsertRepository.insertPending(any(ScoreTaskOutbox.class))).thenReturn(false);
 
         new ScoreTaskPublisher(
                 outboxRepository,
+                outboxInsertRepository,
                 dispatcher,
                 new AfterCommitExecutor(),
                 Clock.fixed(now, ZoneOffset.UTC)

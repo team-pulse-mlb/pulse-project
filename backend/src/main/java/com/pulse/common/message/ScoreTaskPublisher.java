@@ -2,6 +2,7 @@ package com.pulse.common.message;
 
 import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.ScoreTaskOutbox;
+import com.pulse.domain.ScoreTaskOutboxInsertRepository;
 import com.pulse.domain.ScoreTaskOutboxRepository;
 import java.time.Clock;
 import java.util.Objects;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ScoreTaskPublisher {
 
     private final ScoreTaskOutboxRepository outboxRepository;
+    private final ScoreTaskOutboxInsertRepository outboxInsertRepository;
     private final ScoreTaskOutboxDispatcher dispatcher;
     private final AfterCommitExecutor afterCommitExecutor;
     private final Clock clock;
@@ -21,19 +23,22 @@ public class ScoreTaskPublisher {
     @Autowired
     public ScoreTaskPublisher(
             ScoreTaskOutboxRepository outboxRepository,
+            ScoreTaskOutboxInsertRepository outboxInsertRepository,
             ScoreTaskOutboxDispatcher dispatcher,
             AfterCommitExecutor afterCommitExecutor
     ) {
-        this(outboxRepository, dispatcher, afterCommitExecutor, Clock.systemUTC());
+        this(outboxRepository, outboxInsertRepository, dispatcher, afterCommitExecutor, Clock.systemUTC());
     }
 
     ScoreTaskPublisher(
             ScoreTaskOutboxRepository outboxRepository,
+            ScoreTaskOutboxInsertRepository outboxInsertRepository,
             ScoreTaskOutboxDispatcher dispatcher,
             AfterCommitExecutor afterCommitExecutor,
             Clock clock
     ) {
         this.outboxRepository = outboxRepository;
+        this.outboxInsertRepository = outboxInsertRepository;
         this.dispatcher = dispatcher;
         this.afterCommitExecutor = afterCommitExecutor;
         this.clock = clock;
@@ -52,7 +57,7 @@ public class ScoreTaskPublisher {
 
     private UUID savePending(ScoreTask task) {
         ScoreTaskOutbox candidate = ScoreTaskOutbox.pending(task, clock.instant());
-        if (outboxRepository.insertPending(candidate)) {
+        if (outboxInsertRepository.insertPending(candidate)) {
             return candidate.getOutboxId();
         }
 
