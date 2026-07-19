@@ -1,0 +1,931 @@
+{
+  "conditions" : {
+    "alertLimit" : "실측 시각 source는 전역 한도 적용, S3_BACKFILL은 시간 기반 알림 제어 미적용",
+    "baselineVersion" : 10,
+    "candidateVersion" : 10,
+    "sources" : {
+      "OPERATIONAL" : 44672
+    },
+    "from" : "2026-07-05",
+    "to" : "2026-07-18",
+    "gameCount" : 101,
+    "backfillApproximation" : "최근 득점 15 plays 선형 감쇠, 리드 변경 25 plays 윈도"
+  },
+  "rankCorrelation" : {
+    "spearman" : 1.0,
+    "kendallTauB" : 1.0
+  },
+  "topChanges" : [ {
+    "gameId" : 5059151,
+    "teams" : "TOR@SF",
+    "baselinePeak" : 38.9,
+    "candidatePeak" : 38.9,
+    "baselineRank" : 57,
+    "candidateRank" : 57
+  }, {
+    "gameId" : 5059152,
+    "teams" : "CHC@BAL",
+    "baselinePeak" : 50.80528963120678,
+    "candidatePeak" : 50.80528963120678,
+    "baselineRank" : 25,
+    "candidateRank" : 25
+  }, {
+    "gameId" : 5059153,
+    "teams" : "OAK@DET",
+    "baselinePeak" : 25.55,
+    "candidatePeak" : 25.55,
+    "baselineRank" : 96,
+    "candidateRank" : 96
+  }, {
+    "gameId" : 5059154,
+    "teams" : "ATL@PIT",
+    "baselinePeak" : 30.112772811603982,
+    "candidatePeak" : 30.112772811603982,
+    "baselineRank" : 88,
+    "candidateRank" : 88
+  }, {
+    "gameId" : 5059155,
+    "teams" : "NYY@TB",
+    "baselinePeak" : 32.39362162162162,
+    "candidatePeak" : 32.39362162162162,
+    "baselineRank" : 79,
+    "candidateRank" : 79
+  }, {
+    "gameId" : 5059156,
+    "teams" : "SEA@MIA",
+    "baselinePeak" : 31.270000000000003,
+    "candidatePeak" : 31.270000000000003,
+    "baselineRank" : 83,
+    "candidateRank" : 83
+  }, {
+    "gameId" : 5059157,
+    "teams" : "HOU@WSH",
+    "baselinePeak" : 19.77,
+    "candidatePeak" : 19.77,
+    "baselineRank" : 100,
+    "candidateRank" : 100
+  }, {
+    "gameId" : 5059159,
+    "teams" : "PHI@CIN",
+    "baselinePeak" : 46.83583961010191,
+    "candidatePeak" : 46.83583961010191,
+    "baselineRank" : 31,
+    "candidateRank" : 31
+  }, {
+    "gameId" : 5059158,
+    "teams" : "KC@NYM",
+    "baselinePeak" : 23.195274050277565,
+    "candidatePeak" : 23.195274050277565,
+    "baselineRank" : 97,
+    "candidateRank" : 97
+  }, {
+    "gameId" : 5059160,
+    "teams" : "BOS@CHW",
+    "baselinePeak" : 41.43908663948888,
+    "candidatePeak" : 41.43908663948888,
+    "baselineRank" : 47,
+    "candidateRank" : 47
+  } ],
+  "auc" : {
+    "delta" : 0.0,
+    "candidate" : 0.6761301304205768,
+    "baseline" : 0.6761301304205768
+  },
+  "stateAuc" : {
+    "delta" : 0.0,
+    "candidate" : 0.6928448618897912,
+    "baseline" : 0.6928448618897912
+  },
+  "sortingQuality" : {
+    "delta" : 0.0,
+    "candidate" : 0.3839476469323646,
+    "baseline" : 0.3839476469323646
+  },
+  "alerts" : {
+    "dailyAverageDelta" : 0.0,
+    "candidate" : {
+      "total" : 43,
+      "dailyAverage" : 4.777777777777778,
+      "dailyMax" : 21,
+      "perGame" : {
+        "10824356" : 0,
+        "5059151" : 0,
+        "5059165" : 0,
+        "5059164" : 0,
+        "5059167" : 0,
+        "5059166" : 0,
+        "5059161" : 1,
+        "5059160" : 0,
+        "5059163" : 0,
+        "5059162" : 0,
+        "5059157" : 0,
+        "5059156" : 0,
+        "5059159" : 0,
+        "5059158" : 0,
+        "5059153" : 0,
+        "5059152" : 1,
+        "5059155" : 0,
+        "5059154" : 0,
+        "5059181" : 2,
+        "5059180" : 1,
+        "5059183" : 0,
+        "5059182" : 0,
+        "5059177" : 0,
+        "5059176" : 0,
+        "5059178" : 0,
+        "5059173" : 0,
+        "5059172" : 0,
+        "5059175" : 0,
+        "7746396" : 0,
+        "5059174" : 0,
+        "5059169" : 0,
+        "5059168" : 0,
+        "5059171" : 0,
+        "5059170" : 0,
+        "5059197" : 0,
+        "5059196" : 0,
+        "5059199" : 0,
+        "5059198" : 0,
+        "5059193" : 0,
+        "5059192" : 0,
+        "5059195" : 1,
+        "5059194" : 0,
+        "5059189" : 0,
+        "5059188" : 1,
+        "5059191" : 1,
+        "5059190" : 0,
+        "5059185" : 0,
+        "5059184" : 0,
+        "5059187" : 0,
+        "5059186" : 0,
+        "10558770" : 0,
+        "8712499" : 0,
+        "5059213" : 2,
+        "5059212" : 0,
+        "5059215" : 0,
+        "5059214" : 0,
+        "5059209" : 0,
+        "5059208" : 0,
+        "5059211" : 0,
+        "5059210" : 1,
+        "5059205" : 0,
+        "5059204" : 1,
+        "5059207" : 0,
+        "5059206" : 0,
+        "5059201" : 0,
+        "5059200" : 0,
+        "5059203" : 0,
+        "5059202" : 0,
+        "5059229" : 1,
+        "5059231" : 1,
+        "5059230" : 1,
+        "5059225" : 0,
+        "5059227" : 0,
+        "5059226" : 2,
+        "5059221" : 0,
+        "5059220" : 2,
+        "5059223" : 1,
+        "5059222" : 0,
+        "5059217" : 1,
+        "5059216" : 0,
+        "5059219" : 1,
+        "5059218" : 0,
+        "5059245" : 3,
+        "5059244" : 2,
+        "5059247" : 2,
+        "5059246" : 2,
+        "5059241" : 0,
+        "5059240" : 0,
+        "5059243" : 0,
+        "5059242" : 0,
+        "5059237" : 3,
+        "5059236" : 1,
+        "5059239" : 0,
+        "5059238" : 0,
+        "5059233" : 2,
+        "5059232" : 1,
+        "5059235" : 0,
+        "5059234" : 3,
+        "5059249" : 0,
+        "5059248" : 2,
+        "5059250" : 0
+      }
+    },
+    "baseline" : {
+      "total" : 43,
+      "dailyAverage" : 4.777777777777778,
+      "dailyMax" : 21,
+      "perGame" : {
+        "10824356" : 0,
+        "5059151" : 0,
+        "5059165" : 0,
+        "5059164" : 0,
+        "5059167" : 0,
+        "5059166" : 0,
+        "5059161" : 1,
+        "5059160" : 0,
+        "5059163" : 0,
+        "5059162" : 0,
+        "5059157" : 0,
+        "5059156" : 0,
+        "5059159" : 0,
+        "5059158" : 0,
+        "5059153" : 0,
+        "5059152" : 1,
+        "5059155" : 0,
+        "5059154" : 0,
+        "5059181" : 2,
+        "5059180" : 1,
+        "5059183" : 0,
+        "5059182" : 0,
+        "5059177" : 0,
+        "5059176" : 0,
+        "5059178" : 0,
+        "5059173" : 0,
+        "5059172" : 0,
+        "5059175" : 0,
+        "7746396" : 0,
+        "5059174" : 0,
+        "5059169" : 0,
+        "5059168" : 0,
+        "5059171" : 0,
+        "5059170" : 0,
+        "5059197" : 0,
+        "5059196" : 0,
+        "5059199" : 0,
+        "5059198" : 0,
+        "5059193" : 0,
+        "5059192" : 0,
+        "5059195" : 1,
+        "5059194" : 0,
+        "5059189" : 0,
+        "5059188" : 1,
+        "5059191" : 1,
+        "5059190" : 0,
+        "5059185" : 0,
+        "5059184" : 0,
+        "5059187" : 0,
+        "5059186" : 0,
+        "10558770" : 0,
+        "8712499" : 0,
+        "5059213" : 2,
+        "5059212" : 0,
+        "5059215" : 0,
+        "5059214" : 0,
+        "5059209" : 0,
+        "5059208" : 0,
+        "5059211" : 0,
+        "5059210" : 1,
+        "5059205" : 0,
+        "5059204" : 1,
+        "5059207" : 0,
+        "5059206" : 0,
+        "5059201" : 0,
+        "5059200" : 0,
+        "5059203" : 0,
+        "5059202" : 0,
+        "5059229" : 1,
+        "5059231" : 1,
+        "5059230" : 1,
+        "5059225" : 0,
+        "5059227" : 0,
+        "5059226" : 2,
+        "5059221" : 0,
+        "5059220" : 2,
+        "5059223" : 1,
+        "5059222" : 0,
+        "5059217" : 1,
+        "5059216" : 0,
+        "5059219" : 1,
+        "5059218" : 0,
+        "5059245" : 3,
+        "5059244" : 2,
+        "5059247" : 2,
+        "5059246" : 2,
+        "5059241" : 0,
+        "5059240" : 0,
+        "5059243" : 0,
+        "5059242" : 0,
+        "5059237" : 3,
+        "5059236" : 1,
+        "5059239" : 0,
+        "5059238" : 0,
+        "5059233" : 2,
+        "5059232" : 1,
+        "5059235" : 0,
+        "5059234" : 3,
+        "5059249" : 0,
+        "5059248" : 2,
+        "5059250" : 0
+      }
+    }
+  },
+  "games" : [ {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 38.9,
+    "gameId" : 5059151,
+    "candidatePeak" : 38.9
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 50.80528963120678,
+    "gameId" : 5059152,
+    "candidatePeak" : 50.80528963120678
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 25.55,
+    "gameId" : 5059153,
+    "candidatePeak" : 25.55
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 30.112772811603982,
+    "gameId" : 5059154,
+    "candidatePeak" : 30.112772811603982
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 32.39362162162162,
+    "gameId" : 5059155,
+    "candidatePeak" : 32.39362162162162
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 31.270000000000003,
+    "gameId" : 5059156,
+    "candidatePeak" : 31.270000000000003
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 19.77,
+    "gameId" : 5059157,
+    "candidatePeak" : 19.77
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 46.83583961010191,
+    "gameId" : 5059159,
+    "candidatePeak" : 46.83583961010191
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 23.195274050277565,
+    "gameId" : 5059158,
+    "candidatePeak" : 23.195274050277565
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 41.43908663948888,
+    "gameId" : 5059160,
+    "candidatePeak" : 41.43908663948888
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 50.42571688924809,
+    "gameId" : 5059161,
+    "candidatePeak" : 50.42571688924809
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 38.87402484431302,
+    "gameId" : 5059162,
+    "candidatePeak" : 38.87402484431302
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 38.01,
+    "gameId" : 5059163,
+    "candidatePeak" : 38.01
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 40.38,
+    "gameId" : 5059164,
+    "candidatePeak" : 40.38
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 47.614112190665594,
+    "gameId" : 5059165,
+    "candidatePeak" : 47.614112190665594
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 30.44,
+    "gameId" : 5059166,
+    "candidatePeak" : 30.44
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 33.55,
+    "gameId" : 5059167,
+    "candidatePeak" : 33.55
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 36.82,
+    "gameId" : 5059168,
+    "candidatePeak" : 36.82
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 32.7,
+    "gameId" : 5059171,
+    "candidatePeak" : 32.7
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 25.72,
+    "gameId" : 5059169,
+    "candidatePeak" : 25.72
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 29.71,
+    "gameId" : 5059170,
+    "candidatePeak" : 29.71
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 33.9777045838859,
+    "gameId" : 5059172,
+    "candidatePeak" : 33.9777045838859
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 26.467143910030018,
+    "gameId" : 5059173,
+    "candidatePeak" : 26.467143910030018
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 42.41136613222052,
+    "gameId" : 5059174,
+    "candidatePeak" : 42.41136613222052
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 46.31610935860877,
+    "gameId" : 5059175,
+    "candidatePeak" : 46.31610935860877
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 36.49731383948218,
+    "gameId" : 5059176,
+    "candidatePeak" : 36.49731383948218
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 29.400000000000002,
+    "gameId" : 5059177,
+    "candidatePeak" : 29.400000000000002
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 17.53,
+    "gameId" : 5059178,
+    "candidatePeak" : 17.53
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 57.004192277432,
+    "gameId" : 5059180,
+    "candidatePeak" : 57.004192277432
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 67.22889786216423,
+    "gameId" : 5059181,
+    "candidatePeak" : 67.22889786216423
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 43.19417129802133,
+    "gameId" : 5059182,
+    "candidatePeak" : 43.19417129802133
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 29.895471084926946,
+    "gameId" : 5059184,
+    "candidatePeak" : 29.895471084926946
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 40.40172417093476,
+    "gameId" : 5059185,
+    "candidatePeak" : 40.40172417093476
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 35.58459687707585,
+    "gameId" : 5059186,
+    "candidatePeak" : 35.58459687707585
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 40.44856051151232,
+    "gameId" : 5059187,
+    "candidatePeak" : 40.44856051151232
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 31.759432899344326,
+    "gameId" : 5059183,
+    "candidatePeak" : 31.759432899344326
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 54.970000000000006,
+    "gameId" : 5059188,
+    "candidatePeak" : 54.970000000000006
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 34.188893723995236,
+    "gameId" : 5059189,
+    "candidatePeak" : 34.188893723995236
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 31.311662144919612,
+    "gameId" : 5059190,
+    "candidatePeak" : 31.311662144919612
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 50.1651486401012,
+    "gameId" : 5059191,
+    "candidatePeak" : 50.1651486401012
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 45.98143118270612,
+    "gameId" : 5059192,
+    "candidatePeak" : 45.98143118270612
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 38.16459114948915,
+    "gameId" : 5059193,
+    "candidatePeak" : 38.16459114948915
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 21.45389224458856,
+    "gameId" : 10558770,
+    "candidatePeak" : 21.45389224458856
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 45.76131122294874,
+    "gameId" : 5059194,
+    "candidatePeak" : 45.76131122294874
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 41.938311394761335,
+    "gameId" : 5059201,
+    "candidatePeak" : 41.938311394761335
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 31.120174510315543,
+    "gameId" : 5059196,
+    "candidatePeak" : 31.120174510315543
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 39.923425631842825,
+    "gameId" : 5059197,
+    "candidatePeak" : 39.923425631842825
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 36.59365986659526,
+    "gameId" : 5059198,
+    "candidatePeak" : 36.59365986659526
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 41.84566037735849,
+    "gameId" : 5059199,
+    "candidatePeak" : 41.84566037735849
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 41.469287464223974,
+    "gameId" : 5059200,
+    "candidatePeak" : 41.469287464223974
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 55.717192180035156,
+    "gameId" : 5059195,
+    "candidatePeak" : 55.717192180035156
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 43.52108643369401,
+    "gameId" : 5059202,
+    "candidatePeak" : 43.52108643369401
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 32.578383741447865,
+    "gameId" : 5059203,
+    "candidatePeak" : 32.578383741447865
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 54.962365632113475,
+    "gameId" : 5059204,
+    "candidatePeak" : 54.962365632113475
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 35.62343446090562,
+    "gameId" : 5059205,
+    "candidatePeak" : 35.62343446090562
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 34.237297462283074,
+    "gameId" : 5059206,
+    "candidatePeak" : 34.237297462283074
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 26.79,
+    "gameId" : 5059207,
+    "candidatePeak" : 26.79
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 38.42272727272727,
+    "gameId" : 5059208,
+    "candidatePeak" : 38.42272727272727
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 45.504764659910585,
+    "gameId" : 5059209,
+    "candidatePeak" : 45.504764659910585
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 53.2867731342174,
+    "gameId" : 5059210,
+    "candidatePeak" : 53.2867731342174
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 30.89423649766812,
+    "gameId" : 5059211,
+    "candidatePeak" : 30.89423649766812
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 37.65730731707618,
+    "gameId" : 5059212,
+    "candidatePeak" : 37.65730731707618
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 78.23312312988311,
+    "gameId" : 5059213,
+    "candidatePeak" : 78.23312312988311
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 41.42567153023896,
+    "gameId" : 5059214,
+    "candidatePeak" : 41.42567153023896
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 39.73940312070507,
+    "gameId" : 5059215,
+    "candidatePeak" : 39.73940312070507
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 36.891562245552336,
+    "gameId" : 5059216,
+    "candidatePeak" : 36.891562245552336
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 64.37230704333656,
+    "gameId" : 5059217,
+    "candidatePeak" : 64.37230704333656
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 39.02677313421739,
+    "gameId" : 5059218,
+    "candidatePeak" : 39.02677313421739
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 75.61292160249688,
+    "gameId" : 5059219,
+    "candidatePeak" : 75.61292160249688
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 64.65850946307361,
+    "gameId" : 5059220,
+    "candidatePeak" : 64.65850946307361
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 42.28523564308207,
+    "gameId" : 5059221,
+    "candidatePeak" : 42.28523564308207
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 38.713331213512646,
+    "gameId" : 5059222,
+    "candidatePeak" : 38.713331213512646
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 67.92399422311024,
+    "gameId" : 5059223,
+    "candidatePeak" : 67.92399422311024
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 31.799999999999997,
+    "gameId" : 8712499,
+    "candidatePeak" : 31.799999999999997
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 21.29038961038961,
+    "gameId" : 5059225,
+    "candidatePeak" : 21.29038961038961
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 42.00538046309368,
+    "gameId" : 7746396,
+    "candidatePeak" : 42.00538046309368
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 56.4360940593217,
+    "gameId" : 5059226,
+    "candidatePeak" : 56.4360940593217
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 63.590732342803086,
+    "gameId" : 5059229,
+    "candidatePeak" : 63.590732342803086
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 48.2116782678053,
+    "gameId" : 5059227,
+    "candidatePeak" : 48.2116782678053
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 51.46235075357213,
+    "gameId" : 5059230,
+    "candidatePeak" : 51.46235075357213
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 59.094115889971945,
+    "gameId" : 5059231,
+    "candidatePeak" : 59.094115889971945
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 50.34252269469661,
+    "gameId" : 5059232,
+    "candidatePeak" : 50.34252269469661
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 66.00913043478262,
+    "gameId" : 5059233,
+    "candidatePeak" : 66.00913043478262
+  }, {
+    "baselineAlerts" : 3,
+    "candidateAlerts" : 3,
+    "baselinePeak" : 92.61703266918738,
+    "gameId" : 5059234,
+    "candidatePeak" : 92.61703266918738
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 36.86998916576381,
+    "gameId" : 5059235,
+    "candidatePeak" : 36.86998916576381
+  }, {
+    "baselineAlerts" : 1,
+    "candidateAlerts" : 1,
+    "baselinePeak" : 77.84913043478261,
+    "gameId" : 5059236,
+    "candidatePeak" : 77.84913043478261
+  }, {
+    "baselineAlerts" : 3,
+    "candidateAlerts" : 3,
+    "baselinePeak" : 59.673838213423366,
+    "gameId" : 5059237,
+    "candidatePeak" : 59.673838213423366
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 39.338089916817516,
+    "gameId" : 5059238,
+    "candidatePeak" : 39.338089916817516
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 33.048369903456084,
+    "gameId" : 5059239,
+    "candidatePeak" : 33.048369903456084
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 42.807077534791254,
+    "gameId" : 10824356,
+    "candidatePeak" : 42.807077534791254
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 41.62838374144786,
+    "gameId" : 5059240,
+    "candidatePeak" : 41.62838374144786
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 29.525009943677798,
+    "gameId" : 5059243,
+    "candidatePeak" : 29.525009943677798
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 40.15674704463461,
+    "gameId" : 5059241,
+    "candidatePeak" : 40.15674704463461
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 31.172402337403888,
+    "gameId" : 5059242,
+    "candidatePeak" : 31.172402337403888
+  }, {
+    "baselineAlerts" : 3,
+    "candidateAlerts" : 3,
+    "baselinePeak" : 75.43495729282341,
+    "gameId" : 5059245,
+    "candidatePeak" : 75.43495729282341
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 55.66651687690989,
+    "gameId" : 5059246,
+    "candidatePeak" : 55.66651687690989
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 62.32,
+    "gameId" : 5059247,
+    "candidatePeak" : 62.32
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 62.98347504621073,
+    "gameId" : 5059248,
+    "candidatePeak" : 62.98347504621073
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 34.22,
+    "gameId" : 5059249,
+    "candidatePeak" : 34.22
+  }, {
+    "baselineAlerts" : 0,
+    "candidateAlerts" : 0,
+    "baselinePeak" : 42.122811361369195,
+    "gameId" : 5059250,
+    "candidatePeak" : 42.122811361369195
+  }, {
+    "baselineAlerts" : 2,
+    "candidateAlerts" : 2,
+    "baselinePeak" : 67.75,
+    "gameId" : 5059244,
+    "candidatePeak" : 67.75
+  } ],
+  "guardFlags" : [ ]
+}
