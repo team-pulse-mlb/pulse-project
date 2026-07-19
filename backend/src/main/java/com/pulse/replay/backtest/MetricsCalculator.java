@@ -70,20 +70,30 @@ public final class MetricsCalculator {
         return wins / (positives * (double) negatives);
     }
 
-    public static List<Integer> aucLabels(List<PlayRow> plays, List<Cycle> cycles, int horizon) {
+    public static List<Integer> aucLabels(
+            List<PlayRow> plays,
+            List<Cycle> cycles,
+            int horizon,
+            int tensionScoreGapMax
+    ) {
         List<PlayRow> ordered = plays.stream()
                 .sorted(Comparator.comparingLong(PlayRow::playOrder))
                 .toList();
         List<Integer> labels = new ArrayList<>();
         for (Cycle cycle : cycles) {
             int current = indexOf(ordered, cycle.playOrder());
+            if (current < 0) {
+                labels.add(0);
+                continue;
+            }
             int end = Math.min(ordered.size(), current + horizon + 1);
             boolean event = false;
-            int leader = current >= 0 ? leader(ordered.get(current)) : 0;
+            int leader = leader(ordered.get(current));
             for (int index = current + 1; index < end; index++) {
                 PlayRow play = ordered.get(index);
                 int nextLeader = leader(play);
-                if (Boolean.TRUE.equals(play.scoringPlay())
+                if ((Boolean.TRUE.equals(play.scoringPlay())
+                        && Math.abs(value(play.homeScore()) - value(play.awayScore())) <= tensionScoreGapMax)
                         || (leader != 0 && nextLeader != 0 && leader != nextLeader)) {
                     event = true;
                     break;

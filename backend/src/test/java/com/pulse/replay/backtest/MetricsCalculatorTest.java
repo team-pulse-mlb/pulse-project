@@ -17,13 +17,43 @@ class MetricsCalculatorTest {
         assertThat(MetricsCalculator.auc(List.of(1, 1), List.of(0.1, 0.2))).isNull();
     }
 
-    @Test void horizon_안의_득점과_리드_변경을_양성으로_판정한다() {
+    @Test void 동점_경유_리드_변경을_양성으로_판정한다() {
         List<BacktestModels.PlayRow> plays = List.of(
-                play(1, 0, 0, false), play(2, 0, 0, false), play(3, 0, 1, true), play(4, 2, 1, false));
-        List<BacktestModels.Cycle> cycles = List.of(
-                new BacktestModels.Cycle(null, 1, 1, 1, 0, "S3_BACKFILL"),
-                new BacktestModels.Cycle(null, 3, 1, 1, 2, "S3_BACKFILL"));
-        assertThat(MetricsCalculator.aucLabels(plays, cycles, 2)).containsExactly(1, 1);
+                play(1, 1, 0, false), play(2, 1, 1, false), play(3, 1, 2, false));
+
+        assertThat(MetricsCalculator.aucLabels(plays, List.of(cycle(1)), 2, 2)).containsExactly(1);
+    }
+
+    @Test void 동점이_되는_득점을_양성으로_판정한다() {
+        List<BacktestModels.PlayRow> plays = List.of(
+                play(1, 1, 0, false), play(2, 1, 1, true));
+
+        assertThat(MetricsCalculator.aucLabels(plays, List.of(cycle(1)), 1, 2)).containsExactly(1);
+    }
+
+    @Test void 점수_차_상한_이내의_득점을_양성으로_판정한다() {
+        List<BacktestModels.PlayRow> plays = List.of(
+                play(1, 0, 0, false), play(2, 3, 1, true));
+
+        assertThat(MetricsCalculator.aucLabels(plays, List.of(cycle(1)), 1, 2)).containsExactly(1);
+    }
+
+    @Test void 점수_차_상한을_넘는_득점을_음성으로_판정한다() {
+        List<BacktestModels.PlayRow> plays = List.of(
+                play(1, 5, 0, false), play(2, 6, 0, true));
+
+        assertThat(MetricsCalculator.aucLabels(plays, List.of(cycle(1)), 1, 2)).containsExactly(0);
+    }
+
+    @Test void playOrder가_없는_cycle은_음성으로_판정한다() {
+        List<BacktestModels.PlayRow> plays = List.of(
+                play(1, 0, 0, false), play(2, 1, 0, true));
+
+        assertThat(MetricsCalculator.aucLabels(plays, List.of(cycle(999)), 1, 2)).containsExactly(0);
+    }
+
+    private static BacktestModels.Cycle cycle(long playOrder) {
+        return new BacktestModels.Cycle(null, playOrder, 1, 1, 1, 0, "S3_BACKFILL");
     }
 
     private static BacktestModels.PlayRow play(long order, int home, int away, boolean scoring) {

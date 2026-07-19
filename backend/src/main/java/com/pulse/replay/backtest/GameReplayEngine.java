@@ -21,8 +21,16 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class GameReplayEngine {
+    private static final Set<String> STATE_SIGNAL_KEYS = Set.of(
+            "late_or_extra",
+            "score_gap",
+            "pressure",
+            "count_pressure",
+            "early_slugfest");
+
     private final BacktestProperties options;
     private final ObjectMapper objectMapper;
 
@@ -57,8 +65,9 @@ public class GameReplayEngine {
             signals.put("recent_score", approximateRecent(rows, index, properties));
             signals.put("lead_change", approximateLead(rows, index, properties));
             double base = signals.values().stream().mapToDouble(Double::doubleValue).sum();
+            double state = stateScore(original.signals());
             double watchScore = calculator.calculateWatchScore(base, importance, original.pregameBonus());
-            cycles.add(cycle(current, index, base, watchScore, null));
+            cycles.add(cycle(current, index, base, state, watchScore, null));
         }
         return cycles;
     }
@@ -93,6 +102,7 @@ public class GameReplayEngine {
                     current,
                     observed.size() - 1,
                     result.baseScore(),
+                    stateScore(result.signals()),
                     result.watchScore(),
                     first.observedAt()));
             index = next;
@@ -104,10 +114,17 @@ public class GameReplayEngine {
             PlayRow row,
             int index,
             double base,
+            double state,
             double watchScore,
             Instant at
     ) {
-        return new Cycle(at, row.playOrder(), base, watchScore, index, row.source());
+        return new Cycle(at, row.playOrder(), base, state, watchScore, index, row.source());
+    }
+
+    private static double stateScore(Map<String, Double> signals) {
+        return STATE_SIGNAL_KEYS.stream()
+                .mapToDouble(key -> signals.getOrDefault(key, 0.0))
+                .sum();
     }
 
     double approximateRecent(List<PlayRow> rows, int current, ScoringProperties properties) {

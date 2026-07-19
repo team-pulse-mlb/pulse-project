@@ -16,6 +16,7 @@ public record BacktestProperties(
         int backfillRecentScoreWindowPlays,
         int backfillLeadChangeWindowPlays,
         int aucHorizonPlays,
+        int tensionScoreGapMax,
         int topN,
         double guardRankCorrelationMin,
         double guardAucDropMax,
@@ -29,6 +30,7 @@ public record BacktestProperties(
         backfillRecentScoreWindowPlays = positive(backfillRecentScoreWindowPlays, 15);
         backfillLeadChangeWindowPlays = positive(backfillLeadChangeWindowPlays, 25);
         aucHorizonPlays = positive(aucHorizonPlays, 12);
+        tensionScoreGapMax = positive(tensionScoreGapMax, 2);
         topN = positive(topN, 10);
         guardRankCorrelationMin = defaultDouble(guardRankCorrelationMin, 0.7);
         guardAucDropMax = defaultDouble(guardAucDropMax, 0.02);

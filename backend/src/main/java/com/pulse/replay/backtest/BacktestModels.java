@@ -22,7 +22,7 @@ public final class BacktestModels {
     public record GameData(GameRow game, List<PlayRow> plays, StandingRow homeStanding,
                     StandingRow awayStanding, List<OddsRow> odds) {}
 
-    public record Cycle(Instant computedAt, long playOrder, double baseScore, double watchScore,
+    public record Cycle(Instant computedAt, long playOrder, double baseScore, double stateScore, double watchScore,
                  int latestPlayIndex, String source) {}
     public record ReplayResult(GameData data, List<Cycle> cycles, int alertCount) {
         double peak() { return cycles.stream().mapToDouble(Cycle::watchScore).max().orElse(0); }
