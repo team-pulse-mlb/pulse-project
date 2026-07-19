@@ -294,6 +294,27 @@ class HomeQueryServiceTest {
     }
 
     @Test
+    void getSlate_shouldSortAllStatusesByRecommendationScore() {
+        ZoneId slateZone = ZoneId.of("America/New_York");
+        LocalDate slateDate = LocalDate.now(slateZone);
+        Instant slateStart = slateDate.atStartOfDay(slateZone).toInstant();
+        Game live = live(50L);
+        live.setStartTime(slateStart.plusSeconds(12 * 60 * 60));
+        Game finished = finished(51L, 90);
+        finished.setStartTime(slateStart.plusSeconds(10 * 60 * 60));
+        Game scheduled = scheduled(52L, 70);
+        scheduled.setStartTime(slateStart.plusSeconds(14 * 60 * 60));
+        when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
+                any(Instant.class), any(Instant.class))).thenReturn(List.of(scheduled, live, finished));
+        when(rankingService.topLive(1000)).thenReturn(Map.of(50L, 80.0));
+
+        HomeSlateResponse response = service.getSlate(slateDate.toString(), "all", "recommended");
+
+        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameId)
+                .containsExactly(51L, 50L, 52L);
+    }
+
+    @Test
     void getSlate_shouldReturnAllUpcomingScheduledGamesRegardlessOfSlateDate() {
         Game earlier = scheduled(40L, 70);
         earlier.setStartTime(Instant.now().plusSeconds(60 * 60));
@@ -305,7 +326,7 @@ class HomeQueryServiceTest {
                 eq(Game.STATUS_SCHEDULED), any(Instant.class)))
                 .thenReturn(List.of(later, past, earlier));
 
-        HomeSlateResponse response = service.getSlate("2026-07-01", "scheduled", "startTime");
+        HomeSlateResponse response = service.getSlate("2026-07-01", "scheduled", null);
 
         assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameId)
                 .containsExactly(40L, 41L);

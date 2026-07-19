@@ -26,7 +26,7 @@ public class HomeGameController {
                     MLB 미국 동부시간 슬레이트를 기준으로 경기 목록을 조회한다.
                     scheduled 상태는 date와 무관하게 현재 이후의 모든 예정 경기를 반환한다.
                     로그인한 요청은 관심 팀·선수 가산이 정렬에 반영될 수 있다.
-                    status=all이면 startTime 정렬을 적용하고 진행 중 경기를 상단에 배치한다.
+                    정렬 기준을 생략하면 scheduled는 startTime, 나머지 상태는 recommended를 적용한다.
                     """
     )
     @GetMapping
@@ -44,13 +44,12 @@ public class HomeGameController {
             @RequestParam(defaultValue = "all") String status,
 
             @Parameter(
-                    description = "정렬 기준. recommended는 상태별 점수를 사용하지만 점수 자체는 응답하지 않는다.",
+                    description = "정렬 기준. 생략 시 scheduled는 startTime, 나머지 상태는 recommended를 적용한다. recommended는 상태별 점수를 사용하지만 점수 자체는 응답하지 않는다.",
                     schema = @Schema(
-                            allowableValues = {"recommended", "startTime"},
-                            defaultValue = "startTime"
+                            allowableValues = {"recommended", "startTime"}
                     )
             )
-            @RequestParam(defaultValue = "startTime") String sort,
+            @RequestParam(required = false) String sort,
             Authentication authentication
     ) {
         return homeQueryService.getSlate(date, status, sort, username(authentication));
