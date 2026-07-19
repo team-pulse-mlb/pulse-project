@@ -2,9 +2,9 @@ package com.pulse.scorer;
 
 import com.pulse.common.config.RabbitMqConfig;
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.message.ScoreTaskFactory;
 import com.pulse.common.metrics.PulseMetrics;
-import com.pulse.poller.GameLifecycle;
-import com.pulse.poller.ScoreTaskFactory;
+import com.pulse.domain.GameLifecycle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;

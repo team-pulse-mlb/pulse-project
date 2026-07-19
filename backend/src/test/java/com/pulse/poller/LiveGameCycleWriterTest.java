@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.pulse.common.client.BdlDtos.BdlGame;
 import com.pulse.common.client.BdlDtos.BdlPlay;
+import com.pulse.common.message.ScoreTaskFactory;
 import com.pulse.common.message.ScoreTaskOutboxDispatcher;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.common.transaction.AfterCommitExecutor;
@@ -14,6 +15,7 @@ import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.PlayRepository;
 import com.pulse.domain.ScoreTaskOutbox;
+import com.pulse.domain.ScoreTaskOutboxInsertRepository;
 import com.pulse.domain.ScoreTaskOutboxRepository;
 import java.time.Instant;
 import java.util.List;
@@ -51,6 +53,9 @@ class LiveGameCycleWriterTest {
     private ScoreTaskOutboxRepository scoreTaskOutboxRepository;
 
     @MockitoBean
+    private ScoreTaskOutboxInsertRepository scoreTaskOutboxInsertRepository;
+
+    @MockitoBean
     private ScoreTaskOutboxDispatcher scoreTaskOutboxDispatcher;
 
     @MockitoBean
@@ -64,7 +69,7 @@ class LiveGameCycleWriterTest {
         when(scoreTaskOutboxRepository.findByGameIdAndObservedAt(100L, observedAt))
                 .thenReturn(Optional.empty());
         // 경쟁 방지 insert 경로(insertPending)가 outbox 저장 지점이므로 여기서 실패를 일으킨다.
-        when(scoreTaskOutboxRepository.insertPending(any(ScoreTaskOutbox.class)))
+        when(scoreTaskOutboxInsertRepository.insertPending(any(ScoreTaskOutbox.class)))
                 .thenThrow(new DataIntegrityViolationException("outbox 저장 실패"));
 
         assertThatThrownBy(() -> cycleWriter.write(game, List.of(play(10L)), List.of(), observedAt))

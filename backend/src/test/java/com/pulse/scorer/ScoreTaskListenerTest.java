@@ -5,8 +5,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.pulse.common.message.ScoreTask;
-import com.pulse.poller.GameLifecycle;
-import com.pulse.poller.ScoreTaskFactory;
+import com.pulse.common.message.ScoreTaskFactory;
+import com.pulse.domain.GameLifecycle;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 

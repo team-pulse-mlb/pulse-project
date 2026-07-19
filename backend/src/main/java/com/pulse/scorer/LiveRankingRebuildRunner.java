@@ -1,10 +1,10 @@
 package com.pulse.scorer;
 
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
-import com.pulse.poller.GameLifecycle;
 import com.pulse.ranking.RankingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

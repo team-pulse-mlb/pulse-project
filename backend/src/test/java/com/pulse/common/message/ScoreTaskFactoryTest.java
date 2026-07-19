@@ -1,8 +1,7 @@
-package com.pulse.poller;
+package com.pulse.common.message;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.Play;
 import java.time.Instant;

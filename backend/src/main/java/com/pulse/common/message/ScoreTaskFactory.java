@@ -1,8 +1,7 @@
-package com.pulse.poller;
+package com.pulse.common.message;
 
 import com.pulse.common.client.BdlDtos.BdlPitch;
 import com.pulse.common.client.BdlDtos.BdlPlateAppearance;
-import com.pulse.common.message.ScoreTask;
 import com.pulse.common.message.ScoreTask.GameSnapshot;
 import com.pulse.common.message.ScoreTask.PitchSnapshot;
 import com.pulse.common.message.ScoreTask.PlateAppearanceSnapshot;
@@ -44,7 +43,7 @@ public class ScoreTaskFactory {
         return liveTask(game, latestPlay, observedAt, plateAppearances, game.getLifecycleState());
     }
 
-    ScoreTask liveTask(
+    public ScoreTask liveTask(
             Game game,
             Play latestPlay,
             Instant observedAt,

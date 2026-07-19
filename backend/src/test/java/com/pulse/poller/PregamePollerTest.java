@@ -13,8 +13,10 @@ import static org.mockito.Mockito.when;
 
 import com.pulse.common.client.BalldontlieClient;
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.message.ScoreTaskFactory;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Lineup;
 import com.pulse.domain.LineupRepository;
