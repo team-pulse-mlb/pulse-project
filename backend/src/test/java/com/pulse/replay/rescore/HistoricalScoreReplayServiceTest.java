@@ -286,7 +286,7 @@ class HistoricalScoreReplayServiceTest {
                 new ScoringProperties.LeadChange(9, 12, 300),
                 new ScoringProperties.BigInning(9, 2),
                 new ScoringProperties.CountPressure(3, 3, 5),
-                new ScoringProperties.Pressure(6, 4),
+                new ScoringProperties.Pressure(6, 4, 0, null),
                 new ScoringProperties.EarlySlugfest(5, 3, 7),
                 new ScoringProperties.Importance(0.9, 1.15, 1.15, 1.10, 1.05, 0.90, 10, 90),
                 10,

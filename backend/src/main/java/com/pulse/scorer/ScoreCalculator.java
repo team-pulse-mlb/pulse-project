@@ -104,15 +104,39 @@ public class ScoreCalculator {
         );
     }
 
+    /**
+     * pressure.re24 테이블이 설정되면 RE24(주자-아웃 기대 득점) 기반 연속값을 사용한다.
+     * 테이블이 없는 상수(현행 v10 포함)는 기존 만루·득점권 2단계 신호로 동작한다.
+     */
     private double pressure(ScoreTask.Situation situation) {
         if (situation == null) {
             return 0;
         }
+        ScoringProperties.Pressure pressure = props.pressure();
+        if (pressure == null) {
+            // 백테스트가 임의 후보 yml을 로드하므로 pressure 절 누락을 0점으로 방어한다.
+            return 0;
+        }
+        Integer outs = situation.outs();
+        if (pressure.re24() != null
+                && !pressure.re24().isEmpty()
+                && pressure.re24Scale() > 0
+                && outs != null
+                && outs >= 0
+                && outs <= 2) {
+            String baseState = (situation.runnerOnFirst() ? "1" : "0")
+                    + (situation.runnerOnSecond() ? "1" : "0")
+                    + (situation.runnerOnThird() ? "1" : "0");
+            List<Double> expectedRuns = pressure.re24().get(baseState);
+            if (expectedRuns != null && expectedRuns.size() == 3 && expectedRuns.get(outs) != null) {
+                return expectedRuns.get(outs) * pressure.re24Scale();
+            }
+        }
         if (situation.basesLoaded()) {
-            return props.pressure().basesLoaded();
+            return pressure.basesLoaded();
         }
         if (situation.scoringPosition()) {
-            return props.pressure().scoringPosition();
+            return pressure.scoringPosition();
         }
         return 0;
     }
