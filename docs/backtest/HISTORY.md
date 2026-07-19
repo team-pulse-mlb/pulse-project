@@ -17,4 +17,4 @@
 
 ## 기준 스냅샷
 
-백테스트 기준(`-Pbaseline`)으로 쓰는 스냅샷은 `backend/src/main/resources/scoring-baselines/scoring-v<N>.yml`에 둔다. 현재 보관: v6, v9.
+백테스트 기준(`-Pbaseline`)으로 쓰는 스냅샷은 `backend/src/main/resources/scoring-baselines/scoring-v<N>.yml`에 둔다. 현재 보관: v6, v9, v10.
