@@ -23,6 +23,14 @@
 
 `scoring.yml` 상수를 그리드 서치로 조정한다. 지표 우선순위는 예측력 > 정렬 품질 > 알림 빈도로 한다. 상수 변경 시 `version`을 올리고 `tune:` PR에 영향 리포트를 첨부한다. 지표는 정답이 아니라 변경 영향을 확인하는 가드레일로 읽는다(예: 알림 수 급증, 정렬 품질 급락).
 
+### 버전 기록
+
+PR 코멘트와 Actions 아티팩트(30일 보관)는 유실되므로, 버전별 근거와 결과는 저장소 문서로 남긴다.
+
+- `version`을 올리는 PR은 `docs/backtest/versions/v<N>.md`를 함께 작성한다. 항목: 변경 상수(기준 대비 표), 변경 가설, 검증 결과(핵심 지표와 기준 대비 델타), 판단(채택·기각과 후속), PR 링크.
+- `docs/backtest/HISTORY.md` 색인 표에 한 줄을 추가한다.
+- 자동 생성된 `impact_*.md`·`.json`은 `docs/backtest/`에 두고 버전 문서에서 링크한다.
+
 ## 4. 가중치 영향 추적 파이프라인
 
 `scoring.yml` 상수 변경의 영향을 운영 DB 이력 재계산으로 자동 산출한다. `backtest` 배치 프로파일과 `backtestImpact` Gradle 태스크로 구현되어 있다(`backend/src/main/java/com/pulse/replay/backtest/`).
