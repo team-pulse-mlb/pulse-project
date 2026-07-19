@@ -262,7 +262,7 @@ class HistoricalScoreReplayServiceTest {
     private static BacktestProperties backtestProperties() {
         return new BacktestProperties(
                 "5", null, null, null, List.of(), List.of(), null,
-                15, 25, 12, 10, 0.7, 0.02, 5, 2);
+                15, 25, 12, 2, 10, 0.7, 0.02, 5, 2);
     }
 
     private static Game game() {
