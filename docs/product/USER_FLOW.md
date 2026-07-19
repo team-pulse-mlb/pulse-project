@@ -10,27 +10,7 @@
 
 ## 2. 전체 사용자 여정
 
-```mermaid
-flowchart TD
-    Enter["서비스 진입"] --> Home["홈 (/)\n상단 추천 + 하단 전체 목록"]
-    Home -->|"비로그인 상태에서\n관심 팀 설정 시도"| Auth["로그인/회원가입"]
-    Auth -->|"신규 가입"| Signup["회원가입\n계정 정보 → 관심 팀 → 알림 설정"]
-    Signup -->|"가입 완료"| Login["로그인"]
-    Auth -->|"기존 회원 로그인"| Login
-    Login -->|"최초 로그인"| PlayerOnboard["관심 선수 선택 온보딩"]
-    PlayerOnboard --> Home
-    Login -->|"온보딩 완료 회원"| Home
-    Home -->|"카드 클릭"| Detail["경기 상세\n(항상 보호 모드로 진입)"]
-    Detail -->|"모드 토글에서 공개 선택\n(확인창 없이 즉시)"| DetailRevealed["경기 상세 · 공개 모드"]
-    DetailRevealed -->|"모드 토글에서 보호 선택"| Detail
-    Detail -->|"FINAL 전이 감지"| Replay["종료 경기 다시보기\n(경기 긴장도 그래프 · AI 헤드라인)"]
-    Detail -->|"switchSuggestion 토스트"| OtherDetail["다른 경기 상세로 이동"]
-    Home -->|"알림 아이콘"| NotiCenter["알림 센터"]
-    Home -->|"마이페이지 아이콘"| MyPage["마이페이지\n알림 설정 + 관심 팀/선수"]
-    MyPage -->|"관심 팀/선수 추가"| TeamPlayer["팀/선수 선택·관리"]
-    Detail -.->|"급상승/관심 팀 시작\n인앱 토스트"| Toast["토스트 알림"]
-    Toast --> NotiCenter
-```
+![전체 사용자 여정](../image/user-journey.svg)
 
 ## 3. 공통 UI 요소
 
