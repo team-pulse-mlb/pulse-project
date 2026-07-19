@@ -43,10 +43,13 @@ class GameReplayEngineTest {
 
         assertThat(cycle.stateScore()).isEqualTo(scoring.scoreGap().gap01());
         assertThat(cycle.stateScore()).isLessThan(cycle.baseScore());
+        assertThat(cycle.signals())
+                .containsEntry("recent_score", engine.approximateRecent(data.plays(), 0, scoring))
+                .containsEntry("lead_change", engine.approximateLead(data.plays(), 0, scoring));
     }
 
     private static BacktestProperties options() {
-        return new BacktestProperties("6", null, null, null, List.of(), List.of(), null,
+        return new BacktestProperties("6", null, null, null, List.of(), List.of(), null, null,
                 15, 25, 12, 2, 10, 0.7, 0.02, 5, 2);
     }
     private static BacktestModels.PlayRow play(long order, int home, int away, boolean scoring) {

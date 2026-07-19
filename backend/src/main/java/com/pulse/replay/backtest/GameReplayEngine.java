@@ -65,9 +65,9 @@ public class GameReplayEngine {
             signals.put("recent_score", approximateRecent(rows, index, properties));
             signals.put("lead_change", approximateLead(rows, index, properties));
             double base = signals.values().stream().mapToDouble(Double::doubleValue).sum();
-            double state = stateScore(original.signals());
+            double state = stateScore(signals);
             double watchScore = calculator.calculateWatchScore(base, importance, original.pregameBonus());
-            cycles.add(cycle(current, index, base, state, watchScore, null));
+            cycles.add(cycle(current, index, base, state, watchScore, null, signals));
         }
         return cycles;
     }
@@ -104,7 +104,8 @@ public class GameReplayEngine {
                     result.baseScore(),
                     stateScore(result.signals()),
                     result.watchScore(),
-                    first.observedAt()));
+                    first.observedAt(),
+                    result.signals()));
             index = next;
         }
         return cycles;
@@ -116,9 +117,10 @@ public class GameReplayEngine {
             double base,
             double state,
             double watchScore,
-            Instant at
+            Instant at,
+            Map<String, Double> signals
     ) {
-        return new Cycle(at, row.playOrder(), base, state, watchScore, index, row.source());
+        return new Cycle(at, row.playOrder(), base, state, watchScore, index, row.source(), signals);
     }
 
     private static double stateScore(Map<String, Double> signals) {

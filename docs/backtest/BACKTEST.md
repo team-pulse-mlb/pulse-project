@@ -42,7 +42,7 @@ PR 코멘트와 Actions 아티팩트(30일 보관)는 유실되므로, 버전별
 
 | 구분 | 내용 |
 |---|---|
-| 입력 | 기준 상수(`-Pbaseline`: version 정수 → classpath `scoring-baselines/scoring-v<N>.yml` 스냅샷, 그 외 → yml 파일 경로), 후보 상수(`-Pcandidate`: yml 파일 경로, 생략 시 현재 `scoring.yml`), 대상 기간(`-Pfrom`·`-Pto`, `start_time` UTC 날짜, 양끝 포함), 선택 필터 `-PgameIds`·`-Psources`(쉼표 구분) |
+| 입력 | 기준 상수(`-Pbaseline`: version 정수 → classpath `scoring-baselines/scoring-v<N>.yml` 스냅샷, 그 외 → yml 파일 경로), 후보 상수(`-Pcandidate`: yml 파일 경로, 생략 시 현재 `scoring.yml`), 대상 기간(`-Pfrom`·`-Pto`, `start_time` UTC 날짜, 양끝 포함), 선택 필터 `-PgameIds`·`-Psources`(쉼표 구분), 선택 `-PsignalDumpPath`(기준 상수 재생의 cycle별 신호 값·긴장 이벤트 라벨을 CSV로 덤프 — 오프라인 가중치 분석용) |
 | 처리 | (1) 운영 DB에서 대상 경기의 `plays`·`games`·`standings`·`odds_snapshots`를 **읽기 전용**으로 로드 → (2) 기준·후보 두 상수 세트로 각각 scorer를 재계산한다(운영 테이블에 쓰지 않고 메모리에서 수행) → (3) 두 결과의 검증 지표와 아래 리포트 항목을 비교 |
 | 출력 | `-PoutputDir`(기본 `docs/backtest`)에 `impact_v<기준>_vs_v<후보>_<from>_<to>.json`·`.md` 생성, `tune:` PR에 첨부 |
 | 실행 | JDK 21 기준. 예: `backend\gradlew.bat backtestImpact -Pbaseline=6 -Pcandidate=scoring-candidate.yml -Pfrom=2026-06-01 -Pto=2026-06-30` |

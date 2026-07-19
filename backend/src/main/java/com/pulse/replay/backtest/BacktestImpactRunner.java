@@ -6,6 +6,8 @@ import static com.pulse.replay.backtest.BacktestModels.ReplayResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pulse.common.config.ScoringProperties;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +32,7 @@ public class BacktestImpactRunner implements ApplicationRunner {
     private final ConfigurableApplicationContext context;
 
     @Override
-    public void run(ApplicationArguments arguments) {
+    public void run(ApplicationArguments arguments) throws IOException {
         validate();
         ScoringConstantsLoader loader = new ScoringConstantsLoader();
         ScoringProperties baselineProperties = loader.loadBaseline(options.baseline());
@@ -45,6 +47,15 @@ public class BacktestImpactRunner implements ApplicationRunner {
         GameReplayEngine engine = new GameReplayEngine(options, objectMapper);
         AlertSimulator alerts = new AlertSimulator();
         List<ReplayResult> baseline = replay(games, baselineProperties, engine, alerts);
+        if (options.signalDumpPath() != null && !options.signalDumpPath().isBlank()) {
+            Path signalDumpPath = Path.of(options.signalDumpPath());
+            new SignalDumpWriter().write(
+                    signalDumpPath,
+                    baseline,
+                    options.aucHorizonPlays(),
+                    options.tensionScoreGapMax());
+            log.info("cycle별 신호 덤프 CSV를 기록했습니다: {}", signalDumpPath.toAbsolutePath());
+        }
         List<ReplayResult> candidate = replay(games, candidateProperties, engine, alerts);
         ImpactReportGenerator.Paths paths = new ImpactReportGenerator(objectMapper).write(
                 options, baselineProperties, candidateProperties, baseline, candidate);

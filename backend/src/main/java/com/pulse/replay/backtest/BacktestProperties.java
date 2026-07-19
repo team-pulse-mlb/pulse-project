@@ -13,6 +13,7 @@ public record BacktestProperties(
         List<Long> gameIds,
         List<String> sources,
         String outputDir,
+        String signalDumpPath,
         int backfillRecentScoreWindowPlays,
         int backfillLeadChangeWindowPlays,
         int aucHorizonPlays,
