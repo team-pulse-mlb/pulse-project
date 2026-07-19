@@ -227,7 +227,7 @@ aws ssm create-document \
 
 백테스트 임시 입출력은 기존 `DEPLOY_S3_BUCKET`의 `backtest/pr/` prefix를 사용한다. `BACKTEST_DB_SECRET_ARN`은 배포 워크플로가 EC2의 `/etc/pulse/secrets.conf`에 식별자만 기록한다. 시크릿 값은 GitHub에 전달하지 않는다. 기존 `EC2_INSTANCE_ID`도 백테스트 워크플로가 함께 사용한다.
 
-준비가 끝나면 `tune:` 제목의 내부 PR에서 `scoring.yml`만 변경해 실행한다. 결과는 PR 코멘트와 GitHub Actions 아티팩트에만 남고 저장소 파일은 추가로 변경하지 않는다. 자세한 실행 조건과 판독 기준은 [`docs/policy/BACKTEST.md`](../policy/BACKTEST.md)를 따른다.
+준비가 끝나면 `tune:` 제목의 내부 PR에서 `scoring.yml`만 변경해 실행한다. 결과는 PR 코멘트와 GitHub Actions 아티팩트에만 남고 저장소 파일은 추가로 변경하지 않는다. 자세한 실행 조건과 판독 기준은 [`docs/backtest/BACKTEST.md`](../backtest/BACKTEST.md)를 따른다.
 
 ## 프론트엔드·API HTTPS
 
