@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RankingService {
 
     public static final String LIVE_RANK_KEY = "score:rank:live";
@@ -39,7 +41,8 @@ public class RankingService {
         if (tuples != null) {
             for (TypedTuple<String> tuple : tuples) {
                 if (tuple.getValue() != null && tuple.getScore() != null) {
-                    result.put(Long.parseLong(tuple.getValue()), tuple.getScore());
+                    parseGameId(tuple.getValue())
+                            .ifPresent(gameId -> result.put(gameId, tuple.getScore()));
                 }
             }
         }
@@ -74,8 +77,15 @@ public class RankingService {
         }
 
         String candidateGameId = candidates.iterator().next().getValue();
-        return candidateGameId == null
-                ? OptionalLong.empty()
-                : OptionalLong.of(Long.parseLong(candidateGameId));
+        return candidateGameId == null ? OptionalLong.empty() : parseGameId(candidateGameId);
+    }
+
+    private OptionalLong parseGameId(String member) {
+        try {
+            return OptionalLong.of(Long.parseLong(member));
+        } catch (NumberFormatException exception) {
+            log.warn("실시간 랭킹의 손상된 Redis 멤버를 건너뜁니다: member={}", member);
+            return OptionalLong.empty();
+        }
     }
 }
