@@ -73,7 +73,7 @@ tasks.register('backtestImpact', org.springframework.boot.gradle.tasks.run.BootR
     classpath = sourceSets.main.runtimeClasspath
     args '--spring.profiles.active=backtest'
 
-    ['baseline', 'candidate', 'from', 'to', 'gameIds', 'sources', 'outputDir'].each { propertyName ->
+    ['baseline', 'candidate', 'from', 'to', 'gameIds', 'sources', 'outputDir', 'signalDumpPath'].each { propertyName ->
         if (project.hasProperty(propertyName)) {
             args "--pulse.backtest.${propertyName}=${project.property(propertyName)}"
         }

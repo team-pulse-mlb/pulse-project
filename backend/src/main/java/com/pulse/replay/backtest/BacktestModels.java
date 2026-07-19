@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 public final class BacktestModels {
     private BacktestModels() {}
@@ -23,7 +24,7 @@ public final class BacktestModels {
                     StandingRow awayStanding, List<OddsRow> odds) {}
 
     public record Cycle(Instant computedAt, long playOrder, double baseScore, double stateScore, double watchScore,
-                 int latestPlayIndex, String source) {}
+                 int latestPlayIndex, String source, Map<String, Double> signals) {}
     public record ReplayResult(GameData data, List<Cycle> cycles, int alertCount) {
         double peak() { return cycles.stream().mapToDouble(Cycle::watchScore).max().orElse(0); }
         LocalDate date() { return data.game().startTime().atOffset(java.time.ZoneOffset.UTC).toLocalDate(); }

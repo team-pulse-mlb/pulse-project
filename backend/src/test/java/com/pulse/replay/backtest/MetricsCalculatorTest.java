@@ -3,6 +3,7 @@ package com.pulse.replay.backtest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class MetricsCalculatorTest {
@@ -53,7 +54,7 @@ class MetricsCalculatorTest {
     }
 
     private static BacktestModels.Cycle cycle(long playOrder) {
-        return new BacktestModels.Cycle(null, playOrder, 1, 1, 1, 0, "S3_BACKFILL");
+        return new BacktestModels.Cycle(null, playOrder, 1, 1, 1, 0, "S3_BACKFILL", Map.of());
     }
 
     private static BacktestModels.PlayRow play(long order, int home, int away, boolean scoring) {

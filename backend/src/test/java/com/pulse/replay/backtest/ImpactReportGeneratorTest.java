@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,7 +39,7 @@ class ImpactReportGeneratorTest {
     void 상태_AUC를_JSON과_마크다운에_출력한다() throws IOException {
         BacktestProperties options = new BacktestProperties(
                 "6", null, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 1),
-                List.of(), List.of(), tempDir.toString(), 15, 25, 1, 2, 10,
+                List.of(), List.of(), tempDir.toString(), null, 15, 25, 1, 2, 10,
                 0.7, 0.02, 5, 2);
         ScoringProperties scoring = new ScoringConstantsLoader().loadBaseline("6");
         BacktestModels.ReplayResult result = replayResult();
@@ -62,8 +63,8 @@ class ImpactReportGeneratorTest {
                 play(2, 1, 0, true),
                 play(3, 1, 0, false));
         List<BacktestModels.Cycle> cycles = List.of(
-                new BacktestModels.Cycle(start, 1, 10, 8, 10, 0, "OPERATIONAL"),
-                new BacktestModels.Cycle(start.plusSeconds(1), 2, 2, 1, 2, 1, "OPERATIONAL"));
+                new BacktestModels.Cycle(start, 1, 10, 8, 10, 0, "OPERATIONAL", Map.of()),
+                new BacktestModels.Cycle(start.plusSeconds(1), 2, 2, 1, 2, 1, "OPERATIONAL", Map.of()));
         BacktestModels.GameData data = new BacktestModels.GameData(game, plays, null, null, List.of());
         return new BacktestModels.ReplayResult(data, cycles, 0);
     }
