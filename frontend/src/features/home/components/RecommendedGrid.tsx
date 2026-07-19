@@ -19,8 +19,8 @@ function RecommendedGrid({ cards, isLoading }: RecommendedGridProps) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-2">
-        <Skeleton className="col-span-2 h-44 md:col-span-1 md:row-span-2 md:h-auto md:min-h-[280px]" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-2">
+        <Skeleton className="h-44 sm:col-span-2 md:col-span-1 md:row-span-2 md:h-auto md:min-h-[280px]" />
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-32" />
         ))}
@@ -37,10 +37,10 @@ function RecommendedGrid({ cards, isLoading }: RecommendedGridProps) {
   return (
     <div
       ref={gridRef}
-      className="grid grid-cols-2 gap-4 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-2"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-2"
     >
       <div
-        className="col-span-2 md:col-span-1 md:row-span-2"
+        className="sm:col-span-2 md:col-span-1 md:row-span-2"
         data-flip-id={hero.gameId}
       >
         <HeroGameCard game={hero} />

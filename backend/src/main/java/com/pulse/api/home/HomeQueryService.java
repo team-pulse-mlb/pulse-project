@@ -523,10 +523,10 @@ public class HomeQueryService {
 
     private static String normalizeSort(String sort, String status) {
         if (sort == null || sort.isBlank()) {
-            return "startTime";
+            return "scheduled".equals(status) ? "startTime" : "recommended";
         }
         String normalized = sort.trim().toLowerCase();
-        if ("recommended".equals(normalized) && !"all".equals(status)) {
+        if ("recommended".equals(normalized)) {
             return normalized;
         }
         return "startTime";

@@ -9,6 +9,7 @@ interface SegmentToggleProps<T extends string> {
   onChange: (value: T) => void;
   /** 접근성용 그룹 이름 (예: "표시 모드", "경기 상태 필터") */
   ariaLabel: string;
+  className?: string;
 }
 
 // 세그먼트 토글: 보호/공개 모드 전환과 홈 상태 필터 탭이 공용으로 사용한다.
@@ -18,12 +19,13 @@ function SegmentToggle<T extends string>({
   value,
   onChange,
   ariaLabel,
+  className = 'inline-flex',
 }: SegmentToggleProps<T>) {
   return (
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="inline-flex items-center gap-0.5 rounded-full bg-[#E7EAF0] p-1"
+      className={`${className} items-center gap-0.5 rounded-full bg-[#E7EAF0] p-1`}
     >
       {options.map((option) => {
         const isActive = option.value === value;
@@ -35,7 +37,7 @@ function SegmentToggle<T extends string>({
             role="tab"
             aria-selected={isActive}
             onClick={() => onChange(option.value)}
-            className={`rounded-full px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors ${
+            className={`min-w-0 rounded-full px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors ${
               isActive
                 ? 'bg-white text-text-strong shadow-card'
                 : 'text-text-muted hover:text-text-body'
