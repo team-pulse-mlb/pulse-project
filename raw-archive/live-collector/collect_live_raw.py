@@ -342,21 +342,36 @@ def backfill_finished(bucket, state, saved, games):
 def daily_batch(bucket, state, saved):
     """UTC 09시 이후 하루 한 번 시즌/부상 데이터를 저장한다."""
     now, observed_at, dt, ts = now_parts()
-    if now.hour < BATCH_HOUR_UTC or state.get("last_batch_date") == dt:
+    if now.hour < BATCH_HOUR_UTC:
         return
+    batch_names = ("standings", "teams_season_stats", "player_injuries")
+    daily_batch_done = state["daily_batch_done"]
+    if state.pop("last_batch_date", None) == dt:
+        daily_batch_done.update({name: dt for name in batch_names})
+    state["daily_batch_done"] = {
+        name: completed_date
+        for name, completed_date in daily_batch_done.items()
+        if completed_date == dt
+    }
+    daily_batch_done = state["daily_batch_done"]
     season = now.year
     for endpoint, params in (
         ("/standings", {"season": season}),
         ("/teams/season_stats", {"season": season}),
     ):
+        name = endpoint.strip("/").replace("/", "_")
+        if daily_batch_done.get(name) == dt:
+            continue
         try:
             resp = api_get(endpoint, params)
-            name = endpoint.strip("/").replace("/", "_")
             save_raw(bucket, f"raw/{name}/dt={dt}/{name}_{ts}Z.json.gz",
                      observed_at, endpoint, params, resp)
             saved.append(name)
+            daily_batch_done[name] = dt
         except (urllib.error.URLError, urllib.error.HTTPError) as e:
             print(f"{endpoint} 조회 실패: {e}")
+    if daily_batch_done.get("player_injuries") == dt:
+        return
     try:
         cursor, pages = None, []
         for _ in range(MAX_PAGES):
@@ -371,9 +386,9 @@ def daily_batch(bucket, state, saved):
         save_raw(bucket, f"raw/player_injuries/dt={dt}/injuries_{ts}Z.json.gz",
                  observed_at, "/player_injuries", {"per_page": 100}, {"pages": pages})
         saved.append("player_injuries")
+        daily_batch_done["player_injuries"] = dt
     except (urllib.error.URLError, urllib.error.HTTPError) as e:
         print(f"player_injuries 조회 실패: {e}")
-    state["last_batch_date"] = dt
 
 
 def prune_state(state, games):
@@ -395,7 +410,8 @@ def handler(event, context):
     live_game_workers = max(1, int(os.environ.get("LIVE_GAME_WORKERS", str(DEFAULT_LIVE_GAME_WORKERS))))
 
     state = load_state(bucket)
-    for key in ("hashes", "plays_cursor", "last_play_at", "suspended_poll_at", "backfilled"):
+    for key in ("hashes", "plays_cursor", "last_play_at", "suspended_poll_at", "backfilled",
+                "daily_batch_done"):
         state.setdefault(key, {})
     saved = []
 
