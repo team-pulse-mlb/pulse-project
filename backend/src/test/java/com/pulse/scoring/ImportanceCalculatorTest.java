@@ -1,4 +1,4 @@
-package com.pulse.scorer;
+package com.pulse.scoring;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.domain.Game;
 import com.pulse.domain.StandingRepository;
+import com.pulse.scorer.TestScoringProperties;
 import org.junit.jupiter.api.Test;
 
 class ImportanceCalculatorTest {
