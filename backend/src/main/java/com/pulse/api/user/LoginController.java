@@ -1,6 +1,7 @@
 package com.pulse.api.user;
 
 import com.pulse.api.user.dto.*;
+import com.pulse.api.user.security.cookie.RefreshTokenCookieFactory;
 import com.pulse.api.user.security.cookie.RefreshTokenCookieProperties;
 import com.pulse.api.user.security.jwt.JwtProperties;
 import jakarta.validation.Valid;
@@ -30,7 +31,7 @@ public class LoginController {
      *
      * 로컬/배포 환경에 따라 secure, sameSite, path 값을 다르게 적용하기 위해 사용합니다.
      */
-    private final RefreshTokenCookieProperties refreshTokenCookieProperties;
+    private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
     /**
      * 이메일과 비밀번호 로그인
@@ -42,10 +43,12 @@ public class LoginController {
         LoginResult result = loginService.login(request);
 
         ResponseCookie refreshTokenCookie =
-                createRefreshTokenCookie(
-                        result.refreshToken(),
-                        jwtProperties.refreshTokenExpiration()
-                );
+                refreshTokenCookieFactory
+                        .createRefreshTokenCookie(
+                                result.refreshToken(),
+                                jwtProperties
+                                        .refreshTokenExpiration()
+                        );
 
         return ResponseEntity
                 .ok()
@@ -77,10 +80,12 @@ public class LoginController {
         // 이 부분이 Refresh Token Rotation의 Controller 핵심이다.
         // 기존 Cookie에 들어 있던 Refresh Token을 새 Refresh Token으로 교체한다.
         ResponseCookie refreshTokenCookie =
-                createRefreshTokenCookie(
-                        result.refreshToken(),
-                        jwtProperties.refreshTokenExpiration()
-                );
+                refreshTokenCookieFactory
+                        .createRefreshTokenCookie(
+                                result.refreshToken(),
+                                jwtProperties
+                                        .refreshTokenExpiration()
+                        );
 
         return ResponseEntity
                 .ok()
@@ -103,7 +108,8 @@ public class LoginController {
         logoutService.logout(refreshToken);
 
         ResponseCookie deleteCookie =
-                createDeleteRefreshTokenCookie();
+                refreshTokenCookieFactory
+                        .createDeleteRefreshTokenCookie();
 
         LogoutResponse response = new LogoutResponse(
                 "SUCCESS",
@@ -139,56 +145,6 @@ public class LoginController {
         );
 
         return ResponseEntity.ok(response);
-    }
-
-
-    /*
-     * refreshToken을 담은 HttpOnly 쿠키를 생성합니다.
-     *
-     * 로그인 성공, 토큰 재발급 성공 시 공통으로 사용합니다.
-     *
-     * 중요한 점:
-     * - httpOnly=true
-     *   → JavaScript에서 refreshToken을 읽을 수 없게 막습니다.
-     *
-     * - secure
-     *   → 로컬에서는 false, HTTPS 배포에서는 true로 설정합니다.
-     *   → application.yml / 환경변수로 제어합니다.
-     *
-     * - sameSite
-     *   → 현재 기본값은 Lax입니다.
-     *   → 배포 구조에 따라 None이 필요할 수 있습니다.
-     *
-     * - path
-     *   → refreshToken 쿠키가 전송될 API 범위를 제한합니다.
-     */
-    private ResponseCookie createRefreshTokenCookie(
-            String refreshToken,
-            Duration maxAge
-    ) {
-        return ResponseCookie.from("refreshToken", refreshToken)
-                .httpOnly(true)
-                .secure(refreshTokenCookieProperties.secure())
-                .sameSite(refreshTokenCookieProperties.sameSite())
-                .path(refreshTokenCookieProperties.path())
-                .maxAge(maxAge)
-                .build();
-    }
-
-    /*
-     * refreshToken 삭제용 쿠키를 생성합니다.
-     *
-     * 쿠키를 삭제할 때도 생성할 때와 같은 옵션을 맞춰야 합니다.
-     * 특히 path, secure, sameSite가 달라지면 브라우저가 기존 쿠키를 삭제하지 못할 수 있습니다.
-     */
-    private ResponseCookie createDeleteRefreshTokenCookie() {
-        return ResponseCookie.from("refreshToken", "")
-                .httpOnly(true)
-                .secure(refreshTokenCookieProperties.secure())
-                .sameSite(refreshTokenCookieProperties.sameSite())
-                .path(refreshTokenCookieProperties.path())
-                .maxAge(0)
-                .build();
     }
 
 

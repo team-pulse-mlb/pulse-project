@@ -8,6 +8,8 @@ import com.pulse.api.user.dto.ChangePasswordRequest;
 import com.pulse.api.user.dto.ChangePasswordResponse;
 import com.pulse.api.user.exception.InvalidCurrentPasswordException;
 import com.pulse.api.user.exception.PasswordMismatchException;
+import com.pulse.api.user.exception.EmailVerificationException;
+import com.pulse.api.user.exception.SamePasswordException;
 import com.pulse.api.user.security.PersistentRefreshTokenService;
 import com.pulse.domain.TeamRepository;
 import org.junit.jupiter.api.Test;
@@ -112,7 +114,8 @@ class MemberServiceTest {
         verifyNoInteractions(
                 memberRepository,
                 passwordEncoder,
-                persistentRefreshTokenService
+                persistentRefreshTokenService,
+                emailVerificationService
         );
     }
 
@@ -134,7 +137,18 @@ class MemberServiceTest {
                 "new-password-123"
         );
 
-        when(memberRepository.findByEmailForUpdate(normalizedEmail))
+        /*
+         * 이 테스트의 목적은 이메일 인증 실패가 아니라
+         * 현재 비밀번호 불일치 검증입니다.
+         *
+         * 따라서 이메일 인증은 이미 완료된 상태로 설정합니다.
+         */
+        when(emailVerificationService
+                .isPasswordChangeVerified(normalizedEmail))
+                .thenReturn(true);
+
+        when(memberRepository
+                .findByEmailForUpdate(normalizedEmail))
                 .thenReturn(Optional.of(member));
 
         when(member.getPasswordHash())
@@ -203,19 +217,45 @@ class MemberServiceTest {
                 "new-password-123"
         );
 
-        when(memberRepository.findByEmailForUpdate(email))
+        /*
+         * 비밀번호 변경용 이메일 인증을
+         * 이미 완료한 사용자로 설정합니다.
+         */
+        when(emailVerificationService
+                .isPasswordChangeVerified(email))
+                .thenReturn(true);
+
+        when(memberRepository
+                .findByEmailForUpdate(email))
                 .thenReturn(Optional.of(member));
 
         when(member.getPasswordHash())
                 .thenReturn("stored-password-hash");
 
+        /*
+         * 현재 비밀번호는 올바릅니다.
+         */
         when(passwordEncoder.matches(
                 "current-password",
                 "stored-password-hash"
         )).thenReturn(true);
 
-        when(passwordEncoder.encode("new-password-123"))
-                .thenReturn("encoded-new-password-hash");
+        /*
+         * 새 비밀번호는 현재 비밀번호와 다릅니다.
+         *
+         * 이 설정이 false여야 SamePasswordException이 발생하지 않고
+         * 실제 비밀번호 변경 단계로 진행됩니다.
+         */
+        when(passwordEncoder.matches(
+                "new-password-123",
+                "stored-password-hash"
+        )).thenReturn(false);
+
+        when(passwordEncoder
+                .encode("new-password-123"))
+                .thenReturn(
+                        "encoded-new-password-hash"
+                );
 
         // when
         ChangePasswordResponse response =
@@ -245,6 +285,11 @@ class MemberServiceTest {
 
         verify(memberRepository)
                 .saveAndFlush(member);
+
+        verify(emailVerificationService)
+                .removePasswordChangeVerification(
+                        email
+                );
     }
 
     /**
@@ -269,7 +314,12 @@ class MemberServiceTest {
                 "new-password-123"
         );
 
-        when(memberRepository.findByEmailForUpdate(email))
+        when(emailVerificationService
+                .isPasswordChangeVerified(email))
+                .thenReturn(true);
+
+        when(memberRepository
+                .findByEmailForUpdate(email))
                 .thenReturn(Optional.of(member));
 
         when(member.getPasswordHash())
@@ -280,8 +330,16 @@ class MemberServiceTest {
                 "stored-password-hash"
         )).thenReturn(true);
 
-        when(passwordEncoder.encode("new-password-123"))
-                .thenReturn("encoded-new-password-hash");
+        when(passwordEncoder.matches(
+                "new-password-123",
+                "stored-password-hash"
+        )).thenReturn(false);
+
+        when(passwordEncoder
+                .encode("new-password-123"))
+                .thenReturn(
+                        "encoded-new-password-hash"
+                );
 
         // when
         memberService.changePassword(
@@ -293,7 +351,8 @@ class MemberServiceTest {
         InOrder callOrder = inOrder(
                 member,
                 memberRepository,
-                persistentRefreshTokenService
+                persistentRefreshTokenService,
+                emailVerificationService
         );
 
         callOrder.verify(member)
@@ -306,7 +365,130 @@ class MemberServiceTest {
 
         callOrder.verify(persistentRefreshTokenService)
                 .revokeAllActiveTokens(member);
+
+        callOrder.verify(emailVerificationService)
+                .removePasswordChangeVerification(
+                        email
+                );
     }
+
+
+    /**
+     * 비밀번호 변경용 이메일 인증을 완료하지 않았다면
+     * 비밀번호 변경을 허용하면 안 됩니다.
+     */
+    @Test
+    void changePassword_shouldRejectUnverifiedEmail() {
+        // given
+        String email = "user@example.com";
+
+        ChangePasswordRequest request = createRequest(
+                "current-password",
+                "new-password-123",
+                "new-password-123"
+        );
+
+        when(emailVerificationService
+                .isPasswordChangeVerified(email))
+                .thenReturn(false);
+
+        // when
+        EmailVerificationException exception =
+                assertThrows(
+                        EmailVerificationException.class,
+                        () -> memberService.changePassword(
+                                email,
+                                request
+                        )
+                );
+
+        // then
+        assertEquals(
+                "비밀번호 변경을 위한 이메일 인증을 완료해 주세요.",
+                exception.getMessage()
+        );
+
+        /*
+         * 이메일 인증을 통과하지 못했으므로
+         * 회원 조회나 비밀번호 검증을 실행하면 안 됩니다.
+         */
+        verifyNoInteractions(
+                memberRepository,
+                passwordEncoder,
+                persistentRefreshTokenService
+        );
+    }
+
+    /**
+     * 현재 사용 중인 비밀번호와 같은 값을
+     * 새 비밀번호로 다시 사용할 수 없습니다.
+     */
+    @Test
+    void changePassword_shouldRejectSamePassword() {
+        // given
+        String email = "user@example.com";
+
+        Member member = mock(Member.class);
+
+        ChangePasswordRequest request = createRequest(
+                "current-password",
+                "current-password",
+                "current-password"
+        );
+
+        when(emailVerificationService
+                .isPasswordChangeVerified(email))
+                .thenReturn(true);
+
+        when(memberRepository
+                .findByEmailForUpdate(email))
+                .thenReturn(Optional.of(member));
+
+        when(member.getPasswordHash())
+                .thenReturn("stored-password-hash");
+
+        /*
+         * 현재 비밀번호 확인과 새 비밀번호 중복 확인에
+         * 같은 문자열이 전달됩니다.
+         *
+         * 두 호출 모두 true를 반환하므로:
+         * - 현재 비밀번호 검증은 통과
+         * - 새 비밀번호가 현재 비밀번호와 같다는 검사에서 차단
+         */
+        when(passwordEncoder.matches(
+                "current-password",
+                "stored-password-hash"
+        )).thenReturn(true);
+
+        // when
+        SamePasswordException exception =
+                assertThrows(
+                        SamePasswordException.class,
+                        () -> memberService.changePassword(
+                                email,
+                                request
+                        )
+                );
+
+        // then
+        assertEquals(
+                "새 비밀번호는 현재 비밀번호와 다르게 입력해 주세요.",
+                exception.getMessage()
+        );
+
+        verify(passwordEncoder, never())
+                .encode(anyString());
+
+        verify(member, never())
+                .changePasswordHash(anyString());
+
+        verify(memberRepository, never())
+                .saveAndFlush(any(Member.class));
+
+        verify(persistentRefreshTokenService, never())
+                .revokeAllActiveTokens(any(Member.class));
+    }
+
 
     /**
      * 테스트마다 요청 객체 생성 코드가 반복되는 것을 줄이기 위한

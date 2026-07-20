@@ -1,12 +1,15 @@
 package com.pulse.api.user;
 
 import com.pulse.api.user.dto.*;
+import com.pulse.api.user.security.cookie.RefreshTokenCookieFactory;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -24,6 +27,7 @@ public class MemberController {
 
     private final MemberService memberService;
     private final EmailVerificationService emailVerificationService;
+    private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
     // 회원가입 처리
     @PostMapping("/signup")
@@ -113,8 +117,105 @@ public class MemberController {
                         request
                 );
 
+        ResponseCookie deleteCookie =
+                refreshTokenCookieFactory
+                        .createDeleteRefreshTokenCookie();
+
+        return ResponseEntity
+                .ok()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        deleteCookie.toString()
+                )
+                .body(response);
+    }
+
+
+    /**
+     * 로그인한 사용자에게
+     * 비밀번호 변경용 이메일 인증번호를 전송합니다.
+     *
+     * 요청:
+     * POST /api/members/me/password/email-code/send
+     *
+     * 이메일을 요청 본문으로 받지 않고
+     * JWT 인증 정보에서 가져옵니다.
+     */
+    @PostMapping("/me/password/email-code/send")
+    public ResponseEntity<EmailCodeSendResponse>
+    sendPasswordChangeEmailCode(
+            Authentication authentication
+    ) {
+        EmailCodeSendResponse response =
+                emailVerificationService
+                        .sendPasswordChangeCode(
+                                authentication.getName()
+                        );
+
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 비밀번호 변경용 이메일 인증번호를 확인합니다.
+     *
+     * 요청:
+     * POST /api/members/me/password/email-code/verify
+     *
+     * 요청 본문:
+     * {
+     *   "code": "123456"
+     * }
+     */
+    @PostMapping("/me/password/email-code/verify")
+    public ResponseEntity<EmailCodeVerifyResponse>
+    verifyPasswordChangeEmailCode(
+            Authentication authentication,
+            @Valid
+            @RequestBody
+            PasswordChangeEmailCodeVerifyRequest request
+    ) {
+        EmailCodeVerifyResponse response =
+                emailVerificationService
+                        .verifyPasswordChangeCode(
+                                authentication.getName(),
+                                request.code()
+                        );
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    /**
+     * 로그인한 회원을 탈퇴 처리합니다.
+     *
+     * 요청:
+     * POST /api/members/me/withdraw
+     */
+    @PostMapping("/me/withdraw")
+    public ResponseEntity<WithdrawMemberResponse>
+    withdrawMember(
+            Authentication authentication,
+            @Valid
+            @RequestBody
+            WithdrawMemberRequest request
+    ) {
+        WithdrawMemberResponse response =
+                memberService.withdrawMember(
+                        authentication.getName(),
+                        request
+                );
+
+        ResponseCookie deleteCookie =
+                refreshTokenCookieFactory
+                        .createDeleteRefreshTokenCookie();
+
+        return ResponseEntity
+                .ok()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        deleteCookie.toString()
+                )
+                .body(response);
+    }
 
 }

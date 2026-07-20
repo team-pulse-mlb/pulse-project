@@ -2,6 +2,7 @@ package com.pulse.api.user.security;
 
 import com.pulse.api.user.domain.Member;
 import com.pulse.api.user.domain.MemberRepository;
+import com.pulse.api.user.domain.MemberStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -32,6 +33,14 @@ public class CustomUserDetailsService implements UserDetailsService {
                                 "가입되지 않은 이메일입니다."
                         )
                 );
+
+        if (member.getStatus()
+                != MemberStatus.ACTIVE) {
+
+            throw new UsernameNotFoundException(
+                    "로그인할 수 없는 계정입니다."
+            );
+        }
 
         return User.builder()
                 .username(member.getEmail())

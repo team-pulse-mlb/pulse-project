@@ -1,16 +1,11 @@
 package com.pulse.api.user;
 
+import com.pulse.api.user.domain.*;
 import com.pulse.api.user.dto.*;
 import com.pulse.api.user.exception.*;
 import com.pulse.api.user.security.PersistentRefreshTokenService;
 import com.pulse.domain.Team;
 import com.pulse.domain.TeamRepository;
-import com.pulse.api.user.domain.Member;
-import com.pulse.api.user.domain.MemberRepository;
-import com.pulse.api.user.domain.UserFavoriteTeam;
-import com.pulse.api.user.domain.UserFavoriteTeamRepository;
-import com.pulse.api.user.domain.UserSetting;
-import com.pulse.api.user.domain.UserSettingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -333,13 +328,16 @@ public class MemberService {
     /**
      * 로그인한 사용자의 비밀번호를 변경합니다.
      *
-     * 처리 순서:
-     * 1. 새 비밀번호와 확인 값 비교
-     * 2. 로그인 사용자 조회
-     * 3. 현재 비밀번호 검증
-     * 4. 새 비밀번호 BCrypt 암호화
-     * 5. Member 비밀번호 해시 변경
-     * 6. 사용자의 활성 Refresh Token 전체 폐기
+     * 검증 조건:
+     * - 비밀번호 변경용 이메일 인증 완료
+     * - 현재 비밀번호 일치
+     * - 새 비밀번호와 확인 값 일치
+     * - 새 비밀번호가 현재 비밀번호와 다름
+     *
+     * 성공 시:
+     * - 비밀번호 해시 변경
+     * - 모든 활성 Refresh Token 폐기
+     * - 비밀번호 변경용 이메일 인증 상태 삭제
      */
     @Transactional
     public ChangePasswordResponse changePassword(
@@ -347,8 +345,7 @@ public class MemberService {
             ChangePasswordRequest request
     ) {
         /*
-         * 프론트에서 확인했더라도 개발자 도구나 Postman으로
-         * 서로 다른 값을 보낼 수 있으므로 서버에서 다시 검사합니다.
+         * 확인 값 불일치는 DB 조회 전에 차단합니다.
          */
         if (!request.getNewPassword()
                 .equals(request.getNewPasswordConfirm())) {
@@ -358,19 +355,24 @@ public class MemberService {
             );
         }
 
-        /*
-         * JWT Authentication의 이름에는 이메일이 들어 있습니다.
-         *
-         * 회원가입·로그인과 같은 방식으로 공백을 제거하고
-         * 소문자로 통일합니다.
-         */
         String normalizedEmail = email
                 .trim()
                 .toLowerCase(Locale.ROOT);
 
         /*
-         * 비관적 쓰기 잠금을 사용해 같은 사용자의
-         * 비밀번호 변경 요청이 동시에 처리되지 않도록 합니다.
+         * 회원가입 인증과 별도로 발급한
+         * PASSWORD_CHANGE 인증 완료 기록을 확인합니다.
+         */
+        if (!emailVerificationService
+                .isPasswordChangeVerified(normalizedEmail)) {
+
+            throw new EmailVerificationException(
+                    "비밀번호 변경을 위한 이메일 인증을 완료해 주세요."
+            );
+        }
+
+        /*
+         * 비관적 잠금으로 동일 사용자의 동시 변경을 방지합니다.
          */
         Member member = memberRepository
                 .findByEmailForUpdate(normalizedEmail)
@@ -380,53 +382,168 @@ public class MemberService {
                         )
                 );
 
-        /*
-         * 사용자가 입력한 현재 비밀번호 원문과
-         * DB의 BCrypt 해시를 비교합니다.
-         *
-         * BCrypt 값은 매번 다르게 생성될 수 있으므로
-         * 문자열 equals()로 비교하면 안 됩니다.
-         */
-        boolean currentPasswordMatches =
-                passwordEncoder.matches(
-                        request.getCurrentPassword(),
-                        member.getPasswordHash()
-                );
+        String currentPasswordHash =
+                member.getPasswordHash();
 
-        if (!currentPasswordMatches) {
+        /*
+         * 현재 비밀번호 확인
+         */
+        if (!passwordEncoder.matches(
+                request.getCurrentPassword(),
+                currentPasswordHash
+        )) {
             throw new InvalidCurrentPasswordException(
                     "현재 비밀번호가 올바르지 않습니다."
             );
         }
 
         /*
-         * 새 비밀번호를 BCrypt로 암호화합니다.
+         * 새 비밀번호가 현재 비밀번호와 같은지 확인합니다.
          *
-         * 원문 비밀번호는 Member나 DB에 저장하지 않습니다.
+         * BCrypt 해시는 같은 원문이어도 매번 다르므로
+         * 새 비밀번호를 먼저 encode한 뒤 문자열 비교하면 안 됩니다.
          */
+        if (passwordEncoder.matches(
+                request.getNewPassword(),
+                currentPasswordHash
+        )) {
+            throw new SamePasswordException(
+                    "새 비밀번호는 현재 비밀번호와 다르게 입력해 주세요."
+            );
+        }
+
         String encodedNewPassword =
                 passwordEncoder.encode(
                         request.getNewPassword()
                 );
 
-        member.changePasswordHash(encodedNewPassword);
+        member.changePasswordHash(
+                encodedNewPassword
+        );
 
         /*
-         * Refresh Token 일괄 폐기 쿼리는 영속성 컨텍스트를
-         * clear할 수 있으므로, 먼저 비밀번호 변경을 DB에 반영합니다.
+         * Refresh Token bulk update가 영속성 컨텍스트를 clear하므로
+         * 비밀번호 변경을 먼저 DB에 flush합니다.
          */
         memberRepository.saveAndFlush(member);
 
         /*
-         * 비밀번호가 변경됐으므로 모든 기기의 Refresh Token을
-         * 폐기해 다시 로그인하도록 합니다.
+         * 다른 기기를 포함한 모든 Refresh Token을 폐기합니다.
          */
         persistentRefreshTokenService
                 .revokeAllActiveTokens(member);
 
+        /*
+         * DB 트랜잭션이 성공한 뒤 이메일 인증 상태를 삭제합니다.
+         */
+        removePasswordChangeVerificationAfterCommit(
+                normalizedEmail
+        );
+
         return new ChangePasswordResponse(
                 "SUCCESS",
                 "비밀번호가 변경되었습니다. 다시 로그인해 주세요."
+        );
+    }
+
+    /**
+     * 비밀번호 변경 트랜잭션이 커밋된 뒤
+     * Redis 이메일 인증 완료 상태를 삭제합니다.
+     *
+     * 단위 테스트에서 Spring 트랜잭션 프록시 없이
+     * 직접 메서드를 호출하는 경우도 처리합니다.
+     */
+    private void removePasswordChangeVerificationAfterCommit(
+            String email
+    ) {
+        if (!TransactionSynchronizationManager
+                .isSynchronizationActive()) {
+
+            emailVerificationService
+                    .removePasswordChangeVerification(email);
+
+            return;
+        }
+
+        TransactionSynchronizationManager
+                .registerSynchronization(
+                        new TransactionSynchronization() {
+
+                            @Override
+                            public void afterCommit() {
+                                emailVerificationService
+                                        .removePasswordChangeVerification(
+                                                email
+                                        );
+                            }
+                        }
+                );
+    }
+
+
+    /**
+     * 로그인한 사용자를 탈퇴 처리합니다.
+     *
+     * 처리 순서:
+     * 1. 확인 문구 검사
+     * 2. 회원 잠금 조회
+     * 3. 현재 비밀번호 확인
+     * 4. 상태를 WITHDRAWN으로 변경
+     * 5. 탈퇴 시각 기록
+     * 6. 모든 Refresh Token 폐기
+     */
+    @Transactional
+    public WithdrawMemberResponse withdrawMember(
+            String email,
+            WithdrawMemberRequest request
+    ) {
+        if (!"회원탈퇴".equals(
+                request.getConfirmation().trim()
+        )) {
+            throw new InvalidWithdrawalConfirmationException(
+                    "확인란에 '회원탈퇴'를 정확히 입력해 주세요."
+            );
+        }
+
+        String normalizedEmail = email
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        Member member = memberRepository
+                .findByEmailForUpdate(normalizedEmail)
+                .orElseThrow(() ->
+                        new LoginFailedException(
+                                "회원 정보를 확인할 수 없습니다."
+                        )
+                );
+
+        if (member.getStatus()
+                != MemberStatus.ACTIVE) {
+
+            throw new LoginFailedException(
+                    "활성 회원 정보를 확인할 수 없습니다."
+            );
+        }
+
+        if (!passwordEncoder.matches(
+                request.getCurrentPassword(),
+                member.getPasswordHash()
+        )) {
+            throw new InvalidCurrentPasswordException(
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
+        }
+
+        member.withdraw();
+
+        memberRepository.saveAndFlush(member);
+
+        persistentRefreshTokenService
+                .revokeAllActiveTokens(member);
+
+        return new WithdrawMemberResponse(
+                "SUCCESS",
+                "회원탈퇴가 완료되었습니다."
         );
     }
 }

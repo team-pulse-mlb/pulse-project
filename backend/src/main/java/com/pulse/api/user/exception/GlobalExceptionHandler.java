@@ -239,4 +239,40 @@ public class GlobalExceptionHandler {
                 .badRequest()
                 .body(response);
     }
+
+
+    /**
+     * 현재 비밀번호와 새 비밀번호가 같은 경우 처리합니다.
+     */
+    @ExceptionHandler(SamePasswordException.class)
+    public ResponseEntity<ErrorResponse> handleSamePassword(
+            SamePasswordException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "SAME_PASSWORD",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
+
+
+    @ExceptionHandler(
+            InvalidWithdrawalConfirmationException.class
+    )
+    public ResponseEntity<ErrorResponse>
+    handleInvalidWithdrawalConfirmation(
+            InvalidWithdrawalConfirmationException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "INVALID_WITHDRAWAL_CONFIRMATION",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
 }

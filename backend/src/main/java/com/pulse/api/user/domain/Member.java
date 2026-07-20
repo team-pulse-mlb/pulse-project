@@ -115,4 +115,22 @@ public class Member {
 
         this.passwordHash = newPasswordHash;
     }
+
+
+    /**
+     * 회원을 Soft Delete 상태로 변경합니다.
+     *
+     * DB row는 삭제하지 않고,
+     * 상태와 탈퇴 시각만 기록합니다.
+     */
+    public void withdraw() {
+        if (this.status == MemberStatus.WITHDRAWN) {
+            throw new IllegalStateException(
+                    "이미 탈퇴한 회원입니다."
+            );
+        }
+
+        this.status = MemberStatus.WITHDRAWN;
+        this.deletedAt = LocalDateTime.now();
+    }
 }
