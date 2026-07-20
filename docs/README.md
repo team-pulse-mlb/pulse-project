@@ -58,6 +58,7 @@
 | [SCORING.md](policy/SCORING.md) | watch/pregame/peak 점수 공식, 신호 정의, 결측 처리 |
 | [SPOILER_POLICY.md](policy/SPOILER_POLICY.md) | 보호/공개 모드, 화면별 노출·금지 필드, 태그·이벤트 표기 |
 | [AI_COPY.md](policy/AI_COPY.md) | AI 문구 생성 트리거, 컨텍스트·HTTP 계약, 검수·저장 |
+| [AI_PROMPT_DESIGN.md](policy/AI_PROMPT_DESIGN.md) | AI 프롬프트 조립, 목적·모드별 지시, Structured Output·근거 ID 계약 |
 | [NOTIFICATIONS.md](policy/NOTIFICATIONS.md) | 알림·경기 전환 추천 조건, 파이프라인, 이벤트 스키마·fan-out |
 | [FAVORITE_PLAYERS.md](policy/FAVORITE_PLAYERS.md) | 관심 선수 검색·등록 책임 분리, 마스터 upsert·동시성 안전장치 |
 
