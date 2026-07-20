@@ -33,11 +33,11 @@
 - **429 대응**: 응답의 `Retry-After`(초)를 그대로 신뢰해 대기하고 해당 사이클을 건너뛴다. 회복 후 우선순위는 `/games` > `/plays` > `/plate_appearances`다(상태 전이 감지 > 증분 수집 > 전체 재조회).
 - **일 배치 시각**: `/standings`와 시즌 스탯 캐시는 매일 슬레이트 시작 전 1회(약 10:00 UTC), `/teams`·`/players` 마스터는 일 1회 upsert한다.
 
-## 3. 계산 흐름
+## 3. 처리 흐름
 
-![점수 계산 흐름](../image/diagram/scoring-flow.svg)
+![데이터 파이프라인 처리 흐름](../image/diagram/data-pipeline.svg)
 
-### 계산 번호별 설명
+### 처리 번호별 설명
 
 | 번호 | 단계 | 설명 |
 |---|---|---|
@@ -52,6 +52,27 @@
 | ⑨ | AI 문구 트리거 | 경기 종료 정리 시 `FINAL_HEADLINE`을 보호/공개 모드별 `safeContext`와 `contextHash`로 ai-service에 비동기 생성을 요청한다. |
 
 scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: `score:rank:live`에서 제거, `signal:ranking` 발행, 종료 헤드라인(`FINAL_HEADLINE`) 생성 트리거. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
+
+### gameprocessing 이벤트 기반 내부 구조 (scorer 리팩토링 목표 구조)
+
+아래는 진행 중인 scorer 모듈 리팩토링의 **목표 내부 구조**다. 현재 코드는 아직 `com.pulse.scorer` 단일 패키지이며, 계산 커널을 `com.pulse.scoring`으로, 소비·후처리 오케스트레이션을 `com.pulse.gameprocessing`으로 분리한다. `LiveScoringService.handle()`이 한 트랜잭션에서 순차 수행하던 외부 I/O 팬아웃을 `LiveScoreComputedEvent` + `AFTER_COMMIT` 리스너로 가른다. 배포 역할·컨테이너명·설정 키·메트릭(`scorer`)은 바꾸지 않고 Java 패키지 구조만 바꾼다.
+
+![gameprocessing 이벤트 기반 내부 구조](../image/diagram/gameprocessing-event-flow.svg)
+
+| 번호 | 단계 | 설명 |
+|---|---|---|
+| ① | 메시지 소비·라우팅 | `ScoreTaskListener`가 `score.tasks`를 소비해 lifecycle로 LIVE·PREGAME·종료 경로로 분기한다. `gameprocessing.consumer`. |
+| ② | 중복검사·경기 로드 | `(gameId, computedAt)` UNIQUE로 이미 계산한 사이클을 멱등하게 skip하고, 경기를 로드해 진행 중인지 판정한다. 종료된 경기면 라이브 계산 대신 정리만 한다. |
+| ③ | 점수 계산 | `com.pulse.scoring` 순수 커널이 base_score·watch_score·추천 태그를 계산한다. Redis·RabbitMQ·DB를 모른다. |
+| ④ | `watch_scores` 적재·peak 갱신 | 계산 결과와 peak base_score를 PostgreSQL에 저장한다. |
+| ⑤ | `game_events` 추출 | 흥미 순간 이벤트를 임계 통과 시 append한다. `watch_scores`와 원자적으로 커밋되는 파생 데이터다. |
+| ⑥ | 하이라이트 anchor 표시 | 추천 점수 급변 구간의 보호 이벤트를 `timeline_highlight`로 표시한다. `gameprocessing.highlight`. |
+| ⑦ | 이벤트 발행 | 본 트랜잭션 끝에서 `LiveScoreComputedEvent`(gameId·computedAt·watchScore·tags 등 불변값만)를 발행한다. |
+| ⑧ | 랭킹 반영 | `AFTER_COMMIT` 리스너가 Redis ZSET·HASH·pub/sub를 갱신한다. `gameprocessing.effect`. |
+| ⑨ | 급상승 알림 | `AFTER_COMMIT` 리스너가 Lua·cooldown·결정적 멱등 키로 SURGE를 판정해 `notify.events` outbox에 기록한다. |
+| ⑩ | 플레이 번역 요청 | `AFTER_COMMIT` 리스너가 미번역 플레이 번역을 요청한다. `gameprocessing.aicopy`가 창현 영역 `com.pulse.ai`(AI 서비스 클라이언트)를 호출한다. |
+
+②~⑦은 한 트랜잭션에서 실행되어 함께 커밋·롤백되고, ⑧~⑩ 리스너는 커밋 성공 후 커밋 스레드에서 동기 실행되며 리스너별로 예외를 격리해 하나의 실패가 다른 효과·Rabbit 처리로 전파되지 않는다. PREGAME(예정 점수)·종료(정리) 경로는 이 이벤트 팬아웃을 타지 않는 별도 경로다.
 
 ## 4. 사용자 응답 흐름
 
