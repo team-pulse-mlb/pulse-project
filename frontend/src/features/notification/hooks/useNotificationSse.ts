@@ -31,7 +31,7 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
  */
 function isNotificationCreatedPayload(
     value: unknown,
-    ): value is NotificationCreatedPayload {
+): value is NotificationCreatedPayload {
     if (
         typeof value !== 'object' ||
         value === null ||
@@ -120,184 +120,195 @@ export function useNotificationSse() {
          * 최대 30초까지만 늘어납니다.
          */
         const getReconnectDelay = () => {
-        const delay =
-            INITIAL_RECONNECT_DELAY_MS *
-            2 ** reconnectAttempt;
+            const delay =
+                INITIAL_RECONNECT_DELAY_MS *
+                2 ** reconnectAttempt;
 
-        return Math.min(
-            delay,
-            MAX_RECONNECT_DELAY_MS,
-        );
+            return Math.min(
+                delay,
+                MAX_RECONNECT_DELAY_MS,
+            );
         };
 
         /**
          * 새 토큰을 발급해 다시 연결하도록 예약합니다.
          */
         const scheduleReconnect = () => {
-        if (
-            cancelled ||
-            reconnectTimerId !== null
-        ) {
-            return;
-        }
+            if (
+                cancelled ||
+                reconnectTimerId !== null
+            ) {
+                return;
+            }
 
-        const delay = getReconnectDelay();
+            const delay = getReconnectDelay();
 
-        reconnectAttempt += 1;
+            reconnectAttempt += 1;
 
-        reconnectTimerId = window.setTimeout(() => {
-            reconnectTimerId = null;
-            void connect();
-        }, delay);
+            reconnectTimerId = window.setTimeout(() => {
+                reconnectTimerId = null;
+                void connect();
+            }, delay);
         };
 
         /**
          * 새 알림 SSE 이벤트를 처리합니다.
          */
         const handleNotificationCreated = async (
-        event: Event,
+            event: Event,
         ) => {
-        const messageEvent = event as MessageEvent<string>;
+            const messageEvent = event as MessageEvent<string>;
 
-        let parsedData: unknown;
+            let parsedData: unknown;
 
-        try {
-            parsedData = JSON.parse(messageEvent.data);
-        } catch {
-            return;
-        }
+            try {
+                parsedData = JSON.parse(messageEvent.data);
+            } catch {
+                return;
+            }
 
-        if (!isNotificationCreatedPayload(parsedData)) {
-            return;
-        }
+            if (!isNotificationCreatedPayload(parsedData)) {
+                return;
+            }
 
-        const { notificationId } = parsedData;
+            const { notificationId } = parsedData;
 
-        /*
-        * 동일한 알림 이벤트가 중복 전달되면
-        * REST 재조회와 토스트를 반복하지 않습니다.
-        */
-        if (
-            lastNotificationIdRef.current === notificationId
-        ) {
-            return;
-        }
+            /*
+            * 동일한 알림 이벤트가 중복 전달되면
+            * REST 재조회와 토스트를 반복하지 않습니다.
+            */
+            if (
+                lastNotificationIdRef.current === notificationId
+            ) {
+                return;
+            }
 
-        lastNotificationIdRef.current = notificationId;
+            lastNotificationIdRef.current = notificationId;
 
-        /*
-        * NotificationBell에서 알림 쿼리를 사용하고 있으므로
-        * active 쿼리를 즉시 서버에서 다시 조회합니다.
-        *
-        * 이 작업으로:
-        * - 종 아이콘의 빨간 점
-        * - 드롭다운 최근 목록
-        * - 전체 알림 페이지
-        *
-        * 가 같은 캐시를 기준으로 갱신됩니다.
-        */
-        await queryClient.refetchQueries({
-            queryKey: queryKeys.me.notifications,
-            type: 'active',
-        });
-
-        if (cancelled) {
-            return;
-        }
-
-        const notifications =
-            queryClient.getQueryData<
-            NotificationSummary[]
-            >(queryKeys.me.notifications);
-
-        const createdNotification =
-            notifications?.find(
-            (notification) =>
-                notification.notificationId ===
-                notificationId,
-            );
-
-        /*
-        * SSE payload에는 메시지가 없으므로,
-        * REST 재조회로 얻은 서버의 실제 message를 토스트에 사용합니다.
-        *
-        * 프론트에서 임의의 경기 문구를 조립하지 않습니다.
-        */
-        if (createdNotification) {
-            showToast({
-            message: createdNotification.message,
-            to: `/games/${createdNotification.gameId}`,
+            /*
+            * NotificationBell에서 알림 쿼리를 사용하고 있으므로
+            * active 쿼리를 즉시 서버에서 다시 조회합니다.
+            *
+            * 이 작업으로:
+            * - 종 아이콘의 빨간 점
+            * - 드롭다운 최근 목록
+            * - 전체 알림 페이지
+            *
+            * 가 같은 캐시를 기준으로 갱신됩니다.
+            */
+            await queryClient.refetchQueries({
+                queryKey: queryKeys.me.notifications,
+                type: 'active',
             });
-        }
+
+            if (cancelled) {
+                return;
+            }
+
+            const notifications =
+                queryClient.getQueryData<
+                    NotificationSummary[]
+                >(queryKeys.me.notifications);
+
+            const createdNotification =
+                notifications?.find(
+                    (notification) =>
+                        notification.notificationId ===
+                        notificationId,
+                );
+
+            /*
+            * SSE payload에는 메시지가 없으므로,
+            * REST 재조회로 얻은 서버의 실제 message를 토스트에 사용합니다.
+            *
+            * 프론트에서 임의의 경기 문구를 조립하지 않습니다.
+            */
+            if (createdNotification) {
+                const isGameStart =
+                    createdNotification.type === 'GAME_START';
+
+                showToast({
+                    title: isGameStart
+                        ? '관심 팀 경기가 시작됐어요'
+                        : '지금 볼 만한 경기 알림',
+                    message: createdNotification.message,
+                    to: `/games/${createdNotification.gameId}`,
+                    variant: isGameStart
+                        ? 'game-start'
+                        : 'surge',
+                    dedupeKey:
+                        `notification-${createdNotification.notificationId}`,
+                });
+            }
         };
 
         /**
          * 일회용 토큰을 발급받아 SSE를 연결합니다.
          */
         const connect = async () => {
-        if (cancelled) {
-            return;
-        }
-
-        try {
-            const token = await issueSseToken();
-
             if (cancelled) {
-            return;
+                return;
             }
 
-            eventSource = new EventSource(
-            createSseUrl(token),
-            {
-                withCredentials: true,
-            },
-            );
+            try {
+                const token = await issueSseToken();
 
-            /**
-             * SSE 연결에 성공하면:
-             *
-             * 1. 연속 연결 실패 횟수를 초기화합니다.
-             * 2. 연결이 끊겨 있던 동안 생성된 알림을 복구하기 위해
-             *    알림 목록을 한 번 다시 조회합니다.
-             *
-             * SSE는 연결이 끊긴 동안 발생한 과거 이벤트를
-             * 자동으로 다시 전달하지 않으므로 REST 재조회가 필요합니다.
-             */
-            eventSource.onopen = () => {
-                reconnectAttempt = 0;
+                if (cancelled) {
+                    return;
+                }
 
-                void queryClient.refetchQueries({
-                    queryKey: queryKeys.me.notifications,
-                    type: 'active',
-                });
-            };
+                eventSource = new EventSource(
+                    createSseUrl(token),
+                    {
+                        withCredentials: true,
+                    },
+                );
 
-            eventSource.addEventListener(
-            'notification_created',
-            handleNotificationCreated,
-            );
+                /**
+                 * SSE 연결에 성공하면:
+                 *
+                 * 1. 연속 연결 실패 횟수를 초기화합니다.
+                 * 2. 연결이 끊겨 있던 동안 생성된 알림을 복구하기 위해
+                 *    알림 목록을 한 번 다시 조회합니다.
+                 *
+                 * SSE는 연결이 끊긴 동안 발생한 과거 이벤트를
+                 * 자동으로 다시 전달하지 않으므로 REST 재조회가 필요합니다.
+                 */
+                eventSource.onopen = () => {
+                    reconnectAttempt = 0;
 
-            /**
-             * 연결 오류 발생 시 기존 EventSource를 닫습니다.
-             *
-             * 브라우저의 기본 자동 재연결은 동일한 일회용 토큰 URL을
-             * 재사용하므로 백엔드에서 401이 발생할 수 있습니다.
-             *
-             * 따라서 직접 닫고 새 토큰으로 다시 연결합니다.
-             */
-            eventSource.onerror = () => {
-            eventSource?.close();
-            eventSource = null;
+                    void queryClient.refetchQueries({
+                        queryKey: queryKeys.me.notifications,
+                        type: 'active',
+                    });
+                };
 
-            scheduleReconnect();
-            };
-        } catch {
-            /*
-            * 토큰 발급 또는 연결 준비에 실패한 경우에도
-            * 일정 시간 뒤 새 토큰 발급부터 다시 시도합니다.
-            */
-            scheduleReconnect();
-        }
+                eventSource.addEventListener(
+                    'notification_created',
+                    handleNotificationCreated,
+                );
+
+                /**
+                 * 연결 오류 발생 시 기존 EventSource를 닫습니다.
+                 *
+                 * 브라우저의 기본 자동 재연결은 동일한 일회용 토큰 URL을
+                 * 재사용하므로 백엔드에서 401이 발생할 수 있습니다.
+                 *
+                 * 따라서 직접 닫고 새 토큰으로 다시 연결합니다.
+                 */
+                eventSource.onerror = () => {
+                    eventSource?.close();
+                    eventSource = null;
+
+                    scheduleReconnect();
+                };
+            } catch {
+                /*
+                * 토큰 발급 또는 연결 준비에 실패한 경우에도
+                * 일정 시간 뒤 새 토큰 발급부터 다시 시도합니다.
+                */
+                scheduleReconnect();
+            }
         };
 
         void connect();
@@ -308,13 +319,13 @@ export function useNotificationSse() {
          * - SSE 연결 종료
          */
         return () => {
-        cancelled = true;
+            cancelled = true;
 
-        if (reconnectTimerId !== null) {
-            window.clearTimeout(reconnectTimerId);
-        }
+            if (reconnectTimerId !== null) {
+                window.clearTimeout(reconnectTimerId);
+            }
 
-        eventSource?.close();
+            eventSource?.close();
         };
     }, [queryClient]);
 }
