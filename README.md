@@ -8,7 +8,7 @@
 
 ## 핵심 기능
 
-![PULSE 주요 화면](docs/image/screen_image/pulse-screens.gif)
+![PULSE 주요 화면](docs/image/screen_image/pulse-screens-v2.gif)
 
 | 문제 | 해결 |
 |---|---|
