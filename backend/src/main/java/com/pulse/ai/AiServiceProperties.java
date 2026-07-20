@@ -12,7 +12,13 @@ public record AiServiceProperties(
 ) {
     private static final String DEFAULT_BASE_URL = "http://localhost:8000";
     private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(2);
-    private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(8);
+
+    /*
+     * FINAL_HEADLINE의 OpenAI 호출은 최대 20초까지 허용합니다.
+     * Spring Boot가 FastAPI 응답보다 먼저 연결을 종료하지 않도록
+     * AI 서비스의 기본 응답 대기 시간을 30초로 설정합니다.
+     */
+    private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(30);
 
     public AiServiceProperties {
         baseUrl = normalizeBaseUrl(baseUrl);
