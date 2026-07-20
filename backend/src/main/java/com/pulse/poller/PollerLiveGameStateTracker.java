@@ -1,17 +1,17 @@
 package com.pulse.poller;
 
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 class PollerLiveGameStateTracker {
 
     private final PollerProperties properties;
-    private final Map<Long, Instant> lastTaskPublishedAt = new HashMap<>();
-    private final Map<Long, Instant> lastNewPlayAt = new HashMap<>();
-    private final Map<Long, Instant> nextQuietPlaysPollAt = new HashMap<>();
-    private final Map<Long, Integer> emptyFetchStreaks = new HashMap<>();
-    private final Map<Long, Integer> recoveryStepBacks = new HashMap<>();
+    private final Map<Long, Instant> lastTaskPublishedAt = new ConcurrentHashMap<>();
+    private final Map<Long, Instant> lastNewPlayAt = new ConcurrentHashMap<>();
+    private final Map<Long, Instant> nextQuietPlaysPollAt = new ConcurrentHashMap<>();
+    private final Map<Long, Integer> emptyFetchStreaks = new ConcurrentHashMap<>();
+    private final Map<Long, Integer> recoveryStepBacks = new ConcurrentHashMap<>();
 
     PollerLiveGameStateTracker(PollerProperties properties) {
         this.properties = properties;
