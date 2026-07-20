@@ -21,11 +21,21 @@ class OpenAiServiceTestCase(unittest.TestCase):
         self.original_timeout_seconds = (
             openai_service.settings.openai_timeout_seconds
         )
-        self.original_ai_copy_timeout_seconds = (
-            openai_service.settings.openai_ai_copy_timeout_seconds
+        self.original_final_headline_timeout_seconds = (
+            openai_service
+            .settings
+            .openai_final_headline_timeout_seconds
         )
-        self.original_ai_copy_max_attempts = (
-            openai_service.settings.openai_ai_copy_max_attempts
+        self.original_final_headline_max_attempts = (
+            openai_service
+            .settings
+            .openai_final_headline_max_attempts
+        )
+        self.original_event_copy_timeout_seconds = (
+            openai_service.settings.openai_event_copy_timeout_seconds
+        )
+        self.original_event_copy_max_attempts = (
+            openai_service.settings.openai_event_copy_max_attempts
         )
         self.original_retry_base_delay_seconds = (
             openai_service
@@ -66,11 +76,17 @@ class OpenAiServiceTestCase(unittest.TestCase):
         openai_service.settings.openai_timeout_seconds = (
             self.original_timeout_seconds
         )
-        openai_service.settings.openai_ai_copy_timeout_seconds = (
-            self.original_ai_copy_timeout_seconds
+        openai_service.settings.openai_final_headline_timeout_seconds = (
+            self.original_final_headline_timeout_seconds
         )
-        openai_service.settings.openai_ai_copy_max_attempts = (
-            self.original_ai_copy_max_attempts
+        openai_service.settings.openai_final_headline_max_attempts = (
+            self.original_final_headline_max_attempts
+        )
+        openai_service.settings.openai_event_copy_timeout_seconds = (
+            self.original_event_copy_timeout_seconds
+        )
+        openai_service.settings.openai_event_copy_max_attempts = (
+            self.original_event_copy_max_attempts
         )
         openai_service.settings.openai_ai_copy_retry_base_delay_seconds = (
             self.original_retry_base_delay_seconds
@@ -222,6 +238,77 @@ class OpenAiServiceTestCase(unittest.TestCase):
             {"safe_title": "후반 긴장감이 이어진 경기"},
         )
 
+    def test_final_headline_uses_dedicated_timeout_and_single_attempt(
+        self,
+    ):
+        openai_service.settings.openai_api_key = "fake-api-key"
+        openai_service.settings.openai_final_headline_timeout_seconds = 20.0
+        openai_service.settings.openai_final_headline_max_attempts = 1
+
+        with patch("app.services.openai_service.OpenAI") as mock_openai:
+            mock_client = mock_openai.return_value
+            mock_client.responses.create.side_effect = [
+                SimpleNamespace(output_text=""),
+                SimpleNamespace(
+                    output_text='{"safe_title": "두 번째 응답"}'
+                ),
+            ]
+
+            with self.assertRaises(
+                openai_service.SpoilerFreeSummaryGenerationError
+            ) as context:
+                openai_service._generate_openai_copy(self.request)
+
+        mock_openai.assert_called_once_with(
+            api_key="fake-api-key",
+            timeout=20.0,
+            max_retries=0,
+        )
+        self.assertEqual(str(context.exception), "OPENAI_EMPTY_RESPONSE")
+        self.assertEqual(mock_client.responses.create.call_count, 1)
+
+    def test_event_copy_uses_dedicated_timeout_and_retries_once(
+        self,
+    ):
+        openai_service.settings.openai_api_key = "fake-api-key"
+        openai_service.settings.openai_event_copy_timeout_seconds = 3.0
+        openai_service.settings.openai_event_copy_max_attempts = 2
+        self._disable_retry_sleep()
+
+        request = EventCopyRequest(
+            game_id=5059041,
+            event_id=91,
+            mode=AiCopyMode.PROTECTED,
+            context_hash="event-91-protected-v1",
+            safe_context=SafeContext(
+                event_type="pressure_bases_loaded",
+                label="만루 승부",
+                inning=7,
+            ),
+        )
+
+        with patch("app.services.openai_service.OpenAI") as mock_openai:
+            mock_client = mock_openai.return_value
+            mock_client.responses.create.side_effect = [
+                SimpleNamespace(output_text=""),
+                SimpleNamespace(
+                    output_text='{"safe_title": "재시도 후 이벤트 문구"}'
+                ),
+            ]
+
+            result = openai_service._generate_openai_copy(request)
+
+        mock_openai.assert_called_once_with(
+            api_key="fake-api-key",
+            timeout=3.0,
+            max_retries=0,
+        )
+        self.assertEqual(
+            result,
+            {"safe_title": "재시도 후 이벤트 문구"},
+        )
+        self.assertEqual(mock_client.responses.create.call_count, 2)
+
     def test_event_copy_schema_does_not_require_headline_evidence_ids(self):
         request = EventCopyRequest(
             game_id=5059041,
@@ -289,7 +376,7 @@ class OpenAiServiceTestCase(unittest.TestCase):
 
     def test_generate_openai_copy_retries_empty_response_once(self):
         openai_service.settings.openai_api_key = "fake-api-key"
-        openai_service.settings.openai_ai_copy_max_attempts = 2
+        openai_service.settings.openai_final_headline_max_attempts = 2
         self._disable_retry_sleep()
 
         with patch("app.services.openai_service.OpenAI") as mock_openai:
@@ -352,7 +439,7 @@ class OpenAiServiceTestCase(unittest.TestCase):
 
     def test_generate_openai_copy_retries_invalid_json_once(self):
         openai_service.settings.openai_api_key = "fake-api-key"
-        openai_service.settings.openai_ai_copy_max_attempts = 2
+        openai_service.settings.openai_final_headline_max_attempts = 2
         self._disable_retry_sleep()
 
         with patch("app.services.openai_service.OpenAI") as mock_openai:
@@ -377,7 +464,7 @@ class OpenAiServiceTestCase(unittest.TestCase):
 
     def test_generate_openai_copy_retries_timeout_once(self):
         openai_service.settings.openai_api_key = "fake-api-key"
-        openai_service.settings.openai_ai_copy_max_attempts = 2
+        openai_service.settings.openai_final_headline_max_attempts = 2
         self._disable_retry_sleep()
 
         class FakeTimeoutError(Exception):
@@ -408,7 +495,7 @@ class OpenAiServiceTestCase(unittest.TestCase):
 
     def test_generate_openai_copy_does_not_retry_unknown_error(self):
         openai_service.settings.openai_api_key = "fake-api-key"
-        openai_service.settings.openai_ai_copy_max_attempts = 2
+        openai_service.settings.openai_final_headline_max_attempts = 2
         self._disable_retry_sleep()
 
         with patch("app.services.openai_service.OpenAI") as mock_openai:
@@ -429,7 +516,7 @@ class OpenAiServiceTestCase(unittest.TestCase):
         self,
     ):
         openai_service.settings.openai_api_key = "fake-api-key"
-        openai_service.settings.openai_ai_copy_max_attempts = 2
+        openai_service.settings.openai_final_headline_max_attempts = 2
         self._disable_retry_sleep()
 
         with patch("app.services.openai_service.OpenAI") as mock_openai:
