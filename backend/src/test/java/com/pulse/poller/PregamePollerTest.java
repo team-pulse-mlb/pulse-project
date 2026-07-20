@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -12,43 +12,58 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.client.BalldontlieClient;
-import com.pulse.common.message.ScoreTask;
-import com.pulse.common.message.ScoreTaskFactory;
-import com.pulse.common.message.ScoreTaskPublisher;
+import com.pulse.common.client.BdlDtos.BdlLineup;
+import com.pulse.common.client.BdlDtos.BdlPlayerSeasonStat;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameLifecycle;
 import com.pulse.domain.GameRepository;
-import com.pulse.domain.Lineup;
-import com.pulse.domain.LineupRepository;
+import com.pulse.poller.PregameTransitionWriter.PregameWriteOutcome;
+import com.pulse.poller.PregameTransitionWriter.PregameWriteRequest;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 class PregamePollerTest {
 
     private final BalldontlieClient balldontlieClient = mock(BalldontlieClient.class);
     private final GameRepository gameRepository = mock(GameRepository.class);
-    private final LineupRepository lineupRepository = mock(LineupRepository.class);
-    private final PregameGameWriter pregameWriter = mock(PregameGameWriter.class);
-    private final ScoreTaskPublisher scoreTaskPublisher = mock(ScoreTaskPublisher.class);
+    private final PregameTransitionWriter transitionWriter = mock(PregameTransitionWriter.class);
     private final MutableClock clock = new MutableClock(Instant.parse("2026-07-08T00:00:00Z"));
-    private final PregamePoller poller = new PregamePoller(
-            balldontlieClient,
-            gameRepository,
-            lineupRepository,
-            pregameWriter,
-            new ScoreTaskFactory(),
-            scoreTaskPublisher,
-            properties(),
-            new PollerRateLimiter(1000, clock),
-            clock
-    );
+    private PregamePoller poller;
+
+    @BeforeEach
+    void setUp() {
+        when(balldontlieClient.getLineups(anyList())).thenReturn(List.of());
+        when(balldontlieClient.getOdds(anyList())).thenReturn(List.of());
+        when(balldontlieClient.getStandings(anyInt())).thenReturn(List.of());
+        when(balldontlieClient.getPlayerSeasonStats(anyInt(), anyList())).thenReturn(List.of());
+        when(transitionWriter.write(any())).thenAnswer(invocation -> {
+            PregameWriteRequest request = invocation.getArgument(0);
+            Set<Long> publishedGameIds = new LinkedHashSet<>(request.triggeredGameIds());
+            if (request.standingsBatch() != null) {
+                publishedGameIds.addAll(request.gamesById().keySet());
+            }
+            return new PregameWriteOutcome(Set.copyOf(publishedGameIds), Set.copyOf(publishedGameIds));
+        });
+        poller = new PregamePoller(
+                balldontlieClient,
+                gameRepository,
+                transitionWriter,
+                properties(),
+                new PollerRateLimiter(1000, clock),
+                clock
+        );
+    }
 
     @Test
     void poll_shouldPublishPregameTaskOnceOnPregameNearEntry() {
@@ -59,10 +74,10 @@ class PregamePollerTest {
         clock.advance(Duration.ofMinutes(1));
         poller.poll();
 
-        ArgumentCaptor<ScoreTask> taskCaptor = ArgumentCaptor.forClass(ScoreTask.class);
-        verify(scoreTaskPublisher, times(1)).publish(taskCaptor.capture());
-        assertThat(taskCaptor.getValue().lifecycleState()).isEqualTo(ScoreTaskFactory.PREGAME_LIFECYCLE);
-        assertThat(taskCaptor.getValue().situation()).isNull();
+        ArgumentCaptor<PregameWriteRequest> requestCaptor = ArgumentCaptor.forClass(PregameWriteRequest.class);
+        verify(transitionWriter, times(2)).write(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues().get(0).triggeredGameIds()).containsExactly(100L);
+        assertThat(requestCaptor.getAllValues().get(1).triggeredGameIds()).isEmpty();
     }
 
     @Test
@@ -104,43 +119,56 @@ class PregamePollerTest {
         clock.set(Instant.parse("2026-07-08T10:30:00Z"));
         Game farGame = game(100L, GameLifecycle.PREGAME_FAR.name());
         when(gameRepository.findByLifecycleStateIn(anyList())).thenReturn(List.of(farGame));
-        when(pregameWriter.upsertStandings(eq(2026), any(), anyList(), any())).thenReturn(true);
 
         poller.poll();
         clock.advance(Duration.ofMinutes(1));
         poller.poll();
 
         verify(balldontlieClient, times(1)).getStandings(2026);
-        verify(scoreTaskPublisher, times(1)).publish(any(ScoreTask.class));
+        ArgumentCaptor<PregameWriteRequest> requestCaptor = ArgumentCaptor.forClass(PregameWriteRequest.class);
+        verify(transitionWriter, times(2)).write(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues().get(0).standingsBatch()).isNotNull();
+        assertThat(requestCaptor.getAllValues().get(1).standingsBatch()).isNull();
     }
 
     @Test
     void poll_shouldPublishTaskEvenWhenSeasonStatsRefreshFails() {
         Game nearGame = game(100L, GameLifecycle.PREGAME_NEAR.name());
         when(gameRepository.findByLifecycleStateIn(anyList())).thenReturn(List.of(nearGame));
-        when(lineupRepository.findByGameIdAndIsProbablePitcherTrue(100L))
-                .thenReturn(List.of(probablePitcher(100L, 7L)));
+        when(balldontlieClient.getLineups(anyList())).thenReturn(List.of(probablePitcher(100L, 7L)));
         when(balldontlieClient.getPlayerSeasonStats(anyInt(), anyList()))
                 .thenThrow(new IllegalStateException("season stats down"));
 
         poller.poll();
 
-        verify(scoreTaskPublisher).publish(any(ScoreTask.class));
-        verify(pregameWriter, never()).upsertPlayerSeasonStats(anyInt(), anyList(), any());
+        ArgumentCaptor<PregameWriteRequest> requestCaptor = ArgumentCaptor.forClass(PregameWriteRequest.class);
+        verify(transitionWriter).write(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().playerSeasonStats()).isEmpty();
+        assertThat(requestCaptor.getValue().triggeredGameIds()).containsExactly(100L);
     }
 
     @Test
-    void poll_shouldLoadSeasonStatsForProbablePitchersBeforePublish() {
+    void poll_shouldLoadSeasonStatsFromFetchedLineupsBeforeTransactionalWrite() {
         Game nearGame = game(100L, GameLifecycle.PREGAME_NEAR.name());
+        BdlPlayerSeasonStat stat = seasonStat(7L);
         when(gameRepository.findByLifecycleStateIn(anyList())).thenReturn(List.of(nearGame));
-        when(lineupRepository.findByGameIdAndIsProbablePitcherTrue(100L))
+        when(balldontlieClient.getLineups(anyList()))
                 .thenReturn(List.of(probablePitcher(100L, 7L), probablePitcher(100L, 8L)));
+        when(balldontlieClient.getPlayerSeasonStats(2026, List.of(7L, 8L))).thenReturn(List.of(stat));
 
         poller.poll();
 
-        verify(balldontlieClient).getPlayerSeasonStats(2026, List.of(7L, 8L));
-        verify(pregameWriter).upsertPlayerSeasonStats(eq(2026), anyList(), any());
-        verify(scoreTaskPublisher).publish(any(ScoreTask.class));
+        InOrder order = inOrder(balldontlieClient, transitionWriter);
+        order.verify(balldontlieClient).getLineups(List.of(100L));
+        order.verify(balldontlieClient).getPlayerSeasonStats(2026, List.of(7L, 8L));
+        order.verify(balldontlieClient).getOdds(List.of(100L));
+        order.verify(transitionWriter).write(any(PregameWriteRequest.class));
+
+        ArgumentCaptor<PregameWriteRequest> requestCaptor = ArgumentCaptor.forClass(PregameWriteRequest.class);
+        verify(transitionWriter).write(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().playerSeasonStats()).containsExactly(stat);
+        assertThat(requestCaptor.getValue().probablePitcherIdsByGameId().get(100L))
+                .containsExactly(7L, 8L);
     }
 
     private static PollerProperties properties() {
@@ -177,14 +205,31 @@ class PregamePollerTest {
         return game;
     }
 
-    private static Lineup probablePitcher(long gameId, long playerId) {
-        Lineup lineup = new Lineup();
-        lineup.setId(playerId * 10);
-        lineup.setGameId(gameId);
-        lineup.setPlayerId(playerId);
-        lineup.setTeamId(1L);
-        lineup.setIsProbablePitcher(true);
-        return lineup;
+    private static BdlLineup probablePitcher(long gameId, long playerId) {
+        return new BdlLineup(
+                playerId * 10,
+                gameId,
+                new BdlLineup.Player(playerId, "Pitcher", "Pitcher", null, "SP"),
+                new BdlLineup.TeamRef(1L),
+                null,
+                "SP",
+                true
+        );
+    }
+
+    private static BdlPlayerSeasonStat seasonStat(long playerId) {
+        return new BdlPlayerSeasonStat(
+                playerId,
+                null,
+                2026,
+                new BigDecimal("3.10"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 
     private static final class MutableClock extends Clock {
