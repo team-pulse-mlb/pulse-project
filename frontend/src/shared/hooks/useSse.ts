@@ -16,6 +16,14 @@ export function useSse() {
     let gameTimer: ReturnType<typeof setTimeout> | undefined;
     const pendingGameIds = new Set<number>();
 
+    source.addEventListener('open', () => {
+      // 재연결 시 놓친 랭킹·목록 신호를 보정한다.
+      queryClient.invalidateQueries({ queryKey: queryKeys.rankings.live });
+      queryClient.invalidateQueries({
+        queryKey: [...queryKeys.games.all, 'list'],
+      });
+    });
+
     source.addEventListener('ranking_changed', () => {
       if (rankingTimer !== undefined) {
         return;
