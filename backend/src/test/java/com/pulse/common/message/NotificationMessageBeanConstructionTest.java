@@ -26,7 +26,12 @@ class NotificationMessageBeanConstructionTest {
             .withBean(AfterCommitExecutor.class, () -> mock(AfterCommitExecutor.class))
             .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
             .withBean(NotificationOutboxProperties.class,
-                    () -> new NotificationOutboxProperties(Duration.ofSeconds(5), Duration.ofMinutes(5), 50));
+                    () -> new NotificationOutboxProperties(
+                            Duration.ofSeconds(5),
+                            Duration.ofMinutes(5),
+                            50,
+                            Duration.ofSeconds(1)
+                    ));
 
     @Test
     @DisplayName("발행자와 디스패처를 생성자 자동 주입으로 생성한다")
