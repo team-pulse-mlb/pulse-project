@@ -56,6 +56,13 @@ class OperationalPollerTest {
             scoreTaskPublisher
     );
     private final NotificationEventPublisher notificationEventPublisher = mock(NotificationEventPublisher.class);
+    private final GameTransitionWriter gameTransitionWriter = new GameTransitionWriter(
+            gameWriter,
+            liveGameCycleWriter,
+            new ScoreTaskFactory(),
+            scoreTaskPublisher,
+            notificationEventPublisher
+    );
     private final PaRawArchiveUploader paRawArchiveUploader = mock(PaRawArchiveUploader.class);
     private final Instant now = Instant.parse("2026-07-08T00:00:00Z");
     private final OperationalPoller poller = new OperationalPoller(
@@ -66,6 +73,7 @@ class OperationalPollerTest {
             new ScoreTaskFactory(),
             scoreTaskPublisher,
             notificationEventPublisher,
+            gameTransitionWriter,
             properties(),
             new PollerRateLimiter(1000, Clock.fixed(now, ZoneOffset.UTC)),
             paRawArchiveUploader,
@@ -111,11 +119,13 @@ class OperationalPollerTest {
 
     @Test
     void poll_shouldDrainRemainingPlaysBeforePublishingTerminalTask() {
+        Game preLiveGame = game(GameLifecycle.LIVE.name(), 7L);
         Game finalGame = game(GameLifecycle.FINAL.name(), 7L);
         BdlPlay finalPlay = play(8L, 10L);
         Play latestPlay = persistedPlay(8L, 10L, false, false, false);
         when(balldontlieClient.getGames(anyList()))
                 .thenReturn(List.of(gameDto(Game.STATUS_FINAL)));
+        when(gameRepository.findById(100L)).thenReturn(java.util.Optional.of(preLiveGame));
         when(gameWriter.upsertGame(any(BdlGame.class), eq(now)))
                 .thenReturn(new PollerGameWriter.GameUpsertResult(
                         finalGame,
@@ -679,6 +689,7 @@ class OperationalPollerTest {
                 new ScoreTaskFactory(),
                 scoreTaskPublisher,
                 notificationEventPublisher,
+                gameTransitionWriter,
                 properties(0, 0, cursorRecoveryEmptyTicks),
                 new PollerRateLimiter(1000, clock),
                 paRawArchiveUploader,
@@ -699,6 +710,13 @@ class OperationalPollerTest {
                 new ScoreTaskFactory(),
                 scoreTaskPublisher,
                 notificationEventPublisher,
+                new GameTransitionWriter(
+                        gameWriter,
+                        cycleWriter,
+                        new ScoreTaskFactory(),
+                        scoreTaskPublisher,
+                        notificationEventPublisher
+                ),
                 properties(),
                 new PollerRateLimiter(1000, clock),
                 paRawArchiveUploader,
@@ -719,6 +737,7 @@ class OperationalPollerTest {
                 new ScoreTaskFactory(),
                 scoreTaskPublisher,
                 notificationEventPublisher,
+                gameTransitionWriter,
                 properties(slateLookaheadDays, slateLookbackDays),
                 new PollerRateLimiter(1000, clock),
                 paRawArchiveUploader,
