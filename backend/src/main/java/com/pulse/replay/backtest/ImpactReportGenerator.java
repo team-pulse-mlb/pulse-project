@@ -252,13 +252,19 @@ public class ImpactReportGenerator {
             List<ReplayResult> baseline,
             List<ReplayResult> candidate
     ) {
-        text.append("\n## 상위 순위 변화\n\n");
-        text.append("| 경기 | 팀 | 기준 peak | 후보 peak | 기준 순위 | 후보 순위 |\n");
-        text.append("|---:|---|---:|---:|---:|---:|\n");
-        topChanges(topN, baseline, candidate).forEach(item -> text.append(
-                "| %s | %s | %.2f | %.2f | %s | %s |\n".formatted(
+        text.append("\n## 상위 %d 진입·이탈\n\n".formatted(topN));
+        List<Map<String, Object>> changes = topChanges(topN, baseline, candidate);
+        if (changes.isEmpty()) {
+            text.append("- 없음\n");
+            return;
+        }
+        text.append("| 경기 | 팀 | 변화 | 기준 peak | 후보 peak | 기준 순위 | 후보 순위 |\n");
+        text.append("|---:|---|---|---:|---:|---:|---:|\n");
+        changes.forEach(item -> text.append(
+                "| %s | %s | %s | %.2f | %.2f | %s | %s |\n".formatted(
                         item.get("gameId"),
                         item.get("teams"),
+                        item.get("direction"),
                         item.get("baselinePeak"),
                         item.get("candidatePeak"),
                         item.get("baselineRank"),
@@ -309,24 +315,40 @@ public class ImpactReportGenerator {
         Map<Long, Integer> baselineRanks = ranks(baseline);
         Map<Long, Integer> candidateRanks = ranks(candidate);
         Map<Long, ReplayResult> candidates = byId(candidate);
-        return baseline.stream()
+        List<ReplayResult> common = baseline.stream()
                 .filter(result -> candidates.containsKey(id(result)))
-                .sorted(Comparator.comparingInt((ReplayResult result) -> Math.abs(
-                        baselineRanks.get(id(result)) - candidateRanks.get(id(result)))).reversed())
-                .limit(topN)
-                .map(result -> topChange(result, candidates.get(id(result)), baselineRanks, candidateRanks))
                 .toList();
+
+        // 진입은 후보 상위 N에 새로 포함된 경기이고, 이탈은 기준 상위 N에서 제외된 경기다.
+        List<Map<String, Object>> changes = new ArrayList<>();
+        common.stream()
+                .filter(result -> baselineRanks.get(id(result)) > topN
+                        && candidateRanks.get(id(result)) <= topN)
+                .sorted(Comparator.comparingInt(result -> candidateRanks.get(id(result))))
+                .map(result -> topChange(
+                        result, candidates.get(id(result)), baselineRanks, candidateRanks, "진입"))
+                .forEach(changes::add);
+        common.stream()
+                .filter(result -> baselineRanks.get(id(result)) <= topN
+                        && candidateRanks.get(id(result)) > topN)
+                .sorted(Comparator.comparingInt(result -> baselineRanks.get(id(result))))
+                .map(result -> topChange(
+                        result, candidates.get(id(result)), baselineRanks, candidateRanks, "이탈"))
+                .forEach(changes::add);
+        return changes;
     }
 
     private static Map<String, Object> topChange(
             ReplayResult baseline,
             ReplayResult candidate,
             Map<Long, Integer> baselineRanks,
-            Map<Long, Integer> candidateRanks
+            Map<Long, Integer> candidateRanks,
+            String direction
     ) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("gameId", id(baseline));
         item.put("teams", baseline.data().game().awayTeam() + "@" + baseline.data().game().homeTeam());
+        item.put("direction", direction);
         item.put("baselinePeak", baseline.peak());
         item.put("candidatePeak", candidate.peak());
         item.put("baselineRank", baselineRanks.get(id(baseline)));
