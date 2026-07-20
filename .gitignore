@@ -7,6 +7,10 @@
 backend/build/
 backend/.gradle/
 backend/out/
+
+# IDE·Java 개발 도구가 생성하는 컴파일 출력 디렉터리
+backend/bin/
+
 *.class
 *.jar
 !**/gradle/wrapper/gradle-wrapper.jar
