@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import {
+    useCallback,
     useEffect,
     useRef,
     useState,
@@ -101,18 +102,33 @@ function WithdrawMemberModal({
     const isBackdropMouseDown = useRef(false);
 
     /*
-     * 모달을 열 때마다 이전 입력값과 오류를 초기화합니다.
-     */
-    useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
-
+    * 회원탈퇴 모달의 입력값과 상태를 초기화합니다.
+    *
+    * useEffect 안에서 동기적으로 setState를 호출하지 않고,
+    * 모달을 닫는 시점에 초기화합니다.
+    */
+    const resetForm = useCallback(() => {
         setCurrentPassword('');
         setConfirmation('');
         setErrorMessage('');
         setIsWithdrawing(false);
-    }, [isOpen]);
+    }, []);
+
+    /*
+     * 회원탈퇴 요청 처리 중이 아닐 때만 모달을 닫습니다.
+     */
+    const handleClose = useCallback(() => {
+        if (isWithdrawing) {
+            return;
+        }
+
+        resetForm();
+        onClose();
+    }, [
+        isWithdrawing,
+        onClose,
+        resetForm,
+    ]);
 
     /*
      * 모달이 열린 동안:
@@ -133,11 +149,8 @@ function WithdrawMemberModal({
         const handleKeyDown = (
             event: KeyboardEvent,
         ) => {
-            if (
-                event.key === 'Escape'
-                && !isWithdrawing
-            ) {
-                onClose();
+            if (event.key === 'Escape') {
+                handleClose();
             }
         };
 
@@ -157,8 +170,7 @@ function WithdrawMemberModal({
         };
     }, [
         isOpen,
-        isWithdrawing,
-        onClose,
+        handleClose,
     ]);
 
     if (!isOpen) {
@@ -263,12 +275,11 @@ function WithdrawMemberModal({
         event: MouseEvent<HTMLDivElement>,
     ) => {
         if (
-            !isWithdrawing
-            && isBackdropMouseDown.current
+            isBackdropMouseDown.current
             && event.target
-                === event.currentTarget
+            === event.currentTarget
         ) {
-            onClose();
+            handleClose();
         }
 
         isBackdropMouseDown.current =
@@ -295,7 +306,7 @@ function WithdrawMemberModal({
                 <button
                     type="button"
                     className="login-modal-close"
-                    onClick={onClose}
+                    onClick={handleClose}
                     disabled={isWithdrawing}
                     aria-label="회원탈퇴 모달 닫기"
                 >

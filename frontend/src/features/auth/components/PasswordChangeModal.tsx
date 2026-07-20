@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import {
+    useCallback,
     useEffect,
     useRef,
     useState,
@@ -163,13 +164,12 @@ function PasswordChangeModal({
         || isChangingPassword;
 
     /*
-     * 모달을 새로 열 때 이전 입력값과 진행 단계를 초기화합니다.
-     */
-    useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
-
+    * 모달 입력값과 진행 상태를 초기 상태로 되돌립니다.
+    *
+    * useEffect 안에서 동기적으로 setState를 호출하지 않고,
+    * 사용자가 모달을 닫는 시점에 직접 초기화합니다.
+    */
+    const resetForm = useCallback(() => {
         setStep('EMAIL_VERIFICATION');
         setVerificationCode('');
         setCurrentPassword('');
@@ -183,7 +183,23 @@ function PasswordChangeModal({
 
         setErrorMessage('');
         setSuccessMessage('');
-    }, [isOpen]);
+    }, []);
+
+    /*
+     * 처리 중이 아닐 때만 모달을 닫고 입력 상태를 초기화합니다.
+     */
+    const handleClose = useCallback(() => {
+        if (isBusy) {
+            return;
+        }
+
+        resetForm();
+        onClose();
+    }, [
+        isBusy,
+        onClose,
+        resetForm,
+    ]);
 
     /*
      * 모달이 열린 동안:
@@ -204,11 +220,8 @@ function PasswordChangeModal({
         const handleKeyDown = (
             event: KeyboardEvent,
         ) => {
-            if (
-                event.key === 'Escape'
-                && !isBusy
-            ) {
-                onClose();
+            if (event.key === 'Escape') {
+                handleClose();
             }
         };
 
@@ -228,8 +241,7 @@ function PasswordChangeModal({
         };
     }, [
         isOpen,
-        isBusy,
-        onClose,
+        handleClose,
     ]);
 
     if (!isOpen) {
@@ -460,12 +472,11 @@ function PasswordChangeModal({
         event: MouseEvent<HTMLDivElement>,
     ) => {
         if (
-            !isBusy
-            && isBackdropMouseDown.current
+            isBackdropMouseDown.current
             && event.target
-                === event.currentTarget
+            === event.currentTarget
         ) {
-            onClose();
+            handleClose();
         }
 
         isBackdropMouseDown.current =
@@ -492,7 +503,7 @@ function PasswordChangeModal({
                 <button
                     type="button"
                     className="login-modal-close"
-                    onClick={onClose}
+                    onClick={handleClose}
                     disabled={isBusy}
                     aria-label="비밀번호 변경 모달 닫기"
                 >
