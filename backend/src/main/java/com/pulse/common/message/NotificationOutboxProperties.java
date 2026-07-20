@@ -9,6 +9,8 @@ public record NotificationOutboxProperties(
         Duration retryInitialInterval,
         Duration retryMaxInterval,
         int batchSize,
-        @DefaultValue("10s") Duration confirmTimeout
+        @DefaultValue("10s") Duration confirmTimeout,
+        @DefaultValue("7d") Duration retentionPeriod,
+        @DefaultValue("500") int cleanupBatchSize
 ) {
 }

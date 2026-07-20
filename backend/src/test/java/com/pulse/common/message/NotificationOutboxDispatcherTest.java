@@ -35,7 +35,9 @@ class NotificationOutboxDispatcherTest {
             Duration.ofSeconds(5),
             Duration.ofMinutes(5),
             50,
-            Duration.ofSeconds(1)
+            Duration.ofSeconds(1),
+            Duration.ofDays(7),
+            500
     );
     private final NotificationOutboxDispatcher dispatcher = new NotificationOutboxDispatcher(
             repository,
@@ -143,7 +145,9 @@ class NotificationOutboxDispatcherTest {
                 Duration.ofSeconds(5),
                 Duration.ofMinutes(5),
                 50,
-                Duration.ofMillis(5)
+                Duration.ofMillis(5),
+                Duration.ofDays(7),
+                500
         );
 
         new NotificationOutboxDispatcher(
