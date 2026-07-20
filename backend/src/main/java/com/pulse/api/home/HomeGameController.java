@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -55,6 +56,8 @@ public class HomeGameController {
     }
 
     private static String username(Authentication authentication) {
-        return authentication == null ? null : authentication.getName();
+        return authentication == null || authentication instanceof AnonymousAuthenticationToken
+                ? null
+                : authentication.getName();
     }
 }
