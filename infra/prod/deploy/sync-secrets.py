@@ -9,6 +9,9 @@ import tempfile
 
 
 ENV_PATH = pathlib.Path(os.environ.get("PULSE_ENV_FILE", "/home/ubuntu/pulse-runtime/.env"))
+STATE_PATH = pathlib.Path(
+    os.environ.get("PULSE_SYNC_STATE_FILE", str(ENV_PATH) + ".apply-pending")
+)
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
 RUNTIME_SECRET_ID = os.environ.get("PULSE_RUNTIME_SECRET_ID", "")
 RDS_SECRET_ID = os.environ["PULSE_RDS_SECRET_ID"]
@@ -87,7 +90,8 @@ def main() -> None:
     current = ENV_PATH.read_text(encoding="utf-8") if ENV_PATH.exists() else ""
     desired = merge_env(current, desired_values())
     if desired == current:
-        print("unchanged")
+        # 마커가 있으면 이전 재기동 실패로 보고 재시도한다.
+        print("changed" if STATE_PATH.exists() else "unchanged")
         return
 
     ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -105,6 +109,9 @@ def main() -> None:
     finally:
         if os.path.exists(temporary_name):
             os.unlink(temporary_name)
+
+    STATE_PATH.write_text("pending\n", encoding="utf-8")
+    STATE_PATH.chmod(0o600)
     print("changed")
 
 
