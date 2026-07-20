@@ -43,7 +43,8 @@ spring:
     publisher-confirm-type: correlated
     listener:
       simple:
-        default-requeue-rejected: false   # 처리 실패 메시지는 재큐잉 대신 DLQ로
+        # 처리 실패 메시지는 1회 재큐잉으로 일시 장애를 회복하고, quorum queue의 x-delivery-limit(2)가 초과분을 DLQ로 보낸다(RabbitMqConfig에서 프로그램으로 강제).
+        default-requeue-rejected: true
 
 
   mail:
