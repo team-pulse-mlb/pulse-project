@@ -88,13 +88,13 @@ def _generate_openai_copy(
     endpoint별 세부 지시는 prompt builder가 담당합니다.
 
     SDK 자동 재시도는 꺼두고, 서비스 레이어에서
-    AI-copy에 필요한 오류만 짧게 재시도합니다.
+    AI-copy에 필요한 오류만 목적별 정책에 따라 재시도합니다.
     """
 
     client = OpenAI(
         api_key=settings.openai_api_key,
-        timeout=_openai_ai_copy_timeout_seconds(),
-        # OpenAI SDK의 기본 재시도로 인해 Spring Boot의 8초 제한을 넘지 않도록
+        timeout=_openai_ai_copy_timeout_seconds(request),
+        # OpenAI SDK의 기본 재시도로 인해 목적별 timeout 예산을 넘지 않도록
         # SDK 자동 재시도 대신 아래 retry loop만 사용합니다.
         max_retries=0,
     )
@@ -116,7 +116,7 @@ def _generate_openai_copy_with_retry(
     sleep_func: Callable[[float], None],
 ) -> dict[str, object]:
     """
-    OpenAI 호출과 응답 파싱을 최대 N회 시도합니다.
+    OpenAI 호출과 응답 파싱을 목적별 최대 횟수까지 시도합니다.
 
     재시도 대상:
     - APITimeoutError
@@ -127,7 +127,7 @@ def _generate_openai_copy_with_retry(
     - safe_title 누락 또는 공백
     """
 
-    max_attempts = _openai_ai_copy_max_attempts()
+    max_attempts = _openai_ai_copy_max_attempts(request)
 
     for attempt_number in range(1, max_attempts + 1):
         try:
@@ -323,21 +323,35 @@ def _parse_openai_response(
     return _parse_openai_copy(raw_text)
 
 
-def _openai_ai_copy_timeout_seconds() -> float:
+def _openai_ai_copy_timeout_seconds(
+    request: AiCopyRequest,
+) -> float:
     """
-    AI-copy 1회 OpenAI 호출 timeout을 반환합니다.
+    요청 목적에 맞는 1회 OpenAI 호출 timeout을 반환합니다.
 
-    별도 설정값이 없거나 잘못된 경우 기존 openai_timeout_seconds를 사용합니다.
+    FINAL_HEADLINE은 생성 성공을 우선해 긴 timeout을 사용하고,
+    EVENT_COPY는 라이브 반영을 위해 짧은 timeout을 유지합니다.
+    설정값이 없거나 0 이하이면 OpenAI 공통 timeout으로 fallback합니다.
     """
 
-    configured_timeout = getattr(
-        settings,
-        "openai_ai_copy_timeout_seconds",
-        None,
-    )
+    if isinstance(request, FinalHeadlineRequest):
+        configured_timeout = getattr(
+            settings,
+            "openai_final_headline_timeout_seconds",
+            None,
+        )
+    elif isinstance(request, EventCopyRequest):
+        configured_timeout = getattr(
+            settings,
+            "openai_event_copy_timeout_seconds",
+            None,
+        )
+    else:
+        configured_timeout = None
 
     if (
         isinstance(configured_timeout, (int, float))
+        and not isinstance(configured_timeout, bool)
         and configured_timeout > 0
     ):
         return float(configured_timeout)
@@ -345,18 +359,35 @@ def _openai_ai_copy_timeout_seconds() -> float:
     return float(settings.openai_timeout_seconds)
 
 
-def _openai_ai_copy_max_attempts() -> int:
+def _openai_ai_copy_max_attempts(
+    request: AiCopyRequest,
+) -> int:
     """
-    AI-copy 최대 시도 횟수를 반환합니다.
+    요청 목적에 맞는 OpenAI 최대 시도 횟수를 반환합니다.
+
+    FINAL_HEADLINE은 긴 단일 요청 1회를 사용하고,
+    EVENT_COPY는 짧은 요청을 최대 2회 시도합니다.
     """
 
-    configured_attempts = getattr(
-        settings,
-        "openai_ai_copy_max_attempts",
-        1,
-    )
+    if isinstance(request, FinalHeadlineRequest):
+        configured_attempts = getattr(
+            settings,
+            "openai_final_headline_max_attempts",
+            1,
+        )
+    elif isinstance(request, EventCopyRequest):
+        configured_attempts = getattr(
+            settings,
+            "openai_event_copy_max_attempts",
+            1,
+        )
+    else:
+        configured_attempts = 1
 
-    if not isinstance(configured_attempts, int):
+    if (
+        not isinstance(configured_attempts, int)
+        or isinstance(configured_attempts, bool)
+    ):
         return 1
 
     return max(1, configured_attempts)
@@ -447,7 +478,6 @@ def _sleep_before_retry(
         return
 
     time.sleep(delay_seconds)
-
 
 
 def _ai_copy_purpose(

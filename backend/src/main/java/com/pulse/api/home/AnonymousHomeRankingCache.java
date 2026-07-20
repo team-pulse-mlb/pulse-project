@@ -27,9 +27,9 @@ class AnonymousHomeRankingCache {
         this.clock = clock;
     }
 
-    HomeQueryService.HomeRankingResponse get(
+    HomeRankingResponse get(
             int count,
-            Supplier<HomeQueryService.HomeRankingResponse> loader
+            Supplier<HomeRankingResponse> loader
     ) {
         Instant now = clock.instant();
         CacheEntry entry = entries.compute(count, (ignored, current) -> {
@@ -42,7 +42,7 @@ class AnonymousHomeRankingCache {
     }
 
     private record CacheEntry(
-            HomeQueryService.HomeRankingResponse response,
+            HomeRankingResponse response,
             Instant expiresAt
     ) {
     }

@@ -32,8 +32,6 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
-import boto3
-
 BASE_URL = "https://api.balldontlie.io/mlb/v1"
 MAX_PAGES = 20          # 커서 페이지 무한 루프 방지
 DEFAULT_LIVE_GAME_WORKERS = 8
@@ -42,7 +40,17 @@ SUSPENDED_POLL_S = 300  # 중단 상태의 plays 재확인 간격
 LINEUP_WINDOW_H = 36    # 경기 36시간 전부터 라인업을 확인한다
 BATCH_HOUR_UTC = 9
 
-s3 = boto3.client("s3")
+_s3_client = None
+
+
+def get_s3():
+    """S3 클라이언트를 최초 사용 시 생성하고 이후 재사용한다."""
+    global _s3_client
+    if _s3_client is None:
+        import boto3
+
+        _s3_client = boto3.client("s3")
+    return _s3_client
 
 
 def api_get(path, params):
@@ -66,7 +74,7 @@ def save_raw(bucket, key, observed_at, endpoint, params, response, backfilled=Fa
     doc = {"observed_at": observed_at, "endpoint": endpoint, "params": params, "response": response}
     if backfilled:
         doc["backfilled"] = True  # 시간 감쇠 재현에서 제외한다
-    s3.put_object(
+    get_s3().put_object(
         Bucket=bucket, Key=key,
         Body=gzip.compress(json.dumps(doc, ensure_ascii=False).encode("utf-8")),
         ContentType="application/json", ContentEncoding="gzip",
@@ -74,15 +82,16 @@ def save_raw(bucket, key, observed_at, endpoint, params, response, backfilled=Fa
 
 
 def load_state(bucket):
+    s3_client = get_s3()
     try:
-        obj = s3.get_object(Bucket=bucket, Key="state/collector_state.json")
+        obj = s3_client.get_object(Bucket=bucket, Key="state/collector_state.json")
         return json.loads(obj["Body"].read())
-    except s3.exceptions.NoSuchKey:
+    except s3_client.exceptions.NoSuchKey:
         return {}
 
 
 def save_state(bucket, state):
-    s3.put_object(
+    get_s3().put_object(
         Bucket=bucket, Key="state/collector_state.json",
         Body=json.dumps(state).encode("utf-8"), ContentType="application/json",
     )

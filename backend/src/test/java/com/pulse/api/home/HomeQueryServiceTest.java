@@ -11,9 +11,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.pulse.api.home.HomeQueryService.HomeRankingResponse;
-import com.pulse.api.home.HomeQueryService.HomeSlateResponse;
-import com.pulse.api.home.HomeQueryService.SlateScheduledGameCard;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
@@ -24,6 +21,7 @@ import com.pulse.domain.PlayerRepository;
 import com.pulse.domain.WatchScoreRepository;
 import com.pulse.ranking.RankingService;
 import com.pulse.ranking.PersonalizationCalculator;
+import com.pulse.ranking.LiveRankingPruner;
 import com.pulse.common.user.UserPreferenceReader;
 import com.pulse.common.user.UserPreferenceReader.UserPreferences;
 import java.time.Duration;
@@ -52,18 +50,21 @@ class HomeQueryServiceTest {
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     @SuppressWarnings("unchecked")
     private final HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
-    private final HomeQueryService service = new HomeQueryService(
-            gameRepository,
+    private final HomeGameCardAssembler gameCardAssembler = new HomeGameCardAssembler(
             watchScoreRepository,
             gameEventRepository,
             lineupRepository,
             playerRepository,
-            rankingService,
-            personalizationCalculator,
-            Optional.empty(),
-            redisTemplate,
-            rankingCache()
-    );
+            redisTemplate);
+    private final HomePersonalizedSorter personalizedSorter = new HomePersonalizedSorter(
+            personalizationCalculator, Optional.empty(), lineupRepository);
+    private final LiveRankingPruner liveRankingPruner = new LiveRankingPruner(rankingService);
+    private final HomeRankingReader homeRankingReader = new HomeRankingReader(
+            gameRepository, rankingService, liveRankingPruner, personalizedSorter, gameCardAssembler);
+    private final HomeSlateReader homeSlateReader = new HomeSlateReader(
+            gameRepository, rankingService, personalizedSorter, gameCardAssembler);
+    private final HomeQueryService service = new HomeQueryService(
+            homeRankingReader, homeSlateReader, rankingCache());
 
     private final Instant now = Instant.now();
 
@@ -92,7 +93,7 @@ class HomeQueryServiceTest {
 
         HomeRankingResponse response = service.getRanking(20);
 
-        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
+        assertThat(response.live()).extracting(RankingLiveGameCard::gameId)
                 .containsExactly(1L, 2L, 3L, 4L, 5L);
         assertThat(response.scheduled()).isEmpty();
         assertThat(response.finished()).isEmpty();
@@ -137,7 +138,7 @@ class HomeQueryServiceTest {
 
         HomeRankingResponse response = service.getRanking(5);
 
-        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
+        assertThat(response.live()).extracting(RankingLiveGameCard::gameId)
                 .containsExactly(101L);
         verify(rankingService).removeLive(100L);
         verify(rankingService).removeLive(102L);
@@ -168,11 +169,11 @@ class HomeQueryServiceTest {
 
         HomeRankingResponse response = service.getRanking(5);
 
-        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
+        assertThat(response.live()).extracting(RankingLiveGameCard::gameId)
                 .containsExactly(1L);
-        assertThat(response.finished()).extracting(HomeQueryService.RankingFinishedGameCard::gameId)
+        assertThat(response.finished()).extracting(RankingFinishedGameCard::gameId)
                 .containsExactly(10L, 11L, 12L);
-        assertThat(response.scheduled()).extracting(HomeQueryService.RankingScheduledGameCard::gameId)
+        assertThat(response.scheduled()).extracting(RankingScheduledGameCard::gameId)
                 .containsExactly(20L);
         assertThat(totalCards(response)).isEqualTo(5);
     }
@@ -208,9 +209,9 @@ class HomeQueryServiceTest {
         HomeRankingResponse response = service.getRanking(5);
 
         assertThat(response.live()).isEmpty();
-        assertThat(response.finished()).extracting(HomeQueryService.RankingFinishedGameCard::gameId)
+        assertThat(response.finished()).extracting(RankingFinishedGameCard::gameId)
                 .containsExactly(10L, 11L, 12L, 13L);
-        assertThat(response.scheduled()).extracting(HomeQueryService.RankingScheduledGameCard::gameId)
+        assertThat(response.scheduled()).extracting(RankingScheduledGameCard::gameId)
                 .containsExactly(20L);
         assertThat(totalCards(response)).isEqualTo(5);
     }
@@ -250,16 +251,20 @@ class HomeQueryServiceTest {
         Game first = live(1L);
         Game favorite = live(2L);
         UserPreferenceReader preferenceReader = mock(UserPreferenceReader.class);
+        HomePersonalizedSorter personalizedHomeSorter = new HomePersonalizedSorter(
+                personalizationCalculator, Optional.of(preferenceReader), lineupRepository);
         HomeQueryService personalizedService = new HomeQueryService(
-                gameRepository,
-                watchScoreRepository,
-                gameEventRepository,
-                lineupRepository,
-                playerRepository,
-                rankingService,
-                personalizationCalculator,
-                Optional.of(preferenceReader),
-                redisTemplate,
+                new HomeRankingReader(
+                        gameRepository,
+                        rankingService,
+                        liveRankingPruner,
+                        personalizedHomeSorter,
+                        gameCardAssembler),
+                new HomeSlateReader(
+                        gameRepository,
+                        rankingService,
+                        personalizedHomeSorter,
+                        gameCardAssembler),
                 rankingCache());
 
         Map<Long, Double> liveScores = new LinkedHashMap<>();
@@ -275,7 +280,7 @@ class HomeQueryServiceTest {
 
         HomeRankingResponse response = personalizedService.getRanking(2, "user@example.com");
 
-        assertThat(response.live()).extracting(HomeQueryService.RankingLiveGameCard::gameId)
+        assertThat(response.live()).extracting(RankingLiveGameCard::gameId)
                 .containsExactly(2L, 1L);
     }
 
@@ -289,7 +294,7 @@ class HomeQueryServiceTest {
         HomeSlateResponse response = service.getSlate("2026-07-11", "all", "startTime");
 
         assertThat(response.games()).hasSize(2).allMatch(SlateScheduledGameCard.class::isInstance);
-        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameState)
+        assertThat(response.games()).extracting(SlateGameCard::gameState)
                 .containsExactly("POSTPONED", "CANCELED");
     }
 
@@ -310,7 +315,7 @@ class HomeQueryServiceTest {
 
         HomeSlateResponse response = service.getSlate(slateDate.toString(), "all", "recommended");
 
-        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameId)
+        assertThat(response.games()).extracting(SlateGameCard::gameId)
                 .containsExactly(51L, 50L, 52L);
     }
 
@@ -328,7 +333,7 @@ class HomeQueryServiceTest {
 
         HomeSlateResponse response = service.getSlate("2026-07-01", "scheduled", null);
 
-        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameId)
+        assertThat(response.games()).extracting(SlateGameCard::gameId)
                 .containsExactly(40L, 41L);
     }
 
