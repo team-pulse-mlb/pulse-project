@@ -4,7 +4,7 @@
 
 `PREGAME_FAR`·`PREGAME_NEAR` 같은 이름은 별도 시스템이 아니라 `pulse-poller` 안에서 수집 강도를 정하기 위한 기준이다. ①은 개별 경기의 상태가 아니라 전체 슬레이트를 상시 감시하는 동작이며, 이 감시로 `SCHEDULED` 경기를 발견하고 이후 모든 상태 전이를 감지한다.
 
-![경기 상태별 수집 흐름](../image/game-state-collection.svg)
+![경기 상태별 수집 흐름](../image/diagram/game-state-collection.svg)
 
 ### 상태 번호별 의미와 수집
 
@@ -35,7 +35,7 @@
 
 ## 3. 계산 흐름
 
-![점수 계산 흐름](../image/scoring-flow.svg)
+![점수 계산 흐름](../image/diagram/scoring-flow.svg)
 
 ### 계산 번호별 설명
 
@@ -57,7 +57,7 @@ scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 S
 
 종료 경기 AI 헤드라인 생성은 응답 경로에 없다. 계산 파이프라인이 종료 정리 시 미리 만들고, API는 PostgreSQL을 조회한다. AI 헤드라인이 아직 없으면 API는 LLM 응답을 기다리지 않고 `headline=null`을 반환한다.
 
-![사용자 응답 흐름](../image/user-response-flow.svg)
+![사용자 응답 흐름](../image/diagram/user-response-flow.svg)
 
 ### 응답 번호별 설명
 

@@ -2,11 +2,15 @@ package com.pulse.common.message;
 
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = "pulse.notification-outbox")
 public record NotificationOutboxProperties(
         Duration retryInitialInterval,
         Duration retryMaxInterval,
-        int batchSize
+        int batchSize,
+        @DefaultValue("10s") Duration confirmTimeout,
+        @DefaultValue("7d") Duration retentionPeriod,
+        @DefaultValue("500") int cleanupBatchSize
 ) {
 }

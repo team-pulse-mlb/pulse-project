@@ -10,7 +10,7 @@
 
 ## 2. 전체 사용자 여정
 
-![전체 사용자 여정](../image/user-journey.svg)
+![전체 사용자 여정](../image/diagram/user-journey.svg)
 
 ## 3. 공통 UI 요소
 

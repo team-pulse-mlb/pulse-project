@@ -7,6 +7,7 @@ import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
+import jakarta.annotation.PreDestroy;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -99,5 +100,10 @@ public class OperationalPoller {
         Instant now = clock.instant();
         List<Game> liveGames = gameListSynchronizer.syncGames(now);
         livePlaysPoller.pollLiveGames(liveGames, now);
+    }
+
+    @PreDestroy
+    void shutdown() {
+        livePlaysPoller.shutdown();
     }
 }

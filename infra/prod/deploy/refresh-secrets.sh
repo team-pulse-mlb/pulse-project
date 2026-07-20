@@ -9,6 +9,8 @@ set -a
 source /etc/pulse/secrets.conf
 set +a
 
+STATE_FILE="${PULSE_SYNC_STATE_FILE:-/home/ubuntu/pulse-runtime/.env.apply-pending}"
+
 result=$(/usr/local/lib/pulse/sync-secrets.py)
 [ "$result" = "changed" ] || exit 0
 
@@ -34,3 +36,6 @@ wait_healthy pulse-api
 docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate pulse-poller pulse-scorer
 wait_healthy pulse-poller
 wait_healthy pulse-scorer
+
+# 모든 컨테이너가 healthy가 된 뒤에만 마커를 지워, 실패 시 다음 실행이 재시도하게 한다.
+rm -f "$STATE_FILE"

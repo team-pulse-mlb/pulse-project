@@ -2,13 +2,24 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "ReadDeploymentBundle",
+      "Sid": "ReadDeploymentAndBacktestObjects",
       "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Action": "s3:GetObject",
       "Resource": [
-        "arn:aws:s3:::pulse-deploy-027903150609",
-        "arn:aws:s3:::pulse-deploy-027903150609/*"
+        "arn:aws:s3:::pulse-deploy-027903150609/deploy/*",
+        "arn:aws:s3:::pulse-deploy-027903150609/backtest/pr/*"
       ]
+    },
+    {
+      "Sid": "ListDeploymentAndBacktestPrefixes",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::pulse-deploy-027903150609",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": ["deploy/*", "backtest/pr/*"]
+        }
+      }
     },
     {
       "Sid": "WriteBacktestResults",

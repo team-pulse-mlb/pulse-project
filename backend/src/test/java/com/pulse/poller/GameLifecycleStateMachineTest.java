@@ -59,4 +59,88 @@ class GameLifecycleStateMachineTest {
 
         assertThat(next).isEqualTo(GameLifecycle.DONE);
     }
+
+    @Test
+    void transition_shouldKeepFinalWhenSourceReturnsInProgress() {
+        GameLifecycle next = stateMachine.transition(
+                GameLifecycle.FINAL.name(),
+                Game.STATUS_IN_PROGRESS,
+                now.minusSeconds(60),
+                now
+        );
+
+        assertThat(next).isEqualTo(GameLifecycle.FINAL);
+    }
+
+    @Test
+    void transition_shouldKeepLiveWhenSourceReturnsScheduled() {
+        GameLifecycle next = stateMachine.transition(
+                GameLifecycle.LIVE.name(),
+                Game.STATUS_SCHEDULED,
+                now.plusSeconds(8 * 60 * 60),
+                now
+        );
+
+        assertThat(next).isEqualTo(GameLifecycle.LIVE);
+    }
+
+    @Test
+    void transition_shouldEnterFinalFromLive() {
+        GameLifecycle next = stateMachine.transition(
+                GameLifecycle.LIVE.name(),
+                Game.STATUS_FINAL,
+                now.minusSeconds(60),
+                now
+        );
+
+        assertThat(next).isEqualTo(GameLifecycle.FINAL);
+    }
+
+    @Test
+    void transition_shouldKeepPregameNearWhenStartTimeHasPassed() {
+        GameLifecycle next = stateMachine.transition(
+                GameLifecycle.PREGAME_NEAR.name(),
+                Game.STATUS_SCHEDULED,
+                now.minusSeconds(60),
+                now
+        );
+
+        assertThat(next).isEqualTo(GameLifecycle.PREGAME_NEAR);
+    }
+
+    @Test
+    void transition_shouldEnterPregameFarWhenPregameNearGameIsRescheduled() {
+        GameLifecycle next = stateMachine.transition(
+                GameLifecycle.PREGAME_NEAR.name(),
+                Game.STATUS_SCHEDULED,
+                now.plusSeconds(8 * 60 * 60),
+                now
+        );
+
+        assertThat(next).isEqualTo(GameLifecycle.PREGAME_FAR);
+    }
+
+    @Test
+    void transition_shouldEnterLiveFromDone() {
+        GameLifecycle next = stateMachine.transition(
+                GameLifecycle.DONE.name(),
+                Game.STATUS_IN_PROGRESS,
+                now.minusSeconds(60),
+                now
+        );
+
+        assertThat(next).isEqualTo(GameLifecycle.LIVE);
+    }
+
+    @Test
+    void transition_shouldEnterLiveFromSuspendedPostponed() {
+        GameLifecycle next = stateMachine.transition(
+                GameLifecycle.SUSPENDED_POSTPONED.name(),
+                Game.STATUS_IN_PROGRESS,
+                now.minusSeconds(60),
+                now
+        );
+
+        assertThat(next).isEqualTo(GameLifecycle.LIVE);
+    }
 }

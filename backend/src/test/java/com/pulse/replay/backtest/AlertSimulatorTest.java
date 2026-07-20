@@ -53,6 +53,28 @@ class AlertSimulatorTest {
                 .containsExactly(1, 1, 1, 1);
     }
 
+    @Test
+    void 진입_임계값은_정수로_반올림해_판정한다() {
+        ScoringProperties properties = new ScoringConstantsLoader().loadBaseline("6");
+        Instant start = Instant.parse("2026-06-01T00:00:00Z");
+
+        assertThat(properties.thresholds().alertScore()).isEqualTo(85);
+        assertThat(new AlertSimulator().simulate(List.of(cycle(start, 84.6)), properties)).isEqualTo(1);
+        assertThat(new AlertSimulator().simulate(List.of(cycle(start, 84.4)), properties)).isZero();
+    }
+
+    @Test
+    void 상승폭은_정수로_반올림한_최솟값을_기준으로_판정한다() {
+        ScoringProperties properties = new ScoringConstantsLoader().loadBaseline("6");
+        Instant start = Instant.parse("2026-06-01T00:00:00Z");
+        List<Cycle> cycles = List.of(
+                cycle(start, 85),
+                cycle(start.plusSeconds(16 * 60), 70.4),
+                cycle(start.plusSeconds(17 * 60), 84.6));
+
+        assertThat(new AlertSimulator().simulate(cycles, properties)).isEqualTo(2);
+    }
+
     private static Cycle cycle(Instant at, double score) {
         return new Cycle(at, at.getEpochSecond(), score, score, score, 0, "OPERATIONAL", Map.of());
     }

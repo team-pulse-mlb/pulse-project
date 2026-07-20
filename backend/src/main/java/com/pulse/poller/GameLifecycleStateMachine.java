@@ -14,6 +14,16 @@ public class GameLifecycleStateMachine {
 
     public GameLifecycle transition(String currentState, String sourceStatus, Instant startTime, Instant now) {
         GameLifecycle current = parse(currentState);
+        GameLifecycle next = calculateNext(current, sourceStatus, startTime, now);
+        return preventRegression(current, next, startTime, now);
+    }
+
+    private static GameLifecycle calculateNext(
+            GameLifecycle current,
+            String sourceStatus,
+            Instant startTime,
+            Instant now
+    ) {
         if (Game.STATUS_IN_PROGRESS.equals(sourceStatus)) {
             return GameLifecycle.LIVE;
         }
@@ -38,6 +48,40 @@ public class GameLifecycleStateMachine {
             return GameLifecycle.PREGAME_FAR;
         }
         return GameLifecycle.SCHEDULED;
+    }
+
+    private static GameLifecycle preventRegression(
+            GameLifecycle current,
+            GameLifecycle next,
+            Instant startTime,
+            Instant now
+    ) {
+        if (current == GameLifecycle.DONE || current == GameLifecycle.SUSPENDED_POSTPONED) {
+            return next;
+        }
+        if (current == GameLifecycle.FINAL && next != GameLifecycle.FINAL) {
+            return current;
+        }
+        if (current == GameLifecycle.LIVE
+                && (next == GameLifecycle.SCHEDULED
+                || next == GameLifecycle.PREGAME_FAR
+                || next == GameLifecycle.PREGAME_NEAR)) {
+            return current;
+        }
+        if (current == GameLifecycle.PREGAME_NEAR
+                && next == GameLifecycle.SCHEDULED
+                && hasStarted(startTime, now)) {
+            return current;
+        }
+        return next;
+    }
+
+    private static boolean hasStarted(Instant startTime, Instant now) {
+        if (startTime == null) {
+            return false;
+        }
+        Duration untilStart = Duration.between(now, startTime);
+        return untilStart.isNegative() || untilStart.isZero();
     }
 
     private static GameLifecycle parse(String state) {

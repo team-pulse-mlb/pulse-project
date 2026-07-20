@@ -10,10 +10,20 @@ import com.pulse.domain.Game;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 class LivePlaysPoller {
+
+    private static final int LIVE_POLL_WORKERS = 6;
 
     private final BaseballDataSource balldontlieClient;
     private final PollerGameWriter gameWriter;
@@ -23,6 +33,7 @@ class LivePlaysPoller {
     private final PaRawArchiveUploader paRawArchiveUploader;
     private final PollerLiveGameStateTracker stateTracker;
     private final PollerBackoff playsBackoff;
+    private final ExecutorService executor;
 
     LivePlaysPoller(
             BaseballDataSource balldontlieClient,
@@ -41,6 +52,13 @@ class LivePlaysPoller {
         this.paRawArchiveUploader = paRawArchiveUploader;
         this.stateTracker = stateTracker;
         this.playsBackoff = new PollerBackoff(properties.initialBackoff(), properties.maxBackoff());
+        AtomicInteger workerSequence = new AtomicInteger();
+        ThreadFactory threadFactory = task -> {
+            Thread thread = new Thread(task, "live-plays-worker-" + workerSequence.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        };
+        this.executor = Executors.newFixedThreadPool(LIVE_POLL_WORKERS, threadFactory);
     }
 
     void pollLiveGames(List<Game> liveGames, Instant now) {
@@ -48,58 +66,109 @@ class LivePlaysPoller {
             return;
         }
 
+        AtomicBoolean backoffTriggered = new AtomicBoolean();
+        List<Future<?>> futures = new ArrayList<>(liveGames.size());
         for (Game game : liveGames) {
-            try {
-                boolean quiet = stateTracker.quiet(game.getId(), now);
-                if (quiet && stateTracker.quietPollScheduledAfter(game.getId(), now)) {
-                    PulseMetrics.increment("pulse.poller.quiet.skips");
-                    if (stateTracker.heartbeatDue(game.getId(), now)
-                            && liveGameCycleWriter.publishHeartbeat(game, now)) {
-                        stateTracker.markTaskPublished(game.getId(), now);
-                    }
-                    continue;
+            futures.add(executor.submit(() -> {
+                if (backoffTriggered.get()) {
+                    return;
                 }
-                if (quiet) {
-                    stateTracker.scheduleQuietPoll(game.getId(), now);
-                }
-                List<BdlPlay> plays = fetchPlays(game);
-                if (plays.isEmpty() && game.getLastPlayOrder() != null) {
-                    int emptyFetchStreak = stateTracker.incrementEmptyFetchStreak(game.getId());
-                    if (emptyFetchStreak >= properties.cursorRecoveryEmptyTicks()) {
-                        stateTracker.resetEmptyFetchStreak(game.getId());
-                        plays = probeRecoveryCursor(game);
-                    }
-                } else if (!plays.isEmpty()) {
-                    stateTracker.resetEmptyFetchStreak(game.getId());
-                    stateTracker.resetRecoveryStepBack(game.getId());
-                }
-                if (!plays.isEmpty()) {
-                    List<BdlPlateAppearance> plateAppearances = fetchPlateAppearances(game.getId(), now);
-                    LiveGameCycleWriter.CycleWriteResult result =
-                            liveGameCycleWriter.write(game, plays, plateAppearances, now);
-                    logCycleResult(game.getId(), result);
-                    if (result.inserted() > 0) {
-                        stateTracker.markNewPlays(game.getId(), now);
-                        continue;
-                    }
-                }
+                pollLiveGame(game, now, backoffTriggered);
+            }));
+        }
+        awaitCompletion(futures);
+        if (!backoffTriggered.get()) {
+            playsBackoff.recordSuccess();
+        }
+    }
+
+    private void pollLiveGame(Game game, Instant now, AtomicBoolean backoffTriggered) {
+        try {
+            boolean quiet = stateTracker.quiet(game.getId(), now);
+            if (quiet && stateTracker.quietPollScheduledAfter(game.getId(), now)) {
+                PulseMetrics.increment("pulse.poller.quiet.skips");
                 if (stateTracker.heartbeatDue(game.getId(), now)
                         && liveGameCycleWriter.publishHeartbeat(game, now)) {
                     stateTracker.markTaskPublished(game.getId(), now);
                 }
-            } catch (RuntimeException e) {
-                if (Thread.currentThread().isInterrupted()) {
-                    throw e;
+                return;
+            }
+            if (quiet) {
+                stateTracker.scheduleQuietPoll(game.getId(), now);
+            }
+            List<BdlPlay> plays = fetchPlays(game);
+            if (plays.isEmpty() && game.getLastPlayOrder() != null) {
+                int emptyFetchStreak = stateTracker.incrementEmptyFetchStreak(game.getId());
+                if (emptyFetchStreak >= properties.cursorRecoveryEmptyTicks()) {
+                    stateTracker.resetEmptyFetchStreak(game.getId());
+                    plays = probeRecoveryCursor(game);
                 }
-                if (PollerExceptionClassifier.shouldBackoff(e)) {
-                    handleFailure("plays", playsBackoff, now, e);
+            } else if (!plays.isEmpty()) {
+                stateTracker.resetEmptyFetchStreak(game.getId());
+                stateTracker.resetRecoveryStepBack(game.getId());
+            }
+            if (!plays.isEmpty()) {
+                List<BdlPlateAppearance> plateAppearances = fetchPlateAppearances(game.getId(), now);
+                LiveGameCycleWriter.CycleWriteResult result =
+                        liveGameCycleWriter.write(game, plays, plateAppearances, now);
+                logCycleResult(game.getId(), result);
+                if (result.inserted() > 0) {
+                    stateTracker.markNewPlays(game.getId(), now);
                     return;
                 }
-                log.error("plays poll failed: gameId={}", game.getId(), e);
-                PulseMetrics.increment("pulse.poller.game.skips", "reason", "isolated_failure");
+            }
+            if (stateTracker.heartbeatDue(game.getId(), now)
+                    && liveGameCycleWriter.publishHeartbeat(game, now)) {
+                stateTracker.markTaskPublished(game.getId(), now);
+            }
+        } catch (RuntimeException e) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw e;
+            }
+            if (PollerExceptionClassifier.shouldBackoff(e)) {
+                synchronized (playsBackoff) {
+                    if (!backoffTriggered.get()) {
+                        backoffTriggered.set(true);
+                        handleFailure("plays", playsBackoff, now, e);
+                    }
+                }
+                return;
+            }
+            log.error("plays poll failed: gameId={}", game.getId(), e);
+            PulseMetrics.increment("pulse.poller.game.skips", "reason", "isolated_failure");
+        }
+    }
+
+    private void awaitCompletion(List<Future<?>> futures) {
+        for (Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("plays poll interrupted", e);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                if (cause instanceof Error error) {
+                    throw error;
+                }
+                throw new IllegalStateException("plays poll worker failed", cause);
             }
         }
-        playsBackoff.recordSuccess();
+    }
+
+    void shutdown() {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     boolean drainTerminalGame(Game game, Instant now) {
