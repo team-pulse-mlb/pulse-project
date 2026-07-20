@@ -22,7 +22,7 @@ public class HomeGameController {
     @Operation(
             summary = "홈 전체 경기 목록 조회",
             description = """
-                    MLB 미국 동부시간 슬레이트를 기준으로 경기 목록을 조회한다.
+                    한국 시간(KST) 슬레이트를 기준으로 경기 목록을 조회한다.
                     scheduled 상태는 date와 무관하게 현재 이후의 모든 예정 경기를 반환한다.
                     로그인한 요청은 관심 팀·선수 가산이 정렬에 반영될 수 있다.
                     정렬 기준을 생략하면 scheduled는 startTime, 나머지 상태는 recommended를 적용한다.
@@ -30,7 +30,7 @@ public class HomeGameController {
     )
     @GetMapping
     public HomeSlateResponse slate(
-            @Parameter(description = "MLB 슬레이트 날짜", example = "2026-07-18")
+            @Parameter(description = "KST 슬레이트 날짜", example = "2026-07-18")
             @RequestParam(required = false) String date,
 
             @Parameter(

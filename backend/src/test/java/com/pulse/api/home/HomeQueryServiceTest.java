@@ -300,7 +300,7 @@ class HomeQueryServiceTest {
 
     @Test
     void getSlate_shouldSortAllStatusesByRecommendationScore() {
-        ZoneId slateZone = ZoneId.of("America/New_York");
+        ZoneId slateZone = ZoneId.of("Asia/Seoul");
         LocalDate slateDate = LocalDate.now(slateZone);
         Instant slateStart = slateDate.atStartOfDay(slateZone).toInstant();
         Game live = live(50L);
@@ -346,7 +346,7 @@ class HomeQueryServiceTest {
 
     @Test
     void getSlate_shouldUseCurrentSlateDateWhenDateIsMissing() {
-        LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
                 any(Instant.class), any(Instant.class))).thenReturn(List.of());
 
@@ -395,7 +395,7 @@ class HomeQueryServiceTest {
     private static Game gameWithStatus(long id, String status) {
         Game game = baseGame(id);
         game.setStatus(status);
-        game.setStartTime(Instant.parse("2026-07-11T18:00:00Z"));
+        game.setStartTime(Instant.parse("2026-07-11T09:00:00Z"));
         game.setVenue("Test Ballpark");
         return game;
     }
