@@ -30,7 +30,9 @@ class NotificationMessageBeanConstructionTest {
                             Duration.ofSeconds(5),
                             Duration.ofMinutes(5),
                             50,
-                            Duration.ofSeconds(1)
+                            Duration.ofSeconds(1),
+                            Duration.ofDays(7),
+                            500
                     ));
 
     @Test
