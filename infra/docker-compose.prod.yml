@@ -90,9 +90,8 @@ services:
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
       SERVER_TOMCAT_THREADS_MAX: "20"
     mem_limit: 640m
+    # 장애 격리를 위해 인프라 서비스에만 의존한다. api 헬스체크 실패가 폴러 기동을 막지 않게 한다.
     depends_on:
-      pulse-api:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
@@ -118,14 +117,11 @@ services:
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "8"
       SERVER_TOMCAT_THREADS_MAX: "20"
     mem_limit: 704m
+    # 장애 격리를 위해 인프라 서비스에만 의존한다. api·ai-service 헬스체크 실패가 스코어러 기동을 막지 않게 한다.
     depends_on:
-      pulse-api:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      ai-service:
         condition: service_healthy
     healthcheck: *app-healthcheck
 
