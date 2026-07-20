@@ -8,7 +8,7 @@
 
 ## 핵심 기능
 
-<!-- 기능별 스크린샷·GIF 추가 예정 -->
+![PULSE 주요 화면](docs/image/pulse-screens.gif)
 
 | 문제 | 해결 |
 |---|---|
@@ -54,6 +54,6 @@ pulse-project/
 
 ## 전체 아키텍처
 
-![PULSE 전체 아키텍처](docs/image/pulse-architecture.svg)
+![PULSE 전체 아키텍처](docs/image/diagram/pulse-architecture.svg)
 
 번호별 상세는 [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)를 따른다.
