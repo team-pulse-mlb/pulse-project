@@ -74,6 +74,40 @@ describe('useSse', () => {
     expect(EventSourceDouble.instances[0]?.url).toBe('/api/sse');
   });
 
+  it('연결되면 놓친 순위와 경기 목록 신호를 즉시 보정한다', () => {
+    const { invalidateQueries } = renderUseSse();
+    const source = EventSourceDouble.instances[0];
+
+    act(() => source?.emit('open'));
+
+    expect(invalidateQueries).toHaveBeenCalledTimes(2);
+    expect(invalidateQueries).toHaveBeenNthCalledWith(1, {
+      queryKey: queryKeys.rankings.live,
+    });
+    expect(invalidateQueries).toHaveBeenNthCalledWith(2, {
+      queryKey: [...queryKeys.games.all, 'list'],
+    });
+  });
+
+  it('재연결될 때마다 놓친 순위와 경기 목록 신호를 보정한다', () => {
+    const { invalidateQueries } = renderUseSse();
+    const source = EventSourceDouble.instances[0];
+
+    act(() => {
+      source?.emit('open');
+      source?.emit('open');
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledTimes(4);
+    expect(invalidateQueries.mock.calls.map(([filters]) => filters?.queryKey))
+      .toEqual([
+        queryKeys.rankings.live,
+        [...queryKeys.games.all, 'list'],
+        queryKeys.rankings.live,
+        [...queryKeys.games.all, 'list'],
+      ]);
+  });
+
   it('순위 변경 이벤트를 병합해 순위와 경기 목록을 한 번씩 갱신한다', () => {
     const { invalidateQueries } = renderUseSse();
     const source = EventSourceDouble.instances[0];

@@ -24,19 +24,19 @@
 
 ### 3-1. 경기 데이터 수집 (마스터 · 원본 · 경기 전 입력)
 
-![경기 데이터 수집 ERD](../image/db-game-data.svg)
+![경기 데이터 수집 ERD](../image/diagram/db-game-data.svg)
 
 ### 3-2. 점수 계산 산출 · 작업
 
 3-1의 `games`·`plays`를 입력으로 scorer가 만드는 산출물과 점수 작업 대기열이다.
 
-![점수 계산 산출·작업 ERD](../image/db-scoring.svg)
+![점수 계산 산출·작업 ERD](../image/diagram/db-scoring.svg)
 
 ### 3-3. 사용자 · 알림
 
 `teams`·`players`·`games`는 3-1의 테이블을 참조한다. 관심 팀은 `user_favorite_teams`, 관심 선수는 `user_favorite_players` 조인 테이블로 관리한다.
 
-![사용자·알림 ERD](../image/db-user-notification.svg)
+![사용자·알림 ERD](../image/diagram/db-user-notification.svg)
 
 ## 4. 테이블 개요
 

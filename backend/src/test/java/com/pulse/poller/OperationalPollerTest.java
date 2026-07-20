@@ -210,7 +210,7 @@ class OperationalPollerTest {
     }
 
     @Test
-    void poll_shouldStopRemainingGamesAndRecordBackoffWhenRateLimited() {
+    void poll_shouldKeepBackoffActiveWhenRateLimited() {
         Game firstGame = game(100L, GameLifecycle.LIVE.name(), 1L);
         Game secondGame = game(200L, GameLifecycle.LIVE.name(), 1L);
         when(balldontlieClient.getGames(anyList()))
@@ -223,9 +223,13 @@ class OperationalPollerTest {
                 .thenThrow(new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS));
 
         poller.poll();
-        poller.poll();
 
         verify(balldontlieClient, times(1)).getPlays(100L, 1L);
+        clearInvocations(balldontlieClient);
+
+        poller.poll();
+
+        verify(balldontlieClient, never()).getPlays(100L, 1L);
         verify(balldontlieClient, never()).getPlays(200L, 1L);
     }
 

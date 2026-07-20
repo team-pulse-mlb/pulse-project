@@ -9,7 +9,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
@@ -73,16 +78,44 @@ public class NotificationOutboxDispatcher {
     private void publish(NotificationOutbox outbox) {
         Instant now = clock.instant();
         try {
-            rabbitTemplate.convertAndSend(RabbitMqConfig.NOTIFY_EVENTS_QUEUE, outbox.toEvent());
+            awaitBrokerConfirm(outbox);
             outbox.markPublished(now);
             log.info("알림 outbox 발행 성공: eventId={} attempts={}", outbox.getEventId(), outbox.getAttemptCount());
-        } catch (RuntimeException exception) {
-            PulseMetrics.increment("pulse.notification.publish.failures");
-            Duration delay = retryDelay(outbox.getAttemptCount());
-            outbox.recordFailure(now.plus(delay), errorMessage(exception));
-            log.warn("알림 outbox 발행 실패: eventId={} nextAttemptAt={}",
-                    outbox.getEventId(), outbox.getNextAttemptAt(), exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            recordFailure(outbox, now, exception);
+        } catch (RuntimeException | ExecutionException | TimeoutException exception) {
+            recordFailure(outbox, now, exception);
         }
+    }
+
+    private void awaitBrokerConfirm(NotificationOutbox outbox)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        CorrelationData correlationData = new CorrelationData(
+                outbox.getEventId() + ":" + UUID.randomUUID()
+        );
+        rabbitTemplate.convertAndSend(
+                RabbitMqConfig.NOTIFY_EVENTS_QUEUE,
+                outbox.toEvent(),
+                correlationData
+        );
+
+        CorrelationData.Confirm confirm = correlationData.getFuture().get(
+                properties.confirmTimeout().toMillis(),
+                TimeUnit.MILLISECONDS
+        );
+        if (!confirm.isAck()) {
+            String reason = confirm.getReason() == null ? "사유 없음" : confirm.getReason();
+            throw new AmqpException("브로커가 알림 발행을 거부했습니다: " + reason);
+        }
+    }
+
+    private void recordFailure(NotificationOutbox outbox, Instant now, Throwable exception) {
+        PulseMetrics.increment("pulse.notification.publish.failures");
+        Duration delay = retryDelay(outbox.getAttemptCount());
+        outbox.recordFailure(now.plus(delay), errorMessage(exception));
+        log.warn("알림 outbox 발행 실패: eventId={} nextAttemptAt={}",
+                outbox.getEventId(), outbox.getNextAttemptAt(), exception);
     }
 
     private Duration retryDelay(int attemptCount) {
@@ -99,7 +132,7 @@ public class NotificationOutboxDispatcher {
                 : calculated;
     }
 
-    private String errorMessage(RuntimeException exception) {
+    private String errorMessage(Throwable exception) {
         String message = exception.getMessage();
         if (message == null || message.isBlank()) {
             message = exception.getClass().getSimpleName();

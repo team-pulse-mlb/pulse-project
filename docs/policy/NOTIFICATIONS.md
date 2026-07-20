@@ -31,7 +31,7 @@
 
 판정은 데이터를 가진 곳(scorer·poller)에서, 전달은 사용자를 아는 곳(api)에서 한다.
 
-![알림 판정·전달 파이프라인](../image/notification-pipeline.svg)
+![알림 판정·전달 파이프라인](../image/diagram/notification-pipeline.svg)
 
 - 채널이 RabbitMQ인 이유: 알림은 one-shot이라 유실되면 복구 경로가 없다. 재조회 신호와 달리 "다음 사이클에 자연 복구"가 성립하지 않는다.
 - 중복 전달을 전제로 `(event_id, user_id)` 유니크 제약으로 멱등 처리한다.
