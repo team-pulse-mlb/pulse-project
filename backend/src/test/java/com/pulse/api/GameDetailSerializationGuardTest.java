@@ -197,6 +197,9 @@ class GameDetailSerializationGuardTest {
                     softly.assertThat(json.has("situation"))
                             .isTrue();
                     softly.assertThat(
+                                    json.has("switchSuggestion"))
+                            .isTrue();
+                    softly.assertThat(
                                     json.has("favoritePlayersPlaying"))
                             .isTrue();
                     softly.assertThat(
@@ -295,7 +298,8 @@ class GameDetailSerializationGuardTest {
                                         2,
                                         0,
                                         0,
-                                        0)));
+                                        0)),
+                        null);
 
         JsonNode json =
                 objectMapper.valueToTree(response);

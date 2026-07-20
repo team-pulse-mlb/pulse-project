@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,12 +56,24 @@ public class GameController {
                     )
             )
             @RequestParam(defaultValue = "protected")
-            String mode
+            String mode,
+            Authentication authentication
     ) {
         return gameQueryService.getGameDetail(
                 gameId,
-                mode
+                mode,
+                username(authentication)
         );
+    }
+
+    private static String username(
+            Authentication authentication
+    ) {
+        return authentication == null
+                || authentication
+                instanceof AnonymousAuthenticationToken
+                ? null
+                : authentication.getName();
     }
 
     /**

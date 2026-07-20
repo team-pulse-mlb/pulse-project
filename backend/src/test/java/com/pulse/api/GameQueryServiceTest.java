@@ -35,6 +35,9 @@ class GameQueryServiceTest {
     private final TensionCurveQueryService tensionCurveQueryService =
             mock(TensionCurveQueryService.class);
 
+    private final SwitchSuggestionService switchSuggestionService =
+            mock(SwitchSuggestionService.class);
+
     private final GameQueryService service =
             new GameQueryService(
                     gameRepository,
@@ -42,7 +45,8 @@ class GameQueryServiceTest {
                     playRepository,
                     playerRepository,
                     lineupRepository,
-                    tensionCurveQueryService);
+                    tensionCurveQueryService,
+                    switchSuggestionService);
 
     @Test
     void scheduledGame_shouldReturnScheduledDetailEvenWhenRevealedIsRequested() {
