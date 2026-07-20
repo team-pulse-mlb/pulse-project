@@ -2,6 +2,8 @@
 
 Prometheus 지표 정의와 Grafana 조회·경보 기준을 관리한다. 배포, 컨테이너 점검, 장애 복구 절차는 [`OPERATIONS.md`](OPERATIONS.md)를 따른다.
 
+**관측 범위 제한**: 현재 운영은 단일 EC2·단일 Redis·단일 RabbitMQ 구성이다. `ARCHITECTURE.md`가 설명하는 장애 격리는 프로세스 단위에 한정되며, 호스트·Redis·RabbitMQ 자체 장애는 전체 서비스에 영향을 준다. 여기 지표·경보도 프로세스 단위 이상 징후 탐지에 초점을 두며, 호스트 단일 장애점은 비용·일정 제약에 따른 의도적 범위다.
+
 ## 접근
 
 운영 포트는 외부에 공개하지 않는다. AWS Systems Manager 포트 포워딩으로 접근한다.
