@@ -13,7 +13,7 @@ interface DateNavigatorProps {
 const arrowButtonStyle =
   'flex h-9 w-9 items-center justify-center rounded-[9px] border border-card-border bg-white text-text-muted transition-colors hover:border-mlb-navy hover:text-mlb-navy disabled:opacity-40';
 
-// 날짜 네비게이터: ◀ 날짜 ▶ + 달력 피커. 기본은 오늘 슬레이트(미 동부시간).
+// 날짜 네비게이터: ◀ 날짜 ▶ + 달력 피커. 기본은 오늘 슬레이트(KST).
 // 미래 경기는 상단 추천이 담당하므로 여기서는 오늘(maxDate) 이후로 이동할 수 없다.
 function DateNavigator({ slateDate, maxDate, onChange }: DateNavigatorProps) {
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -34,7 +34,7 @@ function DateNavigator({ slateDate, maxDate, onChange }: DateNavigatorProps) {
       </button>
 
       <span className="min-w-[110px] text-center text-[15px] font-semibold text-text-strong">
-        {slateDate ? formatSlateDateLabel(slateDate) : '　'}
+        {slateDate ? `${formatSlateDateLabel(slateDate)} · KST` : '　'}
       </span>
 
       <button
