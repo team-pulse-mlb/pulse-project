@@ -36,7 +36,8 @@ public class AlertSimulator {
             long gameId = item.gameId();
             Cycle cycle = item.cycle();
             GameState state = states.computeIfAbsent(gameId, ignored -> new GameState());
-            double score = cycle.watchScore();
+            // 운영 저장값과 히스테리시스 이력을 재현하도록 정수 반올림 점수로 판정한다.
+            int score = (int) Math.round(cycle.watchScore());
             if (score < properties.thresholds().alertRearmScore()) state.armed = true;
             boolean backfill = "S3_BACKFILL".equals(cycle.source()) || cycle.computedAt() == null;
             boolean cooldown = !backfill && state.lastFired != null && cycle.computedAt().isBefore(
@@ -58,9 +59,10 @@ public class AlertSimulator {
 
     private boolean risen(List<Cycle> history, Cycle current, ScoringProperties properties) {
         Instant since = current.computedAt().minus(Duration.ofMinutes(properties.thresholds().alertRiseWindowMinutes()));
+        int currentScore = (int) Math.round(current.watchScore());
         return history.stream().filter(cycle -> cycle.computedAt() != null && !cycle.computedAt().isBefore(since))
-                .mapToDouble(Cycle::watchScore).min().stream()
-                .anyMatch(min -> current.watchScore() - min >= properties.thresholds().alertRiseScore());
+                .mapToInt(cycle -> (int) Math.round(cycle.watchScore())).min().stream()
+                .anyMatch(min -> currentScore - min >= properties.thresholds().alertRiseScore());
     }
 
     private record GameCycle(long gameId, Cycle cycle) {}
