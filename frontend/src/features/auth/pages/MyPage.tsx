@@ -1,6 +1,12 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 
+import PasswordChangeModal
+    from '../components/PasswordChangeModal';
+
+import WithdrawMemberModal
+    from '../components/WithdrawMemberModal';
+
 import {
     getMe,
     logout,
@@ -104,6 +110,22 @@ function MyPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    /*
+    * 비밀번호 변경 모달 표시 여부입니다.
+    */
+    const [
+        isPasswordChangeModalOpen,
+        setIsPasswordChangeModalOpen,
+    ] = useState(false);
+
+    /*
+    * 회원탈퇴 모달 표시 여부입니다.
+    */
+    const [
+        isWithdrawMemberModalOpen,
+        setIsWithdrawMemberModalOpen,
+    ] = useState(false);
 
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
@@ -307,6 +329,71 @@ function MyPage() {
         }
     };
 
+    /*
+    * 비밀번호 변경 성공 후 현재 로그인 상태를 정리합니다.
+    *
+    * 백엔드는 비밀번호 변경 성공 시:
+    * - 모든 활성 Refresh Token 폐기
+    * - 현재 Refresh Token 쿠키 만료
+    *
+    * 프론트에서는:
+    * - Access Token 삭제
+    * - Header 등에 인증 상태 변경 알림
+    * - 다시 로그인할 수 있도록 홈으로 이동
+    */
+    const handlePasswordChangeSuccess = () => {
+        setIsPasswordChangeModalOpen(false);
+
+        localStorage.removeItem(
+            'accessToken',
+        );
+
+        window.dispatchEvent(
+            new Event('auth-changed'),
+        );
+
+        window.alert(
+            '비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.',
+        );
+
+        navigate('/', {
+            replace: true,
+        });
+    };
+
+    /*
+    * 회원탈퇴 성공 후 현재 로그인 상태를 정리합니다.
+    *
+    * 백엔드는 회원탈퇴 성공 시:
+    * - 회원 상태를 WITHDRAWN으로 변경
+    * - 모든 활성 Refresh Token 폐기
+    * - 현재 Refresh Token 쿠키 만료
+    *
+    * 프론트에서는:
+    * - Access Token 삭제
+    * - Header 등에 인증 상태 변경 알림
+    * - 홈 화면으로 이동
+    */
+    const handleWithdrawMemberSuccess = () => {
+        setIsWithdrawMemberModalOpen(false);
+
+        localStorage.removeItem(
+            'accessToken',
+        );
+
+        window.dispatchEvent(
+            new Event('auth-changed'),
+        );
+
+        window.alert(
+            '회원탈퇴가 완료되었습니다.',
+        );
+
+        navigate('/', {
+            replace: true,
+        });
+    };
+
     if (isLoading) {
         return (
             <main className="mypage-shell">
@@ -363,11 +450,11 @@ function MyPage() {
                         <div className="mypage-account-inline-actions">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    alert(
-                                        '비밀번호 변경 기능은 추후 구현 예정입니다.',
-                                    );
-                                }}
+                                onClick={() =>
+                                    setIsPasswordChangeModalOpen(
+                                        true,
+                                    )
+                                }
                             >
                                 비밀번호 변경
                             </button>
@@ -385,11 +472,11 @@ function MyPage() {
                             <button
                                 type="button"
                                 className="danger"
-                                onClick={() => {
-                                    alert(
-                                        '회원탈퇴 기능은 추후 구현 예정입니다.',
-                                    );
-                                }}
+                                onClick={() =>
+                                    setIsWithdrawMemberModalOpen(
+                                        true,
+                                    )
+                                }
                             >
                                 회원탈퇴
                             </button>
@@ -664,6 +751,37 @@ function MyPage() {
                     </div>
                 </section>
             </section>
+
+            <PasswordChangeModal
+                isOpen={
+                    isPasswordChangeModalOpen
+                }
+                email={me?.email ?? ''}
+                onClose={() =>
+                    setIsPasswordChangeModalOpen(
+                        false,
+                    )
+                }
+                onSuccess={
+                    handlePasswordChangeSuccess
+                }
+            />
+
+            <WithdrawMemberModal
+                isOpen={
+                    isWithdrawMemberModalOpen
+                }
+                email={me?.email ?? ''}
+                onClose={() =>
+                    setIsWithdrawMemberModalOpen(
+                        false,
+                    )
+                }
+                onSuccess={
+                    handleWithdrawMemberSuccess
+                }
+            />
+
         </main>
     );
 }
