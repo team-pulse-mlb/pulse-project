@@ -134,6 +134,37 @@ class GameEventExtractorTest {
     }
 
     @Test
+    @DisplayName("강한 타구 payload에 타구질과 함께 아웃카운트·주자 상황을 담는다")
+    void extract_shouldIncludeBaseOutStateInHardContactPayload() {
+        PlateAppearanceSnapshot plateAppearance = new PlateAppearanceSnapshot(
+                7L,
+                6,
+                "top",
+                10L,
+                99L,
+                2,
+                true,
+                false,
+                true,
+                List.of(new PitchSnapshot(1, 20, 92.0, 101.2, true))
+        );
+
+        extractor.extract(100L, List.of(), List.of(plateAppearance), 0, observedAt);
+
+        GameEvent hardContact = savedEvents().stream()
+                .filter(event -> GameEventExtractor.EVENT_HARD_CONTACT.equals(event.getEventType()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(hardContact.getPayload())
+                .containsEntry("isBarrel", true)
+                .containsEntry("exitVelocity", 101.2)
+                .containsEntry("outs", 2)
+                .containsEntry("runnerOnFirst", true)
+                .containsEntry("runnerOnSecond", false)
+                .containsEntry("runnerOnThird", true);
+    }
+
+    @Test
     void extract_shouldPersistAllRevealedPlayEventKinds() {
         Play first = play(1L, 0, 0, 0, 1, 0);
         first.setScoringPlay(true);

@@ -23,6 +23,10 @@ pulse:
       enabled: false
   ai-copy-reprocess:
     event-batch-size: 100
+    run-backfill: true
+    run-headline: true
+    run-event-copy: true
+    run-play-translation: true
   notification-outbox:
     scheduler-enabled: false
   score-task-outbox:

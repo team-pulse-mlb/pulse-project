@@ -1,6 +1,11 @@
 package com.pulse.api.sse;
 
 import com.pulse.api.sse.dto.SseTokenResponse;
+import com.pulse.common.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -46,6 +51,7 @@ import java.util.OptionalLong;
         name = "enabled",
         havingValue = "true"
 )
+@Tag(name = "실시간 이벤트", description = "REST 재조회 신호를 전달하는 SSE 연결")
 public class SseController {
 
     /**
@@ -73,6 +79,11 @@ public class SseController {
      * @param authentication 현재 로그인 사용자의 인증 정보
      * @return SSE 연결용 1회용 토큰
      */
+    @Operation(
+            summary = "SSE 1회용 토큰 발급",
+            description = "로그인 SSE 연결에 사용할 유효기간 60초의 1회용 토큰을 발급한다.",
+            security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+    )
     @PostMapping("/api/sse/token")
     public SseTokenResponse issueToken(
             Authentication authentication
@@ -104,11 +115,20 @@ public class SseController {
      * @param token 선택적으로 전달되는 SSE 1회용 토큰
      * @return SSE 스트림 또는 401 응답
      */
+    @Operation(
+            summary = "SSE 구독",
+            description = """
+                    token이 없으면 ranking_changed와 game_updated를 받는 공개 연결을 생성한다.
+                    유효한 1회용 token이 있으면 notification_created도 받는 인증 연결을 생성한다.
+                    이벤트 payload는 재조회 신호만 포함하며 연결·재연결 정책은 API_CONTRACTS.md를 따른다.
+                    """
+    )
     @GetMapping(
             value = "/api/sse",
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
     public ResponseEntity<SseEmitter> subscribe(
+            @Parameter(description = "로그인 연결용 1회용 토큰")
             @RequestParam(
                     required = false
             )

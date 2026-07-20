@@ -13,8 +13,10 @@ import static org.mockito.Mockito.when;
 
 import com.pulse.common.client.BalldontlieClient;
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.message.ScoreTaskFactory;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Lineup;
 import com.pulse.domain.LineupRepository;
@@ -145,9 +147,15 @@ class PregamePollerTest {
         return new PollerProperties(
                 true,
                 Duration.ofSeconds(20),
+                Duration.ofSeconds(75),
                 Duration.ofMinutes(10),
+                Duration.ofMinutes(5),
+                Duration.ofMinutes(10),
+                Duration.ofMinutes(15),
+                Duration.ofSeconds(20),
                 0,
                 0,
+                9,
                 5,
                 Duration.ofSeconds(30),
                 Duration.ofMinutes(5),

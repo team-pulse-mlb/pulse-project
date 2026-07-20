@@ -4,6 +4,8 @@ import com.pulse.api.GameEventQueryService.GameEventsResponse;
 import com.pulse.api.GameQueryService.GameDetailView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/games")
 @RequiredArgsConstructor
+@Tag(name = "경기 상세", description = "스포일러 보호·공개 모드별 경기 상세와 흐름 조회")
 public class GameController {
 
     private final GameQueryService gameQueryService;
@@ -25,6 +28,7 @@ public class GameController {
             description = """
                     경기 상태와 표시 모드에 맞는 상세 정보를 조회한다.
                     보호 모드에서는 점수와 결과 방향을 드러내는 필드를 제외한다.
+                    예정·진행·종료 상태와 표시 모드 조합에 따라 응답 스키마가 달라진다.
                     """
     )
     @GetMapping("/{gameId}")
@@ -43,7 +47,11 @@ public class GameController {
                     description = """
                             protected는 스포일러 값을 숨기고,
                             revealed는 점수와 공개 정보를 포함한다.
-                            """
+                            """,
+                    schema = @Schema(
+                            allowableValues = {"PROTECTED", "REVEALED"},
+                            defaultValue = "PROTECTED"
+                    )
             )
             @RequestParam(defaultValue = "protected")
             String mode
@@ -63,8 +71,8 @@ public class GameController {
     @Operation(
             summary = "경기 상세 이벤트 조회",
             description = """
-                    보호 모드에서는 스포일러 안전 이벤트만 반환한다.
-                    공개 모드에서는 보호 이벤트와 공개 전용 이벤트를 함께 반환한다.
+                    보호 모드에서는 타임라인 하이라이트로 선정된 스포일러 안전 이벤트만 반환한다.
+                    공개 모드와 알 수 없는 모드는 빈 목록을 반환한다.
                     """
     )
     @GetMapping("/{gameId}/events")
@@ -77,9 +85,12 @@ public class GameController {
 
             @Parameter(
                     description = """
-                            protected는 초/말, 선수 이름, 결과 이벤트를 숨기고,
-                            revealed는 공개 가능한 이벤트 정보를 포함한다.
-                            """
+                            protected에서만 이벤트를 반환하고 revealed는 빈 목록을 반환한다.
+                            """,
+                    schema = @Schema(
+                            allowableValues = {"PROTECTED", "REVEALED"},
+                            defaultValue = "PROTECTED"
+                    )
             )
             @RequestParam(defaultValue = "protected")
             String mode
@@ -95,9 +106,26 @@ public class GameController {
      * 최근 플레이에는 점수와 실제 플레이 문구가 포함되므로
      * 공개 모드에서만 데이터가 반환된다.
      */
+    @Operation(
+            summary = "경기 최근 플레이 조회",
+            description = """
+                    공개 모드에서는 타석 결과 플레이를 최신순으로 반환한다.
+                    보호 모드와 알 수 없는 모드는 빈 목록을 반환한다.
+                    번역문이 없으면 원문과 translated=false를 반환한다.
+                    """
+    )
     @GetMapping("/{gameId}/recent-plays")
     public GameRecentPlayQueryService.RecentPlaysResponse getRecentPlays(
+            @Parameter(description = "balldontlie 경기 ID", example = "5059041")
             @PathVariable long gameId,
+
+            @Parameter(
+                    description = "revealed에서만 플레이를 반환한다.",
+                    schema = @Schema(
+                            allowableValues = {"PROTECTED", "REVEALED"},
+                            defaultValue = "PROTECTED"
+                    )
+            )
             @RequestParam(
                     defaultValue = "PROTECTED")
             String mode) {

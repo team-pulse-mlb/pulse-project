@@ -60,6 +60,12 @@ public class SimulationBaseballDataSource implements BaseballDataSource {
     }
 
     @Override
+    public List<BdlGame> getGames(List<LocalDate> dates) {
+        if (dates == null) return List.of();
+        return dates.stream().flatMap(date -> getGames(date).stream()).toList();
+    }
+
+    @Override
     public ListResponse<BdlPlay> getPlays(long gameId, Long cursor) {
         Timeline current = timelines().stream()
                 .filter(timeline -> timeline.targetGameId() == gameId)

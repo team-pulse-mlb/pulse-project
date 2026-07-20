@@ -1,6 +1,8 @@
 package com.pulse.api.team;
 
 import com.pulse.api.team.dto.TeamResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +20,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/teams")
+@Tag(name = "팀", description = "관심 팀 선택용 MLB 팀 정보")
 public class TeamController {
 
     private final TeamService teamService;
@@ -32,6 +35,10 @@ public class TeamController {
      * 로그인 전 회원가입 화면에서도 호출해야 하므로
      * SecurityConfig에서 permitAll 처리해야 합니다.
      */
+    @Operation(
+            summary = "MLB 팀 목록 조회",
+            description = "로그인 전 회원가입 화면에서도 사용할 수 있는 공개 API다."
+    )
     @GetMapping
     public ResponseEntity<List<TeamResponse>> getTeams() {
         return ResponseEntity.ok(teamService.getTeams());

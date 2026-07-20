@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,6 +26,7 @@ import com.pulse.ranking.RankingService;
 import com.pulse.ranking.PersonalizationCalculator;
 import com.pulse.common.user.UserPreferenceReader;
 import com.pulse.common.user.UserPreferenceReader.UserPreferences;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -59,7 +61,8 @@ class HomeQueryServiceTest {
             rankingService,
             personalizationCalculator,
             Optional.empty(),
-            redisTemplate
+            redisTemplate,
+            rankingCache()
     );
 
     private final Instant now = Instant.now();
@@ -67,9 +70,12 @@ class HomeQueryServiceTest {
     @BeforeEach
     void setUp() {
         when(watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(anyLong())).thenReturn(Optional.empty());
+        when(watchScoreRepository.findLatestByGameIdIn(any())).thenReturn(List.of());
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
         when(gameEventRepository.findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
                 anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
+        when(gameEventRepository.findLatestByGameIdInAndSpoilerLevel(
+                any(), org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of());
     }
 
     @Test
@@ -82,7 +88,7 @@ class HomeQueryServiceTest {
                 live(5L)
         );
         when(rankingService.topLive(1000)).thenReturn(orderedScores(1L, 2L, 3L, 4L, 5L));
-        liveGames.forEach(game -> when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game)));
+        when(gameRepository.findAllById(List.of(1L, 2L, 3L, 4L, 5L))).thenReturn(liveGames);
 
         HomeRankingResponse response = service.getRanking(20);
 
@@ -90,6 +96,32 @@ class HomeQueryServiceTest {
                 .containsExactly(1L, 2L, 3L, 4L, 5L);
         assertThat(response.scheduled()).isEmpty();
         assertThat(response.finished()).isEmpty();
+    }
+
+    @Test
+    void getRanking_shouldNotQueryGamesAndCardDetailsOneByOne() {
+        Game live = live(1L);
+        Game finished = finished(10L, 90);
+        when(rankingService.topLive(1000)).thenReturn(orderedScores(1L));
+        when(gameRepository.findAllById(List.of(1L))).thenReturn(List.of(live));
+        when(gameRepository.findByStatusAndStartTimeBetween(
+                eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of());
+        when(gameRepository.findByStatusStartingWithAndStartTimeGreaterThanEqual(
+                eq(Game.STATUS_FINAL), any(Instant.class)))
+                .thenReturn(List.of(finished));
+
+        service.getRanking(2);
+
+        verify(gameRepository).findAllById(List.of(1L));
+        verify(gameRepository, never()).findById(anyLong());
+        verify(watchScoreRepository).findLatestByGameIdIn(List.of(1L));
+        verify(gameEventRepository).findLatestByGameIdInAndSpoilerLevel(
+                List.of(10L), com.pulse.domain.GameEvent.SPOILER_PROTECTED_SAFE);
+        verify(watchScoreRepository, never()).findTopByGameIdOrderByComputedAtDesc(anyLong());
+        verify(gameEventRepository, never())
+                .findFirstByGameIdAndSpoilerLevelOrderByObservedAtDescIdDesc(
+                        anyLong(), org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
@@ -101,9 +133,7 @@ class HomeQueryServiceTest {
         liveScores.put(101L, 80.0);
         liveScores.put(102L, 70.0);
         when(rankingService.topLive(1000)).thenReturn(liveScores);
-        when(gameRepository.findById(100L)).thenReturn(Optional.of(finished));
-        when(gameRepository.findById(101L)).thenReturn(Optional.of(live));
-        when(gameRepository.findById(102L)).thenReturn(Optional.empty());
+        when(gameRepository.findAllById(List.of(100L, 101L, 102L))).thenReturn(List.of(finished, live));
 
         HomeRankingResponse response = service.getRanking(5);
 
@@ -128,7 +158,7 @@ class HomeQueryServiceTest {
         );
 
         when(rankingService.topLive(1000)).thenReturn(orderedScores(1L));
-        when(gameRepository.findById(1L)).thenReturn(Optional.of(live));
+        when(gameRepository.findAllById(List.of(1L))).thenReturn(List.of(live));
         when(gameRepository.findByStatusAndStartTimeBetween(
                 org.mockito.ArgumentMatchers.eq(Game.STATUS_SCHEDULED), any(Instant.class), any(Instant.class)))
                 .thenReturn(scheduled);
@@ -229,14 +259,14 @@ class HomeQueryServiceTest {
                 rankingService,
                 personalizationCalculator,
                 Optional.of(preferenceReader),
-                redisTemplate);
+                redisTemplate,
+                rankingCache());
 
         Map<Long, Double> liveScores = new LinkedHashMap<>();
         liveScores.put(1L, 90.0);
         liveScores.put(2L, 85.0);
         when(rankingService.topLive(1000)).thenReturn(liveScores);
-        when(gameRepository.findById(1L)).thenReturn(Optional.of(first));
-        when(gameRepository.findById(2L)).thenReturn(Optional.of(favorite));
+        when(gameRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(first, favorite));
         when(lineupRepository.findByGameIdIn(List.of(1L, 2L))).thenReturn(List.of());
         UserPreferences preferences = new UserPreferences(Set.of(20L), Set.of());
         when(preferenceReader.findByEmail("user@example.com")).thenReturn(preferences);
@@ -264,6 +294,27 @@ class HomeQueryServiceTest {
     }
 
     @Test
+    void getSlate_shouldSortAllStatusesByRecommendationScore() {
+        ZoneId slateZone = ZoneId.of("America/New_York");
+        LocalDate slateDate = LocalDate.now(slateZone);
+        Instant slateStart = slateDate.atStartOfDay(slateZone).toInstant();
+        Game live = live(50L);
+        live.setStartTime(slateStart.plusSeconds(12 * 60 * 60));
+        Game finished = finished(51L, 90);
+        finished.setStartTime(slateStart.plusSeconds(10 * 60 * 60));
+        Game scheduled = scheduled(52L, 70);
+        scheduled.setStartTime(slateStart.plusSeconds(14 * 60 * 60));
+        when(gameRepository.findByStartTimeGreaterThanEqualAndStartTimeLessThan(
+                any(Instant.class), any(Instant.class))).thenReturn(List.of(scheduled, live, finished));
+        when(rankingService.topLive(1000)).thenReturn(Map.of(50L, 80.0));
+
+        HomeSlateResponse response = service.getSlate(slateDate.toString(), "all", "recommended");
+
+        assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameId)
+                .containsExactly(51L, 50L, 52L);
+    }
+
+    @Test
     void getSlate_shouldReturnAllUpcomingScheduledGamesRegardlessOfSlateDate() {
         Game earlier = scheduled(40L, 70);
         earlier.setStartTime(Instant.now().plusSeconds(60 * 60));
@@ -275,7 +326,7 @@ class HomeQueryServiceTest {
                 eq(Game.STATUS_SCHEDULED), any(Instant.class)))
                 .thenReturn(List.of(later, past, earlier));
 
-        HomeSlateResponse response = service.getSlate("2026-07-01", "scheduled", "startTime");
+        HomeSlateResponse response = service.getSlate("2026-07-01", "scheduled", null);
 
         assertThat(response.games()).extracting(HomeQueryService.SlateGameCard::gameId)
                 .containsExactly(40L, 41L);
@@ -366,5 +417,10 @@ class HomeQueryServiceTest {
         player.setId(id);
         player.setFullName(fullName);
         return player;
+    }
+
+    private static AnonymousHomeRankingCache rankingCache() {
+        return new AnonymousHomeRankingCache(
+                new HomeRankingCacheProperties(Duration.ofSeconds(3)));
     }
 }

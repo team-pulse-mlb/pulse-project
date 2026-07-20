@@ -9,7 +9,8 @@ public record ScoreTask(
         Long lastPlayOrder,
         String lifecycleState,
         Situation situation,
-        List<PlateAppearanceSnapshot> plateAppearances
+        List<PlateAppearanceSnapshot> plateAppearances,
+        GameSnapshot gameSnapshot
 ) {
 
     public ScoreTask(
@@ -19,11 +20,30 @@ public record ScoreTask(
             String lifecycleState,
             Situation situation
     ) {
-        this(gameId, observedAt, lastPlayOrder, lifecycleState, situation, List.of());
+        this(gameId, observedAt, lastPlayOrder, lifecycleState, situation, List.of(), null);
+    }
+
+    public ScoreTask(
+            long gameId,
+            Instant observedAt,
+            Long lastPlayOrder,
+            String lifecycleState,
+            Situation situation,
+            List<PlateAppearanceSnapshot> plateAppearances
+    ) {
+        this(gameId, observedAt, lastPlayOrder, lifecycleState, situation, plateAppearances, null);
     }
 
     public ScoreTask {
         plateAppearances = plateAppearances == null ? List.of() : List.copyOf(plateAppearances);
+    }
+
+    public record GameSnapshot(
+            Integer period,
+            Integer homeRuns,
+            Integer awayRuns,
+            Boolean postseason
+    ) {
     }
 
     public record Situation(

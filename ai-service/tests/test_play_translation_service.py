@@ -23,6 +23,34 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
         self.original_max_output_tokens = (
             play_translation_service.settings.openai_max_output_tokens
         )
+        self.original_timeout_seconds = (
+            play_translation_service.settings.openai_timeout_seconds
+        )
+        self.original_play_translation_timeout_seconds = (
+            play_translation_service
+            .settings
+            .openai_play_translation_timeout_seconds
+        )
+        self.original_play_translation_max_attempts = (
+            play_translation_service
+            .settings
+            .openai_play_translation_max_attempts
+        )
+        self.original_retry_base_delay_seconds = (
+            play_translation_service
+            .settings
+            .openai_play_translation_retry_base_delay_seconds
+        )
+        self.original_retry_max_delay_seconds = (
+            play_translation_service
+            .settings
+            .openai_play_translation_retry_max_delay_seconds
+        )
+        self.original_retry_jitter_seconds = (
+            play_translation_service
+            .settings
+            .openai_play_translation_retry_jitter_seconds
+        )
 
         self.request = PlayTranslationRequest(
             game_id=5059041,
@@ -46,6 +74,34 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
         play_translation_service.settings.openai_max_output_tokens = (
             self.original_max_output_tokens
         )
+        play_translation_service.settings.openai_timeout_seconds = (
+            self.original_timeout_seconds
+        )
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_timeout_seconds
+        ) = self.original_play_translation_timeout_seconds
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_max_attempts
+        ) = self.original_play_translation_max_attempts
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_retry_base_delay_seconds
+        ) = self.original_retry_base_delay_seconds
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_retry_max_delay_seconds
+        ) = self.original_retry_max_delay_seconds
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_retry_jitter_seconds
+        ) = self.original_retry_jitter_seconds
 
     def test_generate_play_translation_rejects_missing_api_key(self):
         play_translation_service.settings.openai_api_key = ""
@@ -60,10 +116,11 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
             "OPENAI_API_KEY_MISSING",
         )
 
-    def test_generate_play_translation_preserves_business_error(self):
+    def test_generate_play_translation_preserves_business_error_after_retry_exhausted(self):
         play_translation_service.settings.openai_api_key = (
             "fake-api-key"
         )
+        play_translation_service.settings.openai_play_translation_max_attempts = 1
 
         with patch(
             "app.services.play_translation_service._generate_openai_translation",
@@ -83,13 +140,14 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
             "OPENAI_INVALID_JSON",
         )
 
-    def test_generate_play_translation_converts_timeout_error(self):
+    def test_generate_play_translation_converts_timeout_error_after_retry_exhausted(self):
         class FakeTimeoutError(Exception):
             pass
 
         play_translation_service.settings.openai_api_key = (
             "fake-api-key"
         )
+        play_translation_service.settings.openai_play_translation_max_attempts = 1
 
         with patch.object(
             play_translation_service,
@@ -133,13 +191,18 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
             "OPENAI_GENERATION_FAILED",
         )
 
-    def test_generate_openai_translation_uses_json_object_without_temperature_for_luna(self):
+    def test_generate_openai_translation_uses_json_schema_without_temperature_for_luna(self):
         play_translation_service.settings.openai_api_key = (
             "fake-api-key"
         )
         play_translation_service.settings.openai_model = (
             "gpt-5.6-luna"
         )
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_timeout_seconds
+        ) = 3.0
 
         with patch(
             "app.services.play_translation_service.OpenAI"
@@ -168,11 +231,7 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
 
         mock_openai.assert_called_once_with(
             api_key="fake-api-key",
-            timeout=(
-                play_translation_service
-                .settings
-                .openai_timeout_seconds
-            ),
+            timeout=3.0,
             max_retries=0,
         )
 
@@ -201,7 +260,25 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
             options["text"],
             {
                 "format": {
-                    "type": "json_object",
+                    "type": "json_schema",
+                    "name": "play_translation_response",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "translated_text": {
+                                "type": "string",
+                                "description": (
+                                    "MLB Play Result를 한국 야구 중계·기록 "
+                                    "용어로 번역한 한 문장"
+                                ),
+                            },
+                        },
+                        "required": [
+                            "translated_text",
+                        ],
+                        "additionalProperties": False,
+                    },
                 },
             },
         )
@@ -223,17 +300,213 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
         self.assertEqual(options["temperature"], 0.2)
         self.assertEqual(options["max_output_tokens"], 128)
         self.assertEqual(
-            options["text"],
-            {
-                "format": {
-                    "type": "json_object",
-                },
-            },
+            options["text"]["format"]["type"],
+            "json_schema",
+        )
+        self.assertTrue(
+            options["text"]["format"]["strict"],
+        )
+        self.assertEqual(
+            options["text"]["format"]["schema"]["required"],
+            ["translated_text"],
         )
         self.assertIn(
             "Soto singled to center.",
             options["input"],
         )
+
+    def test_generate_openai_translation_retries_empty_response_once(self):
+        play_translation_service.settings.openai_api_key = (
+            "fake-api-key"
+        )
+        play_translation_service.settings.openai_play_translation_max_attempts = 2
+        play_translation_service.settings.openai_play_translation_retry_jitter_seconds = 0.0
+
+        with patch(
+            "app.services.play_translation_service.OpenAI"
+        ) as mock_openai:
+            mock_client = mock_openai.return_value
+            mock_client.responses.create.side_effect = [
+                SimpleNamespace(output_text=""),
+                SimpleNamespace(
+                    output_text=(
+                        '{"translated_text": '
+                        '"Soto, 중견수 방면 안타"}'
+                    )
+                ),
+            ]
+
+            with patch(
+                "app.services.play_translation_service._sleep_before_retry"
+            ) as mock_sleep:
+                result = (
+                    play_translation_service
+                    ._generate_openai_translation(self.request)
+                )
+
+        self.assertEqual(
+            result,
+            {
+                "translated_text": "Soto, 중견수 방면 안타",
+            },
+        )
+        self.assertEqual(
+            mock_client.responses.create.call_count,
+            2,
+        )
+        mock_sleep.assert_called_once()
+
+    def test_generate_openai_translation_retries_invalid_json_once(self):
+        play_translation_service.settings.openai_api_key = (
+            "fake-api-key"
+        )
+        play_translation_service.settings.openai_play_translation_max_attempts = 2
+        play_translation_service.settings.openai_play_translation_retry_jitter_seconds = 0.0
+
+        with patch(
+            "app.services.play_translation_service.OpenAI"
+        ) as mock_openai:
+            mock_client = mock_openai.return_value
+            mock_client.responses.create.side_effect = [
+                SimpleNamespace(output_text="not-json"),
+                SimpleNamespace(
+                    output_text=(
+                        '{"translated_text": '
+                        '"Soto, 중견수 방면 안타"}'
+                    )
+                ),
+            ]
+
+            with patch(
+                "app.services.play_translation_service._sleep_before_retry"
+            ) as mock_sleep:
+                result = (
+                    play_translation_service
+                    ._generate_openai_translation(self.request)
+                )
+
+        self.assertEqual(
+            result,
+            {
+                "translated_text": "Soto, 중견수 방면 안타",
+            },
+        )
+        self.assertEqual(
+            mock_client.responses.create.call_count,
+            2,
+        )
+        mock_sleep.assert_called_once()
+
+    def test_generate_openai_translation_retries_timeout_once(self):
+        class FakeTimeoutError(Exception):
+            pass
+
+        play_translation_service.settings.openai_api_key = (
+            "fake-api-key"
+        )
+        play_translation_service.settings.openai_play_translation_max_attempts = 2
+        play_translation_service.settings.openai_play_translation_retry_jitter_seconds = 0.0
+
+        with patch.object(
+            play_translation_service,
+            "APITimeoutError",
+            FakeTimeoutError,
+        ):
+            with patch(
+                "app.services.play_translation_service.OpenAI"
+            ) as mock_openai:
+                mock_client = mock_openai.return_value
+                mock_client.responses.create.side_effect = [
+                    FakeTimeoutError("timeout"),
+                    SimpleNamespace(
+                        output_text=(
+                            '{"translated_text": '
+                            '"Soto, 중견수 방면 안타"}'
+                        )
+                    ),
+                ]
+
+                with patch(
+                    "app.services.play_translation_service._sleep_before_retry"
+                ) as mock_sleep:
+                    result = (
+                        play_translation_service
+                        ._generate_openai_translation(self.request)
+                    )
+
+        self.assertEqual(
+            result,
+            {
+                "translated_text": "Soto, 중견수 방면 안타",
+            },
+        )
+        self.assertEqual(
+            mock_client.responses.create.call_count,
+            2,
+        )
+        mock_sleep.assert_called_once()
+
+    def test_generate_openai_translation_does_not_retry_unknown_error(self):
+        play_translation_service.settings.openai_api_key = (
+            "fake-api-key"
+        )
+        play_translation_service.settings.openai_play_translation_max_attempts = 2
+
+        with patch(
+            "app.services.play_translation_service.OpenAI"
+        ) as mock_openai:
+            mock_client = mock_openai.return_value
+            mock_client.responses.create.side_effect = RuntimeError(
+                "network error"
+            )
+
+            with self.assertRaises(RuntimeError):
+                (
+                    play_translation_service
+                    ._generate_openai_translation(self.request)
+                )
+
+        self.assertEqual(
+            mock_client.responses.create.call_count,
+            1,
+        )
+
+    def test_generate_openai_translation_raises_last_retryable_error_after_exhausted(self):
+        play_translation_service.settings.openai_api_key = (
+            "fake-api-key"
+        )
+        play_translation_service.settings.openai_play_translation_max_attempts = 2
+        play_translation_service.settings.openai_play_translation_retry_jitter_seconds = 0.0
+
+        with patch(
+            "app.services.play_translation_service.OpenAI"
+        ) as mock_openai:
+            mock_client = mock_openai.return_value
+            mock_client.responses.create.side_effect = [
+                SimpleNamespace(output_text="not-json"),
+                SimpleNamespace(output_text="not-json"),
+            ]
+
+            with patch(
+                "app.services.play_translation_service._sleep_before_retry"
+            ) as mock_sleep:
+                with self.assertRaises(
+                    PlayTranslationGenerationError
+                ) as context:
+                    (
+                        play_translation_service
+                        ._generate_openai_translation(self.request)
+                    )
+
+        self.assertEqual(
+            str(context.exception),
+            "OPENAI_INVALID_JSON",
+        )
+        self.assertEqual(
+            mock_client.responses.create.call_count,
+            2,
+        )
+        mock_sleep.assert_called_once()
 
     def test_parse_openai_translation_trims_translated_text(self):
         result = play_translation_service._parse_openai_translation(

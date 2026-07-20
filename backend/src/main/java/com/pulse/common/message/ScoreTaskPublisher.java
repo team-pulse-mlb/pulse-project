@@ -2,6 +2,7 @@ package com.pulse.common.message;
 
 import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.ScoreTaskOutbox;
+import com.pulse.domain.ScoreTaskOutboxInsertRepository;
 import com.pulse.domain.ScoreTaskOutboxRepository;
 import java.time.Clock;
 import java.util.Objects;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ScoreTaskPublisher {
 
     private final ScoreTaskOutboxRepository outboxRepository;
+    private final ScoreTaskOutboxInsertRepository outboxInsertRepository;
     private final ScoreTaskOutboxDispatcher dispatcher;
     private final AfterCommitExecutor afterCommitExecutor;
     private final Clock clock;
@@ -21,19 +23,22 @@ public class ScoreTaskPublisher {
     @Autowired
     public ScoreTaskPublisher(
             ScoreTaskOutboxRepository outboxRepository,
+            ScoreTaskOutboxInsertRepository outboxInsertRepository,
             ScoreTaskOutboxDispatcher dispatcher,
             AfterCommitExecutor afterCommitExecutor
     ) {
-        this(outboxRepository, dispatcher, afterCommitExecutor, Clock.systemUTC());
+        this(outboxRepository, outboxInsertRepository, dispatcher, afterCommitExecutor, Clock.systemUTC());
     }
 
     ScoreTaskPublisher(
             ScoreTaskOutboxRepository outboxRepository,
+            ScoreTaskOutboxInsertRepository outboxInsertRepository,
             ScoreTaskOutboxDispatcher dispatcher,
             AfterCommitExecutor afterCommitExecutor,
             Clock clock
     ) {
         this.outboxRepository = outboxRepository;
+        this.outboxInsertRepository = outboxInsertRepository;
         this.dispatcher = dispatcher;
         this.afterCommitExecutor = afterCommitExecutor;
         this.clock = clock;
@@ -51,7 +56,14 @@ public class ScoreTaskPublisher {
     }
 
     private UUID savePending(ScoreTask task) {
-        ScoreTaskOutbox outbox = outboxRepository.save(ScoreTaskOutbox.pending(task, clock.instant()));
-        return outbox.getOutboxId();
+        ScoreTaskOutbox candidate = ScoreTaskOutbox.pending(task, clock.instant());
+        if (outboxInsertRepository.insertPending(candidate)) {
+            return candidate.getOutboxId();
+        }
+
+        // INSERT 시점의 경쟁에서 진 호출은 유니크 키를 선점한 기존 행을 그대로 재사용한다.
+        return outboxRepository.findByGameIdAndObservedAt(task.gameId(), task.observedAt())
+                .map(ScoreTaskOutbox::getOutboxId)
+                .orElseThrow(() -> new IllegalStateException("경쟁 발행이 저장한 ScoreTask outbox를 찾을 수 없습니다."));
     }
 }

@@ -23,7 +23,17 @@ public class ScoreCalculator {
         this.props = props;
     }
 
-    public record Result(Map<String, Double> signals, double baseScore, boolean fullCountIncluded) {
+    public record Result(
+            Map<String, Double> signals,
+            double baseScore,
+            boolean fullCountIncluded,
+            double importanceMultiplier,
+            double pregameBonus,
+            double watchScore
+    ) {
+        public Result(Map<String, Double> signals, double baseScore, boolean fullCountIncluded) {
+            this(signals, baseScore, fullCountIncluded, 1.0, 0, baseScore);
+        }
     }
 
     /**
@@ -48,18 +58,35 @@ public class ScoreCalculator {
             int seedLeader,
             Instant now
     ) {
+        return calculate(new ScoringInput(game, recentPlays, situation, seedLeader, now, 1.0, 0));
+    }
+
+    /** 모든 점수 경로가 사용하는 단일 계산 파이프라인. */
+    public Result calculate(ScoringInput input) {
+        Game game = input.game();
+        List<Play> recentPlays = input.recentPlays();
+        ScoreTask.Situation situation = input.situation();
+        Instant now = input.computedAt();
         Map<String, Double> signals = new LinkedHashMap<>();
-        signals.put("late_or_extra", lateOrExtra(game));
-        signals.put("score_gap", scoreGap(game));
+        signals.put("late_or_extra", lateOrExtra(game, input.gameSnapshot()));
+        signals.put("score_gap", scoreGap(game, input.gameSnapshot()));
         signals.put("recent_score", recentScore(recentPlays, now));
-        signals.put("lead_change", leadChange(recentPlays, seedLeader));
+        signals.put("lead_change", leadChange(recentPlays, input.seedLeader(), now));
         signals.put("big_inning", bigInning(recentPlays));
         signals.put("pressure", pressure(situation));
         signals.put("count_pressure", countPressure(situation));
-        signals.put("early_slugfest", earlySlugfest(game));
+        signals.put("early_slugfest", earlySlugfest(game, input.gameSnapshot()));
 
         double baseScore = signals.values().stream().mapToDouble(Double::doubleValue).sum();
-        return new Result(signals, baseScore, isFullCount(situation));
+        double pregameBonus = pregameBonus(input.pregameScore());
+        double watchScore = calculateWatchScore(baseScore, input.importanceMultiplier(), pregameBonus);
+        return new Result(
+                signals,
+                baseScore,
+                isFullCount(situation),
+                input.importanceMultiplier(),
+                pregameBonus,
+                watchScore);
     }
 
     private static ScoreTask.Situation situationFrom(List<Play> recentPlays) {
@@ -77,15 +104,39 @@ public class ScoreCalculator {
         );
     }
 
+    /**
+     * pressure.re24 테이블이 설정되면 RE24(주자-아웃 기대 득점) 기반 연속값을 사용한다.
+     * 테이블이 없는 상수(현행 v10 포함)는 기존 만루·득점권 2단계 신호로 동작한다.
+     */
     private double pressure(ScoreTask.Situation situation) {
         if (situation == null) {
             return 0;
         }
+        ScoringProperties.Pressure pressure = props.pressure();
+        if (pressure == null) {
+            // 백테스트가 임의 후보 yml을 로드하므로 pressure 절 누락을 0점으로 방어한다.
+            return 0;
+        }
+        Integer outs = situation.outs();
+        if (pressure.re24() != null
+                && !pressure.re24().isEmpty()
+                && pressure.re24Scale() > 0
+                && outs != null
+                && outs >= 0
+                && outs <= 2) {
+            String baseState = (situation.runnerOnFirst() ? "1" : "0")
+                    + (situation.runnerOnSecond() ? "1" : "0")
+                    + (situation.runnerOnThird() ? "1" : "0");
+            List<Double> expectedRuns = pressure.re24().get(baseState);
+            if (expectedRuns != null && expectedRuns.size() == 3 && expectedRuns.get(outs) != null) {
+                return expectedRuns.get(outs) * pressure.re24Scale();
+            }
+        }
         if (situation.basesLoaded()) {
-            return props.pressure().basesLoaded();
+            return pressure.basesLoaded();
         }
         if (situation.scoringPosition()) {
-            return props.pressure().scoringPosition();
+            return pressure.scoringPosition();
         }
         return 0;
     }
@@ -94,8 +145,16 @@ public class ScoreCalculator {
         return Math.max(0, Math.min(100, value));
     }
 
-    private double lateOrExtra(Game game) {
-        Integer period = game.getPeriod();
+    public double calculateWatchScore(double baseScore, double importanceMultiplier, double pregameBonus) {
+        return clampWatchScore(baseScore * importanceMultiplier + pregameBonus);
+    }
+
+    private double pregameBonus(double pregameScore) {
+        return Math.min(pregameScore / 10.0, props.pregameCarryoverMax());
+    }
+
+    private double lateOrExtra(Game game, ScoreTask.GameSnapshot gameSnapshot) {
+        Integer period = gameSnapshot == null ? game.getPeriod() : gameSnapshot.period();
         if (period == null) {
             return 0;
         }
@@ -111,8 +170,15 @@ public class ScoreCalculator {
         return 0;
     }
 
-    private double scoreGap(Game game) {
-        int gap = game.scoreGap();
+    private double scoreGap(Game game, ScoreTask.GameSnapshot gameSnapshot) {
+        int gap;
+        if (gameSnapshot == null) {
+            gap = game.scoreGap();
+        } else {
+            int homeRuns = gameSnapshot.homeRuns() == null ? 0 : gameSnapshot.homeRuns();
+            int awayRuns = gameSnapshot.awayRuns() == null ? 0 : gameSnapshot.awayRuns();
+            gap = Math.abs(homeRuns - awayRuns);
+        }
         if (gap <= 1) {
             return props.scoreGap().gap01();
         }
@@ -127,7 +193,7 @@ public class ScoreCalculator {
 
     private double recentScore(List<Play> recentPlays, Instant now) {
         double total = 0;
-        double budget = props.recentScore().max();
+        double budget = props.recentScore().baseBudget();
 
         for (int i = recentPlays.size() - 1; i >= 0 && budget > 0; i--) {
             Play play = recentPlays.get(i);
@@ -148,8 +214,9 @@ public class ScoreCalculator {
         return total;
     }
 
-    private double leadChange(List<Play> recentPlays, int seedLeader) {
+    private double leadChange(List<Play> recentPlays, int seedLeader, Instant now) {
         int lastLeader = seedLeader;
+        Play latestLeadChange = null;
         for (Play play : recentPlays) {
             if (play.getHomeScore() == null || play.getAwayScore() == null) {
                 continue;
@@ -157,12 +224,22 @@ public class ScoreCalculator {
             int leader = Integer.signum(play.getHomeScore() - play.getAwayScore());
             if (leader != 0) {
                 if (lastLeader != 0 && leader != lastLeader) {
-                    return props.leadChange().bonus();
+                    latestLeadChange = play;
                 }
                 lastLeader = leader;
             }
         }
-        return 0;
+        if (latestLeadChange == null) {
+            return 0;
+        }
+        // tau-seconds가 없는 구버전 설정(v9 이하 baseline)은 윈도 내 고정 보너스 동작을 유지한다.
+        if (latestLeadChange.getFetchedAt() == null || props.leadChange().tauSeconds() <= 0) {
+            return props.leadChange().bonus();
+        }
+        double ageSeconds = Math.max(0, Duration.between(latestLeadChange.getFetchedAt(), now).getSeconds());
+        double decay = Math.exp(-ageSeconds / props.leadChange().tauSeconds());
+
+        return props.leadChange().bonus() * decay;
     }
 
     private double bigInning(List<Play> recentPlays) {
@@ -198,12 +275,20 @@ public class ScoreCalculator {
                 && Integer.valueOf(2).equals(situation.strikes());
     }
 
-    private double earlySlugfest(Game game) {
-        Integer period = game.getPeriod();
+    private double earlySlugfest(Game game, ScoreTask.GameSnapshot gameSnapshot) {
+        Integer period = gameSnapshot == null ? game.getPeriod() : gameSnapshot.period();
         if (period == null || period > props.earlySlugfest().maxInning()) {
             return 0;
         }
-        return game.totalRuns() >= props.earlySlugfest().minTotalRuns() ? props.earlySlugfest().bonus() : 0;
+        int totalRuns;
+        if (gameSnapshot == null) {
+            totalRuns = game.totalRuns();
+        } else {
+            int homeRuns = gameSnapshot.homeRuns() == null ? 0 : gameSnapshot.homeRuns();
+            int awayRuns = gameSnapshot.awayRuns() == null ? 0 : gameSnapshot.awayRuns();
+            totalRuns = homeRuns + awayRuns;
+        }
+        return totalRuns >= props.earlySlugfest().minTotalRuns() ? props.earlySlugfest().bonus() : 0;
     }
 
     private int gapOf(Play play) {

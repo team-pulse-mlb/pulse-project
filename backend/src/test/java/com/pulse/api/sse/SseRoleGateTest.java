@@ -20,7 +20,10 @@ class SseRoleGateTest {
     private static final String[] SSE_PROPERTIES = {
             "pulse.sse.heartbeat-interval=25s",
             "pulse.sse.connection-ttl=60m",
-            "pulse.sse.max-connections=1000"
+            "pulse.sse.anonymous-max-connections=1000",
+            "pulse.sse.authenticated-max-connections=1000",
+            "pulse.sse.broadcast-threads=8",
+            "pulse.sse.broadcast-queue-capacity=1024"
     };
 
     private final WebApplicationContextRunner webRunner = new WebApplicationContextRunner()

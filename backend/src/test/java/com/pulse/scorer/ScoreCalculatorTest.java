@@ -1,6 +1,7 @@
 package com.pulse.scorer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
@@ -8,6 +9,7 @@ import com.pulse.domain.Game;
 import com.pulse.domain.Play;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +19,20 @@ import org.junit.jupiter.api.Test;
  */
 class ScoreCalculatorTest {
 
+    /** 운영 DB 아카이브 집계 RE24 테이블(versions/v10.md 실험 기록). 키는 <1루><2루><3루> 비트, 값은 [0,1,2아웃] 기대 득점. */
+    private static final Map<String, List<Double>> RE24_TABLE = Map.of(
+            "000", List.of(0.61, 0.32, 0.12),
+            "100", List.of(1.09, 0.65, 0.26),
+            "010", List.of(1.34, 0.82, 0.37),
+            "110", List.of(1.64, 1.07, 0.54),
+            "001", List.of(1.15, 0.95, 0.52),
+            "101", List.of(2.16, 1.32, 0.61),
+            "011", List.of(2.68, 1.42, 0.48),
+            "111", List.of(3.09, 1.87, 0.85));
+
     private final ScoreCalculator calculator = new ScoreCalculator(testProps());
+    private final ScoreCalculator re24Calculator = new ScoreCalculator(
+            TestScoringProperties.version5(new ScoringProperties.Pressure(6, 4, 3.0, RE24_TABLE)));
     private final Instant now = Instant.parse("2026-07-02T03:00:00Z");
 
     @Test
@@ -53,23 +68,81 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    @DisplayName("리드 변경이 있으면 없을 때보다 점수가 높다")
-    void leadChangeAddsBonus() {
+    @DisplayName("리드 변경 직후에는 보너스를 그대로 적용한다")
+    void leadChangeImmediatelyAddsFullBonus() {
         Game game = game(8, 4, 5);
         // 4-3 (홈 리드) → 4-5 (원정 리드): 리드 변경
         List<Play> withLeadChange = List.of(
                 play(8, 4, 3, now.minusSeconds(300)),
-                scoringPlay(8, 4, 5, now.minusSeconds(60)));
-        // 계속 원정 리드
-        List<Play> withoutLeadChange = List.of(
-                play(8, 3, 5, now.minusSeconds(300)),
-                play(8, 3, 5, now.minusSeconds(60)));
+                scoringPlay(8, 4, 5, now));
 
         double changed = signal(game, withLeadChange, "lead_change");
-        double unchanged = signal(game, withoutLeadChange, "lead_change");
 
-        assertThat(changed).isGreaterThan(unchanged);
-        assertThat(unchanged).isZero();
+        assertThat(changed).isEqualTo(testProps().leadChange().bonus());
+    }
+
+    @Test
+    @DisplayName("리드 변경 후 tau가 지나면 보너스가 약 0.368배로 감쇠한다")
+    void leadChangeDecaysAfterTau() {
+        Game game = game(8, 4, 5);
+        List<Play> plays = List.of(
+                play(8, 4, 3, now.minusSeconds(600)),
+                scoringPlay(8, 4, 5, now.minusSeconds(300)));
+
+        double changed = signal(game, plays, "lead_change");
+        double expected = testProps().leadChange().bonus() * Math.exp(-1);
+
+        assertThat(changed).isCloseTo(expected, within(0.01));
+    }
+
+    @Test
+    @DisplayName("가장 최근 리드 변경 시각을 기준으로 감쇠한다")
+    void leadChangeUsesMostRecentChange() {
+        Game game = game(8, 5, 4);
+        List<Play> plays = List.of(
+                play(8, 3, 2, now.minusSeconds(600)),
+                scoringPlay(8, 3, 4, now.minusSeconds(300)),
+                scoringPlay(8, 5, 4, now));
+
+        double changed = signal(game, plays, "lead_change");
+
+        assertThat(changed).isEqualTo(testProps().leadChange().bonus());
+    }
+
+    @Test
+    @DisplayName("리드 변경이 탐색 윈도 밖이면 보너스를 적용하지 않는다")
+    void leadChangeOutsideWindowAddsNoBonus() {
+        Game game = game(8, 3, 4);
+        Play[] allPlays = new Play[testProps().leadChange().windowPlays() + 2];
+        allPlays[0] = play(8, 3, 2, now.minusSeconds(1400));
+        allPlays[1] = scoringPlay(8, 3, 4, now.minusSeconds(1300));
+        for (int index = 2; index < allPlays.length; index++) {
+            allPlays[index] = play(8, 3, 4, now.minusSeconds(1200 - index));
+        }
+        List<Play> recentWindow = List.of(allPlays)
+                .subList(allPlays.length - testProps().leadChange().windowPlays(), allPlays.length);
+
+        ScoreCalculator.Result result = calculator.calculate(game, recentWindow, null, -1, now);
+
+        assertThat(result.signals().get("lead_change")).isZero();
+    }
+
+    @Test
+    @DisplayName("리드 변경 시각이 없으면 감쇠 없이 보너스를 적용한다")
+    void leadChangeWithoutFetchedAtAddsFullBonus() {
+        Game game = game(8, 4, 5);
+        // 득점 플래그 없이 점수 역전만 담은 play로 리드 변경 감쇠 방어 로직만 검증한다.
+        Play changedLeader = play(8, 4, 5, now);
+        changedLeader.setFetchedAt(null);
+
+        ScoreCalculator.Result result = calculator.calculate(
+                game,
+                List.of(play(8, 4, 3, now.minusSeconds(60)), changedLeader),
+                null,
+                0,
+                now);
+
+        assertThat(result.signals().get("lead_change")).isEqualTo(testProps().leadChange().bonus());
     }
 
     @Test
@@ -135,6 +208,59 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    @DisplayName("RE24 설정 시 만루 0아웃 압박은 기대 득점 × 스케일이다")
+    void re24PressureUsesExpectedRunsTimesScale() {
+        Game game = game(9, 2, 2);
+        ScoreTask.Situation basesLoadedNoOuts = ScoreTask.Situation.of(0, null, null, true, true, true);
+
+        double pressure = re24Calculator.calculate(game, List.of(), basesLoadedNoOuts, now)
+                .signals()
+                .get("pressure");
+
+        assertThat(pressure).isCloseTo(3.09 * 3.0, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("RE24 설정 시 주자 없는 2아웃도 소량의 압박 점수를 받는다")
+    void re24PressureScoresEmptyBases() {
+        Game game = game(9, 2, 2);
+        ScoreTask.Situation emptyTwoOuts = ScoreTask.Situation.of(2, null, null, false, false, false);
+
+        double pressure = re24Calculator.calculate(game, List.of(), emptyTwoOuts, now)
+                .signals()
+                .get("pressure");
+
+        assertThat(pressure).isCloseTo(0.12 * 3.0, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("RE24 설정이 있어도 아웃카운트가 없으면 기존 2단계 로직으로 대체한다")
+    void re24PressureFallsBackWithoutOuts() {
+        Game game = game(9, 2, 2);
+        ScoreTask.Situation basesLoadedUnknownOuts = ScoreTask.Situation.of(null, null, null, true, true, true);
+
+        double pressure = re24Calculator.calculate(game, List.of(), basesLoadedUnknownOuts, now)
+                .signals()
+                .get("pressure");
+
+        assertThat(pressure).isEqualTo(testProps().pressure().basesLoaded());
+    }
+
+    @Test
+    @DisplayName("RE24 미설정(v10 이하) 상수는 기존 만루·득점권 동작을 유지한다")
+    void legacyPressureKeepsTwoStepBehavior() {
+        Game game = game(9, 2, 2);
+        ScoreTask.Situation basesLoaded = ScoreTask.Situation.of(1, null, null, true, true, true);
+        ScoreTask.Situation scoringPosition = ScoreTask.Situation.of(1, null, null, false, true, false);
+
+        double loaded = calculator.calculate(game, List.of(), basesLoaded, now).signals().get("pressure");
+        double risp = calculator.calculate(game, List.of(), scoringPosition, now).signals().get("pressure");
+
+        assertThat(loaded).isEqualTo(testProps().pressure().basesLoaded());
+        assertThat(risp).isEqualTo(testProps().pressure().scoringPosition());
+    }
+
+    @Test
     @DisplayName("situation이 없으면 압박과 카운트 신호는 0점이다")
     void nullableSituationHasNoPressureSignals() {
         Game game = game(9, 2, 2);
@@ -143,6 +269,51 @@ class ScoreCalculatorTest {
 
         assertThat(result.signals().get("pressure")).isZero();
         assertThat(result.signals().get("count_pressure")).isZero();
+    }
+
+    @Test
+    @DisplayName("게임 스냅샷이 있으면 엔티티보다 발행 시점 이닝과 점수를 사용한다")
+    void gameSnapshotOverridesCurrentGameState() {
+        Game game = game(9, 10, 1);
+        ScoreTask.GameSnapshot gameSnapshot = new ScoreTask.GameSnapshot(3, 4, 3, false);
+
+        ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
+                game, List.of(), null, 0, now, 1.0, 0, gameSnapshot));
+
+        assertThat(result.signals().get("late_or_extra")).isZero();
+        assertThat(result.signals().get("score_gap")).isEqualTo(testProps().scoreGap().gap01());
+        assertThat(result.signals().get("early_slugfest")).isEqualTo(testProps().earlySlugfest().bonus());
+    }
+
+    @Test
+    @DisplayName("게임 스냅샷의 null 필드는 엔티티 값으로 대체하지 않는다")
+    void nullableGameSnapshotFieldsDoNotFallBackToCurrentGameState() {
+        Game game = game(9, 10, 1);
+        ScoreTask.GameSnapshot gameSnapshot = new ScoreTask.GameSnapshot(null, null, null, null);
+
+        ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
+                game, List.of(), null, 0, now, 1.0, 0, gameSnapshot));
+
+        assertThat(result.signals().get("late_or_extra")).isZero();
+        assertThat(result.signals().get("score_gap")).isEqualTo(testProps().scoreGap().gap01());
+        assertThat(result.signals().get("early_slugfest")).isZero();
+    }
+
+    @Test
+    @DisplayName("recent_score의 base-budget은 multiplier 적용 전 예산이라 신호는 예산을 넘을 수 있다")
+    void recentScoreBaseBudgetIsPreMultiplierBudget() {
+        // 동점(gap-0, multiplier 2.0) 상황에서 방금 나온 대량 득점으로 예산을 소진시킨다.
+        Game game = game(7, 5, 5);
+        Play bigScore = scoringPlay(7, 5, 5, now);
+        bigScore.setScoreValue(5); // 5득점 × per-run 6 = 30 > base-budget 15 → base는 15로 제한
+
+        double recent = signal(game, List.of(bigScore), "recent_score");
+        int baseBudget = testProps().recentScore().baseBudget();
+        double maxMultiplier = testProps().recentScore().multiplierFor(0);
+
+        // 예산은 multiplier 적용 전 기준: 신호는 예산을 넘어 예산×최대배수까지 커질 수 있다.
+        assertThat(recent).isGreaterThan(baseBudget);
+        assertThat(recent).isLessThanOrEqualTo(baseBudget * maxMultiplier);
     }
 
     @Test

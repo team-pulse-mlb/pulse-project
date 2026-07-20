@@ -4,10 +4,13 @@ import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.GameEvent;
+import com.pulse.domain.GameEventLabelPolicy;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -63,10 +66,20 @@ class TimelineHighlightTrigger {
             return;
         }
 
-        GameEvent anchor = gameEventRepository
-                .findFirstByGameIdAndSpoilerLevelAndTimelineHighlightFalseAndObservedAtGreaterThanEqualOrderByObservedAtDescIdDesc(
+        List<GameEvent> anchorCandidates = gameEventRepository
+                .findByGameIdAndSpoilerLevelAndTimelineHighlightFalseAndObservedAtGreaterThanEqualOrderByObservedAtAscIdAsc(
                         gameId, GameEvent.SPOILER_PROTECTED_SAFE, riseSince)
-                .orElse(null);
+                .stream()
+                .filter(event -> event.getObservedAt() != null)
+                .filter(event -> GameEventLabelPolicy.protectedLabel(
+                        event.getSpoilerLevel(), event.getEventType()) != null)
+                .toList();
+        Set<String> avoidTypes = gameEventRepository
+                .findFirstByGameIdAndTimelineHighlightTrueOrderByObservedAtDescIdDesc(gameId)
+                .map(GameEvent::getEventType)
+                .map(Set::of)
+                .orElseGet(Set::of);
+        GameEvent anchor = TimelineHighlightAnchorSelector.selectAnchor(anchorCandidates, avoidTypes);
         if (anchor == null) {
             log.debug("하이라이트 anchor 없음(보호 이벤트 부재로 스킵) gameId={} watchScore={}", gameId, watchScore);
             return;

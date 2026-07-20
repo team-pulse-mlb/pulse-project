@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
 public class ImpactReportGenerator {
@@ -79,8 +80,10 @@ public class ImpactReportGenerator {
         List<Double> candidatePeaks = commonCandidates.stream().map(ReplayResult::peak).toList();
         Double rankSpearman = MetricsCalculator.spearman(baselinePeaks, candidatePeaks);
         Double rankKendall = MetricsCalculator.kendall(baselinePeaks, candidatePeaks);
-        Double baselineAuc = auc(common, options.aucHorizonPlays());
-        Double candidateAuc = auc(commonCandidates, options.aucHorizonPlays());
+        Double baselineAuc = auc(common, options, Cycle::baseScore);
+        Double candidateAuc = auc(commonCandidates, options, Cycle::baseScore);
+        Double baselineStateAuc = auc(common, options, Cycle::stateScore);
+        Double candidateStateAuc = auc(commonCandidates, options, Cycle::stateScore);
         Double baselineQuality = quality(common);
         Double candidateQuality = quality(commonCandidates);
         AlertStats baselineAlerts = alerts(common);
@@ -90,6 +93,8 @@ public class ImpactReportGenerator {
                 rankSpearman,
                 baselineAuc,
                 candidateAuc,
+                baselineStateAuc,
+                candidateStateAuc,
                 baselineQuality,
                 candidateQuality,
                 baselineAlerts,
@@ -99,6 +104,8 @@ public class ImpactReportGenerator {
                 rankKendall,
                 baselineAuc,
                 candidateAuc,
+                baselineStateAuc,
+                candidateStateAuc,
                 baselineQuality,
                 candidateQuality,
                 baselineAlerts,
@@ -111,6 +118,8 @@ public class ImpactReportGenerator {
             Double rankSpearman,
             Double baselineAuc,
             Double candidateAuc,
+            Double baselineStateAuc,
+            Double candidateStateAuc,
             Double baselineQuality,
             Double candidateQuality,
             AlertStats baselineAlerts,
@@ -122,7 +131,11 @@ public class ImpactReportGenerator {
         }
         if (baselineAuc != null && candidateAuc != null
                 && baselineAuc - candidateAuc > options.guardAucDropMax()) {
-            guards.add("AUC 하락 임계 초과");
+            guards.add("AUC(전체 신호) 하락 임계 초과");
+        }
+        if (baselineStateAuc != null && candidateStateAuc != null
+                && baselineStateAuc - candidateStateAuc > options.guardAucDropMax()) {
+            guards.add("AUC(상태 신호) 하락 임계 초과");
         }
         if (exceedsDailyAlertLimit(
                 baselineAlerts.dailyAverage(),
@@ -175,6 +188,7 @@ public class ImpactReportGenerator {
                 "kendallTauB", nullable(summary.rankKendall())));
         report.put("topChanges", topChanges(options.topN(), baseline, candidate));
         report.put("auc", metric(summary.baselineAuc(), summary.candidateAuc()));
+        report.put("stateAuc", metric(summary.baselineStateAuc(), summary.candidateStateAuc()));
         report.put("sortingQuality", metric(summary.baselineQuality(), summary.candidateQuality()));
         report.put("alerts", Map.of(
                 "baseline", summary.baselineAlerts(),
@@ -207,7 +221,8 @@ public class ImpactReportGenerator {
         text.append("사용하며 시간 기반 알림 상승·쿨다운·전역 한도를 생략함. "
                 + "실측 시각이 있는 source에는 전역 알림 한도를 적용함.\n\n");
         text.append("## 핵심 지표\n\n| 지표 | 기준 | 후보 | 델타 |\n|---|---:|---:|---:|\n");
-        row(text, "AUC", summary.baselineAuc(), summary.candidateAuc());
+        row(text, "AUC(전체 신호)", summary.baselineAuc(), summary.candidateAuc());
+        row(text, "AUC(상태 신호)", summary.baselineStateAuc(), summary.candidateStateAuc());
         row(text, "정렬 품질 Spearman", summary.baselineQuality(), summary.candidateQuality());
         text.append("| peak 순위 Spearman | %s | %s | - |\n".formatted(
                 format(summary.rankSpearman()), format(summary.rankSpearman())));
@@ -250,12 +265,20 @@ public class ImpactReportGenerator {
                         item.get("candidateRank"))));
     }
 
-    private static Double auc(List<ReplayResult> results, int horizon) {
+    private static Double auc(
+            List<ReplayResult> results,
+            BacktestProperties options,
+            ToDoubleFunction<Cycle> score
+    ) {
         List<Integer> labels = new ArrayList<>();
         List<Double> scores = new ArrayList<>();
         for (ReplayResult result : results) {
-            labels.addAll(MetricsCalculator.aucLabels(result.data().plays(), result.cycles(), horizon));
-            scores.addAll(result.cycles().stream().map(Cycle::baseScore).toList());
+            labels.addAll(MetricsCalculator.aucLabels(
+                    result.data().plays(),
+                    result.cycles(),
+                    options.aucHorizonPlays(),
+                    options.tensionScoreGapMax()));
+            scores.addAll(result.cycles().stream().mapToDouble(score).boxed().toList());
         }
         return MetricsCalculator.auc(labels, scores);
     }
@@ -396,6 +419,8 @@ public class ImpactReportGenerator {
             Double rankKendall,
             Double baselineAuc,
             Double candidateAuc,
+            Double baselineStateAuc,
+            Double candidateStateAuc,
             Double baselineQuality,
             Double candidateQuality,
             AlertStats baselineAlerts,

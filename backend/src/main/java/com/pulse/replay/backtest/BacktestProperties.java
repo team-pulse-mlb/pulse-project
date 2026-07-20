@@ -13,9 +13,11 @@ public record BacktestProperties(
         List<Long> gameIds,
         List<String> sources,
         String outputDir,
+        String signalDumpPath,
         int backfillRecentScoreWindowPlays,
         int backfillLeadChangeWindowPlays,
         int aucHorizonPlays,
+        int tensionScoreGapMax,
         int topN,
         double guardRankCorrelationMin,
         double guardAucDropMax,
@@ -25,10 +27,11 @@ public record BacktestProperties(
     public BacktestProperties {
         gameIds = gameIds == null ? List.of() : List.copyOf(gameIds);
         sources = sources == null ? List.of() : List.copyOf(sources);
-        outputDir = outputDir == null || outputDir.isBlank() ? "build/backtest" : outputDir;
+        outputDir = outputDir == null || outputDir.isBlank() ? "../docs/backtest" : outputDir;
         backfillRecentScoreWindowPlays = positive(backfillRecentScoreWindowPlays, 15);
         backfillLeadChangeWindowPlays = positive(backfillLeadChangeWindowPlays, 25);
         aucHorizonPlays = positive(aucHorizonPlays, 12);
+        tensionScoreGapMax = positive(tensionScoreGapMax, 2);
         topN = positive(topN, 10);
         guardRankCorrelationMin = defaultDouble(guardRankCorrelationMin, 0.7);
         guardAucDropMax = defaultDouble(guardAucDropMax, 0.02);

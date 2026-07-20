@@ -33,10 +33,20 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-15T00:05:00Z"),
-                        "Globe Life Field",
                         new ProbablePitchersResponse(
                                 "Home Starter",
-                                "Away Starter"));
+                                "Away Starter"),
+                        new StartingLineupsResponse(
+                                List.of(
+                                        new StartingLineupPlayerResponse(
+                                                1,
+                                                "Home Batter",
+                                                "2B")),
+                                List.of(
+                                        new StartingLineupPlayerResponse(
+                                                1,
+                                                "Away Batter",
+                                                "SS"))));
 
         JsonNode json =
                 objectMapper.valueToTree(response);
@@ -65,8 +75,10 @@ class GameDetailSerializationGuardTest {
                     softly.assertThat(json.has("startTime"))
                             .isTrue();
                     softly.assertThat(json.has("venue"))
-                            .isTrue();
+                            .isFalse();
                     softly.assertThat(json.has("probablePitchers"))
+                            .isTrue();
+                    softly.assertThat(json.has("startingLineups"))
                             .isTrue();
 
                     JsonNode probablePitchers =
@@ -169,6 +181,9 @@ class GameDetailSerializationGuardTest {
                                     json.get("displayMode").asText())
                             .isEqualTo("PROTECTED");
 
+                    softly.assertThat(json.has("venue"))
+                            .isFalse();
+
                     /*
                      * 팀 정보와 이닝 숫자, 현재 상황은
                      * 보호 모드에서도 허용한다.
@@ -239,6 +254,7 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-02T00:00:00Z"),
+                        "Wrigley Field",
                         new ScoreResponse(
                                 3,
                                 4),
@@ -289,6 +305,9 @@ class GameDetailSerializationGuardTest {
                     softly.assertThat(
                                     json.get("displayMode").asText())
                             .isEqualTo("REVEALED");
+
+                    softly.assertThat(json.get("venue").asText())
+                            .isEqualTo("Wrigley Field");
 
                     /*
                      * 진행 공개 상세에서 사용하는 경기 정보다.
@@ -374,6 +393,8 @@ class GameDetailSerializationGuardTest {
                             .isTrue();
                     softly.assertThat(json.has("awayTeam"))
                             .isTrue();
+                    softly.assertThat(json.has("venue"))
+                            .isFalse();
                     softly.assertThat(json.has("headline"))
                             .isTrue();
                     softly.assertThat(
@@ -461,6 +482,7 @@ class GameDetailSerializationGuardTest {
                                 null),
                         Instant.parse(
                                 "2026-07-03T00:05:00Z"),
+                        "Globe Life Field",
                         "Texas Rangers가 10-4로 승리한 경기입니다.",
                         new ScoreResponse(
                                 10,
@@ -513,6 +535,10 @@ class GameDetailSerializationGuardTest {
                             .isTrue();
                     softly.assertThat(json.has("awayTeam"))
                             .isTrue();
+                    softly.assertThat(json.has("venue"))
+                            .isTrue();
+                    softly.assertThat(json.get("venue").asText())
+                            .isEqualTo("Globe Life Field");
                     softly.assertThat(json.has("headline"))
                             .isTrue();
                     softly.assertThat(json.has("finalScore"))

@@ -82,12 +82,33 @@ public class Game {
     @Column(columnDefinition = "text")
     private String finalHeadlineRevealed;
 
+    /**
+     * 중요 플레이 번역 저장 후 REVEALED 헤드라인의
+     * 일회성 자동 재생성을 시도한 시각입니다.
+     *
+     * Redis나 scorer 프로세스 재시작과 무관하게
+     * 중복 AI 호출을 방지하기 위해 DB에 저장합니다.
+     */
+    @Column(
+            name = "final_headline_revealed_regeneration_attempted_at"
+    )
+    private Instant finalHeadlineRevealedRegenerationAttemptedAt;
+
     /** /plays 증분 수집용 마지막 play order */
     private Long lastPlayOrder;
 
     private Instant lastPolledAt;
 
     private Instant observedAt;
+
+    /** FINAL 경기의 일회성 종료 후처리를 최초 확정한 시각. */
+    private Instant finalizedAt;
+
+    /** DONE terminal task를 최초 처리한 시각. */
+    private Instant terminalDoneAt;
+
+    /** SUSPENDED_POSTPONED terminal task를 최초 처리한 시각. */
+    private Instant terminalSuspendedPostponedAt;
 
     private Instant updatedAt;
 

@@ -20,7 +20,8 @@ scoring:
     gap-3: 3
   recent-score:
     per-run: 6
-    max: 15
+    # 값 변경 없음 — 설정명 개명(max → base-budget)에 따른 키 이름만 현행화
+    base-budget: 15
     tau-seconds: 180
     closeness-multiplier:
       gap-0: 2.0
@@ -81,7 +82,7 @@ scoring:
     long-at-bat-pitches: 8
     max-events-per-type-per-game: 8
 
-  # 종료 경기 긴장 곡선(base_score 0~100을 1~5 단계로 양자화)
+  # 종료 경기 경기 긴장도 그래프(base_score 0~100을 1~5 단계로 양자화)
   tension-curve:
     level-boundaries: [20, 40, 60, 80]
 

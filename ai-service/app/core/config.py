@@ -18,11 +18,39 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.6-luna"
     openai_temperature: float = 0.2
-    openai_max_output_tokens: int = 200
+
+    # 짧은 AI 문구 생성은 복잡한 추론이 필요하지 않으므로
+    # reasoning token 사용량과 지연시간을 줄이기 위해 low로 제한합니다.
+    openai_reasoning_effort: str = "low"
+
+    # reasoning 모델은 내부 reasoning token도 max_output_tokens를 사용합니다.
+    # 200에서는 visible output 전에 한도가 끝날 수 있어 여유를 확보합니다.
+    openai_max_output_tokens: int = 1024
 
     # Spring Boot -> ai-service timeout은 8초이므로,
     # ai-service -> OpenAI 호출은 그보다 짧은 6초 안에 끝나도록 제한한다.
     openai_timeout_seconds: float = 6.0
+
+    # FINAL_HEADLINE/EVENT_COPY는 사용자 응답 경로와 저장 경로에서
+    # 호출될 수 있으므로 SDK 내부 재시도 대신 서비스 레이어에서
+    # 짧은 1회 재시도만 수행한다.
+    # 기본값 기준 총 예상 시간은 3초 * 2회 + 짧은 backoff로
+    # Spring Boot 호출 제한 8초 안에 들어오도록 잡는다.
+    openai_ai_copy_timeout_seconds: float = 3.0
+    openai_ai_copy_max_attempts: int = 2
+    openai_ai_copy_retry_base_delay_seconds: float = 0.2
+    openai_ai_copy_retry_max_delay_seconds: float = 0.5
+    openai_ai_copy_retry_jitter_seconds: float = 0.05
+
+    # PLAY_TRANSLATION은 배치에서 연속 호출될 수 있으므로
+    # SDK 내부 재시도 대신 서비스 레이어에서 짧은 1회 재시도만 수행한다.
+    # 기본값 기준 총 예상 시간은 3초 * 2회 + 짧은 backoff로
+    # Spring Boot 호출 제한 8초 안에 들어오도록 잡는다.
+    openai_play_translation_timeout_seconds: float = 3.0
+    openai_play_translation_max_attempts: int = 2
+    openai_play_translation_retry_base_delay_seconds: float = 0.2
+    openai_play_translation_retry_max_delay_seconds: float = 0.5
+    openai_play_translation_retry_jitter_seconds: float = 0.05
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -4,6 +4,7 @@ import com.pulse.common.ai.AiCopyMode;
 import com.pulse.common.ai.FinalHeadlineContext;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -48,6 +49,7 @@ public class AiFinalHeadlineContextMapper {
      *     <li>spoilerSafeSignals → reasonCodes</li>
      *     <li>keyMoments → keyMoments</li>
      *     <li>teams·finalScore·winner·inningsPlayed·extraInnings·postseason·revealedMoments → REVEALED 전용</li>
+     *     <li>venue·startTime·inningScores·summaryFacts·revealedEvents·verifiedPlays → REVEALED v2 전용</li>
      * </ul>
      */
     private AiFinalHeadlineRequest.SafeContext toSafeContext(
@@ -63,7 +65,15 @@ public class AiFinalHeadlineContextMapper {
                     context.inningsPlayed(),
                     context.extraInnings(),
                     context.postseason(),
-                    toRevealedMoments(context.revealedMoments())
+                    toRevealedMoments(context.revealedMoments()),
+
+                    context.venue(),
+                    toIsoString(context.startTime()),
+                    copyList(context.homeInningScores()),
+                    copyList(context.awayInningScores()),
+                    toSummaryFacts(context.summaryFacts()),
+                    toRevealedEvents(context.revealedEvents()),
+                    toVerifiedPlays(context.verifiedPlays())
             );
         }
 
@@ -149,9 +159,136 @@ public class AiFinalHeadlineContextMapper {
     }
 
     /**
+     * FINAL_HEADLINE v2 summaryFacts를 ai-service HTTP DTO로 변환합니다.
+     */
+    private AiFinalHeadlineRequest.SummaryFacts toSummaryFacts(
+            FinalHeadlineContext.SummaryFacts summaryFacts
+    ) {
+        if (summaryFacts == null) {
+            return null;
+        }
+
+        return new AiFinalHeadlineRequest.SummaryFacts(
+                summaryFacts.winnerSide(),
+                summaryFacts.winnerName(),
+                summaryFacts.loserName(),
+                summaryFacts.winnerScore(),
+                summaryFacts.loserScore(),
+
+                summaryFacts.firstScoringSide(),
+                summaryFacts.firstScoringInning(),
+
+                summaryFacts.tyingInning(),
+                summaryFacts.decisiveInning(),
+                summaryFacts.decisiveRuns(),
+
+                summaryFacts.leadChangeCount(),
+                summaryFacts.comebackWin(),
+                summaryFacts.walkOff(),
+                summaryFacts.shutout(),
+                summaryFacts.extraInnings(),
+                summaryFacts.finalInning(),
+
+                summaryFacts.scoreGap(),
+                summaryFacts.totalRuns()
+        );
+    }
+
+    /**
+     * 공개 이벤트 근거를 ai-service HTTP DTO로 변환합니다.
+     */
+    private List<AiFinalHeadlineRequest.RevealedEvent> toRevealedEvents(
+            List<FinalHeadlineContext.RevealedEvent> events
+    ) {
+        if (events == null || events.isEmpty()) {
+            return List.of();
+        }
+
+        return events.stream()
+                .map(event -> new AiFinalHeadlineRequest.RevealedEvent(
+                        event.eventId(),
+                        event.eventType(),
+                        event.inning(),
+                        event.inningType(),
+                        toPlayerInfo(event.batter()),
+                        toPlayerInfo(event.pitcher()),
+                        event.evidence()
+                ))
+                .toList();
+    }
+
+    /**
+     * FINAL_HEADLINE v2 검증 플레이 근거를 ai-service HTTP DTO로 변환합니다.
+     */
+    private List<AiFinalHeadlineRequest.VerifiedPlay> toVerifiedPlays(
+            List<FinalHeadlineContext.VerifiedPlay> plays
+    ) {
+        if (plays == null || plays.isEmpty()) {
+            return List.of();
+        }
+
+        return plays.stream()
+                .map(play -> new AiFinalHeadlineRequest.VerifiedPlay(
+                        play.playId(),
+                        play.playOrder(),
+
+                        play.inning(),
+                        play.inningType(),
+
+                        play.sourceText(),
+                        play.translatedText(),
+
+                        play.homeScoreAfter(),
+                        play.awayScoreAfter(),
+
+                        play.scoringPlay(),
+                        play.scoreValue(),
+
+                        play.outs(),
+                        play.balls(),
+                        play.strikes(),
+
+                        toPlayerInfo(play.batter()),
+                        toPlayerInfo(play.pitcher()),
+
+                        play.runnerOnFirst(),
+                        play.runnerOnSecond(),
+                        play.runnerOnThird(),
+
+                        copyList(play.factTags())
+                ))
+                .toList();
+    }
+
+    /**
+     * 선수 정보를 ai-service HTTP DTO로 변환합니다.
+     */
+    private AiFinalHeadlineRequest.PlayerInfo toPlayerInfo(
+            FinalHeadlineContext.PlayerInfo player
+    ) {
+        if (player == null) {
+            return null;
+        }
+
+        return new AiFinalHeadlineRequest.PlayerInfo(
+                player.id(),
+                player.name()
+        );
+    }
+
+    /**
+     * Instant를 JSON에서 다루기 쉬운 ISO-8601 문자열로 변환합니다.
+     */
+    private String toIsoString(
+            Instant instant
+    ) {
+        return instant == null ? null : instant.toString();
+    }
+
+    /**
      * 리스트 필드를 불변 복사본으로 정규화합니다.
      */
-    private List<String> copyList(List<String> values) {
+    private <T> List<T> copyList(List<T> values) {
         if (values == null || values.isEmpty()) {
             return List.of();
         }

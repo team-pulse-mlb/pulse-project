@@ -4,8 +4,7 @@
 #
 # 전제 조건:
 # - 저장소 루트에 `.env`가 있어야 한다.
-# - `pulse-postgres`가 실행 중이어야 한다.
-# - 백엔드를 한 번 실행해 JPA 엔티티 기준 로컬 스키마를 먼저 생성한다.
+# - 로컬 Docker Compose 전체 스택이 실행 중이어야 한다.
 #
 # 작업 내용:
 # - 팀·선수와 시뮬레이터 원본 경기(games+plays)를 PostgreSQL에 재적재한다.
@@ -36,6 +35,13 @@ set -a
 source "$ENV_FILE"
 set +a
 
+COMPOSE_FILE="$PROJECT_DIR/infra/local/docker-compose.yml"
+
+# 기존 로컬 컨테이너가 local 프로파일 없이 생성됐어도 최신 설정으로 재생성해
+# 픽스처 적재 전에 JPA 엔티티 기준 스키마가 준비되도록 한다.
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" \
+  up -d --force-recreate --wait pulse-api
+
 for fixture_file in \
   teams.csv \
   players.csv \
@@ -50,9 +56,15 @@ for fixture_file in \
   fi
 done
 
-# Git Bash(MSYS)는 컨테이너 내부 절대경로 인자를 호스트 경로로 변환하므로 이 호출만 변환을 끈다.
-MSYS_NO_PATHCONV=1 docker exec -i pulse-postgres mkdir -p /tmp/pulse-fixtures
-docker cp "$FIXTURE_DIR/." pulse-postgres:/tmp/pulse-fixtures >/dev/null
+# Git Bash(MSYS)는 컨테이너 내부 절대경로 인자를 호스트 경로로 변환하므로
+# 컨테이너 내부 경로를 쓰는 호출만 변환을 끈다.
+MSYS_NO_PATHCONV=1 docker exec -i pulse-postgres sh -lc "rm -rf /tmp/pulse-fixtures && mkdir -p /tmp/pulse-fixtures"
+
+# docker cp는 Git Bash에서 절대 호스트 경로(/c/...)와 컨테이너 경로(/tmp/...)가 함께 있을 때
+# 경로 변환이 꼬일 수 있으므로 저장소 루트 기준 상대 경로로 복사한다.
+pushd "$PROJECT_DIR" >/dev/null
+MSYS_NO_PATHCONV=1 docker cp "backend/scripts/fixtures/." "pulse-postgres:/tmp/pulse-fixtures/" >/dev/null
+popd >/dev/null
 
 # psql -f 경로도 MSYS가 변환하므로 SQL은 stdin으로 넘긴다. CSV는 컨테이너 /tmp/pulse-fixtures에서 \copy로 읽는다.
 for sql_file in load-fixtures.sql supplement.sql notifications.sql; do

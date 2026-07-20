@@ -31,19 +31,32 @@ public record ScoringProperties(
 
     public record ScoreGap(int gap01, int gap2, int gap3) {}
 
-    public record RecentScore(int perRun, int max, long tauSeconds, Map<String, Double> closenessMultiplier) {
+    // baseBudget은 closeness multiplier 적용 전의 예산이다. 실제 신호 상한이 아니라
+    // multiplier(최대 2.0)에 따라 신호는 baseBudget의 최대 2배까지 커질 수 있다.
+    public record RecentScore(int perRun, int baseBudget, long tauSeconds, Map<String, Double> closenessMultiplier) {
         public double multiplierFor(int gap) {
             return closenessMultiplier.getOrDefault("gap-" + gap, closenessMultiplier.getOrDefault("default", 1.0));
         }
     }
 
-    public record LeadChange(int bonus, int windowPlays) {}
+    public record LeadChange(int bonus, int windowPlays, long tauSeconds) {}
 
     public record BigInning(int bonus, int minScoringPlays) {}
 
     public record CountPressure(int fullCount, int twoOuts, int max) {}
 
-    public record Pressure(int basesLoaded, int scoringPosition) {}
+    /**
+     * RE24(주자-아웃 24상태 기대 득점) 테이블 기반 연속값을 지원한다.
+     * re24 키는 <1루><2루><3루> 점유 비트 문자열, 값은 [0아웃, 1아웃, 2아웃] 기대 득점이다.
+     * re24가 없거나 re24Scale이 0 이하인 상수(현행 v10 포함)는 만루·득점권 2단계로 동작한다.
+     * 보조 생성자를 두면 Spring 값 객체 바인딩이 생성자를 결정하지 못하므로 canonical 생성자만 둔다.
+     */
+    public record Pressure(
+            int basesLoaded,
+            int scoringPosition,
+            double re24Scale,
+            Map<String, List<Double>> re24
+    ) {}
 
     public record EarlySlugfest(int bonus, int maxInning, int minTotalRuns) {}
 
@@ -84,13 +97,13 @@ public record ScoringProperties(
         public TensionCurve {
             levelBoundaries = List.copyOf(levelBoundaries);
             if (levelBoundaries.size() != 4) {
-                throw new IllegalArgumentException("긴장 곡선 경계값은 4개여야 합니다.");
+                throw new IllegalArgumentException("경기 긴장도 그래프 경계값은 4개여야 합니다.");
             }
             for (int index = 0; index < levelBoundaries.size(); index++) {
                 int boundary = levelBoundaries.get(index);
                 if (boundary < 0 || boundary > 100
                         || (index > 0 && boundary <= levelBoundaries.get(index - 1))) {
-                    throw new IllegalArgumentException("긴장 곡선 경계값은 0~100 사이에서 오름차순이어야 합니다.");
+                    throw new IllegalArgumentException("경기 긴장도 그래프 경계값은 0~100 사이에서 오름차순이어야 합니다.");
                 }
             }
         }
@@ -101,13 +114,15 @@ public record ScoringProperties(
      * 알림용 Thresholds와 분리해, 타임라인은 더 촘촘히 하이라이트를 남길 수 있게 한다.
      *
      * enabled=false면 기존 이벤트별 문구 생성 트리거를 그대로 사용한다(안전한 롤아웃 스위치).
+     * backfillMaxPerGame은 종료 백필에서 경기당 생성할 하이라이트의 상한이다.
      */
     public record Highlight(
             boolean enabled,
             int minScore,
             int riseScore,
             int riseWindowMinutes,
-            int cooldownMinutes
+            int cooldownMinutes,
+            int backfillMaxPerGame
     ) {}
 
     public record Thresholds(

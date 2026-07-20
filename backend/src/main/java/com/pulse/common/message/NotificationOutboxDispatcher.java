@@ -14,6 +14,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 미발행 알림을 RabbitMQ로 보내고 실패 건의 다음 재시도를 예약한다. */
@@ -49,7 +50,9 @@ public class NotificationOutboxDispatcher {
         this.clock = clock;
     }
 
-    @Transactional
+    // afterCommit 콜백에서 호출되면 직전 트랜잭션 동기화가 아직 살아 있어 REQUIRED로는
+    // 새 트랜잭션이 열리지 않고, FOR UPDATE 조회가 TransactionRequiredException으로 실패한다.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publishEvent(UUID eventId) {
         repository.findPendingByEventIdForUpdate(eventId).ifPresent(this::publish);
     }

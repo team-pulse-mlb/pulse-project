@@ -75,6 +75,25 @@ class ScoreTaskSerializationTest {
     }
 
     @Test
+    void scoreTask_shouldRoundTripWithGameSnapshot() throws Exception {
+        ScoreTask.GameSnapshot gameSnapshot = new ScoreTask.GameSnapshot(7, 4, 3, true);
+        ScoreTask task = new ScoreTask(
+                1L,
+                Instant.parse("2026-07-08T00:00:00Z"),
+                10L,
+                "LIVE",
+                null,
+                List.of(),
+                gameSnapshot
+        );
+
+        ScoreTask restored = objectMapper.readValue(objectMapper.writeValueAsString(task), ScoreTask.class);
+
+        assertThat(restored).isEqualTo(task);
+        assertThat(restored.gameSnapshot()).isEqualTo(gameSnapshot);
+    }
+
+    @Test
     void scoreTask_shouldTreatMissingPlateAppearancesAsEmptyForOldMessages() throws Exception {
         String oldMessage = """
                 {"gameId":1,"observedAt":"2026-07-08T00:00:00Z",
@@ -84,5 +103,6 @@ class ScoreTaskSerializationTest {
         ScoreTask restored = objectMapper.readValue(oldMessage, ScoreTask.class);
 
         assertThat(restored.plateAppearances()).isEmpty();
+        assertThat(restored.gameSnapshot()).isNull();
     }
 }

@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Link,
+    useLocation,
     useParams,
 } from 'react-router';
 
+import { getMyPreferences } from '../../auth/api/preferenceApi';
 import BoxScoreTable from '../../../shared/components/BoxScoreTable';
 import Card from '../../../shared/components/Card';
 import EmptyState from '../../../shared/components/EmptyState';
@@ -27,10 +29,14 @@ import {
 import { toGameDetailViewModel } from '../lib/gameDetailMapper';
 import { toTimelineEvents } from '../lib/gameEventMapper';
 import { toRecentPlayViewModels } from '../lib/gameRecentPlayMapper';
+import { useGameDetailRealtime } from '../hooks/useGameDetailRealtime';
 
 function GameDetailPage() {
     const { gameId } =
         useParams<{ gameId: string }>();
+
+    const location =
+        useLocation();
 
     const parsedGameId =
         Number(gameId);
@@ -43,8 +49,23 @@ function GameDetailPage() {
             : null;
 
     /**
-     * 같은 GameDetailPage 안에서 URL의 gameId가 바뀌어도
-     * 경기별 선택 모드를 독립적으로 유지한다.
+     * React Router의 location.key는 같은 URL이라도 새 Link/navigate 진입마다 바뀌고,
+     * 새로고침 때는 같은 history entry의 key가 유지된다.
+     *
+     * 명세는 "새로고침은 현재 모드 유지, 카드 재진입은 보호 모드"를 요구하므로
+     * 경기 ID만으로 공개 상태를 복원하지 않고 현재 상세 진입 key까지 함께 사용한다.
+     */
+    const detailEntryKey =
+        location.key;
+
+    const selectedModeKey =
+        gameId
+            ? `${gameId}:${detailEntryKey}`
+            : null;
+
+    /**
+     * 같은 GameDetailPage 안에서 URL의 gameId나 진입 key가 바뀌어도
+     * 상세 진입별 선택 모드를 독립적으로 유지한다.
      *
      * useEffect 안에서 setState를 호출하지 않아
      * 불필요한 연쇄 렌더링을 방지한다.
@@ -53,9 +74,12 @@ function GameDetailPage() {
         useState<Record<string, DisplayMode>>({});
 
     const mode =
-        gameId
-            ? selectedModes[gameId]
-            ?? getStoredMode(gameId)
+        gameId && selectedModeKey
+            ? selectedModes[selectedModeKey]
+            ?? getStoredMode(
+                gameId,
+                detailEntryKey,
+            )
             : 'PROTECTED';
 
     /**
@@ -67,6 +91,75 @@ function GameDetailPage() {
             validGameId,
             mode,
         );
+
+    /*
+     * LIVE 경기에서만 SSE와 10초 보조 갱신을 활성화한다.
+     *
+     * 상세 재조회 결과가 FINAL로 바뀌면 enabled가 false가 되어
+     * 연결과 반복 갱신이 자동으로 정리된다.
+     */
+    useGameDetailRealtime({
+        gameId: validGameId,
+        mode,
+        enabled:
+            gameDetailQuery.data?.status
+            === 'STATUS_IN_PROGRESS',
+    });
+
+    const [
+        favoritePlayerNames,
+        setFavoritePlayerNames,
+    ] = useState<string[]>([]);
+
+    /*
+     * 예정 경기의 선발 투수·라인업에 관심 선수 별표를 표시하기 위해
+     * 로그인 사용자의 관심 선수 이름을 조회한다.
+     */
+    useEffect(() => {
+        if (
+            gameDetailQuery.data?.status
+            !== 'STATUS_SCHEDULED'
+            || !localStorage.getItem('accessToken')
+        ) {
+            return;
+        }
+
+        let ignore = false;
+
+        const loadFavoritePlayers = async () => {
+            try {
+                const preference =
+                    await getMyPreferences();
+
+                if (ignore) {
+                    return;
+                }
+
+                setFavoritePlayerNames(
+                    preference.favoritePlayers
+                        .map(
+                            (player) =>
+                                player.fullName?.trim()
+                                ?? '',
+                        )
+                        .filter(
+                            (name) =>
+                                name.length > 0,
+                        ),
+                );
+            } catch {
+                if (!ignore) {
+                    setFavoritePlayerNames([]);
+                }
+            }
+        };
+
+        void loadFavoritePlayers();
+
+        return () => {
+            ignore = true;
+        };
+    }, [gameDetailQuery.data?.status]);
 
     /**
      * 경기 흐름은 진행 경기와 종료 경기에서만 제공한다.
@@ -114,19 +207,23 @@ function GameDetailPage() {
     const handleModeChange = (
         nextMode: DisplayMode,
     ) => {
-        if (!gameId) {
+        if (
+            !gameId
+            || !selectedModeKey
+        ) {
             return;
         }
 
         setSelectedModes(
             (previousModes) => ({
                 ...previousModes,
-                [gameId]: nextMode,
+                [selectedModeKey]: nextMode,
             }),
         );
 
         storeMode(
             gameId,
+            detailEntryKey,
             nextMode,
         );
     };
@@ -170,6 +267,9 @@ function GameDetailPage() {
         return (
             <ScheduledGameDetail
                 data={detail}
+                favoritePlayerNames={
+                    favoritePlayerNames
+                }
             />
         );
     }
@@ -236,6 +336,16 @@ function GameDetailPage() {
             )
             : [];
 
+    /*
+     * 공개 모드의 recent-plays API는 최신 플레이 우선으로 내려온다.
+     * LIVE는 최신 이닝이 위에 오도록 그대로 사용하고,
+     * FINAL은 보호 모드와 동일하게 1이닝부터 보이도록 뒤집는다.
+     */
+    const orderedRecentPlays =
+        detail.kind === 'FINAL'
+            ? [...recentPlays].reverse()
+            : recentPlays;
+
     const revealedGameFlowContent =
         recentPlaysQuery.isPending ? (
             <Card>
@@ -258,7 +368,7 @@ function GameDetailPage() {
         ) : (
             <RecentPlayList
                 title="경기 흐름"
-                plays={recentPlays}
+                plays={orderedRecentPlays}
             />
         );
 
@@ -419,9 +529,10 @@ function GameDetailPage() {
                         detail.situation
                     }
                     matchup={
-                        isRevealed
-                            ? detail.currentMatchup
-                            : null
+                        detail.currentMatchup
+                    }
+                    favoritePlayerNames={
+                        detail.favoritePlayersPlaying
                     }
                 />
 

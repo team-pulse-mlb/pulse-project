@@ -5,9 +5,11 @@ import com.pulse.common.client.BdlDtos.BdlLineup;
 import com.pulse.common.client.BdlDtos.BdlOdds;
 import com.pulse.common.client.BdlDtos.BdlPlayerSeasonStat;
 import com.pulse.common.client.BdlDtos.BdlStanding;
+import com.pulse.common.message.ScoreTaskFactory;
 import com.pulse.common.message.ScoreTaskPublisher;
 import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Lineup;
 import com.pulse.domain.LineupRepository;
@@ -250,6 +252,9 @@ public class PregamePoller {
             List<BdlPlayerSeasonStat> stats = balldontlieClient.getPlayerSeasonStats(season, pitcherIds);
             pregameWriter.upsertPlayerSeasonStats(season, stats, now);
         } catch (RuntimeException e) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw e;
+            }
             log.warn("season stats refresh failed, falling back to cached values: gameId={}", game.getId(), e);
         }
     }

@@ -22,13 +22,31 @@ public class ImportanceCalculator {
     private final ScoringProperties props;
 
     public double multiplier(Game game) {
+        return multiplier(game, game.getPostseason());
+    }
+
+    public double multiplier(Game game, Boolean postseason) {
         ScoringProperties.Importance importance = props.importance();
-        if (Boolean.TRUE.equals(game.getPostseason())) {
+        if (Boolean.TRUE.equals(postseason)) {
+            return importance.postseason();
+        }
+        BigDecimal homePlayoffPercent = playoffPercent(game.getHomeTeamId());
+        BigDecimal awayPlayoffPercent = playoffPercent(game.getAwayTeamId());
+        return multiplier(importance, postseason, homePlayoffPercent, awayPlayoffPercent);
+    }
+
+    public static double multiplier(
+            ScoringProperties.Importance importance,
+            Boolean postseason,
+            BigDecimal homePlayoffPercent,
+            BigDecimal awayPlayoffPercent
+    ) {
+        if (Boolean.TRUE.equals(postseason)) {
             return importance.postseason();
         }
 
-        Boolean homeContending = contending(game.getHomeTeamId(), importance);
-        Boolean awayContending = contending(game.getAwayTeamId(), importance);
+        Boolean homeContending = contending(homePlayoffPercent, importance);
+        Boolean awayContending = contending(awayPlayoffPercent, importance);
         if (homeContending == null || awayContending == null) {
             return 1.0;
         }
@@ -39,19 +57,23 @@ public class ImportanceCalculator {
         if (homeContending || awayContending) {
             return importance.oneContending();
         }
-        if (bothClearlyOut(game, importance)) {
+        if (belowContention(homePlayoffPercent, importance)
+                && belowContention(awayPlayoffPercent, importance)) {
             return importance.bothOut();
         }
         return 1.0;
     }
 
-    private Boolean contending(Long teamId, ScoringProperties.Importance importance) {
+    private BigDecimal playoffPercent(Long teamId) {
         if (teamId == null) {
             return null;
         }
-        BigDecimal playoffPercent = standingRepository.findTopByTeamIdOrderBySnapshotDateDesc(teamId)
+        return standingRepository.findTopByTeamIdOrderBySnapshotDateDesc(teamId)
                 .map(Standing::getPlayoffPercent)
                 .orElse(null);
+    }
+
+    private static Boolean contending(BigDecimal playoffPercent, ScoringProperties.Importance importance) {
         if (playoffPercent == null) {
             return null;
         }
@@ -59,17 +81,7 @@ public class ImportanceCalculator {
         return value >= importance.contentionMinPercent() && value <= importance.contentionMaxPercent();
     }
 
-    private boolean bothClearlyOut(Game game, ScoringProperties.Importance importance) {
-        return belowContention(game.getHomeTeamId(), importance) && belowContention(game.getAwayTeamId(), importance);
-    }
-
-    private boolean belowContention(Long teamId, ScoringProperties.Importance importance) {
-        if (teamId == null) {
-            return false;
-        }
-        return standingRepository.findTopByTeamIdOrderBySnapshotDateDesc(teamId)
-                .map(Standing::getPlayoffPercent)
-                .map(percent -> percent.doubleValue() < importance.contentionMinPercent())
-                .orElse(false);
+    private static boolean belowContention(BigDecimal playoffPercent, ScoringProperties.Importance importance) {
+        return playoffPercent != null && playoffPercent.doubleValue() < importance.contentionMinPercent();
     }
 }

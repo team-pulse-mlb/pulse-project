@@ -1,6 +1,8 @@
 package com.pulse.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.pulse.domain.*;
+import com.pulse.scorer.TensionCurveQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -30,6 +32,7 @@ public class GameQueryService {
     private final PlayRepository playRepository;
     private final PlayerRepository playerRepository;
     private final LineupRepository lineupRepository;
+    private final TensionCurveQueryService tensionCurveQueryService;
 
     /**
      * 경기 상태와 사용자가 선택한 공개 모드에 맞는 상세 응답을 반환한다.
@@ -97,6 +100,8 @@ public class GameQueryService {
                     homeTeam,
                     awayTeam,
                     game.getStartTime(),
+                    nullableText(
+                            game.getVenue()),
                     score(game),
                     inning,
                     latestPlay == null
@@ -134,7 +139,9 @@ public class GameQueryService {
 
     /**
      * 예정 경기 상세에서는 결과성 데이터 없이
-     * 매치업, 시작 시각, 구장, 예상 선발 투수만 반환한다.
+     * 매치업, 시작 시각, 선발 투수와 양 팀 선발 라인업만 반환한다.
+     *
+     * 구장명은 홈·원정 관계를 유추할 수 있으므로 응답에서 제외한다.
      */
     private GameDetailView scheduledGameDetail(Game game) {
         TeamResponse homeTeam =
@@ -156,8 +163,8 @@ public class GameQueryService {
                 homeTeam,
                 awayTeam,
                 game.getStartTime(),
-                nullableText(game.getVenue()),
-                probablePitchers(game));
+                probablePitchers(game),
+                startingLineups(game));
     }
 
     /**
@@ -240,6 +247,110 @@ public class GameQueryService {
     }
 
     /**
+     * batting_order가 있는 선수만 선발 라인업으로 사용한다.
+     *
+     * 선수 정보가 없거나 타순이 없는 행은 제외하고,
+     * 홈·원정 팀별로 타순 오름차순 정렬해 반환한다.
+     */
+    private StartingLineupsResponse startingLineups(
+            Game game) {
+
+        List<Lineup> battingLineups =
+                lineupRepository
+                        .findByGameId(game.getId())
+                        .stream()
+                        .filter(
+                                lineup ->
+                                        lineup.getBattingOrder()
+                                                != null)
+                        .toList();
+
+        if (battingLineups.isEmpty()) {
+            return new StartingLineupsResponse(
+                    List.of(),
+                    List.of());
+        }
+
+        List<Long> playerIds =
+                battingLineups
+                        .stream()
+                        .map(Lineup::getPlayerId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+
+        Map<Long, Player> playersById =
+                playerRepository
+                        .findAllById(playerIds)
+                        .stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Player::getId,
+                                        Function.identity()));
+
+        List<StartingLineupPlayerResponse> homeLineup =
+                new ArrayList<>();
+
+        List<StartingLineupPlayerResponse> awayLineup =
+                new ArrayList<>();
+
+        for (Lineup lineup : battingLineups) {
+            Player player =
+                    playersById.get(
+                            lineup.getPlayerId());
+
+            String playerName =
+                    playerName(player);
+
+            Integer battingOrder =
+                    lineup.getBattingOrder();
+
+            if (playerName == null
+                    || battingOrder == null) {
+                continue;
+            }
+
+            StartingLineupPlayerResponse response =
+                    new StartingLineupPlayerResponse(
+                            battingOrder,
+                            playerName,
+                            nullableText(
+                                    lineup.getPosition()));
+
+            if (Objects.equals(
+                    lineup.getTeamId(),
+                    game.getHomeTeamId())) {
+
+                homeLineup.add(response);
+                continue;
+            }
+
+            if (Objects.equals(
+                    lineup.getTeamId(),
+                    game.getAwayTeamId())) {
+
+                awayLineup.add(response);
+            }
+        }
+
+        homeLineup.sort(
+                (left, right) ->
+                        Integer.compare(
+                                left.battingOrder(),
+                                right.battingOrder()));
+
+        awayLineup.sort(
+                (left, right) ->
+                        Integer.compare(
+                                left.battingOrder(),
+                                right.battingOrder()));
+
+        return new StartingLineupsResponse(
+                homeLineup,
+                awayLineup);
+    }
+
+    /**
      * 종료 경기는 진행 경기와 응답 필드가 다르므로
      * 마지막 play 기반 상황 정보 없이 전용 응답을 반환한다.
      */
@@ -268,16 +379,13 @@ public class GameQueryService {
                     awayTeam,
                     game.getStartTime(),
                     nullableText(
+                            game.getVenue()),
+                    nullableText(
                             game.getFinalHeadlineRevealed()),
                     score(game),
                     inningScores(game),
                     scoringSummary(game.getId()),
-
-                    /*
-                     * 경기 흐름 그래프는 추후 디자인과 데이터 구조를
-                     * 함께 재작업하므로 현재 단계에서는 빈 배열을 반환한다.
-                     */
-                    List.of());
+                    revealedTensionCurve(game.getId()));
         }
 
         return new ProtectedFinalGameDetailResponse(
@@ -289,12 +397,48 @@ public class GameQueryService {
                 game.getStartTime(),
                 nullableText(
                         game.getFinalHeadlineProtected()),
+                protectedTensionCurve(game.getId()));
+    }
 
-                /*
-                 * 보호 모드 경기 흐름도 추후 작업 전까지
-                 * 빈 배열로 반환한다.
-                 */
-                List.of());
+    /**
+     * 보호 모드 경기 긴장도 그래프은 이닝 단위만 노출한다.
+     *
+     * 서버가 watch_scores의 base_score 이력을 1~5 단계로 양자화한
+     * 결과만 DTO로 옮기며, 원 점수나 이벤트 마커는 포함하지 않는다.
+     */
+    private List<ProtectedTensionPointResponse> protectedTensionCurve(
+            long gameId) {
+
+        return tensionCurveQueryService
+                .getProtectedCurve(gameId)
+                .stream()
+                .map(
+                        point ->
+                                new ProtectedTensionPointResponse(
+                                        point.inning(),
+                                        point.level()))
+                .toList();
+    }
+
+    /**
+     * 공개 모드 경기 긴장도 그래프은 하프이닝 단위까지 허용한다.
+     *
+     * 그래프는 점수 이력의 양자화 레벨만 사용하고,
+     * 경기 흐름 목록과 연결되는 이벤트 정보는 포함하지 않는다.
+     */
+    private List<RevealedTensionPointResponse> revealedTensionCurve(
+            long gameId) {
+
+        return tensionCurveQueryService
+                .getRevealedCurve(gameId)
+                .stream()
+                .map(
+                        point ->
+                                new RevealedTensionPointResponse(
+                                        point.inning(),
+                                        point.inningType(),
+                                        point.level()))
+                .toList();
     }
 
     /**
@@ -634,6 +778,16 @@ public class GameQueryService {
      * 경기 상태와 공개 모드에 따라 서로 다른 DTO를 반환하기 위한
      * 공통 응답 타입이다.
      */
+    @Schema(
+            description = "경기 상태와 표시 모드에 따라 달라지는 경기 상세 응답",
+            oneOf = {
+                    ScheduledGameDetailResponse.class,
+                    ProtectedGameDetailResponse.class,
+                    RevealedGameDetailResponse.class,
+                    ProtectedFinalGameDetailResponse.class,
+                    RevealedFinalGameDetailResponse.class
+            }
+    )
     public sealed interface GameDetailView
             permits ScheduledGameDetailResponse,
             ProtectedGameDetailResponse,
@@ -654,8 +808,8 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
-            String venue,
-            ProbablePitchersResponse probablePitchers)
+            ProbablePitchersResponse probablePitchers,
+            StartingLineupsResponse startingLineups)
             implements GameDetailView {}
 
     /**
@@ -688,6 +842,7 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
+            String venue,
             ScoreResponse score,
             Integer inning,
             String inningType,
@@ -727,6 +882,7 @@ public class GameQueryService {
             TeamResponse homeTeam,
             TeamResponse awayTeam,
             Instant startTime,
+            String venue,
             String headline,
             ScoreResponse finalScore,
             InningScoresResponse inningScores,
@@ -769,6 +925,15 @@ public class GameQueryService {
     public record ProbablePitchersResponse(
             String home,
             String away) {}
+
+    public record StartingLineupsResponse(
+            List<StartingLineupPlayerResponse> home,
+            List<StartingLineupPlayerResponse> away) {}
+
+    public record StartingLineupPlayerResponse(
+            Integer battingOrder,
+            String playerName,
+            String position) {}
 
     public record ScoringPlayResponse(
             Integer inning,

@@ -56,10 +56,38 @@ IGNORED_NAME_TOKENS = frozenset(
 )
 
 
+# 선수명 비교에서 독립된 이름으로 취급하지 않는 접미사입니다.
+#
+# 예:
+# - B. Harper -> B는 이니셜이므로 제외
+# - Tatis Jr. -> Jr는 독립 선수명이 아니므로 제외
+IGNORED_NAME_SUFFIXES = frozenset(
+    {
+        "Jr",
+        "Sr",
+        "II",
+        "III",
+        "IV",
+    }
+)
+
+
+# 정규식이 문장 끝의 마침표까지 후보에 포함하더라도
+# 실제 선수명 비교 전에 제거할 구두점입니다.
+NAME_TRAILING_PUNCTUATION = ".,!?;:。！？"
+
+
+# 문장 수 검사에서 실제 문장 종결이 아닌 마침표를 임시로 보호합니다.
+PROTECTED_DOT_TOKEN = "__PLAY_TRANSLATION_DOT__"
+
+
 # 영문 선수명 후보를 추출합니다.
 #
 # \b 대신 ASCII lookaround를 사용하므로 "Soto가"처럼
 # 영문 이름 바로 뒤에 한글 조사가 붙어도 Soto를 추출할 수 있습니다.
+#
+# 패턴은 기존 호환성을 유지하고, 후보 추출 후
+# _normalize_name_candidate()에서 끝 구두점을 제거합니다.
 NAME_CANDIDATE_PATTERN = re.compile(
     r"(?<![A-Za-z0-9])"
     r"([A-Z][a-zA-Z'.-]{1,})"
@@ -142,6 +170,7 @@ def check_play_translation(
         _check_player_names_preserved_and_not_added(
             source_text=source_text,
             translated_text=translated_text or "",
+            glossary=glossary,
         )
     )
     violations.extend(
@@ -223,21 +252,85 @@ def _check_single_sentence(
 ) -> list[str]:
     """
     번역문이 한 문장인지 검사합니다.
+
+    다음 마침표는 실제 문장 종결로 세지 않습니다.
+    - 소수점: 0.300
+    - 영문 이니셜: B. Harper
+    - 이름 접미사·일반 약어: Jr., Sr., St., Dr. 등
+    - 영문 대문자 약어: U.S.
     """
 
-    sentence_end_count = len(
-        re.findall(r"[.!?。！？]", translated_text)
+    protected_text = _protect_non_terminal_periods(
+        translated_text
     )
 
-    if sentence_end_count > 1:
+    # 문장 종결 기호가 공백 또는 문자열 끝 앞에 있을 때만
+    # 하나의 문장 경계로 계산합니다.
+    #
+    # "..."와 "!!"처럼 연속된 기호도 한 경계로 셉니다.
+    sentence_boundaries = re.findall(
+        r"(?:[!?。！？]+|\.+)(?=\s+|$)",
+        protected_text,
+    )
+
+    if len(sentence_boundaries) > 1:
         return ["MULTIPLE_SENTENCES"]
 
     return []
 
 
+def _protect_non_terminal_periods(
+    text: str,
+) -> str:
+    """
+    실제 문장 종결이 아닌 마침표를 임시 토큰으로 치환합니다.
+    """
+
+    protected = str(text)
+
+    # U.S., A.L. 같은 대문자 약어를 먼저 보호합니다.
+    protected = re.sub(
+        r"\b(?:[A-Z]\.){2,}",
+        lambda match: match.group(0).replace(
+            ".",
+            PROTECTED_DOT_TOKEN,
+        ),
+        protected,
+    )
+
+    # 0.300, 1.5처럼 숫자 사이의 소수점을 보호합니다.
+    protected = re.sub(
+        r"(?<=\d)\.(?=\d)",
+        PROTECTED_DOT_TOKEN,
+        protected,
+    )
+
+    # B. Harper처럼 대문자 이니셜 뒤의 마침표를 보호합니다.
+    protected = re.sub(
+        r"\b([A-Z])\.(?=\s+[A-Z])",
+        rf"\1{PROTECTED_DOT_TOKEN}",
+        protected,
+    )
+
+    # 선수명 접미사와 자주 등장하는 영문 약어의 마침표를 보호합니다.
+    protected = re.sub(
+        (
+            r"\b("
+            r"Jr|Sr|St|Mt|Dr|Mr|Mrs|Ms|Prof|vs|etc"
+            r")\.(?=\s|,|$)"
+        ),
+        rf"\1{PROTECTED_DOT_TOKEN}",
+        protected,
+        flags=re.IGNORECASE,
+    )
+
+    return protected
+
+
 def _check_player_names_preserved_and_not_added(
     source_text: str,
     translated_text: str,
+    glossary: dict[str, Any],
 ) -> list[str]:
     """
     원문 선수명이 번역문에 모두 남아 있고,
@@ -250,9 +343,13 @@ def _check_player_names_preserved_and_not_added(
     두 violation을 함께 반환합니다.
     """
 
-    source_names = _extract_name_candidates(source_text)
+    source_names = _extract_name_candidates(
+        text=source_text,
+        glossary=glossary,
+    )
     translated_names = _extract_name_candidates(
-        translated_text
+        text=translated_text,
+        glossary=glossary,
     )
 
     source_name_set = set(source_names)
@@ -285,25 +382,167 @@ def _check_player_names_preserved_and_not_added(
 
 def _extract_name_candidates(
     text: str,
+    glossary: dict[str, Any],
 ) -> list[str]:
     """
     텍스트에서 영문 선수명 후보를 추출합니다.
 
-    - 일반 문맥 토큰은 제외합니다.
+    - YAML non_player_entities에 등록된 팀명·도시명·리그명은
+      선수명 추출 전에 제거합니다.
+    - 후보 끝의 마침표·쉼표 등 구두점을 제거합니다.
+    - B. 같은 한 글자 이니셜과 Jr. 같은 접미사는 제외합니다.
     - RBI, MLB처럼 전부 대문자인 약어는 제외합니다.
     - 최초 등장 순서를 유지하면서 중복을 제거합니다.
     """
 
-    candidates = NAME_CANDIDATE_PATTERN.findall(text)
+    text_without_non_player_entities = (
+        _remove_non_player_entities(
+            text=text,
+            glossary=glossary,
+        )
+    )
 
-    filtered_candidates = [
-        candidate
-        for candidate in candidates
-        if candidate not in IGNORED_NAME_TOKENS
-        and not candidate.isupper()
-    ]
+    raw_candidates = NAME_CANDIDATE_PATTERN.findall(
+        text_without_non_player_entities
+    )
+
+    filtered_candidates: list[str] = []
+
+    for raw_candidate in raw_candidates:
+        candidate = _normalize_name_candidate(
+            raw_candidate
+        )
+
+        if not candidate:
+            continue
+
+        if candidate in IGNORED_NAME_TOKENS:
+            continue
+
+        if candidate in IGNORED_NAME_SUFFIXES:
+            continue
+
+        # B.처럼 독립된 영문 이니셜은 선수명으로 비교하지 않습니다.
+        if len(candidate) == 1:
+            continue
+
+        # RBI, MLB, AL처럼 전부 대문자인 약어는 제외합니다.
+        if candidate.isupper():
+            continue
+
+        filtered_candidates.append(candidate)
 
     return list(dict.fromkeys(filtered_candidates))
+
+
+def _normalize_name_candidate(
+    candidate: str,
+) -> str:
+    """
+    선수명 후보의 끝 구두점을 제거해 비교 가능한 형태로 만듭니다.
+
+    예:
+    - Harper. -> Harper
+    - Jr. -> Jr
+    - O'Neill -> O'Neill
+    """
+
+    return str(candidate).strip().rstrip(
+        NAME_TRAILING_PUNCTUATION
+    )
+
+
+def _remove_non_player_entities(
+    text: str,
+    glossary: dict[str, Any],
+) -> str:
+    """
+    팀명·도시명·리그명처럼 선수명이 아닌 영문 고유명사를
+    선수명 후보 추출 전에 제거합니다.
+
+    YAML은 문자열 목록 또는 teams/leagues 같은 중첩 mapping을
+    모두 사용할 수 있습니다.
+    """
+
+    normalized_text = (
+        str(text)
+        .replace("’", "'")
+        .replace("–", "-")
+        .replace("—", "-")
+    )
+
+    entities = sorted(
+        _flatten_string_values(
+            glossary.get("non_player_entities", [])
+        ),
+        key=len,
+        reverse=True,
+    )
+
+    for entity in entities:
+        normalized_entity = (
+            entity.strip()
+            .replace("’", "'")
+            .replace("–", "-")
+            .replace("—", "-")
+        )
+
+        if not normalized_entity:
+            continue
+
+        escaped_entity = re.escape(
+            normalized_entity
+        ).replace(
+            r"\ ",
+            r"\s+",
+        )
+
+        normalized_text = re.sub(
+            (
+                rf"(?<![A-Za-z0-9])"
+                rf"{escaped_entity}"
+                rf"(?![A-Za-z0-9])"
+            ),
+            " ",
+            normalized_text,
+            flags=re.IGNORECASE,
+        )
+
+    return normalized_text
+
+
+def _flatten_string_values(
+    value: Any,
+) -> list[str]:
+    """
+    YAML의 문자열·목록·mapping 구조에서 문자열 값만 평탄화합니다.
+    """
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+
+    if isinstance(value, dict):
+        flattened: list[str] = []
+
+        for nested_value in value.values():
+            flattened.extend(
+                _flatten_string_values(nested_value)
+            )
+
+        return flattened
+
+    if isinstance(value, (list, tuple, set)):
+        flattened = []
+
+        for nested_value in value:
+            flattened.extend(
+                _flatten_string_values(nested_value)
+            )
+
+        return flattened
+
+    return []
 
 
 def _check_numbers_preserved_and_not_added(

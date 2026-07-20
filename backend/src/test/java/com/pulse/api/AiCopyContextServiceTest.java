@@ -1,30 +1,20 @@
 package com.pulse.api;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import com.pulse.common.ai.AiCopyMode;
 import com.pulse.common.ai.FinalHeadlineContext;
 import com.pulse.common.ai.RevealedEventCopyContext;
-import com.pulse.domain.Game;
-import com.pulse.domain.GameEvent;
-import com.pulse.domain.GameEventRepository;
-import com.pulse.domain.GameRepository;
-import com.pulse.domain.PlayerRepository;
-import com.pulse.domain.Player;
-import com.pulse.domain.Play;
-import com.pulse.domain.PlayRepository;
-import com.pulse.domain.WatchScoreRepository;
+import com.pulse.domain.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
 
 class AiCopyContextServiceTest {
 
@@ -38,9 +28,36 @@ class AiCopyContextServiceTest {
 
     @BeforeEach
     void 기본값을_설정한다() {
+        // PROTECTED 헤드라인에서 사용할 보호 이벤트 기본값입니다.
         when(eventRepository.findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
-                1L, GameEvent.SPOILER_PROTECTED_SAFE)).thenReturn(List.of());
-        when(watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(1L)).thenReturn(Optional.empty());
+                1L,
+                GameEvent.SPOILER_PROTECTED_SAFE
+        )).thenReturn(List.of());
+
+        // watch score가 없는 테스트에서도 보호 컨텍스트가 정상 생성되도록 합니다.
+        when(watchScoreRepository.findTopByGameIdOrderByComputedAtDesc(1L))
+                .thenReturn(Optional.empty());
+
+        // REVEALED 컨텍스트가 경기 전체 play를 조회하므로,
+        // 각 테스트가 별도 play fixture를 설정하지 않은 경우 빈 목록을 반환합니다.
+        when(playRepository.findByGameIdOrderByPlayOrderAsc(1L))
+                .thenReturn(List.of());
+
+        // REVEALED 컨텍스트의 공개 이벤트 조회 기본값입니다.
+        // Mockito의 기본 null 반환으로 revealedEvents/revealedMoments에서
+        // NullPointerException이 발생하지 않도록 빈 목록을 설정합니다.
+        when(eventRepository
+                .findByGameIdAndSpoilerLevelAndEventTypeInOrderByInningAscSourceRefAscIdAsc(
+                        1L,
+                        GameEvent.SPOILER_REVEALED_ONLY,
+                        List.of(
+                                "scoring_play",
+                                "home_run",
+                                "lead_change",
+                                "big_inning"
+                        )
+                ))
+                .thenReturn(List.of());
     }
 
     @Test
@@ -91,9 +108,12 @@ class AiCopyContextServiceTest {
         assertThat(AiCopyContextService.projectProtectedEvidence("pitcher_instability", Map.of(
                 "pitcherPitchCount", 102, "velocityDropMph", 2.4)))
                 .containsExactlyInAnyOrderEntriesOf(Map.of("pitcherPitchCount", 102));
-        // 강한 타구는 타구질(결과 암시)뿐이라 보호 상황 근거가 없다
+        // 강한 타구는 아웃카운트·주자 상황만 남기고 타구질(결과 암시)은 제외한다
         assertThat(AiCopyContextService.projectProtectedEvidence("hard_contact", Map.of(
-                "isBarrel", true, "exitVelocity", 112))).isEmpty();
+                "isBarrel", true, "exitVelocity", 112,
+                "outs", 1, "runnerOnFirst", true, "runnerOnSecond", false, "runnerOnThird", false)))
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        "outs", 1, "runnerOnFirst", true, "runnerOnSecond", false, "runnerOnThird", false));
     }
 
     @Test
@@ -220,6 +240,248 @@ class AiCopyContextServiceTest {
                 1L, GameEvent.SPOILER_PROTECTED_SAFE);
     }
 
+    @Test
+    void 공개_헤드라인은_점수_진행에서_고급_summaryFacts와_핵심_플레이_태그를_계산한다() {
+        Game game = game(Game.STATUS_FINAL, 3, 2);
+        game.setHomeTeamName("San Francisco Giants");
+        game.setAwayTeamName("Colorado Rockies");
+        game.setPeriod(9);
+        game.setHomeInningScores(List.of(0, 0, 0, 1, 0, 0, 0, 0, 2));
+        game.setAwayInningScores(List.of(1, 0, 0, 0, 0, 0, 0, 1, 0));
+        when(gameRepository.findById(1L)).thenReturn(Optional.of(game));
+
+        List<Play> plays = List.of(
+                scoringPlay(101L, 101L, 1, "Top", 0, 1, 1),
+                scoringPlay(102L, 102L, 4, "Bottom", 1, 1, 1),
+                scoringPlay(103L, 103L, 8, "Top", 1, 2, 1),
+                scoringPlay(104L, 104L, 9, "Bottom", 3, 2, 2)
+        );
+        when(playRepository.findByGameIdOrderByPlayOrderAsc(1L)).thenReturn(plays);
+
+        FinalHeadlineContext context = service
+                .finalHeadlineContext(1L, AiCopyMode.REVEALED)
+                .orElseThrow();
+
+        FinalHeadlineContext.SummaryFacts facts = context.summaryFacts();
+        assertThat(facts.winnerSide()).isEqualTo("home");
+        assertThat(facts.winnerName()).isEqualTo("San Francisco Giants");
+        assertThat(facts.loserName()).isEqualTo("Colorado Rockies");
+        assertThat(facts.winnerScore()).isEqualTo(3);
+        assertThat(facts.loserScore()).isEqualTo(2);
+        assertThat(facts.firstScoringSide()).isEqualTo("away");
+        assertThat(facts.firstScoringInning()).isEqualTo(1);
+        assertThat(facts.tyingInning()).isEqualTo(4);
+        assertThat(facts.decisiveInning()).isEqualTo(9);
+        assertThat(facts.decisiveRuns()).isEqualTo(2);
+        assertThat(facts.leadChangeCount()).isEqualTo(1);
+        assertThat(facts.comebackWin()).isTrue();
+        assertThat(facts.walkOff()).isTrue();
+        assertThat(facts.shutout()).isFalse();
+        assertThat(facts.extraInnings()).isFalse();
+        assertThat(facts.finalInning()).isEqualTo(9);
+        assertThat(facts.scoreGap()).isEqualTo(1);
+        assertThat(facts.totalRuns()).isEqualTo(5);
+
+        assertThat(context.verifiedPlays())
+                .extracting(FinalHeadlineContext.VerifiedPlay::playOrder)
+                .containsExactly(101L, 102L, 103L, 104L);
+        assertThat(context.verifiedPlays())
+                .filteredOn(play -> play.playOrder().equals(101L))
+                .singleElement()
+                .satisfies(play -> assertThat(play.factTags()).contains("FIRST_SCORE"));
+        assertThat(context.verifiedPlays())
+                .filteredOn(play -> play.playOrder().equals(102L))
+                .singleElement()
+                .satisfies(play -> assertThat(play.factTags()).contains("TYING_SCORE"));
+        assertThat(context.verifiedPlays())
+                .filteredOn(play -> play.playOrder().equals(104L))
+                .singleElement()
+                .satisfies(play -> assertThat(play.factTags())
+                        .contains("LEAD_CHANGE", "DECISIVE_SCORE", "COMEBACK_WIN", "WALK_OFF"));
+    }
+
+    @Test
+    void 공개_헤드라인은_추가_경기_흐름_표현용_플레이_태그를_계산한다() {
+        Game game = game(Game.STATUS_FINAL, 5, 3);
+        game.setHomeTeamName("San Francisco Giants");
+        game.setAwayTeamName("Colorado Rockies");
+        game.setPeriod(9);
+        game.setHomeInningScores(
+                List.of(0, 0, 0, 1, 0, 0, 1, 3, 0)
+        );
+        game.setAwayInningScores(
+                List.of(1, 0, 0, 0, 0, 2, 0, 0, 0)
+        );
+
+        when(gameRepository.findById(1L))
+                .thenReturn(Optional.of(game));
+
+        List<Play> plays = new ArrayList<>(
+                List.of(
+                        scoringPlay(
+                                101L,
+                                101L,
+                                1,
+                                "Top",
+                                0,
+                                1,
+                                1
+                        ),
+                        scoringPlay(
+                                102L,
+                                102L,
+                                4,
+                                "Bottom",
+                                1,
+                                1,
+                                1
+                        ),
+                        scoringPlay(
+                                103L,
+                                103L,
+                                6,
+                                "Top",
+                                1,
+                                3,
+                                2
+                        ),
+                        scoringPlay(
+                                104L,
+                                104L,
+                                7,
+                                "Bottom",
+                                2,
+                                3,
+                                1
+                        ),
+                        scoringPlay(
+                                105L,
+                                105L,
+                                8,
+                                "Bottom",
+                                4,
+                                3,
+                                2
+                        ),
+                        scoringPlay(
+                                106L,
+                                106L,
+                                8,
+                                "Bottom",
+                                5,
+                                3,
+                                1
+                        )
+                )
+        );
+
+        plays.get(1).setText(
+                "Tying Batter singled to center."
+        );
+        plays.get(4).setTextKo(
+                "Go Ahead Batter, 좌익수 방면 안타로 2득점."
+        );
+        plays.get(5).setText(
+                "Insurance Batter doubled to left."
+        );
+
+        when(
+                playRepository.findByGameIdOrderByPlayOrderAsc(1L)
+        ).thenReturn(plays);
+
+        FinalHeadlineContext context = service
+                .finalHeadlineContext(
+                        1L,
+                        AiCopyMode.REVEALED
+                )
+                .orElseThrow();
+
+        assertThat(context.verifiedPlays())
+                .filteredOn(
+                        play -> play.playOrder().equals(102L)
+                )
+                .singleElement()
+                .satisfies(
+                        play -> assertThat(play.factTags())
+                                .contains(
+                                        "TYING_SCORE",
+                                        "HIT"
+                                )
+                );
+
+        assertThat(context.verifiedPlays())
+                .filteredOn(
+                        play -> play.playOrder().equals(104L)
+                )
+                .singleElement()
+                .satisfies(
+                        play -> assertThat(play.factTags())
+                                .contains(
+                                        "TRAILS_AFTER",
+                                        "CUTS_DEFICIT"
+                                )
+                );
+
+        assertThat(context.verifiedPlays())
+                .filteredOn(
+                        play -> play.playOrder().equals(105L)
+                )
+                .singleElement()
+                .satisfies(
+                        play -> assertThat(play.factTags())
+                                .contains(
+                                        "LEAD_CHANGE",
+                                        "TAKES_LEAD",
+                                        "LEADS_AFTER",
+                                        "DECISIVE_SCORE",
+                                        "COMEBACK_WIN",
+                                        "HIT"
+                                )
+                );
+
+        assertThat(context.verifiedPlays())
+                .filteredOn(
+                        play -> play.playOrder().equals(106L)
+                )
+                .singleElement()
+                .satisfies(
+                        play -> assertThat(play.factTags())
+                                .contains(
+                                        "LEADS_AFTER",
+                                        "INSURANCE_SCORE",
+                                        "HIT"
+                                )
+                );
+    }
+
+    @Test
+    void 플레이_점수_흐름이_최종_점수와_다르면_고급_사실을_추측하지_않는다() {
+        Game game = game(Game.STATUS_FINAL, 5, 3);
+        game.setPeriod(9);
+        when(gameRepository.findById(1L)).thenReturn(Optional.of(game));
+        when(playRepository.findByGameIdOrderByPlayOrderAsc(1L)).thenReturn(List.of(
+                scoringPlay(201L, 201L, 1, "Top", 0, 1, 1),
+                scoringPlay(202L, 202L, 4, "Bottom", 2, 1, 2)
+        ));
+
+        FinalHeadlineContext.SummaryFacts facts = service
+                .finalHeadlineContext(1L, AiCopyMode.REVEALED)
+                .orElseThrow()
+                .summaryFacts();
+
+        assertThat(facts.firstScoringSide()).isNull();
+        assertThat(facts.firstScoringInning()).isNull();
+        assertThat(facts.tyingInning()).isNull();
+        assertThat(facts.decisiveInning()).isNull();
+        assertThat(facts.decisiveRuns()).isNull();
+        assertThat(facts.leadChangeCount()).isNull();
+        assertThat(facts.comebackWin()).isNull();
+        assertThat(facts.walkOff()).isNull();
+        assertThat(facts.shutout()).isFalse();
+        assertThat(facts.scoreGap()).isEqualTo(2);
+        assertThat(facts.totalRuns()).isEqualTo(8);
+    }
+
     private static GameEvent event(long id, int inning, String eventType, long second) {
         GameEvent event = new GameEvent();
         event.setId(id);
@@ -248,6 +510,30 @@ class AiCopyContextServiceTest {
         event.setBatterId(batterId);
         event.setPayload(payload);
         return event;
+    }
+
+    private static Play scoringPlay(
+            long id,
+            long playOrder,
+            int inning,
+            String inningType,
+            int homeScore,
+            int awayScore,
+            int scoreValue
+    ) {
+        Play play = new Play();
+        play.setId(id);
+        play.setGameId(1L);
+        play.setPlayOrder(playOrder);
+        play.setType("Play Result");
+        play.setInning(inning);
+        play.setInningType(inningType);
+        play.setText("score change " + playOrder);
+        play.setHomeScore(homeScore);
+        play.setAwayScore(awayScore);
+        play.setScoringPlay(true);
+        play.setScoreValue(scoreValue);
+        return play;
     }
 
     private static Play play(long playOrder, int homeScore, int awayScore) {

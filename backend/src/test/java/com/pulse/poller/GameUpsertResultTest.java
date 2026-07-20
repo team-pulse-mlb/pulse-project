@@ -3,6 +3,7 @@ package com.pulse.poller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pulse.domain.Game;
+import com.pulse.domain.GameLifecycle;
 import org.junit.jupiter.api.Test;
 
 class GameUpsertResultTest {
@@ -14,10 +15,10 @@ class GameUpsertResultTest {
     }
 
     @Test
-    void enteredTerminalState_shouldRequirePreviousLiveState() {
+    void enteredTerminalState_shouldRequireOnlyLifecycleTransition() {
         assertThat(result(GameLifecycle.LIVE, GameLifecycle.FINAL, true).enteredTerminalState()).isTrue();
         assertThat(result(GameLifecycle.FINAL, GameLifecycle.FINAL, false).enteredTerminalState()).isFalse();
-        assertThat(result(GameLifecycle.SCHEDULED, GameLifecycle.DONE, false).enteredTerminalState()).isFalse();
+        assertThat(result(GameLifecycle.SCHEDULED, GameLifecycle.DONE, false).enteredTerminalState()).isTrue();
     }
 
     private static PollerGameWriter.GameUpsertResult result(

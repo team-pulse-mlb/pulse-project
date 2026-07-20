@@ -1,0 +1,111 @@
+# v9 기준 스냅샷 — 수정 금지
+# PULSE 추천 점수 상수
+#
+# 규칙
+# - 상수는 이 파일에만 둔다. 코드에 하드코딩하지 않는다.
+# - 변경은 PR로만 하고, 커밋 메시지에 조정 근거(lift, 운영 지표)를 기록한다.
+# - 변경 시 version을 1 올린다. watch_scores 로그에 이 version이 함께 저장된다.
+
+scoring:
+  version: 9
+
+  # 기본 신호 (랭킹에 사용)
+  late-inning:
+    inning-7-8: 6
+    inning-9: 12
+    extra: 18
+  score-gap:
+    gap-0-1: 15
+    gap-2: 9
+    gap-3: 3
+  recent-score:
+    per-run: 6
+    # multiplier 적용 전 예산. 실제 신호는 closeness-multiplier(최대 2.0)에 따라 최대 2배까지 커진다.
+    base-budget: 15
+    tau-seconds: 180
+    closeness-multiplier:
+      gap-0: 2.0
+      gap-1: 1.5
+      gap-2: 1.2
+      default: 1.0
+  lead-change:
+    bonus: 14
+    window-plays: 16
+  big-inning:
+    bonus: 9
+    min-scoring-plays: 2
+  count-pressure:
+    full-count: 3
+    two-outs: 3
+    max: 5
+  pressure:
+    bases-loaded: 9
+    scoring-position: 6
+  early-slugfest:
+    bonus: 5
+    max-inning: 3
+    min-total-runs: 7
+
+  # 보정
+  importance:
+    min: 0.9
+    max: 1.15
+    postseason: 1.15
+    both-contending: 1.10
+    one-contending: 1.05
+    both-out: 0.90
+    contention-min-percent: 10
+    contention-max-percent: 90
+  pregame-carryover-max: 10
+  personalization:
+    team-bonus: 10
+    player-bonus: 5
+    max: 15
+
+  # 예정 경기 점수 (pregame_score)
+  pregame:
+    closeness-max: 30
+    closeness-win-percent-span: 0.15
+    closeness-implied-probability-span: 0.25
+    matchup-per-starter-max: 20
+    matchup-era-baseline: 4.6
+    matchup-era-span: 2.0
+    contention-both: 30
+    contention-one: 15
+
+  # 상세 이벤트 신호 (전 라이브 경기에서 추출, 이벤트 타임라인 전용 — 랭킹 미반영)
+  detail:
+    hard-contact-exit-velocity: 100
+    starter-pitch-count: 100
+    velocity-drop-mph: 2.0
+    velocity-drop-window-pitches: 10
+    long-at-bat-pitches: 8
+    max-events-per-type-per-game: 8
+
+  # 종료 경기 경기 긴장도 그래프(base_score 0~100을 1~5 단계로 양자화)
+  tension-curve:
+    level-boundaries: [20, 40, 60, 80]
+
+  # 판단 기준
+  thresholds:
+    alert-score: 50
+    alert-rearm-score: 35
+    alert-rise-score: 15
+    alert-rise-window-minutes: 5
+    alert-cooldown-minutes: 15
+    alert-global-limit: 3
+    alert-global-window-minutes: 15
+    switch-score: 70
+    switch-gap: 20
+
+  # 보호 모드 이벤트 타임라인 하이라이트 트리거
+  # (알림 thresholds와 분리 — 알림은 스팸 방지로 빡세고, 타임라인은 더 촘촘히 허용)
+  # 운영 7일치 종료 경기 42경기 watch_scores 재생 시뮬레이션 기준 경기당 평균 6.1건, 중앙값 5건(목표 5~10건)
+  # enabled=false면 기존 이벤트별 문구 생성 트리거를 그대로 사용한다.
+  highlight:
+    enabled: true
+    min-score: 20
+    rise-score: 6
+    rise-window-minutes: 12
+    cooldown-minutes: 5
+    backfill-max-per-game: 8

@@ -106,8 +106,12 @@ PR 본문에는 아래 내용을 적는다.
 PR을 올리기 전에 담당 영역에 맞는 검증을 실행한다.
 
 ```bash
-cd backend
-./gradlew build
-```
+# backend (JDK 21 기준)
+cd backend && ./gradlew build
 
-frontend와 ai-service는 초기 프로젝트 생성 후 각 README에 실행 명령을 추가한다.
+# frontend
+cd frontend && npm run lint && npm run build
+
+# ai-service
+cd ai-service && python -m unittest discover -s tests
+```

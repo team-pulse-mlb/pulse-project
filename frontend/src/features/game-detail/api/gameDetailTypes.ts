@@ -113,14 +113,25 @@ interface BaseGameDetailResponse {
  *
  * revealed로 요청해도 백엔드는 항상 PROTECTED를 반환한다.
  */
+export interface StartingLineupPlayerResponse {
+    battingOrder: number;
+    playerName: string;
+    position: string | null;
+}
+
+export interface StartingLineupsResponse {
+    home: StartingLineupPlayerResponse[];
+    away: StartingLineupPlayerResponse[];
+}
+
 export interface ScheduledGameDetailResponse
     extends BaseGameDetailResponse {
 
     status: 'STATUS_SCHEDULED';
     displayMode: 'PROTECTED';
 
-    venue: string | null;
     probablePitchers: ProbablePitchersResponse;
+    startingLineups: StartingLineupsResponse;
 }
 
 /**
@@ -151,6 +162,8 @@ export interface RevealedLiveGameDetailResponse
 
     status: 'STATUS_IN_PROGRESS';
     displayMode: 'REVEALED';
+
+    venue: string | null;
 
     score: ScoreResponse;
     inning: number | null;
@@ -187,6 +200,7 @@ export interface RevealedFinalGameDetailResponse
     status: 'STATUS_FINAL';
     displayMode: 'REVEALED';
 
+    venue: string | null;
     headline: string | null;
     finalScore: ScoreResponse;
     inningScores: InningScoresResponse;

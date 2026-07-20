@@ -19,6 +19,7 @@ import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class TimelineHighlightBackfillTest {
     private static final Instant START = Instant.parse("2026-07-10T05:00:00Z");
     private static final Instant NOW = Instant.parse("2026-07-10T08:00:00Z");
     private static final ScoringProperties.Highlight ENABLED =
-            new ScoringProperties.Highlight(true, 40, 12, 6, 8);
+            new ScoringProperties.Highlight(true, 40, 12, 6, 8, 8);
 
     private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
     private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
@@ -114,9 +115,9 @@ class TimelineHighlightBackfillTest {
     }
 
     @Test
-    @DisplayName("경기당 최대 두 건만 표시한다")
+    @DisplayName("설정된 경기당 백필 상한까지만 표시한다")
     void limitsHighlightsPerGame() {
-        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 8);
+        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 8, 2);
         GameEvent first = event(91L, 4, "full_count_two_out");
         GameEvent second = event(92L, 24, "pressure_bases_loaded");
         GameEvent third = event(93L, 44, "hard_contact");
@@ -139,9 +140,65 @@ class TimelineHighlightBackfillTest {
     }
 
     @Test
+    @DisplayName("기존 하이라이트를 해제한 뒤 다시 선정한다")
+    void rebuildClearsExistingHighlightBeforeReselection() {
+        GameEvent existingHighlight = event(91L, 4, "full_count_two_out");
+        existingHighlight.setTimelineHighlight(true);
+        List<Boolean> savedStates = new ArrayList<>();
+        when(gameEventRepository
+                .findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
+                        GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE))
+                .thenReturn(List.of(existingHighlight));
+        when(watchScoreRepository.findByGameIdOrderByComputedAtAsc(GAME_ID))
+                .thenReturn(List.of(score(0, 26), score(5, 38)));
+        when(gameEventRepository.findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE))
+                .thenReturn(List.of(existingHighlight));
+        when(gameEventRepository.save(any(GameEvent.class))).thenAnswer(invocation -> {
+            GameEvent saved = invocation.getArgument(0);
+            savedStates.add(saved.isTimelineHighlight());
+            return saved;
+        });
+
+        int marked = backfill(ENABLED).rebuildHighlights(GAME_ID, NOW, false);
+
+        assertThat(marked).isEqualTo(1);
+        assertThat(savedStates).containsExactly(false, true);
+        assertThat(existingHighlight.isTimelineHighlight()).isTrue();
+    }
+
+    @Test
+    @DisplayName("재생성은 경기당 상한을 적용하지 않는다")
+    void rebuildDoesNotLimitHighlightsPerGame() {
+        ScoringProperties.Highlight config =
+                new ScoringProperties.Highlight(true, 40, 12, 10, 8, 2);
+        GameEvent first = event(91L, 4, "full_count_two_out");
+        GameEvent second = event(92L, 24, "pressure_bases_loaded");
+        GameEvent third = event(93L, 44, "hard_contact");
+        when(gameEventRepository
+                .findByGameIdAndSpoilerLevelAndTimelineHighlightTrueOrderByObservedAtAscIdAsc(
+                        GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE))
+                .thenReturn(List.of());
+        when(watchScoreRepository.findByGameIdOrderByComputedAtAsc(GAME_ID)).thenReturn(List.of(
+                score(0, 10), score(5, 30), score(10, 35),
+                score(20, 10), score(25, 45), score(30, 50),
+                score(40, 10), score(45, 55)
+        ));
+        when(gameEventRepository.findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
+                GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE))
+                .thenReturn(List.of(first, second, third));
+
+        int marked = backfill(config).rebuildHighlights(GAME_ID, NOW, false);
+
+        assertThat(marked).isEqualTo(3);
+        assertThat(List.of(first, second, third)).allMatch(GameEvent::isTimelineHighlight);
+        verify(gameEventRepository, times(3)).save(any(GameEvent.class));
+    }
+
+    @Test
     @DisplayName("쿨다운 미만 간격의 급변 후보는 건너뛴다")
     void skipsRiseCandidateInsideCooldown() {
-        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 8);
+        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 8, 8);
         GameEvent anchor = event(91L, 4, "full_count_two_out");
         prepare(
                 List.of(score(0, 10), score(5, 30), score(10, 35)),
@@ -157,7 +214,7 @@ class TimelineHighlightBackfillTest {
     @Test
     @DisplayName("하나의 anchor를 여러 급변 후보에 중복 선정하지 않는다")
     void doesNotSelectSameAnchorTwice() {
-        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 0);
+        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 10, 0, 8);
         GameEvent anchor = event(91L, 4, "full_count_two_out");
         prepare(
                 List.of(score(0, 10), score(5, 30), score(10, 35)),
@@ -168,6 +225,43 @@ class TimelineHighlightBackfillTest {
 
         assertThat(marked).isEqualTo(1);
         verify(gameEventRepository).save(anchor);
+    }
+
+    @Test
+    @DisplayName("윈도에 여러 유형이 있으면 최근 이벤트보다 정보량이 큰 유형을 anchor로 고른다")
+    void prefersHigherInformationTypeOverRecency() {
+        GameEvent pressure = event(91L, 2, "pressure_bases_loaded");
+        GameEvent hardContact = event(92L, 4, "hard_contact");
+        prepare(List.of(score(0, 26), score(5, 38)), List.of(pressure, hardContact));
+
+        int marked = backfill(ENABLED).backfillIfEmpty(GAME_ID, NOW, false);
+
+        assertThat(marked).isEqualTo(1);
+        assertThat(pressure.isTimelineHighlight()).isTrue();
+        assertThat(hardContact.isTimelineHighlight()).isFalse();
+        verify(gameEventRepository).save(pressure);
+    }
+
+    @Test
+    @DisplayName("시간상 인접한 급변끼리는 같은 유형의 anchor를 반복 선정하지 않는다")
+    void avoidsSameTypeForAdjacentRises() {
+        // 운영 기본값처럼 윈도(12분)가 쿨다운(5분)보다 길어 인접 급변이 생기는 조건
+        ScoringProperties.Highlight config = new ScoringProperties.Highlight(true, 40, 12, 12, 5, 8);
+        GameEvent longAtBatLate = event(92L, 17, "long_at_bat");
+        GameEvent longAtBatEarly = event(91L, 5, "long_at_bat");
+        GameEvent hardContact = event(93L, 4, "hard_contact");
+        prepare(
+                List.of(score(0, 10), score(6, 40), score(12, 15), score(18, 45)),
+                List.of(hardContact, longAtBatEarly, longAtBatLate)
+        );
+
+        int marked = backfill(config).backfillIfEmpty(GAME_ID, NOW, false);
+
+        assertThat(marked).isEqualTo(2);
+        assertThat(longAtBatLate.isTimelineHighlight()).isTrue();
+        // 인접 급변에서 long_at_bat이 이미 선택됐으므로 우선순위가 낮아도 다른 유형을 고른다
+        assertThat(hardContact.isTimelineHighlight()).isTrue();
+        assertThat(longAtBatEarly.isTimelineHighlight()).isFalse();
     }
 
     @Test
@@ -200,7 +294,7 @@ class TimelineHighlightBackfillTest {
     @Test
     @DisplayName("하이라이트 설정이 비활성화면 아무 것도 하지 않는다")
     void disabledIsNoOp() {
-        ScoringProperties.Highlight disabled = new ScoringProperties.Highlight(false, 40, 12, 6, 8);
+        ScoringProperties.Highlight disabled = new ScoringProperties.Highlight(false, 40, 12, 6, 8, 8);
 
         int marked = backfill(disabled).backfillIfEmpty(GAME_ID, NOW, true);
 

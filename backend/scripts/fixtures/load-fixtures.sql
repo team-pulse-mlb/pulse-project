@@ -7,6 +7,11 @@ CREATE TEMP TABLE fixture_players (LIKE players INCLUDING DEFAULTS) ON COMMIT DR
 CREATE TEMP TABLE fixture_games (LIKE games INCLUDING DEFAULTS) ON COMMIT DROP;
 CREATE TEMP TABLE fixture_plays (LIKE plays INCLUDING DEFAULTS) ON COMMIT DROP;
 
+-- plays.text_ko_attempts는 최신 스키마에서 NOT NULL이므로
+-- 기존 fixture CSV에 없는 값을 0으로 채운다.
+ALTER TABLE fixture_plays
+ALTER COLUMN text_ko_attempts SET DEFAULT 0;
+
 -- COPY는 CSV 헤더명이 아니라 아래 컬럼 위치로 매핑하므로 덤프 순서를 명시한다.
 \copy fixture_teams (team_id, abbreviation, created_at, display_name, division, league, location, logo_team_id, name, short_display_name, slug, updated_at) FROM '/tmp/pulse-fixtures/teams.csv' WITH (FORMAT csv, HEADER true)
 \copy fixture_players (player_id, created_at, first_name, full_name, last_name, position, team_id, updated_at) FROM '/tmp/pulse-fixtures/players.csv' WITH (FORMAT csv, HEADER true)
@@ -78,8 +83,8 @@ FROM fixture_players
 ON CONFLICT (player_id) DO NOTHING;
 
 -- 실제 완주 경기 스냅샷을 시뮬레이터 원본으로 두 벌 복제한다.
--- 이 행들은 화면 카드가 아니라 시뮬레이터가 읽을 games+plays 원본이다. 슬레이트(오늘)에
--- 직접 노출되지 않도록 과거 시각의 종료 상태로 적재하고, final_headline 등 파생값은 비운다.
+-- 이 행들은 화면 카드가 아니라 시뮬레이터가 읽을 games+plays 원본이다. 추천 카드의
+-- 최근 종료 경기 보충 대상에 섞이지 않도록 과거 시각의 취소 상태로 적재하고 파생값은 비운다.
 -- 카드·점수·문구는 시뮬레이션 poller가 만드는 target 경기에서 라이브로 생성된다.
 INSERT INTO games (
     game_id, away_inning_scores, away_runs, away_team_abbr, away_team_id,
@@ -105,7 +110,7 @@ SELECT target.game_id,
        CASE WHEN target.reverse_matchup THEN source.away_team_name ELSE source.home_team_name END,
        source.last_play_order,
        source.last_polled_at,
-       'FINAL',
+       'DONE',
        source.observed_at,
        source.peak_base_score,
        source.period,
@@ -114,7 +119,7 @@ SELECT target.game_id,
        source.pregame_score,
        'FIXTURE',
        now() - interval '30 days',
-       'STATUS_FINAL',
+       'STATUS_CANCELED',
        COALESCE(source.updated_at, now()),
        source.venue
 FROM fixture_games source
@@ -128,7 +133,7 @@ INSERT INTO plays (
     away_score, backfilled, balls, batter_id, observed_at, game_id, home_score,
     inning, inning_type, outs, pitcher_id, play_order, runner_on_first,
     runner_on_second, runner_on_third, score_value, scoring_play, source,
-    strikes, text, type
+    strikes, text, type, text_ko_attempts
 )
 SELECT CASE WHEN target.reverse_matchup THEN source.home_score ELSE source.away_score END,
        source.backfilled,
@@ -150,7 +155,8 @@ SELECT CASE WHEN target.reverse_matchup THEN source.home_score ELSE source.away_
        'FIXTURE',
        source.strikes,
        source.text,
-       source.type
+       source.type,
+       COALESCE(source.text_ko_attempts, 0)
 FROM fixture_plays source
 CROSS JOIN (
     VALUES (8800000004::BIGINT, true), (8800000006::BIGINT, false)

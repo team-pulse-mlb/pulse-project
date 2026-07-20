@@ -53,9 +53,11 @@ class AlertSimulatorTest {
                 .containsExactly(1, 1, 1, 1);
     }
 
-    private static Cycle cycle(Instant at, double score) { return new Cycle(at, at.getEpochSecond(), score, score, 0, "OPERATIONAL"); }
+    private static Cycle cycle(Instant at, double score) {
+        return new Cycle(at, at.getEpochSecond(), score, score, score, 0, "OPERATIONAL", Map.of());
+    }
 
     private static Cycle backfillCycle(long playOrder, double score) {
-        return new Cycle(null, playOrder, score, score, 0, "S3_BACKFILL");
+        return new Cycle(null, playOrder, score, score, score, 0, "S3_BACKFILL", Map.of());
     }
 }

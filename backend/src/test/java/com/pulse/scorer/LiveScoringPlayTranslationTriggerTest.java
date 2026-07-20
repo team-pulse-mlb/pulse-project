@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.config.ScoringProperties;
-import com.pulse.common.message.NotificationEventPublisher;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
@@ -88,7 +87,7 @@ class LiveScoringPlayTranslationTriggerTest {
                         mock(SurgeDetector.class),
                         mock(TimelineHighlightTrigger.class),
                         aiGenerationTrigger,
-                        mock(NotificationEventPublisher.class),
+                        mock(SurgeNotificationPublisher.class),
                         properties);
 
         service.handle(

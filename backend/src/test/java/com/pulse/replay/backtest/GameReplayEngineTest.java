@@ -4,11 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pulse.common.config.ScoringProperties;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class GameReplayEngineTest {
+    @Test void 깨진_경기전_입력_JSON은_예외_없이_영점으로_처리한다() {
+        GameReplayEngine engine = new GameReplayEngine(options(), new ObjectMapper());
+
+        assertThat(engine.starterScore(123L, "{broken-json")).isZero();
+    }
+
     @Test void 백필_득점은_15_play_동안_선형_감쇠한다() {
         ScoringProperties scoring = new ScoringConstantsLoader().loadBaseline("6");
         GameReplayEngine engine = new GameReplayEngine(options(), new ObjectMapper());
@@ -29,9 +36,27 @@ class GameReplayEngineTest {
         assertThat(engine.approximateLead(rows, 26, scoring)).isZero();
     }
 
+    @Test void 상태_점수는_득점_직후의_사후_반응_신호를_제외한다() {
+        ScoringProperties scoring = new ScoringConstantsLoader().loadBaseline("6");
+        GameReplayEngine engine = new GameReplayEngine(options(), new ObjectMapper());
+        BacktestModels.GameRow game = new BacktestModels.GameRow(
+                1, Instant.parse("2026-06-01T00:00:00Z"), "LIVE", false,
+                1L, 2L, 1, 0, 1, null, null, "홈", "원정");
+        BacktestModels.GameData data = new BacktestModels.GameData(
+                game, List.of(play(1, 1, 0, true)), null, null, List.of());
+
+        BacktestModels.Cycle cycle = engine.replay(data, scoring).getFirst();
+
+        assertThat(cycle.stateScore()).isEqualTo(scoring.scoreGap().gap01());
+        assertThat(cycle.stateScore()).isLessThan(cycle.baseScore());
+        assertThat(cycle.signals())
+                .containsEntry("recent_score", engine.approximateRecent(data.plays(), 0, scoring))
+                .containsEntry("lead_change", engine.approximateLead(data.plays(), 0, scoring));
+    }
+
     private static BacktestProperties options() {
-        return new BacktestProperties("6", null, null, null, List.of(), List.of(), null,
-                15, 25, 12, 10, 0.7, 0.02, 5, 2);
+        return new BacktestProperties("6", null, null, null, List.of(), List.of(), null, null,
+                15, 25, 12, 2, 10, 0.7, 0.02, 5, 2);
     }
     private static BacktestModels.PlayRow play(long order, int home, int away, boolean scoring) {
         return new BacktestModels.PlayRow(1, order, null, 1, "TOP", home, away, scoring, scoring ? 1 : null,

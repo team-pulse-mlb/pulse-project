@@ -16,7 +16,11 @@ import java.util.List;
 /** 운영 API와 로컬 시뮬레이션이 공유하는 야구 데이터 입력 경계다. */
 public interface BaseballDataSource {
 
-    List<BdlGame> getGames(LocalDate date);
+    default List<BdlGame> getGames(LocalDate date) {
+        return getGames(List.of(date));
+    }
+
+    List<BdlGame> getGames(List<LocalDate> dates);
 
     ListResponse<BdlPlay> getPlays(long gameId, Long cursor);
 
