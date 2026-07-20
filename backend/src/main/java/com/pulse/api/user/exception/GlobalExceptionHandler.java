@@ -202,4 +202,77 @@ public class GlobalExceptionHandler {
                 .badRequest()
                 .body(response);
     }
+
+
+    /**
+     * 비밀번호 변경 요청에서 입력한 현재 비밀번호가
+     * DB에 저장된 비밀번호와 일치하지 않는 경우 처리합니다.
+     */
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCurrentPassword(
+            InvalidCurrentPasswordException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "INVALID_CURRENT_PASSWORD",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
+
+    /**
+     * 새 비밀번호와 새 비밀번호 확인 값이
+     * 서로 일치하지 않는 경우 처리합니다.
+     */
+    @ExceptionHandler(PasswordMismatchException.class)
+    public ResponseEntity<ErrorResponse> handlePasswordMismatch(
+            PasswordMismatchException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "PASSWORD_MISMATCH",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
+
+
+    /**
+     * 현재 비밀번호와 새 비밀번호가 같은 경우 처리합니다.
+     */
+    @ExceptionHandler(SamePasswordException.class)
+    public ResponseEntity<ErrorResponse> handleSamePassword(
+            SamePasswordException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "SAME_PASSWORD",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
+
+
+    @ExceptionHandler(
+            InvalidWithdrawalConfirmationException.class
+    )
+    public ResponseEntity<ErrorResponse>
+    handleInvalidWithdrawalConfirmation(
+            InvalidWithdrawalConfirmationException exception
+    ) {
+        ErrorResponse response = new ErrorResponse(
+                "INVALID_WITHDRAWAL_CONFIRMATION",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .badRequest()
+                .body(response);
+    }
 }

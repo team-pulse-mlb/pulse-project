@@ -191,12 +191,7 @@ function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
             <button type="button" onClick={handleGoSignup}>
                 회원가입
             </button>
-
-            <span>|</span>
-
-            <button type="button" disabled>
-                비밀번호 재설정 P2
-            </button>
+            
             </div>
 
             {SHOW_SOCIAL_LOGIN && (

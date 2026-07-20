@@ -1,6 +1,7 @@
 package com.pulse.api.user;
 
 import com.pulse.api.user.dto.*;
+import com.pulse.api.user.security.cookie.RefreshTokenCookieFactory;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -9,8 +10,11 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,6 +31,7 @@ public class MemberController {
 
     private final MemberService memberService;
     private final EmailVerificationService emailVerificationService;
+    private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
     // 회원가입 처리
     @Operation(
@@ -105,6 +110,130 @@ public class MemberController {
     }
 
 
+    /**
+     * 로그인한 사용자의 비밀번호를 변경합니다.
+     *
+     * 요청 경로:
+     * PUT /api/members/me/password
+     *
+     * Authentication.getName():
+     * - JwtAuthenticationFilter가 등록한 로그인 사용자 이메일
+     *
+     * 처리 성공 시:
+     * - 새 비밀번호가 BCrypt 해시로 저장됩니다.
+     * - 해당 사용자의 활성 Refresh Token이 모두 폐기됩니다.
+     * - 프론트에서는 Access Token을 삭제하고 다시 로그인시켜야 합니다.
+     */
+    @PutMapping("/me/password")
+    public ResponseEntity<ChangePasswordResponse> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        ChangePasswordResponse response =
+                memberService.changePassword(
+                        authentication.getName(),
+                        request
+                );
 
+        ResponseCookie deleteCookie =
+                refreshTokenCookieFactory
+                        .createDeleteRefreshTokenCookie();
+
+        return ResponseEntity
+                .ok()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        deleteCookie.toString()
+                )
+                .body(response);
+    }
+
+
+    /**
+     * 로그인한 사용자에게
+     * 비밀번호 변경용 이메일 인증번호를 전송합니다.
+     *
+     * 요청:
+     * POST /api/members/me/password/email-code/send
+     *
+     * 이메일을 요청 본문으로 받지 않고
+     * JWT 인증 정보에서 가져옵니다.
+     */
+    @PostMapping("/me/password/email-code/send")
+    public ResponseEntity<EmailCodeSendResponse>
+    sendPasswordChangeEmailCode(
+            Authentication authentication
+    ) {
+        EmailCodeSendResponse response =
+                emailVerificationService
+                        .sendPasswordChangeCode(
+                                authentication.getName()
+                        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 비밀번호 변경용 이메일 인증번호를 확인합니다.
+     *
+     * 요청:
+     * POST /api/members/me/password/email-code/verify
+     *
+     * 요청 본문:
+     * {
+     *   "code": "123456"
+     * }
+     */
+    @PostMapping("/me/password/email-code/verify")
+    public ResponseEntity<EmailCodeVerifyResponse>
+    verifyPasswordChangeEmailCode(
+            Authentication authentication,
+            @Valid
+            @RequestBody
+            PasswordChangeEmailCodeVerifyRequest request
+    ) {
+        EmailCodeVerifyResponse response =
+                emailVerificationService
+                        .verifyPasswordChangeCode(
+                                authentication.getName(),
+                                request.code()
+                        );
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    /**
+     * 로그인한 회원을 탈퇴 처리합니다.
+     *
+     * 요청:
+     * POST /api/members/me/withdraw
+     */
+    @PostMapping("/me/withdraw")
+    public ResponseEntity<WithdrawMemberResponse>
+    withdrawMember(
+            Authentication authentication,
+            @Valid
+            @RequestBody
+            WithdrawMemberRequest request
+    ) {
+        WithdrawMemberResponse response =
+                memberService.withdrawMember(
+                        authentication.getName(),
+                        request
+                );
+
+        ResponseCookie deleteCookie =
+                refreshTokenCookieFactory
+                        .createDeleteRefreshTokenCookie();
+
+        return ResponseEntity
+                .ok()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        deleteCookie.toString()
+                )
+                .body(response);
+    }
 
 }
