@@ -8,6 +8,7 @@ import type {
     LiveGameDetailResponse,
     ScheduledGameDetailResponse,
     SituationResponse,
+    SwitchSuggestionResponse,
     TeamResponse,
 } from '../api/gameDetailTypes';
 import type {
@@ -18,6 +19,7 @@ import type {
     GameDetailViewModel,
     GameInningScoresViewModel,
     GameSituationViewModel,
+    GameSwitchSuggestionViewModel,
     LiveGameDetailViewModel,
     ScheduledGameDetailViewModel,
     TensionLevel,
@@ -203,6 +205,44 @@ function toCurrentMatchupViewModel(
  * 경기 상세 API가 제공하지 않는 H·E 값은
  * 타입과 화면에서 모두 제거했다.
  */
+function toSwitchSuggestionViewModel(
+    suggestion: SwitchSuggestionResponse | null,
+): GameSwitchSuggestionViewModel | null {
+    if (
+        suggestion === null
+        || suggestion.gameId <= 0
+    ) {
+        return null;
+    }
+
+    const message =
+        suggestion.message.trim();
+
+    if (message.length === 0) {
+        return null;
+    }
+
+    return {
+        gameId: suggestion.gameId,
+
+        matchup: {
+            home:
+                suggestion.matchup.home?.trim()
+                || null,
+
+            away:
+                suggestion.matchup.away?.trim()
+                || null,
+        },
+
+        latestTag:
+            suggestion.latestTag?.trim()
+            || null,
+
+        message,
+    };
+}
+
 function toInningScoresViewModel(
     inningScores: InningScoresResponse,
     awayAbbr: string,
@@ -411,6 +451,11 @@ export function toLiveGameDetailViewModel(
         favoritePlayersPlaying: [
             ...response.favoritePlayersPlaying,
         ],
+
+        switchSuggestion:
+            toSwitchSuggestionViewModel(
+                response.switchSuggestion,
+            ),
     };
 }
 

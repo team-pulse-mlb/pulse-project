@@ -78,6 +78,7 @@ export interface SwitchSuggestionResponse {
     gameId: number;
     matchup: MatchupResponse;
     latestTag: string | null;
+    message: string;
 }
 
 export interface ScoringPlayResponse {
@@ -174,6 +175,7 @@ export interface RevealedLiveGameDetailResponse
 
     favoritePlayersPlaying: string[];
     inningScores: InningScoresResponse;
+    switchSuggestion: SwitchSuggestionResponse | null;
 }
 
 /**

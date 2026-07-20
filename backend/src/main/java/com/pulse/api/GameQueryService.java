@@ -33,6 +33,7 @@ public class GameQueryService {
     private final PlayerRepository playerRepository;
     private final LineupRepository lineupRepository;
     private final TensionCurveQueryService tensionCurveQueryService;
+    private final SwitchSuggestionService switchSuggestionService;
 
     /**
      * 경기 상태와 사용자가 선택한 공개 모드에 맞는 상세 응답을 반환한다.
@@ -42,7 +43,20 @@ public class GameQueryService {
      */
     public GameDetailView getGameDetail(
             long gameId,
-            String mode) {
+            String mode
+    ) {
+        return getGameDetail(
+                gameId,
+                mode,
+                null
+        );
+    }
+
+    public GameDetailView getGameDetail(
+            long gameId,
+            String mode,
+            String username
+    ) {
 
         Game game = findGame(gameId);
         DisplayMode safeMode = parseDisplayMode(mode);
@@ -92,6 +106,12 @@ public class GameQueryService {
         Integer inning = currentInning(game, latestPlay);
         SituationResponse situation = situation(latestPlay);
 
+        SwitchSuggestionResponse switchSuggestion =
+                switchSuggestionService.findSuggestion(
+                        gameId,
+                        username
+                );
+
         if (revealed) {
             return new RevealedGameDetailResponse(
                     game.getId(),
@@ -110,7 +130,8 @@ public class GameQueryService {
                     situation,
                     currentMatchup(latestPlay),
                     favoritePlayersPlaying(),
-                    inningScores(game));
+                    inningScores(game),
+                    switchSuggestion);
         }
 
         return new ProtectedGameDetailResponse(
@@ -124,7 +145,7 @@ public class GameQueryService {
                 inning,
                 situation,
                 favoritePlayersPlaying(),
-                null);
+                switchSuggestion);
     }
 
     private Game findGame(long gameId) {
@@ -849,7 +870,8 @@ public class GameQueryService {
             SituationResponse situation,
             CurrentMatchupResponse currentMatchup,
             List<String> favoritePlayersPlaying,
-            InningScoresResponse inningScores)
+            InningScoresResponse inningScores,
+            SwitchSuggestionResponse switchSuggestion)
             implements GameDetailView {}
 
     /**
@@ -960,7 +982,8 @@ public class GameQueryService {
     public record SwitchSuggestionResponse(
             long gameId,
             MatchupResponse matchup,
-            String latestTag) {}
+            String latestTag,
+            String message) {}
 
     public record MatchupResponse(
             String home,
