@@ -193,6 +193,7 @@ pulse:
     retry-initial-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
     retry-max-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_MAX_INTERVAL:5m}
     batch-size: ${PULSE_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
+    confirm-timeout: ${PULSE_NOTIFICATION_OUTBOX_CONFIRM_TIMEOUT:10s}
   sse:
     enabled: ${PULSE_SSE_ENABLED:true}
     heartbeat-interval: ${PULSE_SSE_HEARTBEAT_INTERVAL:25s}
