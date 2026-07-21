@@ -1,4 +1,4 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

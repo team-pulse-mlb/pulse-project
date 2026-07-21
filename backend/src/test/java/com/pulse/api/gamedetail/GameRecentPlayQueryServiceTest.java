@@ -1,6 +1,6 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
-import com.pulse.api.GameRecentPlayQueryService.RecentPlaysResponse;
+import com.pulse.api.gamedetail.GameRecentPlayQueryService.RecentPlaysResponse;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;

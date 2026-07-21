@@ -1,7 +1,7 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
-import com.pulse.api.GameQueryService.MatchupResponse;
-import com.pulse.api.GameQueryService.SwitchSuggestionResponse;
+import com.pulse.api.gamedetail.GameQueryService.MatchupResponse;
+import com.pulse.api.gamedetail.GameQueryService.SwitchSuggestionResponse;
 import com.pulse.api.user.domain.Member;
 import com.pulse.api.user.domain.MemberRepository;
 import com.pulse.api.user.domain.UserSetting;

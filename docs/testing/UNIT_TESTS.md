@@ -3,7 +3,7 @@
 ## 1. 범위
 
 - 기준 경로: `backend/src/test/java`
-- 기준 시점의 `*Test.java` 클래스: 126개
+- 기준 시점의 `*Test.java` 클래스: 135개
 - 서비스·정책·계산·직렬화·설정 검증을 단위 테스트로 분류한다.
 - Spring 컨텍스트, JPA 슬라이스, HTTP 테스트 경계를 사용하는 클래스도 전체 현황 확인을 위해 아래 목록에 포함하고, 통합 범위는 [INTEGRATION_TESTS.md](INTEGRATION_TESTS.md)에서 별도로 구분한다.
 - `TestScoringProperties.java`는 테스트 보조 클래스이므로 테스트 클래스 수와 목록에서 제외한다.
@@ -166,6 +166,8 @@
 | `AiPlayTranslationGeneratorTest` | 공개 play 번역 저장·재생성·claim 멱등성과 신호 발행을 검증한다. |
 | `EventCopyRetrySchedulerTest` | 누락 보호 문구 재시도 대상 처리, 개별 실패 격리와 빈 등록 조건을 검증한다. |
 | `FinalHeadlineBackfillPropertiesTest` | 백필 경기 ID의 중복 제거·입력 순서·빈 목록 처리를 검증한다. |
+| `GameEventCopyCommitListenerTest` | 커밋 후 영속된 보호 이벤트 문구 요청 전달과 AI 요청 실패 격리를 검증한다. |
+| `GameEventCopyRequestedEventDeliveryTest` | 이벤트 문구 요청 이벤트가 커밋 후에만 전달되고 롤백 시 전달되지 않는지 검증한다. |
 | `GameEventExtractorTest` | 보호·공개 이벤트 유형, payload, 중복 억제와 경계 리드 변경 추출을 검증한다. |
 | `GameFinalizationServiceTest` | DB 기반 종료 멱등성, 트랜잭션 커밋 후 정리·AI 요청과 롤백 격리를 검증한다. |
 | `ImportanceCalculatorTest` | 포스트시즌 중요도 값을 입력 또는 경기 값에서 선택하는지 검증한다. |
@@ -174,7 +176,10 @@
 | `LiveScoreComputedEventDeliveryTest` | 라이브 계산 이벤트가 커밋 후에만 전달되고 롤백 시 전달되지 않는지 검증한다. |
 | `LiveScoringPlayTranslationTriggerTest` | 마지막 관측 play 순서까지만 번역을 요청하는지 검증한다. |
 | `LiveScoringServiceCharacterizationTest` | 라이브 계산·저장·후처리 파이프라인 순서와 중복 사이클·재전달 멱등성을 검증한다. |
-| `LiveScoringServiceCommitPhaseTest` | Redis 랭킹·캐시·Pub/Sub이 DB 커밋 후에만 반영되고 롤백 시 실행되지 않는지 검증한다. |
+| `LiveRedisProjectionCommitListenerTest` | 커밋 후 계산 결과의 Redis 반영 전달과 반영 실패 격리를 검증한다. |
+| `LiveScoringTransactionBoundaryTest` | watch_scores·game_events·하이라이트가 AI 요청 전에 함께 커밋되고 실패 시 함께 롤백되는지 검증한다. |
+| `LiveScoringServiceRedeliveryOrderTest` | 새 사이클 처리 후 오래된 ScoreTask가 재전달되는 순서 역전 경계를 특성화한다. |
+| `PlayTranslationCommitListenerTest` | 커밋 후 마지막 관측 순서 기준 번역 트리거 전달과 실패 격리를 검증한다. |
 | `LiveScoringServiceDelayedTaskTest` | 지연 작업이 발행 시점 스냅샷과 관측 play 상한으로 계산하는지 검증한다. |
 | `LiveScoringServiceStateTest` | 이미 종료된 경기는 재계산 대신 라이브 상태를 정리하는지 검증한다. |
 | `LiveSignalPublisherTest` | Redis 랭킹·보호 캐시·재조회 신호와 태그 fallback을 검증한다. |
@@ -221,7 +226,7 @@ backend\gradlew.bat test
 
 ## 실행 결과
 
-전체 스위트(테스트 클래스 126개) 기준이며, 통합 성격 테스트를 포함한다. 2026-07-21 JDK 21 Docker clean test 결과를 기준으로 기록한다.
+실행 당시 전체 스위트(테스트 클래스 126개) 기준이며, 통합 성격 테스트를 포함한다. 2026-07-21 JDK 21 Docker clean test 결과를 기준으로 기록한다.
 
 | 총 테스트 수 | 성공 | 실패 | 스킵 | 실행일 |
 |---|---|---|---|---|

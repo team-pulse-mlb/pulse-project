@@ -47,14 +47,14 @@ up{job="pulse-backend"}
 | `pulse_poller_ticks_total` | poller | `poller` | operational, pregame, player enrichment 폴링 틱 수 |
 | `pulse_poller_backoff_activations_total` | poller | `target` | 외부 API 오류로 백오프를 시작한 횟수 |
 | `pulse_poller_game_skips_total` | poller | `reason` | 경기 하나의 오류를 격리하고 다음 경기를 처리한 횟수 |
-| `pulse_score_task_publish_failures_total` | poller, scorer | 없음 | `score.tasks` RabbitMQ 발행 실패 수 |
-| `pulse_score_task_outbox_republish_runs_total` | poller, scorer | 없음 | 대기 중 ScoreTask outbox 재발행 실행 수 |
-| `pulse_score_task_consumed_total` | scorer | `type` | pregame, live, terminal ScoreTask 소비 수 |
-| `pulse_score_task_processing_seconds` | scorer | `type` | ScoreTask 처리 시간 |
-| `pulse_scorer_surge_fired_total` | scorer | 없음 | SURGE 판정 발화 수 |
-| `pulse_scorer_ranking_updated_total` | scorer | 없음 | 라이브 랭킹 갱신 수 |
-| `pulse_notification_publish_failures_total` | poller, scorer | 없음 | `notify.events` 발행 실패 수 |
-| `pulse_notification_outbox_republish_runs_total` | poller, scorer | 없음 | 대기 중 알림 outbox 재발행 실행 수 |
+| `pulse_score_task_publish_failures_total` | poller, game-processor | 없음 | `score.tasks` RabbitMQ 발행 실패 수 |
+| `pulse_score_task_outbox_republish_runs_total` | poller, game-processor | 없음 | 대기 중 ScoreTask outbox 재발행 실행 수 |
+| `pulse_score_task_consumed_total` | game-processor | `type` | pregame, live, terminal ScoreTask 소비 수 |
+| `pulse_score_task_processing_seconds` | game-processor | `type` | ScoreTask 처리 시간 |
+| `pulse_game_processor_surge_fired_total` | game-processor | 없음 | SURGE 판정 발화 수 |
+| `pulse_game_processor_ranking_updated_total` | game-processor | 없음 | 라이브 랭킹 갱신 수 |
+| `pulse_notification_publish_failures_total` | poller, game-processor | 없음 | `notify.events` 발행 실패 수 |
+| `pulse_notification_outbox_republish_runs_total` | poller, game-processor | 없음 | 대기 중 알림 outbox 재발행 실행 수 |
 
 ## Grafana 조회
 

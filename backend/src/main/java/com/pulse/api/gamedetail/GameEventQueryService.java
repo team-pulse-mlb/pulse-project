@@ -1,4 +1,4 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventLabelPolicy;

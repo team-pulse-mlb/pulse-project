@@ -23,7 +23,7 @@
 |---|---|---|---|
 | `SURGE` | `gameId`, `matchup`, `latestTag` | `지금 볼 만한 경기가 있어요 — {latestTag}` | `message` |
 | `GAME_START` | `gameId`, `matchup` | `관심 팀 경기가 시작됐어요 — {away} @ {home}` | `message` |
-| 경기 전환 안내 | `gameId`, `matchup`, `latestTag` | `지금은 다른 경기가 더 볼 만해요 — {latestTag}` | `message` |
+| 경기 전환 안내 | `gameId`, `matchup`, `latestTag` | `지금은 다른 경기가 더 볼 만해요. <{latestTag}>` | `message` |
 
 `latestTag`가 없으면 태그 구간을 생략한 템플릿을 사용한다. 알림 payload에는 점수 숫자, 순위, 승패, 우세 팀, 태그 배열을 싣지 않는다.
 
@@ -78,8 +78,8 @@
 - 운영 환경의 역할별 설정은 다음과 같다.
   - `pulse-api`: `true`
   - `pulse-poller`: `false`
-  - `pulse-scorer`: `false`
-- `poller`와 `scorer`는 알림 이벤트를 발행할 수 있지만, 사용자별 fan-out, `user_notifications` 저장과 SSE 전달을 위한 소비는 API가 담당한다.
+  - `pulse-game-processor`: `false`
+- `poller`와 `game processor`는 알림 이벤트를 발행할 수 있지만, 사용자별 fan-out, `user_notifications` 저장과 SSE 전달을 위한 소비는 API가 담당한다.
 - 설정값을 생략한 경우 기본값은 `false`로 처리해 의도하지 않은 컨테이너가 큐를 경쟁 소비하지 않도록 한다.
 
 ## 5. 경기 전환 추천

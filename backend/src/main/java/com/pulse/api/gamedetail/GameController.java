@@ -1,7 +1,7 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
-import com.pulse.api.GameEventQueryService.GameEventsResponse;
-import com.pulse.api.GameQueryService.GameDetailView;
+import com.pulse.api.gamedetail.GameEventQueryService.GameEventsResponse;
+import com.pulse.api.gamedetail.GameQueryService.GameDetailView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;

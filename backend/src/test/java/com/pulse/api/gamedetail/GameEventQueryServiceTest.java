@@ -1,7 +1,7 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
-import com.pulse.api.GameEventQueryService.GameEventsResponse;
-import com.pulse.api.GameEventQueryService.ProtectedEventResponse;
+import com.pulse.api.gamedetail.GameEventQueryService.GameEventsResponse;
+import com.pulse.api.gamedetail.GameEventQueryService.ProtectedEventResponse;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
