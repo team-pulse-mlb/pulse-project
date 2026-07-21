@@ -169,6 +169,8 @@
 | `GameFinalizationServiceTest` | DB 기반 종료 멱등성, 트랜잭션 커밋 후 정리·AI 요청과 롤백 격리를 검증한다. |
 | `ImportanceCalculatorTest` | 포스트시즌 중요도 값을 입력 또는 경기 값에서 선택하는지 검증한다. |
 | `LiveRankingRebuildRunnerTest` | 기동 시 라이브 최신 점수로 Redis 랭킹을 복원하고 실패를 격리한다. |
+| `LatestTagSelectorTest` | Redis 상태 없이 현재·직전 태그에서 새로 활성화된 최신 태그를 선택하는지 검증한다. |
+| `LiveScoreComputedEventDeliveryTest` | 라이브 계산 이벤트가 커밋 후에만 전달되고 롤백 시 전달되지 않는지 검증한다. |
 | `LiveScoringPlayTranslationTriggerTest` | 마지막 관측 play 순서까지만 번역을 요청하는지 검증한다. |
 | `LiveScoringServiceCharacterizationTest` | 라이브 계산·저장·후처리 파이프라인 순서와 중복 사이클·재전달 멱등성을 검증한다. |
 | `LiveScoringServiceCommitPhaseTest` | Redis 랭킹·캐시·Pub/Sub이 DB 커밋 후에만 반영되고 롤백 시 실행되지 않는지 검증한다. |
@@ -181,8 +183,9 @@
 | `ScoreCalculatorTest` | 접전·이닝·득점·리드 변경·압박 신호와 0~100 점수 상한을 검증한다. |
 | `ScorerRoleGateTest` | scorer 활성화와 배치 프로파일에 따른 운영 scorer 빈 등록을 검증한다. |
 | `ScoreTaskListenerTest` | PREGAME·TERMINAL·LIVE 작업을 해당 서비스로 라우팅하는지 검증한다. |
-| `SurgeDetectorTest` | 급상승 상태 전이·재무장·전역 한도와 트랜잭션 커밋 원자성을 검증한다. |
-| `SurgeNotificationPublisherTest` | 급상승 알림 payload 계약과 원 트랜잭션 커밋 후 독립 발행을 검증한다. |
+| `SurgeCommitListenerTest` | 커밋 후 급상승 판정·알림 전달과 리스너 예외 격리를 검증한다. |
+| `SurgeDetectorTest` | 급상승 상태 전이·재무장·쿨다운과 Lua 기반 전역 한도 원자성을 검증한다. |
+| `SurgeNotificationPublisherTest` | 급상승 알림 payload, 독립 트랜잭션과 결정적 이벤트 ID 멱등성을 검증한다. |
 | `TensionCurveQueryServiceTest` | 보호·공개 해상도, 연장 이닝, 결측 이력과 레벨 상한을 검증한다. |
 | `TerminalTaskRecoveryRunnerTest` | 종료 기록이 없는 FINAL 경기만 terminal 작업으로 복구하는지 검증한다. |
 | `TimelineHighlightBackfillTest` | 급변 하이라이트 백필·재구축의 윈도·상한·쿨다운·anchor 선정을 검증한다. |

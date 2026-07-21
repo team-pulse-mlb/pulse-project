@@ -5,11 +5,7 @@ import com.pulse.scoring.ScoreCalculator;
 import com.pulse.scoring.ScoringInput;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -80,17 +76,6 @@ class LiveScoringServiceDelayedTaskTest {
         ArgumentCaptor<WatchScore> recordCaptor = ArgumentCaptor.forClass(WatchScore.class);
         verify(fixture.watchScoreRepository).save(recordCaptor.capture());
         assertThat(recordCaptor.getValue().getInning()).isEqualTo(7);
-        verify(fixture.liveSignalPublisher).publishLiveUpdate(
-                eq(GAME_ID),
-                anyDouble(),
-                anyInt(),
-                anyList(),
-                eq(7),
-                isNull(),
-                isNull(),
-                eq("LIVE"),
-                anyList(),
-                eq(OBSERVED_AT));
         assertThat(fixture.game.getPeriod()).isEqualTo(9);
     }
 
@@ -122,9 +107,7 @@ class LiveScoringServiceDelayedTaskTest {
                     importanceCalculator,
                     mock(GameEventExtractor.class),
                     liveSignalPublisher,
-                    mock(SurgeDetector.class),
                     mock(TimelineHighlightTrigger.class),
-                    mock(SurgeNotificationPublisher.class),
                     properties,
                     mock(org.springframework.context.ApplicationEventPublisher.class));
         }

@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.ranking.RankingService;
-import com.pulse.common.transaction.AfterCommitExecutor;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +25,7 @@ class LiveSignalPublisherTest {
     private final LiveSignalPublisher publisher = new LiveSignalPublisher(
             rankingService,
             redisTemplate,
-            new AfterCommitExecutor()
+            new LatestTagSelector()
     );
 
     @Test

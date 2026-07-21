@@ -5,6 +5,7 @@ import com.pulse.common.message.NotificationEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,6 +24,19 @@ import org.springframework.stereotype.Component;
  * - Listener 코드가 복잡해지는 것을 방지
  */
 @Component
+/**
+ * 이 Listener는 pulse.notification.consumer-enabled=true인
+ * API 역할에서만 생성됩니다.
+ *
+ * poller와 scorer가 같은 notify.events 큐를 경쟁 소비하지 않도록
+ * 역할별 실행 조건을 명시적으로 제한합니다.
+ */
+@ConditionalOnProperty(
+        prefix = "pulse.notification",
+        name = "consumer-enabled",
+        havingValue = "true"
+)
+
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationEventListener {
