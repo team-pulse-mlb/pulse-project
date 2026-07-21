@@ -37,6 +37,7 @@ class ScorerRoleGateTest {
                     TimelineHighlightBackfill.class,
                     LiveRankingRebuildRunner.class,
                     LatestTagSelector.class,
+                    GameEventCopyCommitListener.class,
                     SurgeCommitListener.class,
                     SurgeNotificationPublisher.class,
                     LiveSignalPublisher.class,
@@ -72,6 +73,7 @@ class ScorerRoleGateTest {
                     assertThat(context).hasSingleBean(TimelineHighlightBackfill.class);
                     assertThat(context).hasSingleBean(LiveRankingRebuildRunner.class);
                     assertThat(context).hasSingleBean(LatestTagSelector.class);
+                    assertThat(context).hasSingleBean(GameEventCopyCommitListener.class);
                     assertThat(context).hasSingleBean(SurgeCommitListener.class);
                     assertThat(context).hasSingleBean(SurgeNotificationPublisher.class);
                     assertThat(context).hasSingleBean(LiveSignalPublisher.class);
@@ -93,6 +95,7 @@ class ScorerRoleGateTest {
                     assertThat(context).doesNotHaveBean(TimelineHighlightBackfill.class);
                     assertThat(context).doesNotHaveBean(LiveRankingRebuildRunner.class);
                     assertThat(context).doesNotHaveBean(LatestTagSelector.class);
+                    assertThat(context).doesNotHaveBean(GameEventCopyCommitListener.class);
                     assertThat(context).doesNotHaveBean(SurgeCommitListener.class);
                     assertThat(context).doesNotHaveBean(SurgeNotificationPublisher.class);
                     assertThat(context).doesNotHaveBean(LiveSignalPublisher.class);
