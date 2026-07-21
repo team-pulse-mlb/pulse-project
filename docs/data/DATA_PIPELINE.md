@@ -14,9 +14,9 @@
 | ② | `PREGAME_FAR` (T-36h~T-6h) | 선발 예상 투수 등장을 확인한다. | `/lineups`: 1시간 |
 | ③ | `PREGAME_NEAR` (T-6h~시작) | `/lineups`는 타순 확정을, `/odds`는 `pregame_score`의 접전 기대 재료를 모은다. | `/lineups`: 15분 · `/odds`: 30분 |
 | ④ | `LIVE` | `/games`는 ①과 같은 사이클로 점수·이닝을 갱신하고, `/plays`는 cursor 증분, `/plate_appearances`는 전체 재조회 후 dedupe한다. 경기별 `/plays`·`/plate_appearances` 호출은 워커 6~8개로 병렬 실행해 한 라운드 지연을 줄인다. 수집 후 RabbitMQ로 계산 요청을 보낸다. LIVE 전이 감지 시 `GAME_START` 알림 이벤트를 발행한다. 새 play가 장기간 없으면 아래 수집 완화 규칙을 적용한다. | `/games`: 20초 · `/plays`: 20초 · `/plate_appearances`: 20초 |
-| ⑤ | `FINAL` | 경기 종료를 감지하면 `lifecycleState=FINAL`을 실은 종료 ScoreTask를 발행한다. 라이브 랭킹(`score:rank:live`) 제거·`signal:ranking` 발행은 scorer가 수행한다. 별도 재분석은 하지 않는다. | 감지 시 1회 |
-| ⑥ | `DONE` | 연기·취소를 감지하면 `lifecycleState=DONE`을 실은 종료 ScoreTask를 발행한다. 랭킹 제거는 scorer가 수행한다. | 감지 시 1회 |
-| ⑦ | `SUSPENDED_POSTPONED` | 라이브 중 원본 `STATUS_POSTPONED`(서스펜디드 게임)를 감지하면 `lifecycleState=SUSPENDED_POSTPONED`을 실은 종료 ScoreTask를 발행한다. scorer는 라이브 랭킹에서 제거한다. 이후 재개(`STATUS_IN_PROGRESS`)·종료(`STATUS_FINAL`)·취소(`STATUS_CANCELED`)를 ①의 감시로 받아 각 상태로 보낸다. `DONE`이나 `FINAL`로 바로 보내지 않는 이유: 재개 시 이력이 끊기거나 종료 경기로 잘못 노출되는 것을 막기 위해서다. | 감지 시 1회, 이후 ① 주기 |
+| ⑤ | `FINAL` | 경기 종료를 감지하면 `lifecycleState=FINAL`을 실은 종료 ScoreTask를 발행한다. 라이브 랭킹(`score:rank:live`) 제거·`signal:ranking` 발행은 game processor가 수행한다. 별도 재분석은 하지 않는다. | 감지 시 1회 |
+| ⑥ | `DONE` | 연기·취소를 감지하면 `lifecycleState=DONE`을 실은 종료 ScoreTask를 발행한다. 랭킹 제거는 game processor가 수행한다. | 감지 시 1회 |
+| ⑦ | `SUSPENDED_POSTPONED` | 라이브 중 원본 `STATUS_POSTPONED`(서스펜디드 게임)를 감지하면 `lifecycleState=SUSPENDED_POSTPONED`을 실은 종료 ScoreTask를 발행한다. game processor는 라이브 랭킹에서 제거한다. 이후 재개(`STATUS_IN_PROGRESS`)·종료(`STATUS_FINAL`)·취소(`STATUS_CANCELED`)를 ①의 감시로 받아 각 상태로 보낸다. `DONE`이나 `FINAL`로 바로 보내지 않는 이유: 재개 시 이력이 끊기거나 종료 경기로 잘못 노출되는 것을 막기 위해서다. | 감지 시 1회, 이후 ① 주기 |
 
 **라이브 수집 완화(quiet)**: 새 play가 `quiet-threshold`(기본 10분) 이상 없는 LIVE 경기는 우천 중단 등으로 보고 `/plays`·`/plate_appearances` 폴링을 `quiet-plays-interval`(기본 5분) 주기로 낮춘다. ①의 `/games` 폴링과 하트비트 ScoreTask 발행(점수 감쇠 반영)은 기존 주기를 유지하므로 상태 전이는 계속 20초 단위로 감지된다. 새 play가 저장되면 즉시 20초 주기로 복귀한다. 상수는 `pulse.poller.quiet-*` 설정으로 관리한다.
 
@@ -24,7 +24,7 @@
 
 **연기·취소 재진입**: `DONE`은 연기·취소가 확정된 경기의 종결 상태다. 다만 이후 ①의 상시 감시에서 같은 `game_id`의 원본 상태가 `STATUS_SCHEDULED`·`STATUS_IN_PROGRESS`로 재관측되면(연기 경기 재편성) 해당 상태로 재진입한다. 재진입 시 별도 복구 절차는 없다 — 라이브 랭킹과 현재 상태 캐시는 LIVE 사이클이 재생성하며, 연기·취소 사유는 `games.status` 원본 값이 보존한다.
 
-**경기 전 계산 경로**: poller는 ②·③에서 경기 전 입력이 갱신될 때(선발 확정·변경, 배당 스냅샷 기록, 순위 일 배치 반영, `PREGAME_NEAR` 진입) `lifecycleState=PREGAME`인 ScoreTask를 발행하고, scorer가 DB에 적재된 입력만 읽어 `pregame_score`를 계산·저장한다. 점수 로직과 `scoring.yml` 소유를 scorer 한 곳에 유지하기 위한 배치이며, 외부 API 호출(선발 시즌 스탯 온디맨드 조회 포함)은 poller가 task 발행 전에 끝낸다.
+**경기 전 계산 경로**: poller는 ②·③에서 경기 전 입력이 갱신될 때(선발 확정·변경, 배당 스냅샷 기록, 순위 일 배치 반영, `PREGAME_NEAR` 진입) `lifecycleState=PREGAME`인 ScoreTask를 발행하고, game processor가 DB에 적재된 입력만 읽어 `pregame_score`를 계산·저장한다. 점수 로직과 `scoring.yml` 소유를 game processor 한 곳에 유지하기 위한 배치이며, 외부 API 호출(선발 시즌 스탯 온디맨드 조회 포함)은 poller가 task 발행 전에 끝낸다.
 
 ## 2. 호출 예산과 레이트리밋 대응
 
@@ -43,19 +43,19 @@
 |---|---|---|
 | ① | 라이브 데이터 수집 | `plays`, `plate_appearances`, 현재 경기 상태를 모은다. |
 | ② | 계산 요청 발행 | 새 데이터가 들어오면 `ScoreTask`를 RabbitMQ `score.tasks`에 넣는다. 유실 시 해당 시점 이력이 영구 공백이 되므로 브로커로 보낸다. |
-| ③ | 메시지 소비 | `pulse-scorer`가 계산할 경기 ID와 시점을 받는다. 처리 실패 메시지는 재전달 후 DLQ로 이동한다. |
+| ③ | 메시지 소비 | `pulse-game-processor`가 계산할 경기 ID와 시점을 받는다. 처리 실패 메시지는 재전달 후 DLQ로 이동한다. |
 | ④ | `watch_score` 계산 | 접전, 후반부, 득점권, 최근 이벤트 같은 랭킹 신호를 점수로 바꾼다. |
 | ⑤ | 추천 태그 생성 | 화면에 보여줄 짧은 이유 태그를 만든다. 예: `접전 흐름`, `득점권 압박`, `후반 긴장 구간` |
 | ⑥ | Redis 갱신 + 신호 | 실시간 랭킹을 갱신하고 `signal:ranking`·`signal:game:{id}` 채널로 재조회 신호를 발행한다. api가 이를 SSE로 중계한다. |
 | ⑦ | PostgreSQL 저장 | 점수 이력과 흥미 순간 이벤트(`game_events`)를 남긴다. 이벤트는 라이브 중 임계 통과 시 추출·영속하며 종료 후 재계산하지 않는다. |
-| ⑧ | 급상승 알림 판정 | 임계 진입·급등 조건(히스테리시스 포함, 정확한 조건과 상수는 NOTIFICATIONS.md·`scoring.yml`)을 통과하면 `notify.events`로 알림 이벤트를 발행한다. 판정이 scorer에 있는 이유: 점수 이력과 히스테리시스 상태를 가진 유일한 곳이기 때문이다. |
+| ⑧ | 급상승 알림 판정 | 임계 진입·급등 조건(히스테리시스 포함, 정확한 조건과 상수는 NOTIFICATIONS.md·`scoring.yml`)을 통과하면 `notify.events`로 알림 이벤트를 발행한다. 판정이 game processor에 있는 이유: 점수 이력과 히스테리시스 상태를 가진 유일한 곳이기 때문이다. |
 | ⑨ | AI 문구 트리거 | 경기 종료 정리 시 `FINAL_HEADLINE`을 보호/공개 모드별 `safeContext`와 `contextHash`로 ai-service에 비동기 생성을 요청한다. |
 
-scorer는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: `score:rank:live`에서 제거, `signal:ranking` 발행, 종료 헤드라인(`FINAL_HEADLINE`) 생성 트리거. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
+game processor는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 종료 ScoreTask를 받으면 라이브 계산 대신 종료 정리를 수행한다: `score:rank:live`에서 제거, `signal:ranking` 발행, 종료 헤드라인(`FINAL_HEADLINE`) 생성 트리거. 종료 정리는 경기 상태 전이 기준으로 멱등하며, 이미 정리된 경기의 종료 ScoreTask를 다시 받아도 재실행하지 않는다.
 
-### gameprocessing 이벤트 기반 내부 구조 (scorer 리팩토링 목표 구조)
+### gameprocessing 이벤트 기반 내부 구조
 
-아래는 진행 중인 scorer 모듈 리팩토링의 **목표 내부 구조**다. 현재 코드는 아직 `com.pulse.scorer` 단일 패키지이며, 계산 커널을 `com.pulse.scoring`으로, 소비·후처리 오케스트레이션을 `com.pulse.gameprocessing`으로 분리한다. `LiveScoringService.handle()`이 한 트랜잭션에서 순차 수행하던 외부 I/O 팬아웃을 `LiveScoreComputedEvent` + `AFTER_COMMIT` 리스너로 가른다. 배포 역할·컨테이너명·설정 키·메트릭(`scorer`)은 바꾸지 않고 Java 패키지 구조만 바꾼다.
+순수 계산 커널은 `com.pulse.scoring`, 소비·후처리 오케스트레이션은 `com.pulse.gameprocessing`으로 분리한다. `LiveScoringService.handle()`의 영속 처리와 외부 I/O 팬아웃은 `LiveScoreComputedEvent` + `AFTER_COMMIT` 리스너로 구분한다. 운영 컨테이너는 `pulse-game-processor`이며, 기존 설정 키 `pulse.scorer.*`·`PULSE_SCORER_ENABLED`와 메트릭의 `scorer` 식별자는 호환 계약으로 유지한다.
 
 ![gameprocessing 이벤트 기반 내부 구조](../image/diagram/gameprocessing-event-flow.svg)
 

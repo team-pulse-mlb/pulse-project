@@ -47,11 +47,11 @@
 | `SseRoleGateTest` | 웹·비웹 컨텍스트 → 조건부 SSE 빈 | 웹 여부와 활성화 설정에 따른 빈 등록을 검증한다. |
 | `SecurityConfigTest` | 웹·비웹 컨텍스트 → 보안 구성 빈 | 인증 관리자와 보안 필터 체인의 조건부 등록을 검증한다. |
 | `NotificationMessageBeanConstructionTest` | 컨텍스트 러너 → 발행자·디스패처 빈 | Mockito RabbitTemplate을 주입한 생성자 구성의 유효성을 검증한다. |
-| `NotificationOutboxSchedulerRoleGateTest` | 컨텍스트 러너 → 조건부 스케줄러 빈 | poller·scorer 역할과 설정에 따른 등록 여부를 검증한다. |
+| `NotificationOutboxSchedulerRoleGateTest` | 컨텍스트 러너 → 조건부 스케줄러 빈 | poller·game processor 역할과 설정에 따른 등록 여부를 검증한다. |
 | `ScoreTaskOutboxSchedulerRoleGateTest` | 컨텍스트 러너 → 조건부 스케줄러 빈 | ScoreTask outbox 스케줄러의 역할 조건을 검증한다. |
 | `SimulationBeanConstructionTest` | 컨텍스트 러너 → 시뮬레이션 빈 | 시뮬레이션 데이터 소스의 생성자 주입을 검증한다. |
 | `EventCopyRetrySchedulerTest` | 컨텍스트 러너 → 재시도 스케줄러 빈 | 설정 조건과 대상 처리 구성의 등록 여부를 검증한다. |
-| `ScorerRoleGateTest` | 컨텍스트 러너 → scorer 체인 빈 | 역할 활성화와 배치 프로파일에 따른 scorer 빈 구성을 검증한다. |
+| `GameProcessorRoleGateTest` | 컨텍스트 러너 → game processor 체인 빈 | 역할 활성화와 배치 프로파일에 따른 game processor 빈 구성을 검증한다. |
 
 ## 5. 외부 인프라별 검증 수준
 

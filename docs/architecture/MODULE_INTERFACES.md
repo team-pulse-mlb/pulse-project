@@ -10,6 +10,6 @@
 | `SseEventPublisher` | api 공통 | SSE 이벤트 3종 발행 단일 창구 |
 | AI 생성 트리거 | 창현 → 예은 | `FINAL_HEADLINE`·`EVENT_COPY`·`PLAY_TRANSLATION` 비동기 요청. ai-service 호출·검수·저장 담당 |
 | `AiCopyContextReader` | 예은 → 창현 | 컨텍스트와 예은 측 정규화 SHA-256 `contextHash` 반환. 빈 값은 생성 대상 아님. 외부 REST 컨텍스트 API는 두지 않음 |
-| `notify.events` | scorer·poller → 윤호 | 서버가 고정 템플릿으로 완성한 `message` 전달 |
+| `notify.events` | game processor·poller → 윤호 | 서버가 고정 템플릿으로 완성한 `message` 전달 |
 
 `AiCopyContextReader`의 메서드와 컨텍스트 상세는 [AI_COPY.md](../policy/AI_COPY.md)를 따른다.

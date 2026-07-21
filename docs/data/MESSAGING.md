@@ -4,7 +4,7 @@
 
 | 큐 | 용도 | 정책 |
 |---|---|---|
-| `score.tasks`와 `.dlq` | poller → scorer 계산 요청 | ack 실패 시 1회 재전달 후 DLQ, 소비자 prefetch 5 |
+| `score.tasks`와 `.dlq` | poller → game processor 계산 요청 | ack 실패 시 1회 재전달 후 DLQ, 소비자 prefetch 5 |
 | `notify.events`와 `.dlq` | 알림 이벤트 | 동일, 소비 측 멱등 처리 전제 |
 
 알림 이벤트의 payload, outbox, 멱등 키, fan-out은 [NOTIFICATIONS.md](../policy/NOTIFICATIONS.md)를 따른다.

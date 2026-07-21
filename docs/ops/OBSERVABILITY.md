@@ -30,7 +30,7 @@ aws ssm start-session --target <EC2_INSTANCE_ID> `
 
 ## 수집 기준
 
-Prometheus는 Compose 내부 네트워크에서 backend 역할별 관리 포트 `8081`의 `/actuator/prometheus`를 15초마다 수집한다. 관리 포트는 호스트에 공개하지 않는다. 모든 backend 시계열에는 `job="pulse-backend"`와 `role="api|poller|scorer"`가 붙는다.
+Prometheus는 Compose 내부 네트워크에서 backend 역할별 관리 포트 `8081`의 `/actuator/prometheus`를 15초마다 수집한다. 관리 포트는 호스트에 공개하지 않는다. 모든 backend 시계열에는 `job="pulse-backend"`와 `role="api|poller|scorer"`가 붙는다. 여기서 `role="scorer"`는 `pulse-game-processor`의 기존 시계열 호환 라벨이다.
 
 ```promql
 up{job="pulse-backend"}
@@ -118,9 +118,9 @@ sum by (type) (
 )
 ```
 
-발행 실패는 outbox에 `PENDING`으로 남으므로 즉시 유실을 뜻하지 않는다. 재발행 실행 증가와 scorer 소비 회복을 순서대로 확인한다. 재발행 실행 값은 메시지 수가 아니라 poller·scorer 스케줄러의 실행 횟수다.
+발행 실패는 outbox에 `PENDING`으로 남으므로 즉시 유실을 뜻하지 않는다. 재발행 실행 증가와 game processor 소비 회복을 순서대로 확인한다. 재발행 실행 값은 메시지 수가 아니라 poller·game processor 스케줄러의 실행 횟수다.
 
-### scorer 처리량과 지연
+### game processor 처리량과 지연
 
 ```promql
 sum by (type) (
@@ -138,7 +138,7 @@ sum by (type) (
 )
 ```
 
-소비량이 0으로 떨어지거나 평균 처리시간이 계속 증가하면 RabbitMQ 적체, scorer 상태, RDS 지연을 함께 확인한다. p95가 필요하면 histogram 설정과 운영 메모리 영향을 먼저 검증한다.
+소비량이 0으로 떨어지거나 평균 처리시간이 계속 증가하면 RabbitMQ 적체, game processor 상태, RDS 지연을 함께 확인한다. p95가 필요하면 histogram 설정과 운영 메모리 영향을 먼저 검증한다.
 
 ### 알림 발행과 복구
 
@@ -154,7 +154,7 @@ sum by (role) (
 )
 ```
 
-발행 실패 후 재발행이 증가하지 않으면 poller·scorer 로그와 `notification_outbox` PENDING 상태를 확인한다. 재발행 뒤에도 알림이 저장되지 않으면 api의 `notify.events` 소비자와 `(event_id, user_id)` 멱등 저장을 확인한다.
+발행 실패 후 재발행이 증가하지 않으면 poller·game processor 로그와 `notification_outbox` PENDING 상태를 확인한다. 재발행 뒤에도 알림이 저장되지 않으면 api의 `notify.events` 소비자와 `(event_id, user_id)` 멱등 저장을 확인한다.
 
 ## 경보 기준
 
@@ -164,7 +164,7 @@ ScoreTask 발행 실패 경보는 다음 조건을 사용한다.
 increase(pulse_score_task_publish_failures_total[5m]) > 0
 ```
 
-poller·scorer는 실패 카운터를 시작 시 `0`으로 등록한다. 배포 직후에는 Prometheus가 0 기준 샘플을 2회 이상 수집한 뒤 경보를 검증한다. 경보 발생 시 같은 기간의 outbox 재발행 증가와 scorer 소비 회복을 함께 확인한다.
+poller·game processor는 실패 카운터를 시작 시 `0`으로 등록한다. 배포 직후에는 Prometheus가 0 기준 샘플을 2회 이상 수집한 뒤 경보를 검증한다. 경보 발생 시 같은 기간의 outbox 재발행 증가와 game processor 소비 회복을 함께 확인한다.
 
 ## 관련 문서
 
