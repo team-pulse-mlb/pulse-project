@@ -1,7 +1,6 @@
 package com.pulse.scorer;
 
 import com.pulse.common.config.ScoringProperties;
-import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -46,7 +45,6 @@ public class SurgeDetector {
     private final WatchScoreRepository watchScoreRepository;
     private final StringRedisTemplate redisTemplate;
     private final ScoringProperties props;
-    private final AfterCommitExecutor afterCommitExecutor;
     private final Duration emergencyTtl;
 
     @Autowired
@@ -54,14 +52,12 @@ public class SurgeDetector {
             WatchScoreRepository watchScoreRepository,
             StringRedisTemplate redisTemplate,
             ScoringProperties props,
-            AfterCommitExecutor afterCommitExecutor,
             @Value("${pulse.scorer.redis-emergency-ttl-ms:172800000}") long emergencyTtlMillis
     ) {
         this(
                 watchScoreRepository,
                 redisTemplate,
                 props,
-                afterCommitExecutor,
                 Duration.ofMillis(emergencyTtlMillis)
         );
     }
@@ -70,26 +66,23 @@ public class SurgeDetector {
             WatchScoreRepository watchScoreRepository,
             StringRedisTemplate redisTemplate,
             ScoringProperties props,
-            AfterCommitExecutor afterCommitExecutor,
             Duration emergencyTtl
     ) {
         this.watchScoreRepository = watchScoreRepository;
         this.redisTemplate = redisTemplate;
         this.props = props;
-        this.afterCommitExecutor = afterCommitExecutor;
         this.emergencyTtl = emergencyTtl;
     }
 
     /**
-     * 트랜잭션 안에서는 읽기 기반 후보 판정만 하고, Redis 상태와 실제 발행은 커밋 후 확정한다.
+     * 커밋 후 리스너에서 후보를 판정하고 Redis 상태와 실제 발행을 확정한다.
      * 전역 상한과 경기별 상태를 Lua 한 번으로 묶어 동시 실행에서도 발행 수가 상한을 넘지 않게 한다.
      */
     public void evaluate(long gameId, int watchScore, Instant now, Runnable confirmedAction) {
         ScoringProperties.Thresholds thresholds = props.thresholds();
 
         if (watchScore < thresholds.alertRearmScore()) {
-            afterCommitExecutor.execute(() -> redisTemplate.opsForValue()
-                    .set(armedKey(gameId), ARMED, emergencyTtl));
+            redisTemplate.opsForValue().set(armedKey(gameId), ARMED, emergencyTtl);
         }
 
         if (Boolean.TRUE.equals(redisTemplate.hasKey(cooldownKey(gameId)))) {
@@ -104,20 +97,18 @@ public class SurgeDetector {
             return;
         }
 
-        afterCommitExecutor.execute(() -> {
-            Long confirmed = redisTemplate.execute(
-                    CONFIRM_SURGE_SCRIPT,
-                    List.of(armedKey(gameId), cooldownKey(gameId), GLOBAL_COUNT_KEY),
-                    String.valueOf(thresholds.alertGlobalLimit()),
-                    String.valueOf(now.toEpochMilli()),
-                    String.valueOf(Duration.ofMinutes(thresholds.alertCooldownMinutes()).toMillis()),
-                    String.valueOf(Duration.ofMinutes(thresholds.alertGlobalWindowMinutes()).toMillis()),
-                    String.valueOf(emergencyTtl.toMillis())
-            );
-            if (Long.valueOf(1L).equals(confirmed)) {
-                confirmedAction.run();
-            }
-        });
+        Long confirmed = redisTemplate.execute(
+                CONFIRM_SURGE_SCRIPT,
+                List.of(armedKey(gameId), cooldownKey(gameId), GLOBAL_COUNT_KEY),
+                String.valueOf(thresholds.alertGlobalLimit()),
+                String.valueOf(now.toEpochMilli()),
+                String.valueOf(Duration.ofMinutes(thresholds.alertCooldownMinutes()).toMillis()),
+                String.valueOf(Duration.ofMinutes(thresholds.alertGlobalWindowMinutes()).toMillis()),
+                String.valueOf(emergencyTtl.toMillis())
+        );
+        if (Long.valueOf(1L).equals(confirmed)) {
+            confirmedAction.run();
+        }
     }
 
     private boolean risenWithinWindow(long gameId, int watchScore, ScoringProperties.Thresholds thresholds, Instant now) {

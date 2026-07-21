@@ -52,9 +52,7 @@ class WatchScoreScoringVersionTest {
                 importanceCalculator,
                 mock(GameEventExtractor.class),
                 mock(LiveSignalPublisher.class),
-                mock(SurgeDetector.class),
                 mock(TimelineHighlightTrigger.class),
-                mock(SurgeNotificationPublisher.class),
                 properties,
                 mock(org.springframework.context.ApplicationEventPublisher.class));
 

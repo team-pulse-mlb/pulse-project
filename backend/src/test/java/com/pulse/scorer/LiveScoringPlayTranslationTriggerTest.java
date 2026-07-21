@@ -89,9 +89,7 @@ class LiveScoringPlayTranslationTriggerTest {
                         importanceCalculator,
                         mock(GameEventExtractor.class),
                         mock(LiveSignalPublisher.class),
-                        mock(SurgeDetector.class),
                         mock(TimelineHighlightTrigger.class),
-                        mock(SurgeNotificationPublisher.class),
                         properties,
                         applicationEventPublisher);
 

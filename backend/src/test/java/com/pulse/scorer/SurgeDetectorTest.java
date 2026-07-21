@@ -8,19 +8,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.WatchScoreRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class SurgeDetectorTest {
 
@@ -32,7 +28,6 @@ class SurgeDetectorTest {
             watchScoreRepository,
             redisTemplate,
             TestScoringProperties.version5(),
-            new AfterCommitExecutor(),
             Duration.ofHours(48)
     );
 
@@ -41,14 +36,6 @@ class SurgeDetectorTest {
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-    }
-
-    @AfterEach
-    void cleanUpTransaction() {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
-        TransactionSynchronizationManager.setActualTransactionActive(false);
     }
 
     @Test
@@ -62,20 +49,6 @@ class SurgeDetectorTest {
 
         assertThat(fired).isTrue();
         verify(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
-    }
-
-    @Test
-    void evaluate_shouldNotChangeRedisOrFireWhenTransactionRollsBack() {
-        when(valueOperations.get("notify:armed:100")).thenReturn(null);
-        when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
-        AtomicBoolean fired = new AtomicBoolean();
-        beginTransaction();
-
-        detector.evaluate(100L, 85, now, () -> fired.set(true));
-        completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
-
-        assertThat(fired).isFalse();
-        verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
     }
 
     @Test
@@ -131,15 +104,12 @@ class SurgeDetectorTest {
     }
 
     @Test
-    void evaluate_shouldRearmOnlyAfterCommitWithEmergencyTtl() {
+    void evaluate_shouldRearmWithEmergencyTtl() {
         when(valueOperations.get("notify:armed:100")).thenReturn("1");
         when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
-        beginTransaction();
 
         detector.evaluate(100L, 69, now, () -> { });
 
-        verify(valueOperations, never()).set("notify:armed:100", "1", Duration.ofHours(48));
-        completeTransaction(TransactionSynchronization.STATUS_COMMITTED);
         verify(valueOperations).set("notify:armed:100", "1", Duration.ofHours(48));
     }
 
@@ -149,18 +119,4 @@ class SurgeDetectorTest {
                 .thenReturn(result);
     }
 
-    private static void beginTransaction() {
-        TransactionSynchronizationManager.setActualTransactionActive(true);
-        TransactionSynchronizationManager.initSynchronization();
-    }
-
-    private static void completeTransaction(int status) {
-        for (TransactionSynchronization synchronization
-                : TransactionSynchronizationManager.getSynchronizations()) {
-            if (status == TransactionSynchronization.STATUS_COMMITTED) {
-                synchronization.afterCommit();
-            }
-            synchronization.afterCompletion(status);
-        }
-    }
 }

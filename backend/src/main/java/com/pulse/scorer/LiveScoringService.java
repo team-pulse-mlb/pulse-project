@@ -6,7 +6,6 @@ import com.pulse.scoring.ScoreCalculator;
 import com.pulse.scoring.ScoringInput;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
-import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
@@ -44,9 +43,7 @@ public class LiveScoringService {
     private final ImportanceCalculator importanceCalculator;
     private final GameEventExtractor gameEventExtractor;
     private final LiveSignalPublisher liveSignalPublisher;
-    private final SurgeDetector surgeDetector;
     private final TimelineHighlightTrigger timelineHighlightTrigger;
-    private final SurgeNotificationPublisher surgeNotificationPublisher;
     private final ScoringProperties props;
     private final ApplicationEventPublisher applicationEventPublisher;
 
@@ -120,18 +117,12 @@ public class LiveScoringService {
         String eventInningType = latestPlay == null ? null : latestPlay.getInningType();
         Long scoredPlayOrder = latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder();
 
-        surgeDetector.evaluate(gameId, watchScoreRounded, observedAt, () -> {
-            PulseMetrics.increment("pulse.scorer.surge.fired");
-            surgeNotificationPublisher.publish(gameId, tags, previousTags, observedAt);
-        });
-
         // 급변 순간의 anchor 보호 이벤트를 하이라이트로 표시하고 보호 문구 생성을 요청한다.
         // (scoring.highlight.enabled=false면 no-op)
         timelineHighlightTrigger.evaluate(gameId, watchScoreRounded, observedAt);
 
-        // Redis projection(랭킹·캐시·신호)과 미번역 플레이 생성 요청은 커밋 후
-        // LiveScoreComputedEvent 리스너가 처리한다. SURGE 판정은 아직 본 트랜잭션에서
-        // 직접 호출로 유지한다(다음 단계에서 리스너로 이동).
+        // Redis projection, SURGE 판정·알림, 미번역 플레이 생성 요청은 커밋 후
+        // LiveScoreComputedEvent 리스너가 각각 처리한다.
         applicationEventPublisher.publishEvent(new LiveScoreComputedEvent(
                 gameId, observedAt, watchScore, watchScoreRounded, (int) Math.round(baseScore),
                 tags, previousTags, eventInning, eventInningType, scoredPlayOrder,

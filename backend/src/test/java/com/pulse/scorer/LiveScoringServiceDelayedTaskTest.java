@@ -107,9 +107,7 @@ class LiveScoringServiceDelayedTaskTest {
                     importanceCalculator,
                     mock(GameEventExtractor.class),
                     liveSignalPublisher,
-                    mock(SurgeDetector.class),
                     mock(TimelineHighlightTrigger.class),
-                    mock(SurgeNotificationPublisher.class),
                     properties,
                     mock(org.springframework.context.ApplicationEventPublisher.class));
         }
