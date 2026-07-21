@@ -69,6 +69,19 @@
 - `message`는 발행 측 poller/scorer가 고정 템플릿으로 완성한다. 소비자는 `latestTag`를 문구로 다시 조립하지 않는다.
 - 알림 payload·문구에 점수 숫자, 결과, 태그 배열을 싣지 않는다.
 
+### 4.1 알림 Consumer 실행 역할
+
+`notify.events` 큐의 사용자 알림 소비는 `pulse-api` 역할만 담당한다.
+
+- `NotificationEventListener`는 `pulse.notification.consumer-enabled=true`일 때만 등록한다.
+- 환경변수 이름은 `PULSE_NOTIFICATION_CONSUMER_ENABLED`를 사용한다.
+- 운영 환경의 역할별 설정은 다음과 같다.
+  - `pulse-api`: `true`
+  - `pulse-poller`: `false`
+  - `pulse-scorer`: `false`
+- `poller`와 `scorer`는 알림 이벤트를 발행할 수 있지만, 사용자별 fan-out, `user_notifications` 저장과 SSE 전달을 위한 소비는 API가 담당한다.
+- 설정값을 생략한 경우 기본값은 `false`로 처리해 의도하지 않은 컨테이너가 큐를 경쟁 소비하지 않도록 한다.
+
 ## 5. 경기 전환 추천
 
 경기 전환 추천은 알림 파이프라인을 사용하지 않고 경기 상세 응답의 `switchSuggestion`으로 제공한다.
@@ -76,3 +89,14 @@
 - Redis 라이브 랭킹에서 현재 경기보다 `watch_score`가 20점 이상 높고 70점 이상인 후보를 찾는다.
 - 추천 점수는 서버 내부에서만 사용하고 응답에 노출하지 않는다.
 - 같은 후보는 15분에 한 번만 제안한다. 로그인 사용자는 Redis 사용자별 키, 비로그인 사용자는 클라이언트 보조 상태를 사용한다.
+
+### 5.1 경기 상세 화면 토스트 중복 방지
+
+경기 상세 화면에서는 상세 응답의 `switchSuggestion`과 전역 `SURGE` 알림이 유사한 경기 이동 제안을 동시에 표시할 수 있다.
+
+- 경기 상세 화면에서는 상세 전용 `switchSuggestion`과의 중복을 방지하기 위해 전역 `SURGE` 토스트를 표시하지 않는다.
+- 이 정책은 프론트엔드의 토스트 표시 단계에만 적용한다.
+- `SURGE` 이벤트 수신, `user_notifications` 저장, 알림 목록 갱신과 헤더 미읽음 표시는 그대로 유지한다.
+- 저장된 `SURGE` 알림은 알림 센터에서 정상적으로 조회할 수 있다.
+- 관심 팀 경기 시작을 안내하는 `GAME_START` 토스트는 경기 상세 화면에서도 기존처럼 표시한다.
+- 홈, 마이페이지와 설정 화면 등 경기 상세가 아닌 화면에서는 전역 `SURGE` 토스트를 기존과 동일하게 표시한다.

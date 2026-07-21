@@ -47,6 +47,7 @@
 | `HomeRankingControllerTest` | 익명 인증 객체를 비로그인 요청으로 처리하는지 검증한다. |
 | `NotificationControllerTest` | 알림 목록·선택 읽음·전체 읽음 API와 잘못된 요청 응답을 검증한다. |
 | `NotificationEventListenerTest` | 유효한 알림 이벤트를 fan-out 서비스로 전달하고 null 이벤트를 건너뛴다. |
+| `NotificationConsumerRoleGateTest` | `consumer-enabled=true`일 때만 `NotificationEventListener`가 등록되고, `false` 또는 설정 누락 시 등록되지 않는지 검증한다. |
 | `NotificationFanOutServiceTest` | 관심 팀 경기 시작·급상승 알림 대상 선정, 저장과 중복 멱등성을 검증한다. |
 | `NotificationServiceTest` | 최신 알림 조회와 선택·전체 읽음 처리, ID 정규화를 검증한다. |
 | `RedisSignalRelayTest` | Redis 랭킹·경기 신호를 SSE로 중계하고 시퀀스·비정상 채널을 처리한다. |

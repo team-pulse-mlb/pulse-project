@@ -8,7 +8,15 @@ payload에는 점수·순위·결과 데이터를 싣지 않는다. 클라이언
 |---|---|---|
 | `ranking_changed` | `{ sequence, generatedAt }` | 홈 랭킹 재조회 |
 | `game_updated` | `{ gameId, sequence, generatedAt }` | 보고 있는 경기의 상세·흐름 재조회 |
-| `notification_created` | `{ notificationId }` | 알림 목록 재조회 및 토스트 표시 |
+| `notification_created` | `{ notificationId }` | 알림 목록을 재조회하고 헤더 미읽음 상태를 갱신한 뒤 화면 정책에 따라 토스트 표시 |
+
+### 경기 상세 화면의 알림 표시 예외
+
+`notification_created` 이벤트를 수신하면 프론트엔드는 알림 목록을 다시 조회하고 헤더 미읽음 표시를 갱신한다.
+
+경기 상세 화면에서는 상세 응답의 `switchSuggestion`과 중복되는 전역 `SURGE` 토스트만 표시하지 않는다. 이 경우에도 `SURGE` 이벤트 수신, 알림 센터 저장과 헤더 미읽음 표시는 유지한다.
+
+관심 팀 경기 시작을 알리는 `GAME_START` 토스트는 경기 상세 화면에서도 정상적으로 표시한다. 경기 상세가 아닌 화면에서는 `SURGE` 토스트도 기존과 동일하게 표시한다.
 
 ## 2. 연결·인증·재연결
 
