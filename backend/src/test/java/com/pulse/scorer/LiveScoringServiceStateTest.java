@@ -44,7 +44,6 @@ class LiveScoringServiceStateTest {
                 liveSignalPublisher,
                 mock(SurgeDetector.class),
                 mock(TimelineHighlightTrigger.class),
-                mock(AiGenerationTrigger.class),
                 mock(SurgeNotificationPublisher.class),
                 mock(ScoringProperties.class),
                 mock(org.springframework.context.ApplicationEventPublisher.class));

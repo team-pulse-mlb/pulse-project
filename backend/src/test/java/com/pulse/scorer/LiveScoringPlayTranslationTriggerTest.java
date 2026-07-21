@@ -2,6 +2,7 @@ package com.pulse.scorer;
 
 import com.pulse.scoring.ImportanceCalculator;
 import com.pulse.scoring.ScoreCalculator;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -18,6 +19,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 
 class LiveScoringPlayTranslationTriggerTest {
@@ -30,7 +33,7 @@ class LiveScoringPlayTranslationTriggerTest {
             Instant.parse("2026-07-17T01:00:00Z");
 
     @Test
-    void handle_shouldRequestTranslationsThroughLastObservedPlayOrder() {
+    void handle_shouldPublishEventCarryingLastObservedPlayOrder() {
         ScoringProperties properties =
                 TestScoringProperties.version5();
 
@@ -46,8 +49,8 @@ class LiveScoringPlayTranslationTriggerTest {
         ImportanceCalculator importanceCalculator =
                 mock(ImportanceCalculator.class);
 
-        AiGenerationTrigger aiGenerationTrigger =
-                mock(AiGenerationTrigger.class);
+        ApplicationEventPublisher applicationEventPublisher =
+                mock(ApplicationEventPublisher.class);
 
         when(
                 watchScoreRepository
@@ -88,10 +91,9 @@ class LiveScoringPlayTranslationTriggerTest {
                         mock(LiveSignalPublisher.class),
                         mock(SurgeDetector.class),
                         mock(TimelineHighlightTrigger.class),
-                        aiGenerationTrigger,
                         mock(SurgeNotificationPublisher.class),
                         properties,
-                        mock(org.springframework.context.ApplicationEventPublisher.class));
+                        applicationEventPublisher);
 
         service.handle(
                 new ScoreTask(
@@ -102,14 +104,16 @@ class LiveScoringPlayTranslationTriggerTest {
                         null));
 
         /*
-         * poller가 한 번에 여러 play를 저장하더라도
-         * scorer는 마지막 관측 순서까지의 미번역 결과를 요청해야 한다.
+         * poller가 한 번에 여러 play를 저장하더라도 scorer는 마지막 관측 순서를
+         * 이벤트에 실어야 하고, 커밋 후 PlayTranslationCommitListener가 그 순서까지
+         * 미번역 결과 생성을 요청한다.
          */
-        verify(aiGenerationTrigger)
-                .onPlayTranslationsPending(
-                        GAME_ID,
-                        LAST_PLAY_ORDER,
-                        OBSERVED_AT);
+        ArgumentCaptor<LiveScoreComputedEvent> eventCaptor =
+                ArgumentCaptor.forClass(LiveScoreComputedEvent.class);
+        verify(applicationEventPublisher)
+                .publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().translationThroughPlayOrder())
+                .isEqualTo(LAST_PLAY_ORDER);
     }
 
     private static Game liveGame() {

@@ -18,8 +18,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 /**
  * LiveScoreComputedEvent가 커밋 후에만 AFTER_COMMIT 리스너로 전달되고
  * 롤백 시 전달되지 않음을 트랜잭션 위상 수준에서 검증한다.
+ * 이 위상 보장 위에서 PlayTranslationCommitListener 등 커밋 후 부수효과가 동작한다.
  */
-class LiveScoreComputedEventListenerTest {
+class LiveScoreComputedEventDeliveryTest {
 
     @AfterEach
     void cleanUpTransaction() {

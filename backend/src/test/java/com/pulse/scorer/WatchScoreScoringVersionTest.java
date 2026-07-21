@@ -54,7 +54,6 @@ class WatchScoreScoringVersionTest {
                 mock(LiveSignalPublisher.class),
                 mock(SurgeDetector.class),
                 mock(TimelineHighlightTrigger.class),
-                mock(AiGenerationTrigger.class),
                 mock(SurgeNotificationPublisher.class),
                 properties,
                 mock(org.springframework.context.ApplicationEventPublisher.class));
