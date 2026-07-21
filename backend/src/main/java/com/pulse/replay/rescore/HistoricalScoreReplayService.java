@@ -44,13 +44,13 @@ class HistoricalScoreReplayService {
         for (Long gameId : gameIds) {
             GameReplayResult result = replayGame(gameId);
             totalWatchScores += result.insertedWatchScores();
-            log.info("scorer 재생 완료: gameId={}, cycles={}, watchScoresInserted={}",
+            log.info("game processor 재생 완료: gameId={}, cycles={}, watchScoresInserted={}",
                     gameId,
                     result.scoreCycles(),
                     result.insertedWatchScores());
         }
 
-        log.info("scorer 재생 전체 완료: games={}, watchScoresInserted={}",
+        log.info("game processor 재생 전체 완료: games={}, watchScoresInserted={}",
                 gameIds.size(),
                 totalWatchScores);
     }

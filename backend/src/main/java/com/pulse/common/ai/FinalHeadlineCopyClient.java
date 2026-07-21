@@ -5,7 +5,7 @@ import java.util.Optional;
 /**
  * 종료 경기 FINAL_HEADLINE AI 문구 생성을 요청하는 공통 인터페이스입니다.
  *
- * <p>이 인터페이스는 scorer/api 등 다른 모듈이 com.pulse.ai 구현체에 직접 의존하지 않도록
+ * <p>이 인터페이스는 gameprocessing/api 등 다른 모듈이 com.pulse.ai 구현체에 직접 의존하지 않도록
  * common 모듈에 둔 계약입니다.</p>
  *
  * <p>반환값이 {@link Optional#empty()}인 경우는 오류가 아니라

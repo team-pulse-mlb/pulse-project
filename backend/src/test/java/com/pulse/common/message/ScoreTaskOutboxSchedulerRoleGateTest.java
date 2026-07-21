@@ -36,7 +36,7 @@ class ScoreTaskOutboxSchedulerRoleGateTest {
 
     @Test
     @DisplayName("scorer만 활성화되면 ScoreTask outbox 스케줄러를 등록한다")
-    void shouldRegisterSchedulerWhenOnlyScorerIsEnabled() {
+    void shouldRegisterSchedulerWhenOnlyGameProcessorIsEnabled() {
         contextRunner.withPropertyValues(
                         "pulse.poller.enabled=false",
                         "pulse.scorer.enabled=true")
