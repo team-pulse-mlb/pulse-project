@@ -18,6 +18,7 @@ import com.pulse.domain.StandingRepository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -48,11 +49,13 @@ public class PregameGameWriter {
     @Transactional
     public Set<Long> upsertLineups(List<BdlLineup> dtos, Instant observedAt) {
         Set<Long> changedGameIds = new LinkedHashSet<>();
+        Map<Long, Set<Long>> lineupIdsByGameId = new LinkedHashMap<>();
         for (BdlLineup dto : dtos) {
             if (dto.id() == null || dto.gameId() == null || dto.player() == null || dto.player().id() == null
                     || dto.team() == null || dto.team().id() == null) {
                 continue;
             }
+            lineupIdsByGameId.computeIfAbsent(dto.gameId(), ignored -> new LinkedHashSet<>()).add(dto.id());
             upsertPlayer(dto.player(), dto.team().id(), observedAt);
 
             Lineup lineup = lineupRepository.findByGameIdAndPlayerId(dto.gameId(), dto.player().id())
@@ -84,6 +87,15 @@ public class PregameGameWriter {
                 changedGameIds.add(dto.gameId());
             }
             lineupRepository.save(lineup);
+        }
+        for (Map.Entry<Long, Set<Long>> entry : lineupIdsByGameId.entrySet()) {
+            List<Lineup> staleLineups = lineupRepository.findByGameId(entry.getKey()).stream()
+                    .filter(lineup -> !entry.getValue().contains(lineup.getId()))
+                    .toList();
+            if (!staleLineups.isEmpty()) {
+                lineupRepository.deleteAll(staleLineups);
+                changedGameIds.add(entry.getKey());
+            }
         }
         return changedGameIds;
     }
