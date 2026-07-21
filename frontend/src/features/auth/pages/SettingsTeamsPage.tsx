@@ -71,18 +71,30 @@ function SettingsTeamsPage() {
     const [errorMessage, setErrorMessage] =
         useState('');
 
-    /*
-     * 선택된 ID를 실제 팀 객체로 변환합니다.
-     *
-     * 화면 상단의 현재 선택된 관심팀 카드에서
-     * 팀 이름과 로고를 표시할 때 사용합니다.
-     */
     const selectedTeams = useMemo(() => {
-        return teams.filter((team) =>
-            selectedTeamIds.includes(
-                team.teamId,
-            ),
-        );
+        /*
+         * selectedTeamIds 배열의 순서를 기준으로
+         * 실제 팀 객체를 찾아 반환합니다.
+         *
+         * teams.filter()를 사용하면 전체 팀 목록의 정렬 순서를
+         * 따르기 때문에 사용자가 선택한 순서와 달라질 수 있습니다.
+         *
+         * 현재 방식에서는 팀을 삭제하면 selectedTeamIds 배열에서도
+         * 해당 값만 제거되므로, 남아 있는 카드가 자연스럽게
+         * 왼쪽부터 다시 정렬됩니다.
+         */
+        return selectedTeamIds
+            .map((teamId) =>
+                teams.find(
+                    (team) => team.teamId === teamId,
+                ),
+            )
+            .filter(
+                (
+                    team,
+                ): team is TeamResponse =>
+                    team !== undefined,
+            );
     }, [teams, selectedTeamIds]);
 
     /*
@@ -197,6 +209,31 @@ function SettingsTeamsPage() {
     };
 
     /*
+    * 화면 상단의 선택된 팀 카드에서
+    * X 버튼을 눌렀을 때 해당 팀을 제거합니다.
+    *
+    * filter()로 해당 ID만 제거하기 때문에
+    * 뒤에 있던 카드들은 자동으로 왼쪽부터 다시 배치됩니다.
+    */
+    const handleRemoveSelectedTeam = (
+        teamId: number,
+    ) => {
+        if (isSaving) {
+            return;
+        }
+
+        setErrorMessage('');
+
+        setSelectedTeamIds(
+            (previousTeamIds) =>
+                previousTeamIds.filter(
+                    (selectedTeamId) =>
+                        selectedTeamId !== teamId,
+                ),
+        );
+    };
+
+    /*
      * 변경한 관심팀을 서버에 저장합니다.
      *
      * 기존 알림 설정은 변경하지 않고 그대로 전달합니다.
@@ -293,8 +330,8 @@ function SettingsTeamsPage() {
                             <h2>현재 선택한 팀</h2>
 
                             <p>
-                                선택된 팀을 다시 누르면
-                                관심팀에서 해제할 수 있습니다.
+                                카드 우측 상단의 X 버튼을 누르면
+                                관심팀 선택을 해제할 수 있습니다.
                             </p>
                         </div>
 
@@ -319,6 +356,21 @@ function SettingsTeamsPage() {
                                         key={team.teamId}
                                         className="mypage-selected-team"
                                     >
+                                        <button
+                                            type="button"
+                                            className="mypage-selected-remove-button"
+                                            aria-label={`${team.displayName} 선택 해제`}
+                                            title={`${team.displayName} 선택 해제`}
+                                            disabled={isSaving}
+                                            onClick={() =>
+                                                handleRemoveSelectedTeam(
+                                                    team.teamId,
+                                                )
+                                            }
+                                        >
+                                            ×
+                                        </button>
+
                                         <div className="mypage-selected-logo">
                                             {team.logoUrl ? (
                                                 <img
@@ -403,11 +455,10 @@ function SettingsTeamsPage() {
                                     <button
                                         key={team.teamId}
                                         type="button"
-                                        className={`mypage-team-card ${
-                                            isSelected
-                                                ? 'selected'
-                                                : ''
-                                        }`}
+                                        className={`mypage-team-card ${isSelected
+                                            ? 'selected'
+                                            : ''
+                                            }`}
                                         aria-pressed={
                                             isSelected
                                         }
