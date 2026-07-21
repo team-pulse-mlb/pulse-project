@@ -2,6 +2,7 @@ package com.pulse.gameprocessing.effect;
 
 import com.pulse.scoring.TestScoringProperties;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
@@ -99,6 +100,36 @@ class SurgeDetectorTest {
         AtomicBoolean fired = new AtomicBoolean();
 
         detector.evaluate(100L, 95, now, () -> fired.set(true));
+
+        assertThat(fired).isFalse();
+        verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
+    }
+
+    @Test
+    void evaluate_shouldPropagateActionFailureAfterRedisStateConfirmed() {
+        when(valueOperations.get("notify:armed:100")).thenReturn("1");
+        when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(false);
+        confirmNextCandidate(1L);
+
+        // 쿨다운·전역 카운트를 Lua로 먼저 확정한 뒤 confirmedAction을 실행하므로,
+        // 알림 저장이 실패하면 예외는 호출자(SurgeCommitListener)로 전파되고
+        // Redis 확정은 되돌릴 수 없다는 순서 특성을 고정한다.
+        assertThatThrownBy(() -> detector.evaluate(100L, 85, now,
+                () -> { throw new RuntimeException("알림 저장 실패"); }))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("알림 저장 실패");
+
+        verify(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
+    }
+
+    @Test
+    void evaluate_shouldNotRefireWhileCooldownRemainsAfterActionFailure() {
+        // 확정 직후 알림 저장(DB)이 실패한 경우: Redis 쿨다운은 이미 남아 있어
+        // 같은 급변을 재평가해도 쿨다운 동안 재발행되지 않는다(알림 유실 경계 특성화).
+        when(redisTemplate.hasKey("notify:cooldown:100")).thenReturn(true);
+        AtomicBoolean fired = new AtomicBoolean();
+
+        detector.evaluate(100L, 85, now, () -> fired.set(true));
 
         assertThat(fired).isFalse();
         verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
