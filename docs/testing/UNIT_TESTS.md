@@ -3,7 +3,7 @@
 ## 1. 범위
 
 - 기준 경로: `backend/src/test/java`
-- 기준 시점의 `*Test.java` 클래스: 112개
+- 기준 시점의 `*Test.java` 클래스: 126개
 - 서비스·정책·계산·직렬화·설정 검증을 단위 테스트로 분류한다.
 - Spring 컨텍스트, JPA 슬라이스, HTTP 테스트 경계를 사용하는 클래스도 전체 현황 확인을 위해 아래 목록에 포함하고, 통합 범위는 [INTEGRATION_TESTS.md](INTEGRATION_TESTS.md)에서 별도로 구분한다.
 - `TestScoringProperties.java`는 테스트 보조 클래스이므로 테스트 클래스 수와 목록에서 제외한다.
@@ -31,6 +31,7 @@
 | `AiFinalHeadlineContextMapperTest` | 공개 종료 헤드라인 컨텍스트를 보호 필드 없이 결과 기반 HTTP 요청으로 변환한다. |
 | `AiFinalHeadlineCopyClientTest` | 종료 헤드라인 응답의 근거가 공통 결과 객체까지 전달되는지 검증한다. |
 | `AiFinalHeadlineRequestTest` | 보호·공개 모드별 최종 점수·승자·v2 컨텍스트 직렬화 계약을 검증한다. |
+| `AiServicePropertiesTest` | AI 서비스 기본 URL·connect 2초·read 30초와 사용자 지정 URL·타임아웃 유지·URL 정규화를 검증한다. |
 
 ### 3.2 api
 
@@ -40,6 +41,7 @@
 | `GameDetailSerializationGuardTest` | 예정·진행·종료와 보호·공개 조합별 상세 DTO 노출 필드 계약을 검증한다. |
 | `GameEventQueryServiceTest` | 보호 모드 하이라이트 조회, 공개 모드 차단, 잘못된 모드 폴백과 경기 없음 응답을 검증한다. |
 | `GameQueryServiceTest` | 상태·모드별 상세 조립, 라인업·구장·헤드라인 처리와 보호 모드 폴백을 검증한다. |
+| `SwitchSuggestionServiceTest` | 전환 후보 없음·사용자 설정 비활성화·비로그인 응답·회원별 후보 쿨다운을 검증한다. |
 | `GameRecentPlayQueryServiceTest` | 보호 모드 play 차단과 공개 모드 최근 타석·저장 번역 조회를 검증한다. |
 | `AnonymousHomeRankingCacheTest` | 익명 홈 랭킹 응답을 TTL 동안 재사용하는지 검증한다. |
 | `AnonymousHomeRankingCacheWiringTest` | 익명 랭킹 캐시가 Spring 컨텍스트에서 정상 생성되는지 검증한다. |
@@ -61,6 +63,8 @@
 | `PlayerSearchMemoryCacheTest` | 동일 검색어 동시 로드 단일화, 만료 제거와 최대 개수 축출을 검증한다. |
 | `PlayerSearchServiceTest` | 외부 검색 우선·로컬 보완·장애 폴백·캐시·짧은 검색어 차단을 검증한다. |
 | `UserPreferenceServiceTest` | 관심 팀·선수 갱신 순서, 검색 캐시·외부 조회와 한도·장애 처리를 검증한다. |
+| `MemberServiceTest` | 비밀번호 확인 불일치·현재 비밀번호 오류·동일 비밀번호·이메일 인증과 저장 후 refresh token 폐기를 검증한다. |
+| `CustomUserDetailsServiceTest` | 이메일 정규화, ACTIVE 회원 로그인 정보와 탈퇴·미가입 회원 차단을 검증한다. |
 
 ### 3.3 common
 
@@ -76,11 +80,13 @@
 | `NotificationEventSerializationTest` | 알림 이벤트의 완성 메시지와 최신 태그 직렬화 계약을 검증한다. |
 | `NotificationMessageBeanConstructionTest` | 알림 발행자와 디스패처의 생성자 주입 구성을 검증한다. |
 | `NotificationOutboxDispatcherTest` | RabbitMQ 발행 성공·실패 시 outbox 상태와 재발행 대상을 검증한다. |
+| `NotificationOutboxCleanupSchedulerTest` | 보존 기간이 지난 발행 완료 알림 outbox를 설정된 LIMIT 배치로 삭제하는지 검증한다. |
 | `NotificationOutboxSchedulerRoleGateTest` | poller·scorer 역할과 명시 설정에 따른 알림 outbox 스케줄러 등록을 검증한다. |
 | `PublisherTest` | ScoreTask·알림 이벤트의 outbox 선저장, 동시 insert 재사용과 발행 실패 격리를 검증한다. |
 | `ScoreTaskOutboxCleanupSchedulerTest` | 보존 기간이 지난 발행 완료 행을 제한된 배치로 삭제하는지 검증한다. |
 | `ScoreTaskOutboxDispatcherTest` | broker ack·nack·timeout·재시작 상황의 ScoreTask 발행 상태와 복구를 검증한다. |
 | `ScoreTaskOutboxSchedulerRoleGateTest` | poller·scorer 역할과 명시 설정에 따른 ScoreTask outbox 스케줄러 등록을 검증한다. |
+| `ScoreTaskFactoryTest` | 사전·라이브·종료 ScoreTask에 경기 스냅샷을 포함하는지 검증한다. |
 | `ScoreTaskSerializationTest` | 상황·PA·경기 스냅샷을 포함한 ScoreTask의 신규·구버전 JSON 호환성을 검증한다. |
 | `PulseMetricsTest` | 태그가 있는 카운터 증가와 작업 시간 기록을 검증한다. |
 | `AfterCommitExecutorTest` | 트랜잭션 유무에 따른 커밋 후 실행과 즉시 실행을 검증한다. |
@@ -102,7 +108,9 @@
 | `GameLifecycleStateMachineTest` | 외부 상태와 시작 시각에 따른 LIVE·PREGAME·중단·종료 전이를 검증한다. |
 | `GameUpsertResultTest` | LIVE·terminal 진입 판정을 실제 lifecycle 전이에만 한정하는지 검증한다. |
 | `LiveGameCycleWriterTest` | outbox 저장 실패 시 play와 경기 커서가 함께 롤백되는지 검증한다. |
+| `LivePlaysPollerTest` | 모든 라이브 경기 play 조회와 worker 실패 후 전역 backoff 유지 여부를 검증한다. |
 | `OperationalPollerTest` | 라이브·종료 작업 발행, 하트비트, 저소음 폴링, 복구 probe와 오류 격리를 검증한다. |
+| `PollerLiveGameStateTrackerTest` | quiet 임계값, heartbeat 주기, 연속 빈 응답 횟수와 경기 상태 초기화를 검증한다. |
 | `PaRawArchiveUploaderTest` | PA 원본 키 구조, 동일 응답 생략과 bucket 미설정 처리를 검증한다. |
 | `PlayerEnrichmentPollerTest` | stub 선수 청크 보강, 빈 대상, 레이트리밋 백오프와 예외 전파를 검증한다. |
 | `PlayerEnrichmentWriterTest` | 선수 상세 보강 시 결측값·팀 매핑·기존 값 보존 규칙을 검증한다. |
@@ -115,7 +123,7 @@
 | `PollerRunnerStateMatcherTest` | 반복 타자의 PA 순서 매핑과 batter 결측 play 건너뛰기를 검증한다. |
 | `PregameGameWriterTest` | 라인업·배당·순위·선수 시즌 스탯의 스냅샷 저장과 변경 판정을 검증한다. |
 | `PregamePollerTest` | 사전 경기 상태별 수집 주기, 배당 대상과 PREGAME 작업 1회 발행을 검증한다. |
-| `ScoreTaskFactoryTest` | 사전·라이브·종료 ScoreTask에 경기 스냅샷을 포함하는지 검증한다. |
+| `PregameTransitionWriterTest` | 사전 입력과 ScoreTask outbox의 원자적 저장, 실패 시 롤백과 커밋 후 작업 발행을 검증한다. |
 | `SimulationBaseballDataSourceTest` | 배속·오프셋·커서·다중 경기별 시뮬레이션 데이터 공개를 검증한다. |
 | `SimulationBeanConstructionTest` | 시뮬레이션 데이터 소스의 생성자 자동 주입 구성을 검증한다. |
 | `SimulationPropertiesTest` | 배속·다중 경기 설정 정규화와 잘못된 ID·누락값 검증을 확인한다. |
@@ -124,6 +132,7 @@
 
 | 테스트 클래스 | 핵심 검증 시나리오 |
 |---|---|
+| `LiveRankingPrunerTest` | 라이브 랭킹에서 누락·종료 경기를 제거하고 진행 중 경기만 유지하는지 검증한다. |
 | `PersonalizationCalculatorTest` | 관심 팀·선수 가산을 항목 수와 무관하게 각각 한 번만 적용하는지 검증한다. |
 | `RankingServiceTest` | 현재 경기 대비 점수 차와 절대 최저 점수에 따른 전환 후보 선정을 검증한다. |
 
@@ -135,10 +144,11 @@
 | `S3ReplayDataLoaderTest` | 백필·라이브 아카이브 play의 출처와 선수 FK 보장 저장을 검증한다. |
 | `AlertSimulatorTest` | 알림 진입·해제·재무장·쿨다운과 전역 윈도 한도를 검증한다. |
 | `BacktestImpactRunnerTest` | 대상 경기가 없는 백테스트 실행을 거절하는지 검증한다. |
-| `GameReplayEngineTest` | 백필 득점·리드 변경의 play 윈도 감쇠 근사를 검증한다. |
+| `GameReplayEngineTest` | 백필 득점·리드 변경의 play 윈도 감쇠와 운영·S3 혼합 source의 재생 사이클 구성을 검증한다. |
 | `ImpactReportGeneratorTest` | 기준 알림 유무에 따른 절대·비율 경보 한도 적용을 검증한다. |
 | `MetricsCalculatorTest` | 동점 순위 상관, AUC와 예측 horizon 라벨 산출을 검증한다. |
 | `ScoringConstantsLoaderTest` | 버전 스냅샷·임시 YAML 로드와 버전 불일치 실패를 검증한다. |
+| `SignalDumpWriterTest` | 백테스트 cycle 신호와 긴장 이벤트 라벨을 CSV 헤더·필드 계약에 맞게 기록하는지 검증한다. |
 | `MigrationJsonMapperTest` | 이전 JSON의 결측 필드와 숫자·좌표를 방어적으로 매핑한다. |
 | `OddsSnapshotSelectorTest` | 경기 시작 전 FIRST_SEEN·PREGAME_FINAL 관측 선택을 검증한다. |
 | `PlateAppearancePlayMatcherTest` | 반복 타자·결측 batter·half 정규화에 따른 PA-play 매핑을 검증한다. |
@@ -148,6 +158,7 @@
 
 | 테스트 클래스 | 핵심 검증 시나리오 |
 |---|---|
+| `AiGenerationAsyncConfigTest` | AI 생성 executor가 거절한 작업을 실행하지 않고 `pulse.ai.generation.rejected` metric을 증가시키는지 검증한다. |
 | `AiCopyReprocessPropertiesTest` | AI 문구 재처리 배치 크기와 기간 입력 조합의 기본값·검증을 확인한다. |
 | `AiCopyReprocessRunnerTest` | 전체·기간·단계별 헤드라인·이벤트 문구·play 번역 강제 재생성을 검증한다. |
 | `AiEventCopyGeneratorTest` | 보호 문구 저장·재생성·시도 횟수·검수 실패·컨텍스트 변경 처리를 검증한다. |
@@ -159,17 +170,23 @@
 | `GameFinalizationServiceTest` | DB 기반 종료 멱등성, 트랜잭션 커밋 후 정리·AI 요청과 롤백 격리를 검증한다. |
 | `ImportanceCalculatorTest` | 포스트시즌 중요도 값을 입력 또는 경기 값에서 선택하는지 검증한다. |
 | `LiveRankingRebuildRunnerTest` | 기동 시 라이브 최신 점수로 Redis 랭킹을 복원하고 실패를 격리한다. |
+| `LatestTagSelectorTest` | Redis 상태 없이 현재·직전 태그에서 새로 활성화된 최신 태그를 선택하는지 검증한다. |
+| `LiveScoreComputedEventDeliveryTest` | 라이브 계산 이벤트가 커밋 후에만 전달되고 롤백 시 전달되지 않는지 검증한다. |
 | `LiveScoringPlayTranslationTriggerTest` | 마지막 관측 play 순서까지만 번역을 요청하는지 검증한다. |
+| `LiveScoringServiceCharacterizationTest` | 라이브 계산·저장·후처리 파이프라인 순서와 중복 사이클·재전달 멱등성을 검증한다. |
+| `LiveScoringServiceCommitPhaseTest` | Redis 랭킹·캐시·Pub/Sub이 DB 커밋 후에만 반영되고 롤백 시 실행되지 않는지 검증한다. |
 | `LiveScoringServiceDelayedTaskTest` | 지연 작업이 발행 시점 스냅샷과 관측 play 상한으로 계산하는지 검증한다. |
 | `LiveScoringServiceStateTest` | 이미 종료된 경기는 재계산 대신 라이브 상태를 정리하는지 검증한다. |
 | `LiveSignalPublisherTest` | Redis 랭킹·보호 캐시·재조회 신호와 태그 fallback을 검증한다. |
+| `PregameScoreFormulasTest` | 배당 확률·승률 차·경쟁권·선발 ERA·내재 확률 정규화의 경계값과 점수 상한을 검증한다. |
 | `PregameScoringServiceTest` | 배당·선발·순위 기반 사전 점수와 배당 결측 폴백을 검증한다. |
 | `ReasonTagsTest` | 보호 라벨과 풀카운트 조건으로 최신 추천 태그를 구성하는지 검증한다. |
 | `ScoreCalculatorTest` | 접전·이닝·득점·리드 변경·압박 신호와 0~100 점수 상한을 검증한다. |
 | `ScorerRoleGateTest` | scorer 활성화와 배치 프로파일에 따른 운영 scorer 빈 등록을 검증한다. |
 | `ScoreTaskListenerTest` | PREGAME·TERMINAL·LIVE 작업을 해당 서비스로 라우팅하는지 검증한다. |
-| `SurgeDetectorTest` | 급상승 상태 전이·재무장·전역 한도와 트랜잭션 커밋 원자성을 검증한다. |
-| `SurgeNotificationPublisherTest` | 급상승 알림 payload 계약과 원 트랜잭션 커밋 후 독립 발행을 검증한다. |
+| `SurgeCommitListenerTest` | 커밋 후 급상승 판정·알림 전달과 리스너 예외 격리를 검증한다. |
+| `SurgeDetectorTest` | 급상승 상태 전이·재무장·쿨다운과 Lua 기반 전역 한도 원자성을 검증한다. |
+| `SurgeNotificationPublisherTest` | 급상승 알림 payload, 독립 트랜잭션과 결정적 이벤트 ID 멱등성을 검증한다. |
 | `TensionCurveQueryServiceTest` | 보호·공개 해상도, 연장 이닝, 결측 이력과 레벨 상한을 검증한다. |
 | `TerminalTaskRecoveryRunnerTest` | 종료 기록이 없는 FINAL 경기만 terminal 작업으로 복구하는지 검증한다. |
 | `TimelineHighlightBackfillTest` | 급변 하이라이트 백필·재구축의 윈도·상한·쿨다운·anchor 선정을 검증한다. |
@@ -204,8 +221,8 @@ backend\gradlew.bat test
 
 ## 실행 결과
 
-전체 스위트(테스트 클래스 112개) 기준이며, 통합 성격 테스트를 포함한다.
+전체 스위트(테스트 클래스 126개) 기준이며, 통합 성격 테스트를 포함한다. 2026-07-21 JDK 21 Docker clean test 결과를 기준으로 기록한다.
 
 | 총 테스트 수 | 성공 | 실패 | 스킵 | 실행일 |
 |---|---|---|---|---|
-| 462 | 462 | 0 | 0 | 2026-07-18 |
+| 535 | 535 | 0 | 0 | 2026-07-21 |

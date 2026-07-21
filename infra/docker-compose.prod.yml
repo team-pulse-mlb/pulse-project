@@ -50,6 +50,7 @@ services:
       PULSE_POLLER_ENABLED: "false"
       PULSE_SCORER_ENABLED: "false"
       PULSE_SSE_ENABLED: "true"
+      PULSE_NOTIFICATION_CONSUMER_ENABLED: "true"
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
       MANAGEMENT_SERVER_PORT: "8081"
@@ -79,6 +80,7 @@ services:
       PULSE_POLLER_ENABLED: "true"
       PULSE_SCORER_ENABLED: "false"
       PULSE_SSE_ENABLED: "false"
+      PULSE_NOTIFICATION_CONSUMER_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
@@ -106,6 +108,7 @@ services:
       PULSE_POLLER_ENABLED: "false"
       PULSE_SCORER_ENABLED: "true"
       PULSE_SSE_ENABLED: "false"
+      PULSE_NOTIFICATION_CONSUMER_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq

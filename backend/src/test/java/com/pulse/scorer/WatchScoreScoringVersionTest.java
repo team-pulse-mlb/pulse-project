@@ -52,11 +52,9 @@ class WatchScoreScoringVersionTest {
                 importanceCalculator,
                 mock(GameEventExtractor.class),
                 mock(LiveSignalPublisher.class),
-                mock(SurgeDetector.class),
                 mock(TimelineHighlightTrigger.class),
-                mock(AiGenerationTrigger.class),
-                mock(SurgeNotificationPublisher.class),
-                properties);
+                properties,
+                mock(org.springframework.context.ApplicationEventPublisher.class));
 
         service.handle(new ScoreTask(GAME_ID, OBSERVED_AT, null, "LIVE", null));
 

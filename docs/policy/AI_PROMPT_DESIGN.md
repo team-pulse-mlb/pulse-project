@@ -80,7 +80,17 @@ Evidence Guard를 통과한 뒤에도 Spoiler Guard와 backend의 최신 `contex
 
 ## 6. 호출 실패 제어와 로그 제한
 
-OpenAI SDK의 자동 재시도는 비활성화한다. 서비스 계층이 목적별 시도 상한 안에서 timeout, 연결 오류, rate limit, 빈 응답, JSON 파싱 실패, 필수 필드 누락만 재시도한다. 재시도 간격은 상한이 있는 지수 백오프와 jitter로 계산한다. 재시도 대상이 아니거나 상한을 넘긴 오류는 violation으로 변환하며 대체 문구를 생성하지 않는다.
+OpenAI SDK의 자동 재시도는 비활성화하고, 서비스 계층이 목적별 timeout과 최대 시도 횟수를 직접 적용한다. 최대 시도 횟수에는 최초 호출이 포함된다.
+
+| 목적 | OpenAI timeout | 최대 시도 | 운영 의도 |
+|---|---:|---:|---|
+| `FINAL_HEADLINE` | 20초 | 1회 | 종료 경기 비동기 산출물은 실시간성보다 생성 성공을 우선하되, 긴 요청을 반복해 AI worker를 장시간 점유하지 않도록 단일 호출로 제한한다. |
+| `EVENT_COPY` | 3초 | 2회 | 라이브 흐름 문구의 지연을 제한하고, 일시적 오류에만 짧게 한 번 재시도한다. |
+| `PLAY_TRANSLATION` | 3초 | 2회 | 연속 번역 호출의 지연을 제한하고, 일시적 오류에만 짧게 한 번 재시도한다. |
+
+timeout, 연결 오류, rate limit, 빈 응답, JSON 파싱 실패, 필수 필드 누락은 재시도 후보로 분류한다. 다만 `FINAL_HEADLINE`은 최대 시도가 1회이므로 실패를 즉시 반환하며, `EVENT_COPY`와 `PLAY_TRANSLATION`만 남은 시도 예산이 있을 때 재시도한다. 재시도 간격은 상한이 있는 지수 백오프와 jitter로 계산한다. 재시도 대상이 아니거나 시도 상한을 넘긴 오류는 violation으로 변환하며 대체 문구를 생성하지 않는다.
+
+Spring Boot에서 `ai-service`를 기다리는 read timeout 30초는 외부 HTTP 호출의 상한이며, 위 표의 OpenAI 목적별 timeout과는 별도다. 저장·백필·운영 복구 기준은 [AI_COPY.md](AI_COPY.md)와 [OPERATIONS.md](../ops/OPERATIONS.md)를 따른다.
 
 재시도 로그에는 `gameId`, 목적, 모드, 모델, 현재·최대 시도 횟수, 실패 사유만 남긴다. 프롬프트 본문, 생성 문구, `contextHash`는 로그에 기록하지 않는다.
 

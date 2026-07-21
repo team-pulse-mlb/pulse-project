@@ -11,6 +11,7 @@ import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.LineupRepository;
+import com.pulse.domain.NotificationEventLogRepository;
 import com.pulse.domain.OddsSnapshotRepository;
 import com.pulse.domain.PlayRepository;
 import com.pulse.domain.PlayerSeasonStatRepository;
@@ -35,6 +36,9 @@ class ScorerRoleGateTest {
                     TimelineHighlightTrigger.class,
                     TimelineHighlightBackfill.class,
                     LiveRankingRebuildRunner.class,
+                    LatestTagSelector.class,
+                    GameEventCopyCommitListener.class,
+                    SurgeCommitListener.class,
                     SurgeNotificationPublisher.class,
                     LiveSignalPublisher.class,
                     ImportanceCalculator.class)
@@ -47,6 +51,7 @@ class ScorerRoleGateTest {
             .withBean(OddsSnapshotRepository.class, () -> mock(OddsSnapshotRepository.class))
             .withBean(StandingRepository.class, () -> mock(StandingRepository.class))
             .withBean(PlayerSeasonStatRepository.class, () -> mock(PlayerSeasonStatRepository.class))
+            .withBean(NotificationEventLogRepository.class, () -> mock(NotificationEventLogRepository.class))
             .withBean(NotificationEventPublisher.class, () -> mock(NotificationEventPublisher.class))
             .withBean(ScoringProperties.class, () -> mock(ScoringProperties.class))
             .withBean(AiGenerationTrigger.class, () -> mock(AiGenerationTrigger.class))
@@ -67,6 +72,9 @@ class ScorerRoleGateTest {
                     assertThat(context).hasSingleBean(GameEventExtractor.class);
                     assertThat(context).hasSingleBean(TimelineHighlightBackfill.class);
                     assertThat(context).hasSingleBean(LiveRankingRebuildRunner.class);
+                    assertThat(context).hasSingleBean(LatestTagSelector.class);
+                    assertThat(context).hasSingleBean(GameEventCopyCommitListener.class);
+                    assertThat(context).hasSingleBean(SurgeCommitListener.class);
                     assertThat(context).hasSingleBean(SurgeNotificationPublisher.class);
                     assertThat(context).hasSingleBean(LiveSignalPublisher.class);
                     assertThat(context).hasSingleBean(ImportanceCalculator.class);
@@ -86,6 +94,9 @@ class ScorerRoleGateTest {
                     assertThat(context).doesNotHaveBean(GameEventExtractor.class);
                     assertThat(context).doesNotHaveBean(TimelineHighlightBackfill.class);
                     assertThat(context).doesNotHaveBean(LiveRankingRebuildRunner.class);
+                    assertThat(context).doesNotHaveBean(LatestTagSelector.class);
+                    assertThat(context).doesNotHaveBean(GameEventCopyCommitListener.class);
+                    assertThat(context).doesNotHaveBean(SurgeCommitListener.class);
                     assertThat(context).doesNotHaveBean(SurgeNotificationPublisher.class);
                     assertThat(context).doesNotHaveBean(LiveSignalPublisher.class);
                     assertThat(context).doesNotHaveBean(ImportanceCalculator.class);

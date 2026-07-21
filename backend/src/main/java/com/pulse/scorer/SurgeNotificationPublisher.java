@@ -3,6 +3,8 @@ package com.pulse.scorer;
 import com.pulse.common.message.NotificationEvent;
 import com.pulse.common.message.NotificationEvent.NotificationType;
 import com.pulse.common.message.NotificationEventPublisher;
+import com.pulse.domain.NotificationEventLogRepository;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -20,8 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class SurgeNotificationPublisher {
 
-    private final LiveSignalPublisher liveSignalPublisher;
+    private final LatestTagSelector latestTagSelector;
     private final NotificationEventPublisher notificationEventPublisher;
+    private final NotificationEventLogRepository notificationEventLogRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publish(
@@ -30,11 +33,16 @@ public class SurgeNotificationPublisher {
             List<String> previousTags,
             Instant occurredAt
     ) {
-        String latestTag = liveSignalPublisher.resolveLatestTag(gameId, tags, previousTags, occurredAt);
-        if (latestTag == null) {
+        UUID eventId = eventIdFor(gameId, occurredAt);
+        if (notificationEventLogRepository.existsById(eventId)) {
+            log.debug("이미 저장된 SURGE 알림 skip: gameId={} occurredAt={}", gameId, occurredAt);
+            return;
+        }
+
+        String latestTag = latestTagSelector.select(tags, previousTags, null).tag();
+        if (latestTag.isBlank()) {
             latestTag = "경기 흐름 변화";
         }
-        UUID eventId = UUID.randomUUID();
         notificationEventPublisher.publish(new NotificationEvent(
                 eventId,
                 NotificationType.SURGE,
@@ -44,5 +52,10 @@ public class SurgeNotificationPublisher {
                 occurredAt
         ), tags);
         log.info("SURGE 알림 발행 gameId={} latestTag={}", gameId, latestTag);
+    }
+
+    static UUID eventIdFor(long gameId, Instant occurredAt) {
+        String idempotencyKey = gameId + ":" + occurredAt + ":" + NotificationType.SURGE;
+        return UUID.nameUUIDFromBytes(idempotencyKey.getBytes(StandardCharsets.UTF_8));
     }
 }

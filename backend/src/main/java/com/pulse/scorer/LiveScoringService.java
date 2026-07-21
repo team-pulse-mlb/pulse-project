@@ -6,7 +6,6 @@ import com.pulse.scoring.ScoreCalculator;
 import com.pulse.scoring.ScoringInput;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
-import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
 import com.pulse.domain.GameRepository;
 import com.pulse.domain.Play;
@@ -22,6 +21,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,11 +43,9 @@ public class LiveScoringService {
     private final ImportanceCalculator importanceCalculator;
     private final GameEventExtractor gameEventExtractor;
     private final LiveSignalPublisher liveSignalPublisher;
-    private final SurgeDetector surgeDetector;
     private final TimelineHighlightTrigger timelineHighlightTrigger;
-    private final AiGenerationTrigger aiGenerationTrigger;
-    private final SurgeNotificationPublisher surgeNotificationPublisher;
     private final ScoringProperties props;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
     public void handle(ScoreTask task) {
@@ -115,36 +113,20 @@ public class LiveScoringService {
         updatePeakBaseScore(game, baseScore);
         gameEventExtractor.extract(gameId, recentPlays, task.plateAppearances(), seedLeader, observedAt);
 
-        liveSignalPublisher.publishLiveUpdate(
-                gameId,
-                watchScore,
-                (int) Math.round(baseScore),
-                tags,
-                latestPlay == null ? fallbackInning : latestPlay.getInning(),
-                latestPlay == null ? null : latestPlay.getInningType(),
-                latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder(),
-                game.getLifecycleState(),
-                previousTags,
-                observedAt
-        );
-
-        surgeDetector.evaluate(gameId, watchScoreRounded, observedAt, () -> {
-            PulseMetrics.increment("pulse.scorer.surge.fired");
-            surgeNotificationPublisher.publish(gameId, tags, previousTags, observedAt);
-        });
+        Integer eventInning = latestPlay == null ? fallbackInning : latestPlay.getInning();
+        String eventInningType = latestPlay == null ? null : latestPlay.getInningType();
+        Long scoredPlayOrder = latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder();
 
         // 급변 순간의 anchor 보호 이벤트를 하이라이트로 표시하고 보호 문구 생성을 요청한다.
         // (scoring.highlight.enabled=false면 no-op)
         timelineHighlightTrigger.evaluate(gameId, watchScoreRounded, observedAt);
 
-        /*
-         * 한 poll에 여러 play가 저장될 수 있으므로 마지막 play 순서까지의
-         * 미번역 타석 결과를 비동기로 생성한다.
-         */
-        aiGenerationTrigger.onPlayTranslationsPending(
-                gameId,
-                task.lastPlayOrder(),
-                observedAt);
+        // Redis projection, SURGE 판정·알림, 미번역 플레이 생성 요청은 커밋 후
+        // LiveScoreComputedEvent 리스너가 각각 처리한다.
+        applicationEventPublisher.publishEvent(new LiveScoreComputedEvent(
+                gameId, observedAt, watchScore, watchScoreRounded, (int) Math.round(baseScore),
+                tags, previousTags, eventInning, eventInningType, scoredPlayOrder,
+                task.lastPlayOrder(), game.getLifecycleState(), props.version()));
 
         log.debug("라이브 점수 계산 gameId={} watchScore={} observedAt={}", gameId, watchScoreRounded, observedAt);
     }

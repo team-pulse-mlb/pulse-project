@@ -410,8 +410,14 @@
 
 .mypage-preview-strip {
     display: grid;
-    grid-template-columns:
-        repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+
+    /*
+     * 관심팀이 1개 또는 2개여도 카드가 넓어지지 않도록
+     * 최대 3개 기준의 고정된 열 너비를 사용합니다.
+     */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    align-items: stretch;
     gap: 14px;
     width: 100%;
 }
@@ -420,12 +426,19 @@
     display: flex;
     align-items: center;
     gap: 14px;
+
     width: 100%;
     min-width: 0;
+    min-height: 92px;
+
     padding: 16px;
     border: 1px solid var(--mypage-border);
     border-radius: 18px;
-    background: linear-gradient(135deg, var(--mypage-soft), #ffffff);
+    background: linear-gradient(
+        135deg,
+        var(--mypage-soft),
+        #ffffff
+    );
     box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
 }
 
@@ -480,8 +493,17 @@
 
 .mypage-preview-player-grid {
     display: grid;
-    grid-template-columns:
-        repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+
+    /*
+     * 관심 선수는 최대 5명이므로
+     * PC에서는 한 줄에 최대 3명씩 표시합니다.
+     *
+     * 4~5명일 경우 다음 줄에 왼쪽부터 배치되며,
+     * 선수 수가 적어도 카드 너비는 변하지 않습니다.
+     */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    align-items: stretch;
     gap: 12px;
     width: 100%;
 }
@@ -491,12 +513,16 @@
     grid-template-columns: 44px minmax(0, 1fr);
     align-items: center;
     gap: 12px;
+
     width: 100%;
     min-width: 0;
+    min-height: 76px;
+
     padding: 14px;
     border: 1px solid var(--mypage-border);
     border-radius: 16px;
     background: var(--mypage-soft);
+
     transition:
         border-color 0.15s ease,
         background-color 0.15s ease,
@@ -633,5 +659,12 @@
     .mypage-preview-team-logo img {
         width: 40px;
         height: 40px;
+    }
+}
+
+@media (max-width: 820px) {
+    .mypage-preview-strip,
+    .mypage-preview-player-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }

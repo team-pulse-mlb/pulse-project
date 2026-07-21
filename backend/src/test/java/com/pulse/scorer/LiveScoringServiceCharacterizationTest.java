@@ -1,14 +1,11 @@
 package com.pulse.scorer;
 
-import com.pulse.scoring.ImportanceCalculator;
-import com.pulse.scoring.ScoreCalculator;
-import com.pulse.scoring.ScoringInput;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -24,18 +21,24 @@ import com.pulse.domain.GameRepository;
 import com.pulse.domain.PlayRepository;
 import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
+import com.pulse.scoring.ImportanceCalculator;
+import com.pulse.scoring.ScoreCalculator;
+import com.pulse.scoring.ScoringInput;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 /**
  * 리팩토링 안전망: LiveScoringService.handle()의 라이브 파이프라인 현재 동작을 고정한다.
  *
  * scorer를 이벤트 기반으로 쪼개기 전에, 계산·적재·후처리 팬아웃의 호출 순서와
  * 멱등(중복 사이클 skip, 재전달 시 1회 실행)을 특성화 테스트로 박아둔다.
- * 커밋/롤백 위상 게이팅은 {@link LiveScoringServiceCommitPhaseTest}가 담당한다.
+ * 커밋/롤백 위상 게이팅은 {@link LiveScoreComputedEventDeliveryTest}가 담당한다.
  */
 class LiveScoringServiceCharacterizationTest {
 
@@ -49,28 +52,23 @@ class LiveScoringServiceCharacterizationTest {
         fixture.service.handle(liveTask());
 
         // 계산 → watch_scores 적재 → peak 갱신 → game_events 추출 →
-        // Redis 반영 → SURGE 판정 → 하이라이트 → 미번역 플레이 요청 순서를 고정한다.
+        // 하이라이트 → 이벤트 발행 순서를 고정한다.
+        // Redis 반영·SURGE 판정·미번역 플레이 요청은 커밋 후 리스너가 이벤트로 처리한다.
         InOrder order = inOrder(
                 fixture.calculator,
                 fixture.watchScoreRepository,
                 fixture.gameRepository,
                 fixture.gameEventExtractor,
-                fixture.liveSignalPublisher,
-                fixture.surgeDetector,
                 fixture.timelineHighlightTrigger,
-                fixture.aiGenerationTrigger);
+                fixture.applicationEventPublisher);
         order.verify(fixture.calculator).calculate(any(ScoringInput.class));
         order.verify(fixture.watchScoreRepository).save(any(WatchScore.class));
         order.verify(fixture.gameRepository).save(fixture.game);
         order.verify(fixture.gameEventExtractor)
                 .extract(eq(GAME_ID), anyList(), any(), anyInt(), eq(OBSERVED_AT));
-        order.verify(fixture.liveSignalPublisher).publishLiveUpdate(
-                eq(GAME_ID), anyDouble(), anyInt(), anyList(),
-                any(), any(), any(), eq("LIVE"), anyList(), eq(OBSERVED_AT));
-        order.verify(fixture.surgeDetector).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT), any());
         order.verify(fixture.timelineHighlightTrigger).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT));
-        order.verify(fixture.aiGenerationTrigger)
-                .onPlayTranslationsPending(eq(GAME_ID), isNull(), eq(OBSERVED_AT));
+        order.verify(fixture.applicationEventPublisher)
+                .publishEvent(any(LiveScoreComputedEvent.class));
     }
 
     @Test
@@ -88,9 +86,8 @@ class LiveScoringServiceCharacterizationTest {
                 fixture.calculator,
                 fixture.gameEventExtractor,
                 fixture.liveSignalPublisher,
-                fixture.surgeDetector,
                 fixture.timelineHighlightTrigger,
-                fixture.aiGenerationTrigger);
+                fixture.applicationEventPublisher);
         verify(fixture.watchScoreRepository, never()).save(any(WatchScore.class));
     }
 
@@ -108,12 +105,42 @@ class LiveScoringServiceCharacterizationTest {
         verify(fixture.watchScoreRepository, times(1)).save(any(WatchScore.class));
         verify(fixture.gameEventExtractor, times(1))
                 .extract(eq(GAME_ID), anyList(), any(), anyInt(), eq(OBSERVED_AT));
-        verify(fixture.liveSignalPublisher, times(1)).publishLiveUpdate(
-                eq(GAME_ID), anyDouble(), anyInt(), anyList(),
-                any(), any(), any(), eq("LIVE"), anyList(), eq(OBSERVED_AT));
-        verify(fixture.surgeDetector, times(1)).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT), any());
-        verify(fixture.aiGenerationTrigger, times(1))
-                .onPlayTranslationsPending(eq(GAME_ID), isNull(), eq(OBSERVED_AT));
+        verify(fixture.applicationEventPublisher, times(1))
+                .publishEvent(any(LiveScoreComputedEvent.class));
+    }
+
+    @Test
+    void handle_shouldPublishLiveScoreComputedEventWithComputedValues() {
+        Fixture fixture = new Fixture();
+
+        fixture.service.handle(liveTask());
+
+        ArgumentCaptor<LiveScoreComputedEvent> eventCaptor =
+                ArgumentCaptor.forClass(LiveScoreComputedEvent.class);
+        verify(fixture.applicationEventPublisher).publishEvent(eventCaptor.capture());
+        LiveScoreComputedEvent event = eventCaptor.getValue();
+        assertThat(event.gameId()).isEqualTo(GAME_ID);
+        assertThat(event.computedAt()).isEqualTo(OBSERVED_AT);
+        assertThat(event.lifecycleState()).isEqualTo("LIVE");
+        assertThat(event.scoringVersion()).isEqualTo(fixture.properties.version());
+        assertThat(event.watchScoreRounded()).isEqualTo(80);
+        assertThat(event.baseScoreRounded()).isEqualTo(60);
+        assertThat(event.inning()).isEqualTo(8);
+        assertThat(event.translationThroughPlayOrder()).isNull();
+    }
+
+    @Test
+    void handle_shouldStopDerivedWritesWhenWatchScoreSaveFails() {
+        Fixture fixture = new Fixture();
+        when(fixture.watchScoreRepository.save(any(WatchScore.class)))
+                .thenThrow(new DataIntegrityViolationException("watch_scores 저장 실패"));
+
+        assertThatThrownBy(() -> fixture.service.handle(liveTask()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("watch_scores 저장 실패");
+
+        verifyNoInteractions(fixture.gameEventExtractor, fixture.timelineHighlightTrigger);
+        verify(fixture.applicationEventPublisher, never()).publishEvent(any());
     }
 
     private static ScoreTask liveTask() {
@@ -141,11 +168,9 @@ class LiveScoringServiceCharacterizationTest {
         private final ImportanceCalculator importanceCalculator = mock(ImportanceCalculator.class);
         private final GameEventExtractor gameEventExtractor = mock(GameEventExtractor.class);
         private final LiveSignalPublisher liveSignalPublisher = mock(LiveSignalPublisher.class);
-        private final SurgeDetector surgeDetector = mock(SurgeDetector.class);
         private final TimelineHighlightTrigger timelineHighlightTrigger = mock(TimelineHighlightTrigger.class);
-        private final AiGenerationTrigger aiGenerationTrigger = mock(AiGenerationTrigger.class);
-        private final SurgeNotificationPublisher surgeNotificationPublisher =
-                mock(SurgeNotificationPublisher.class);
+        private final ApplicationEventPublisher applicationEventPublisher =
+                mock(ApplicationEventPublisher.class);
         private final Game game = liveGame();
         private final LiveScoringService service;
 
@@ -167,11 +192,9 @@ class LiveScoringServiceCharacterizationTest {
                     importanceCalculator,
                     gameEventExtractor,
                     liveSignalPublisher,
-                    surgeDetector,
                     timelineHighlightTrigger,
-                    aiGenerationTrigger,
-                    surgeNotificationPublisher,
-                    properties);
+                    properties,
+                    applicationEventPublisher);
         }
     }
 }

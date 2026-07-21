@@ -42,11 +42,9 @@ class LiveScoringServiceStateTest {
                 mock(ImportanceCalculator.class),
                 mock(GameEventExtractor.class),
                 liveSignalPublisher,
-                mock(SurgeDetector.class),
                 mock(TimelineHighlightTrigger.class),
-                mock(AiGenerationTrigger.class),
-                mock(SurgeNotificationPublisher.class),
-                mock(ScoringProperties.class));
+                mock(ScoringProperties.class),
+                mock(org.springframework.context.ApplicationEventPublisher.class));
 
         service.handle(new ScoreTask(gameId, observedAt, 1L, "LIVE", null));
 
