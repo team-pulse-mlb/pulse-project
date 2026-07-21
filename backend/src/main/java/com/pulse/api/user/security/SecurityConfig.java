@@ -1,7 +1,5 @@
-package com.pulse.common.config;
+package com.pulse.api.user.security;
 
-import com.pulse.api.user.security.CustomUserDetailsService;
-import com.pulse.api.user.security.JwtAuthenticationEntryPoint;
 import com.pulse.api.user.security.cookie.RefreshTokenCookieProperties;
 import com.pulse.api.user.security.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
