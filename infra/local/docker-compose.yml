@@ -66,7 +66,7 @@ services:
       retries: 5
 
   # 운영과 같은 backend 애플리케이션을 로컬에서는 API 역할만 기본으로 실행한다.
-  # 시뮬레이션은 같은 컨테이너를 poller·scorer·simulation 활성 상태로 재생성한다.
+  # 시뮬레이션은 같은 컨테이너를 poller·game processor·simulation 활성 상태로 재생성한다.
   pulse-api:
     build:
       context: ../../backend

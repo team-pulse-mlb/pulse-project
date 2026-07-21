@@ -1,17 +1,17 @@
 # PULSE 운영 Docker Compose (EC2)
 #
-# 같은 backend 이미지를 역할 게이트 환경 변수만 바꿔 pulse-api / pulse-poller / pulse-scorer
+# 같은 backend 이미지를 역할 게이트 환경 변수만 바꿔 pulse-api / pulse-poller / pulse-game-processor
 # 3개 서비스로 재사용한다. 배포 절차와 환경 변수 목록은 docs/ops/OPERATIONS.md를 따른다.
 #
 # 배치 기준: EC2에 이 파일과 prod/ 디렉터리, .env를 같은 위치에 두고 실행한다.
 #   docker compose -f docker-compose.prod.yml up -d
 #
 # 역할 게이트 조합 (docs/architecture/ARCHITECTURE.md, WORK_PLAN 2-1):
-#   api    = poller off · scorer off · sse on  · Flyway 실행(prod 프로파일)
-#   poller = poller on  · scorer off · sse off · Flyway 끔
-#   scorer = poller off · scorer on  · sse off · Flyway 끔
+#   api            = poller off · scorer off · sse on  · Flyway 실행(prod 프로파일)
+#   poller         = poller on  · scorer off · sse off · Flyway 끔
+#   game processor = poller off · scorer on  · sse off · Flyway 끔
 # Flyway는 pulse-api 1곳에서만 실행해 동시 기동 마이그레이션 경합을 막는다.
-# poller·scorer는 pulse-api 헬스 통과(=마이그레이션 완료) 후 기동한다.
+# poller·game processor는 pulse-api 헬스 통과(=마이그레이션 완료) 후 기동한다.
 #
 # 관리 포트: 세 역할 모두 actuator를 8081(관리 포트)로 분리한다. 호스트에 publish하지
 # 않으며 헬스체크와 Prometheus scrape만 compose 내부 네트워크에서 접근한다.
@@ -24,8 +24,8 @@ x-app-logging: &app-logging
 
 # backend 이미지 공통 골격. 역할별 env·힙 상한·메모리 상한은 각 서비스에서 지정한다.
 # 메모리 상한 근거: 2026-07-18 라이브 15경기(02:00~16:00 KST) 1분 간격 실측.
-#   호스트 피크 2,540MB/3,831MB, 컨테이너 RSS 피크 api 481·poller 489·scorer 471MB,
-#   JVM 힙 피크 api 116/512·poller 118/256·scorer 102/384MB, 재시작·컨테이너 스왑 0.
+#   호스트 피크 2,540MB/3,831MB, 컨테이너 RSS 피크 api 481·poller 489·game processor 471MB,
+#   JVM 힙 피크 api 116/512·poller 118/256·game processor 102/384MB, 재시작·컨테이너 스왑 0.
 #   상한은 실측 피크 + JVM 이론 상한(Xmx+Metaspace+코드캐시+스레드스택)을 덮는 값으로 잡는다.
 #   상시 컨테이너 상한 합계 3,328MB < 호스트 3,831MB(스왑 2GB 별도).
 x-app-base: &app-base
@@ -57,7 +57,7 @@ services:
       MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
       # 2026-07-18 실측: 힙 피크 116MB/512MB, RSS 피크 481MB. 현행 유지.
       JAVA_OPTS: "-Xmx512m -XX:MaxMetaspaceSize=192m -XX:+UseSerialGC -Xss512k"
-      # RDS db.t3.micro(max_connections≈112) 예산: api 10 + poller 5 + scorer 8 = 23.
+      # RDS db.t3.micro(max_connections≈112) 예산: api 10 + poller 5 + game processor 8 = 23.
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "10"
       # SSE는 비동기 전송이라 요청 스레드를 점유하지 않는다. 기본 200은 과대해 축소.
       SERVER_TOMCAT_THREADS_MAX: "50"
@@ -100,9 +100,9 @@ services:
         condition: service_healthy
     healthcheck: *app-healthcheck
 
-  pulse-scorer:
+  pulse-game-processor:
     <<: *app-base
-    container_name: pulse-scorer
+    container_name: pulse-game-processor
     environment:
       SPRING_PROFILES_ACTIVE: prod
       PULSE_POLLER_ENABLED: "false"
@@ -116,11 +116,11 @@ services:
       MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
       # 2026-07-18 실측: 힙 피크 102MB/384MB, RSS 피크 471MB. 현행 유지.
       JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"
-      # 스코어러는 RabbitMQ 소비가 주 작업이라 HTTP 스레드는 actuator 몫만 필요.
+      # 경기 처리기는 RabbitMQ 소비가 주 작업이라 HTTP 스레드는 actuator 몫만 필요.
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "8"
       SERVER_TOMCAT_THREADS_MAX: "20"
     mem_limit: 704m
-    # 장애 격리를 위해 인프라 서비스에만 의존한다. api·ai-service 헬스체크 실패가 스코어러 기동을 막지 않게 한다.
+    # 장애 격리를 위해 인프라 서비스에만 의존한다. api·ai-service 헬스체크 실패가 경기 처리기 기동을 막지 않게 한다.
     depends_on:
       redis:
         condition: service_healthy
@@ -129,7 +129,7 @@ services:
     healthcheck: *app-healthcheck
 
   redis:
-    # Redis는 영속 상태를 보관하지 않는 순수 캐시다. 볼륨·AOF를 추가하지 않으며 라이브 랭킹은 scorer 기동 시 DB에서 복원한다.
+    # Redis는 영속 상태를 보관하지 않는 순수 캐시다. 볼륨·AOF를 추가하지 않으며 라이브 랭킹은 game processor 기동 시 DB에서 복원한다.
     image: redis:7-alpine
     container_name: pulse-redis
     restart: unless-stopped
@@ -215,7 +215,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # scorer가 pulse.ai.base-url=http://ai-service:8000으로 호출하는 AI 문구 서버.
+  # game processor가 pulse.ai.base-url=http://ai-service:8000으로 호출하는 AI 문구 서버.
   ai-service:
     image: ${PULSE_AI_IMAGE:?PULSE_AI_IMAGE required}
     container_name: pulse-ai-service

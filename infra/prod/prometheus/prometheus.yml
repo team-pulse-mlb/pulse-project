@@ -20,6 +20,6 @@ scrape_configs:
       - targets: ["pulse-poller:8081"]
         labels:
           role: poller
-      - targets: ["pulse-scorer:8081"]
+      - targets: ["pulse-game-processor:8081"]
         labels:
           role: scorer
