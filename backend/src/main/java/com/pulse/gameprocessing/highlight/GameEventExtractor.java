@@ -1,10 +1,10 @@
 package com.pulse.gameprocessing.highlight;
 
 import com.pulse.gameprocessing.aicopy.AiGenerationTrigger;
+import com.pulse.gameprocessing.aicopy.GameEventCopyRequestedEvent;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask.PitchSnapshot;
 import com.pulse.common.message.ScoreTask.PlateAppearanceSnapshot;
-import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Lineup;
@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 /**
@@ -50,8 +51,7 @@ public class GameEventExtractor {
     private final GameEventRepository gameEventRepository;
     private final LineupRepository lineupRepository;
     private final PlayRepository playRepository;
-    private final AiGenerationTrigger aiGenerationTrigger;
-    private final AfterCommitExecutor afterCommitExecutor;
+    private final ApplicationEventPublisher applicationEventPublisher;
     private final ScoringProperties props;
 
     public void extract(
@@ -441,10 +441,10 @@ public class GameEventExtractor {
         event.setSource("OPERATIONAL");
 
         GameEvent saved = gameEventRepository.save(event);
-        requestEventCopyAfterCommit(saved, observedAt);
+        publishEventCopyRequest(saved, observedAt);
     }
 
-    private void requestEventCopyAfterCommit(GameEvent event, Instant observedAt) {
+    private void publishEventCopyRequest(GameEvent event, Instant observedAt) {
         if (!GameEvent.SPOILER_PROTECTED_SAFE.equals(event.getSpoilerLevel())) {
             return;
         }
@@ -454,7 +454,7 @@ public class GameEventExtractor {
         if (highlight != null && highlight.enabled()) {
             return;
         }
-        afterCommitExecutor.execute(() -> aiGenerationTrigger.onGameEventPersisted(
+        applicationEventPublisher.publishEvent(new GameEventCopyRequestedEvent(
                 event.getGameId(), event.getId(), AiGenerationTrigger.MODE_PROTECTED, observedAt));
     }
 

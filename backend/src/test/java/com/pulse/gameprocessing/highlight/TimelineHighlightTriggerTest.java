@@ -1,19 +1,18 @@
 package com.pulse.gameprocessing.highlight;
 
 import com.pulse.gameprocessing.aicopy.AiGenerationTrigger;
+import com.pulse.gameprocessing.aicopy.GameEventCopyRequestedEvent;
 import com.pulse.scoring.TestScoringProperties;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.common.config.ScoringProperties;
-import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.WatchScoreRepository;
@@ -22,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class TimelineHighlightTriggerTest {
 
@@ -32,14 +32,13 @@ class TimelineHighlightTriggerTest {
 
     private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
     private final WatchScoreRepository watchScoreRepository = mock(WatchScoreRepository.class);
-    private final AiGenerationTrigger aiGenerationTrigger = mock(AiGenerationTrigger.class);
+    private final ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
 
     private TimelineHighlightTrigger trigger(ScoringProperties.Highlight highlight) {
         return new TimelineHighlightTrigger(
                 gameEventRepository,
                 watchScoreRepository,
-                aiGenerationTrigger,
-                new AfterCommitExecutor(),
+                applicationEventPublisher,
                 TestScoringProperties.version5(highlight)
         );
     }
@@ -85,7 +84,7 @@ class TimelineHighlightTriggerTest {
                 .evaluate(GAME_ID, 80, NOW);
 
         verify(gameEventRepository, never()).save(any());
-        verify(aiGenerationTrigger, never()).onGameEventPersisted(anyLong(), anyLong(), anyString(), any());
+        verify(applicationEventPublisher, never()).publishEvent(any(GameEventCopyRequestedEvent.class));
     }
 
     @Test
@@ -94,7 +93,7 @@ class TimelineHighlightTriggerTest {
         trigger(ENABLED).evaluate(GAME_ID, 39, NOW);
 
         verify(gameEventRepository, never()).save(any());
-        verify(aiGenerationTrigger, never()).onGameEventPersisted(anyLong(), anyLong(), anyString(), any());
+        verify(applicationEventPublisher, never()).publishEvent(any(GameEventCopyRequestedEvent.class));
     }
 
     @Test
@@ -106,7 +105,9 @@ class TimelineHighlightTriggerTest {
         trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
 
         verify(gameEventRepository, never()).save(any());
-        verify(aiGenerationTrigger, never()).onGameEventPersisted(anyLong(), anyLong(), anyString(), any());
+        verify(gameEventRepository).existsByGameIdAndTimelineHighlightTrueAndObservedAtGreaterThanEqual(
+                GAME_ID, NOW.minus(java.time.Duration.ofMinutes(ENABLED.cooldownMinutes())));
+        verify(applicationEventPublisher, never()).publishEvent(any(GameEventCopyRequestedEvent.class));
     }
 
     @Test
@@ -120,7 +121,7 @@ class TimelineHighlightTriggerTest {
         trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
 
         verify(gameEventRepository, never()).save(any());
-        verify(aiGenerationTrigger, never()).onGameEventPersisted(anyLong(), anyLong(), anyString(), any());
+        verify(applicationEventPublisher, never()).publishEvent(any(GameEventCopyRequestedEvent.class));
     }
 
     @Test
@@ -132,12 +133,12 @@ class TimelineHighlightTriggerTest {
         trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
 
         verify(gameEventRepository, never()).save(any());
-        verify(aiGenerationTrigger, never()).onGameEventPersisted(anyLong(), anyLong(), anyString(), any());
+        verify(applicationEventPublisher, never()).publishEvent(any(GameEventCopyRequestedEvent.class));
     }
 
     @Test
-    @DisplayName("급변 + 보호 이벤트가 있으면 anchor를 하이라이트로 표시하고 보호 문구 생성을 요청한다")
-    void marksAnchorAndRequestsCopy() {
+    @DisplayName("급변 + 보호 이벤트가 있으면 anchor를 표시하고 커밋 후 문구 생성 이벤트를 발행한다")
+    void marksAnchorAndPublishesCopyRequest() {
         armRise();
         GameEvent anchor = anchorEvent();
         stubAnchorCandidates(List.of(anchor));
@@ -146,8 +147,8 @@ class TimelineHighlightTriggerTest {
 
         assertThat(anchor.isTimelineHighlight()).isTrue();
         verify(gameEventRepository).save(anchor);
-        verify(aiGenerationTrigger).onGameEventPersisted(
-                eq(GAME_ID), eq(91L), eq(AiGenerationTrigger.MODE_PROTECTED), eq(NOW));
+        verify(applicationEventPublisher).publishEvent(new GameEventCopyRequestedEvent(
+                GAME_ID, 91L, AiGenerationTrigger.MODE_PROTECTED, NOW));
     }
 
     @Test
@@ -205,6 +206,6 @@ class TimelineHighlightTriggerTest {
         trigger(ENABLED).evaluate(GAME_ID, 80, NOW);
 
         verify(gameEventRepository, never()).save(any());
-        verify(aiGenerationTrigger, never()).onGameEventPersisted(anyLong(), anyLong(), anyString(), any());
+        verify(applicationEventPublisher, never()).publishEvent(any(GameEventCopyRequestedEvent.class));
     }
 }

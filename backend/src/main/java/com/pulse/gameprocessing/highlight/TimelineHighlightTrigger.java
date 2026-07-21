@@ -1,10 +1,10 @@
 package com.pulse.gameprocessing.highlight;
 
 import com.pulse.gameprocessing.aicopy.AiGenerationTrigger;
+import com.pulse.gameprocessing.aicopy.GameEventCopyRequestedEvent;
 import com.pulse.gameprocessing.effect.SurgeDetector;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.metrics.PulseMetrics;
-import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventLabelPolicy;
 import com.pulse.domain.GameEventRepository;
@@ -16,6 +16,7 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 /**
@@ -39,8 +40,7 @@ public class TimelineHighlightTrigger {
 
     private final GameEventRepository gameEventRepository;
     private final WatchScoreRepository watchScoreRepository;
-    private final AiGenerationTrigger aiGenerationTrigger;
-    private final AfterCommitExecutor afterCommitExecutor;
+    private final ApplicationEventPublisher applicationEventPublisher;
     private final ScoringProperties props;
 
     /**
@@ -92,7 +92,7 @@ public class TimelineHighlightTrigger {
         PulseMetrics.increment("pulse.scorer.highlight.fired");
 
         long anchorId = anchor.getId();
-        afterCommitExecutor.execute(() -> aiGenerationTrigger.onGameEventPersisted(
+        applicationEventPublisher.publishEvent(new GameEventCopyRequestedEvent(
                 gameId, anchorId, AiGenerationTrigger.MODE_PROTECTED, now));
         log.debug("타임라인 하이라이트 표시 gameId={} eventId={} watchScore={}", gameId, anchorId, watchScore);
     }
