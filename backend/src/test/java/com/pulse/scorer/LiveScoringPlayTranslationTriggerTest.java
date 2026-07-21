@@ -90,7 +90,8 @@ class LiveScoringPlayTranslationTriggerTest {
                         mock(TimelineHighlightTrigger.class),
                         aiGenerationTrigger,
                         mock(SurgeNotificationPublisher.class),
-                        properties);
+                        properties,
+                        mock(org.springframework.context.ApplicationEventPublisher.class));
 
         service.handle(
                 new ScoreTask(

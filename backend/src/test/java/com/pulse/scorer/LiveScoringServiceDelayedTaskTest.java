@@ -126,7 +126,8 @@ class LiveScoringServiceDelayedTaskTest {
                     mock(TimelineHighlightTrigger.class),
                     mock(AiGenerationTrigger.class),
                     mock(SurgeNotificationPublisher.class),
-                    properties);
+                    properties,
+                    mock(org.springframework.context.ApplicationEventPublisher.class));
         }
     }
 

@@ -3,6 +3,7 @@ package com.pulse.scorer;
 import com.pulse.scoring.ImportanceCalculator;
 import com.pulse.scoring.ScoreCalculator;
 import com.pulse.scoring.ScoringInput;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -28,7 +29,9 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.context.ApplicationEventPublisher;
 
 /**
  * 리팩토링 안전망: LiveScoringService.handle()의 라이브 파이프라인 현재 동작을 고정한다.
@@ -116,6 +119,26 @@ class LiveScoringServiceCharacterizationTest {
                 .onPlayTranslationsPending(eq(GAME_ID), isNull(), eq(OBSERVED_AT));
     }
 
+    @Test
+    void handle_shouldPublishLiveScoreComputedEventWithComputedValues() {
+        Fixture fixture = new Fixture();
+
+        fixture.service.handle(liveTask());
+
+        ArgumentCaptor<LiveScoreComputedEvent> eventCaptor =
+                ArgumentCaptor.forClass(LiveScoreComputedEvent.class);
+        verify(fixture.applicationEventPublisher).publishEvent(eventCaptor.capture());
+        LiveScoreComputedEvent event = eventCaptor.getValue();
+        assertThat(event.gameId()).isEqualTo(GAME_ID);
+        assertThat(event.computedAt()).isEqualTo(OBSERVED_AT);
+        assertThat(event.lifecycleState()).isEqualTo("LIVE");
+        assertThat(event.scoringVersion()).isEqualTo(fixture.properties.version());
+        assertThat(event.watchScoreRounded()).isEqualTo(80);
+        assertThat(event.baseScoreRounded()).isEqualTo(60);
+        assertThat(event.inning()).isEqualTo(8);
+        assertThat(event.translationThroughPlayOrder()).isNull();
+    }
+
     private static ScoreTask liveTask() {
         return new ScoreTask(GAME_ID, OBSERVED_AT, null, "LIVE", null);
     }
@@ -146,6 +169,8 @@ class LiveScoringServiceCharacterizationTest {
         private final AiGenerationTrigger aiGenerationTrigger = mock(AiGenerationTrigger.class);
         private final SurgeNotificationPublisher surgeNotificationPublisher =
                 mock(SurgeNotificationPublisher.class);
+        private final ApplicationEventPublisher applicationEventPublisher =
+                mock(ApplicationEventPublisher.class);
         private final Game game = liveGame();
         private final LiveScoringService service;
 
@@ -171,7 +196,8 @@ class LiveScoringServiceCharacterizationTest {
                     timelineHighlightTrigger,
                     aiGenerationTrigger,
                     surgeNotificationPublisher,
-                    properties);
+                    properties,
+                    applicationEventPublisher);
         }
     }
 }

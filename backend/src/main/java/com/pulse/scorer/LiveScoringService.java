@@ -22,6 +22,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,7 @@ public class LiveScoringService {
     private final AiGenerationTrigger aiGenerationTrigger;
     private final SurgeNotificationPublisher surgeNotificationPublisher;
     private final ScoringProperties props;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
     public void handle(ScoreTask task) {
@@ -115,14 +117,17 @@ public class LiveScoringService {
         updatePeakBaseScore(game, baseScore);
         gameEventExtractor.extract(gameId, recentPlays, task.plateAppearances(), seedLeader, observedAt);
 
+        Integer eventInning = latestPlay == null ? fallbackInning : latestPlay.getInning();
+        String eventInningType = latestPlay == null ? null : latestPlay.getInningType();
+        Long scoredPlayOrder = latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder();
         liveSignalPublisher.publishLiveUpdate(
                 gameId,
                 watchScore,
                 (int) Math.round(baseScore),
                 tags,
-                latestPlay == null ? fallbackInning : latestPlay.getInning(),
-                latestPlay == null ? null : latestPlay.getInningType(),
-                latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder(),
+                eventInning,
+                eventInningType,
+                scoredPlayOrder,
                 game.getLifecycleState(),
                 previousTags,
                 observedAt
@@ -145,6 +150,12 @@ public class LiveScoringService {
                 gameId,
                 task.lastPlayOrder(),
                 observedAt);
+
+        // 골격 단계: 부수효과는 아직 직접 호출로 유지하고 이벤트만 추가 발행한다.
+        applicationEventPublisher.publishEvent(new LiveScoreComputedEvent(
+                gameId, observedAt, watchScore, watchScoreRounded, (int) Math.round(baseScore),
+                tags, previousTags, eventInning, eventInningType, scoredPlayOrder,
+                task.lastPlayOrder(), game.getLifecycleState(), props.version()));
 
         log.debug("라이브 점수 계산 gameId={} watchScore={} observedAt={}", gameId, watchScoreRounded, observedAt);
     }
