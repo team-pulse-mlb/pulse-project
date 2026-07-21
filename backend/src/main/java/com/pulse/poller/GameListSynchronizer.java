@@ -22,12 +22,11 @@ class GameListSynchronizer {
 
     private final BaseballDataSource balldontlieClient;
     private final GameRepository gameRepository;
-    private final PollerGameWriter gameWriter;
     private final PollerProperties properties;
     private final PollerRateLimiter rateLimiter;
     private final PollerLiveGameStateTracker stateTracker;
     private final LivePlaysPoller livePlaysPoller;
-    private final GameTransitionEventNotifier transitionEventNotifier;
+    private final GameTransitionWriter gameTransitionWriter;
     private final PollerBackoff gamesBackoff;
 
     private Instant nextGamesPollAt = Instant.EPOCH;
@@ -35,21 +34,19 @@ class GameListSynchronizer {
     GameListSynchronizer(
             BaseballDataSource balldontlieClient,
             GameRepository gameRepository,
-            PollerGameWriter gameWriter,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PollerLiveGameStateTracker stateTracker,
             LivePlaysPoller livePlaysPoller,
-            GameTransitionEventNotifier transitionEventNotifier
+            GameTransitionWriter gameTransitionWriter
     ) {
         this.balldontlieClient = balldontlieClient;
         this.gameRepository = gameRepository;
-        this.gameWriter = gameWriter;
         this.properties = properties;
         this.rateLimiter = rateLimiter;
         this.stateTracker = stateTracker;
         this.livePlaysPoller = livePlaysPoller;
-        this.transitionEventNotifier = transitionEventNotifier;
+        this.gameTransitionWriter = gameTransitionWriter;
         this.gamesBackoff = new PollerBackoff(properties.initialBackoff(), properties.maxBackoff());
     }
 
@@ -67,7 +64,19 @@ class GameListSynchronizer {
         try {
             rateLimiter.acquire();
             for (BdlGame dto : balldontlieClient.getGames(slateDates(now))) {
-                GameUpsertResult result = gameWriter.upsertGame(dto, now);
+                // 종료 status만 이전 상태를 조회하고 트랜잭션 밖에서 drain 데이터를 미리 가져온다.
+                TerminalDrainData drain = null;
+                if (isTerminalSourceStatus(dto.status())) {
+                    Game pre = gameRepository.findById(dto.id()).orElse(null);
+                    if (shouldDrain(pre)) {
+                        Long cursor = pre == null ? null : pre.getLastPlayOrder();
+                        drain = livePlaysPoller.fetchTerminalDrain(dto.id(), cursor, now);
+                    }
+                }
+                // 상태 저장·drain 쓰기·전이 outbox 발행은 하나의 트랜잭션으로 처리한다.
+                GameTransitionWriter.GameSyncOutcome outcome =
+                        gameTransitionWriter.applyTransition(dto, drain, now);
+                GameUpsertResult result = outcome.result();
                 changedGames++;
                 if (GameLifecycle.LIVE.name().equals(result.currentLifecycle())) {
                     liveGames.put(result.game().getId(), result.game());
@@ -75,12 +84,6 @@ class GameListSynchronizer {
                 if (result.enteredTerminalState()) {
                     stateTracker.clear(result.game().getId());
                 }
-                boolean terminalScoreTaskPublished = result.enteredTerminalState()
-                        && livePlaysPoller.drainTerminalGame(result.game(), now);
-                transitionEventNotifier.publishTransitionEvents(
-                        result,
-                        GameTransitionEventNotifier.terminalTaskObservedAt(now, terminalScoreTaskPublished)
-                );
             }
             gamesBackoff.recordSuccess();
             boolean hasLiveGame = !liveGames.isEmpty()
@@ -95,6 +98,23 @@ class GameListSynchronizer {
             return gameRepository.findByLifecycleState(GameLifecycle.LIVE.name());
         }
         return new ArrayList<>(liveGames.values());
+    }
+
+    private static boolean isTerminalSourceStatus(String status) {
+        return status != null
+                && (status.startsWith(Game.STATUS_FINAL)
+                || Game.STATUS_CANCELED.equals(status)
+                || Game.STATUS_POSTPONED.equals(status));
+    }
+
+    private static boolean shouldDrain(Game pre) {
+        if (pre == null) {
+            return true; // 신규 경기가 곧장 종료 status로 관측된 경우 1회 시도
+        }
+        String state = pre.getLifecycleState();
+        return !GameLifecycle.FINAL.name().equals(state)
+                && !GameLifecycle.DONE.name().equals(state)
+                && !GameLifecycle.SUSPENDED_POSTPONED.name().equals(state);
     }
 
     private Duration gamesIntervalWithoutLiveGame(Instant now) {

@@ -17,6 +17,7 @@ import EventTimeline from '../components/EventTimeline';
 import FinalGameDetail from '../components/FinalGameDetail';
 import FinalMatchupHero from '../components/FinalMatchupHero';
 import GameMatchupHero from '../components/GameMatchupHero';
+import GameSwitchToast from '../components/GameSwitchToast';
 import ModeToggle from '../components/ModeToggle';
 import RecentPlayList from '../components/RecentPlayList';
 import RecommendedSidebar from '../components/RecommendedSidebar';
@@ -446,6 +447,15 @@ function GameDetailPage() {
      */
     return (
         <div className="mx-auto grid max-w-[1160px] grid-cols-1 items-start gap-10 px-4 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_336px]">
+            <GameSwitchToast
+                currentGameId={
+                    detail.gameId
+                }
+                suggestion={
+                    detail.switchSuggestion
+                }
+            />
+
             <div className="flex min-w-0 flex-col gap-[18px]">
                 <div className="flex items-center justify-between gap-4">
                     <Link

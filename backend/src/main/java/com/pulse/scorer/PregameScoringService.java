@@ -1,5 +1,6 @@
 package com.pulse.scorer;
 
+import com.pulse.scoring.PregameScoreFormulas;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;

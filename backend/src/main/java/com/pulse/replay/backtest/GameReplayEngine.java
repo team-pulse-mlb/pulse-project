@@ -10,12 +10,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
+import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.domain.Game;
 import com.pulse.domain.Play;
-import com.pulse.scorer.ImportanceCalculator;
-import com.pulse.scorer.PregameScoreFormulas;
-import com.pulse.scorer.ScoreCalculator;
-import com.pulse.scorer.ScoringInput;
+import com.pulse.scoring.ImportanceCalculator;
+import com.pulse.scoring.PregameScoreFormulas;
+import com.pulse.scoring.ScoreCalculator;
+import com.pulse.scoring.ScoringInput;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -84,9 +85,34 @@ public class GameReplayEngine {
         double importance = importance(data, properties);
         double pregameScore = pregame(data, properties);
         int index = 0;
+        Instant lastObservedAt = Instant.EPOCH;
         while (index < rows.size()) {
             PlayRow first = rows.get(index);
             if (first.observedAt() == null) {
+                observed.add(first);
+                observed.sort(Comparator.comparingLong(PlayRow::playOrder));
+                PlayRow current = observed.get(observed.size() - 1);
+                int from = Math.max(0, observed.size() - properties.leadChange().windowPlays());
+                List<Play> window = observed.subList(from, observed.size()).stream().map(this::play).toList();
+                int seed = from == 0 ? 0 : leader(observed.get(from - 1));
+                ScoreCalculator.Result result = calculator.calculate(new ScoringInput(
+                        game(data.game(), current), window, situation(current), seed, lastObservedAt,
+                        importance, pregameScore));
+                cycles.add(cycle(
+                        current,
+                        observed.size() - 1,
+                        result.baseScore(),
+                        stateScore(result.signals()),
+                        result.watchScore(),
+                        lastObservedAt,
+                        result.signals()));
+                log.warn(
+                        "관측 시각이 없는 재생 play를 포함함 gameId={}, playOrder={}, source={}, carriedObservedAt={}",
+                        first.gameId(), first.playOrder(), first.source(), lastObservedAt);
+                PulseMetrics.increment(
+                        "pulse.replay.null_observed_included",
+                        "source",
+                        first.source() == null ? "UNKNOWN" : first.source());
                 index++;
                 continue;
             }
@@ -111,6 +137,7 @@ public class GameReplayEngine {
                     result.watchScore(),
                     first.observedAt(),
                     result.signals()));
+            lastObservedAt = first.observedAt();
             index = next;
         }
         return cycles;

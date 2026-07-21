@@ -1,5 +1,7 @@
 package com.pulse.scorer;
 
+import com.pulse.scoring.ReasonTags;
+import com.pulse.scoring.ScoreCalculator;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;

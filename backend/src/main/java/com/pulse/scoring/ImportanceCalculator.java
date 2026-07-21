@@ -1,4 +1,4 @@
-package com.pulse.scorer;
+package com.pulse.scoring;
 
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.domain.Game;

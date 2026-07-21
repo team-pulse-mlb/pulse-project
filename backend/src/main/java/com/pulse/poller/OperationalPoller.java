@@ -33,6 +33,7 @@ public class OperationalPoller {
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
+            GameTransitionWriter gameTransitionWriter,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PaRawArchiveUploader paRawArchiveUploader
@@ -45,6 +46,7 @@ public class OperationalPoller {
                 scoreTaskFactory,
                 scoreTaskPublisher,
                 notificationEventPublisher,
+                gameTransitionWriter,
                 properties,
                 rateLimiter,
                 paRawArchiveUploader,
@@ -60,6 +62,7 @@ public class OperationalPoller {
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
             NotificationEventPublisher notificationEventPublisher,
+            GameTransitionWriter gameTransitionWriter,
             PollerProperties properties,
             PollerRateLimiter rateLimiter,
             PaRawArchiveUploader paRawArchiveUploader,
@@ -75,20 +78,14 @@ public class OperationalPoller {
                 paRawArchiveUploader,
                 stateTracker
         );
-        GameTransitionEventNotifier transitionEventNotifier = new GameTransitionEventNotifier(
-                scoreTaskFactory,
-                scoreTaskPublisher,
-                notificationEventPublisher
-        );
         this.gameListSynchronizer = new GameListSynchronizer(
                 balldontlieClient,
                 gameRepository,
-                gameWriter,
                 properties,
                 rateLimiter,
                 stateTracker,
                 assembledLivePlaysPoller,
-                transitionEventNotifier
+                gameTransitionWriter
         );
         this.livePlaysPoller = assembledLivePlaysPoller;
         this.clock = clock;

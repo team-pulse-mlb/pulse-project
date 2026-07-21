@@ -171,25 +171,22 @@ class LivePlaysPoller {
         }
     }
 
-    boolean drainTerminalGame(Game game, Instant now) {
+    TerminalDrainData fetchTerminalDrain(long gameId, Long cursor, Instant now) {
         try {
-            List<BdlPlay> plays = fetchPlays(game);
+            List<BdlPlay> plays = fetchPlays(gameId, cursor);
             if (plays.isEmpty()) {
-                return false;
+                return null;
             }
-            List<BdlPlateAppearance> plateAppearances = fetchPlateAppearances(game.getId(), now);
-            LiveGameCycleWriter.CycleWriteResult result =
-                    liveGameCycleWriter.writeTerminalDrain(game, plays, plateAppearances, now);
-            logCycleResult(game.getId(), result);
-            return result.inserted() > 0;
+            List<BdlPlateAppearance> plateAppearances = fetchPlateAppearances(gameId, now);
+            return new TerminalDrainData(plays, plateAppearances);
         } catch (RuntimeException e) {
             if (PollerExceptionClassifier.shouldBackoff(e)) {
                 handleFailure("plays", playsBackoff, now, e);
             } else {
-                log.error("terminal plays drain failed: gameId={}", game.getId(), e);
+                log.error("terminal plays drain failed: gameId={}", gameId, e);
                 PulseMetrics.increment("pulse.poller.game.skips", "reason", "terminal_drain_failure");
             }
-            return false;
+            return null;
         }
     }
 

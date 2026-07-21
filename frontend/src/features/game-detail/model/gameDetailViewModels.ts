@@ -109,6 +109,18 @@ export interface ScheduledGameDetailViewModel
     };
 }
 
+export interface GameSwitchSuggestionViewModel {
+    gameId: number;
+
+    matchup: {
+        home: string | null;
+        away: string | null;
+    };
+
+    latestTag: string | null;
+    message: string;
+}
+
 export interface LiveGameDetailViewModel
     extends GameDateViewModel {
 
@@ -138,6 +150,7 @@ export interface LiveGameDetailViewModel
     inningScores: GameInningScoresViewModel | null;
 
     favoritePlayersPlaying: string[];
+    switchSuggestion: GameSwitchSuggestionViewModel | null;
 }
 
 export interface FinalGameDetailViewModel

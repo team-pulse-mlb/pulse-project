@@ -70,6 +70,45 @@ class PregameGameWriterTest {
     }
 
     @Test
+    void upsertLineups_shouldDeletePitcherMissingFromSnapshotAndMarkGameChanged() {
+        writer.upsertLineups(
+                List.of(lineup(1L, 100L, 7L, true), lineup(3L, 200L, 9L, true)),
+                observedAt
+        );
+
+        Set<Long> changedGameIds = writer.upsertLineups(
+                List.of(lineup(2L, 100L, 8L, true)),
+                observedAt.plusSeconds(60)
+        );
+
+        assertThat(changedGameIds).containsExactly(100L);
+        assertThat(lineupRepository.findByGameId(100L))
+                .extracting(lineup -> lineup.getId())
+                .containsExactly(2L);
+        assertThat(lineupRepository.findByGameIdAndIsProbablePitcherTrue(100L))
+                .extracting(lineup -> lineup.getPlayerId())
+                .containsExactly(8L);
+        assertThat(lineupRepository.findByGameId(200L))
+                .extracting(lineup -> lineup.getId())
+                .containsExactly(3L);
+    }
+
+    @Test
+    void upsertLineups_shouldNotDeleteOrMarkChangedForIdenticalSnapshot() {
+        writer.upsertLineups(List.of(lineup(1L, 100L, 7L, true)), observedAt);
+
+        Set<Long> changedGameIds = writer.upsertLineups(
+                List.of(lineup(1L, 100L, 7L, true)),
+                observedAt.plusSeconds(60)
+        );
+
+        assertThat(changedGameIds).isEmpty();
+        assertThat(lineupRepository.findByGameId(100L))
+                .extracting(lineup -> lineup.getId())
+                .containsExactly(1L);
+    }
+
+    @Test
     void upsertOdds_shouldKeepFirstSeenAndOverwritePregameFinal() {
         Map<Long, Instant> startTimes = Map.of(100L, observedAt.plusSeconds(3600));
 

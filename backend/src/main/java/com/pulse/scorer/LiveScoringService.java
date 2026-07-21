@@ -1,5 +1,9 @@
 package com.pulse.scorer;
 
+import com.pulse.scoring.ImportanceCalculator;
+import com.pulse.scoring.ReasonTags;
+import com.pulse.scoring.ScoreCalculator;
+import com.pulse.scoring.ScoringInput;
 import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.common.metrics.PulseMetrics;

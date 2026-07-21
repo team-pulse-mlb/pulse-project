@@ -4,21 +4,21 @@ import com.pulse.common.config.ScoringProperties;
 import java.util.List;
 import java.util.Map;
 
-final class TestScoringProperties {
+public final class TestScoringProperties {
 
     private TestScoringProperties() {
     }
 
-    static ScoringProperties version5() {
+    public static ScoringProperties version5() {
         return version5(defaultPressure(), defaultHighlight());
     }
 
-    static ScoringProperties version5(ScoringProperties.Highlight highlight) {
+    public static ScoringProperties version5(ScoringProperties.Highlight highlight) {
         return version5(defaultPressure(), highlight);
     }
 
     /** RE24 테이블 등 pressure 설정만 바꿔 검증할 때 사용한다. */
-    static ScoringProperties version5(ScoringProperties.Pressure pressure) {
+    public static ScoringProperties version5(ScoringProperties.Pressure pressure) {
         return version5(pressure, defaultHighlight());
     }
 
@@ -30,7 +30,7 @@ final class TestScoringProperties {
         return new ScoringProperties.Highlight(false, 40, 12, 6, 8, 8);
     }
 
-    static ScoringProperties version5(ScoringProperties.Pressure pressure, ScoringProperties.Highlight highlight) {
+    public static ScoringProperties version5(ScoringProperties.Pressure pressure, ScoringProperties.Highlight highlight) {
         return new ScoringProperties(
                 5,
                 new ScoringProperties.LateInning(6, 12, 18),
