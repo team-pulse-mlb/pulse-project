@@ -119,18 +119,6 @@ public class LiveScoringService {
         Integer eventInning = latestPlay == null ? fallbackInning : latestPlay.getInning();
         String eventInningType = latestPlay == null ? null : latestPlay.getInningType();
         Long scoredPlayOrder = latestPlay == null ? game.getLastPlayOrder() : latestPlay.getPlayOrder();
-        liveSignalPublisher.publishLiveUpdate(
-                gameId,
-                watchScore,
-                (int) Math.round(baseScore),
-                tags,
-                eventInning,
-                eventInningType,
-                scoredPlayOrder,
-                game.getLifecycleState(),
-                previousTags,
-                observedAt
-        );
 
         surgeDetector.evaluate(gameId, watchScoreRounded, observedAt, () -> {
             PulseMetrics.increment("pulse.scorer.surge.fired");
@@ -141,8 +129,9 @@ public class LiveScoringService {
         // (scoring.highlight.enabled=false면 no-op)
         timelineHighlightTrigger.evaluate(gameId, watchScoreRounded, observedAt);
 
-        // 미번역 플레이 생성 요청은 커밋 후 PlayTranslationCommitListener가 처리한다.
-        // 나머지 부수효과(Redis projection·SURGE)는 아직 직접 호출로 유지한다.
+        // Redis projection(랭킹·캐시·신호)과 미번역 플레이 생성 요청은 커밋 후
+        // LiveScoreComputedEvent 리스너가 처리한다. SURGE 판정은 아직 본 트랜잭션에서
+        // 직접 호출로 유지한다(다음 단계에서 리스너로 이동).
         applicationEventPublisher.publishEvent(new LiveScoreComputedEvent(
                 gameId, observedAt, watchScore, watchScoreRounded, (int) Math.round(baseScore),
                 tags, previousTags, eventInning, eventInningType, scoredPlayOrder,
