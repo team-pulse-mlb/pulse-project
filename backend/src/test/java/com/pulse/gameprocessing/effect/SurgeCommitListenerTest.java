@@ -36,6 +36,25 @@ class SurgeCommitListenerTest {
     }
 
     @Test
+    void onLiveScoreComputed_shouldIsolatePublisherFailureAfterSurgeConfirmed() {
+        SurgeDetector detector = mock(SurgeDetector.class);
+        SurgeNotificationPublisher publisher = mock(SurgeNotificationPublisher.class);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(3).run();
+            return null;
+        }).when(detector).evaluate(eq(GAME_ID), eq(80), eq(COMPUTED_AT), any());
+        // SURGE 확정 후 알림 저장(독립 트랜잭션)이 실패해도 커밋 후 리스너 체인이 중단되지 않아야 한다.
+        doThrow(new RuntimeException("알림 저장 실패"))
+                .when(publisher).publish(GAME_ID, List.of("접전 흐름"), List.of("접전"), COMPUTED_AT);
+        SurgeCommitListener listener = new SurgeCommitListener(detector, publisher);
+
+        assertThatCode(() -> listener.onLiveScoreComputed(sampleEvent()))
+                .doesNotThrowAnyException();
+
+        verify(publisher).publish(GAME_ID, List.of("접전 흐름"), List.of("접전"), COMPUTED_AT);
+    }
+
+    @Test
     void onLiveScoreComputed_shouldIsolateDetectorFailure() {
         SurgeDetector detector = mock(SurgeDetector.class);
         doThrow(new RuntimeException("Redis 판정 실패"))
