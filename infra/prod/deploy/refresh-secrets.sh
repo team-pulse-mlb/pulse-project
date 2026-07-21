@@ -33,9 +33,11 @@ else
 fi
 docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate pulse-api
 wait_healthy pulse-api
-docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate pulse-poller pulse-scorer
+# 서비스명 전환 이전 컨테이너가 남아 있으면 새 처리기와 동시에 소비하지 않게 제거한다.
+docker rm -f pulse-scorer >/dev/null 2>&1 || true
+docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate pulse-poller pulse-game-processor
 wait_healthy pulse-poller
-wait_healthy pulse-scorer
+wait_healthy pulse-game-processor
 
 # 모든 컨테이너가 healthy가 된 뒤에만 마커를 지워, 실패 시 다음 실행이 재시도하게 한다.
 rm -f "$STATE_FILE"

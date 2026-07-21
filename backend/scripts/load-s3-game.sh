@@ -94,7 +94,7 @@ export PULSE_REPLAY_DATE="$ARCHIVE_DATE"
 # 경기가 SCHEDULED로 남는다. .env의 낮은 기본값과 무관하게 종료 스냅샷까지 재생하도록 올린다.
 export PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX=2000
 export PULSE_POLLER_ENABLED=false
-export PULSE_SCORER_ENABLED=false
+export PULSE_GAMEPROCESSOR_ENABLED=false
 export PULSE_SSE_ENABLED=false
 
 echo "S3 경기 적재: gameId=$GAME_ID / date=$ARCHIVE_DATE"

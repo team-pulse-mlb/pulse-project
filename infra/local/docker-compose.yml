@@ -66,7 +66,7 @@ services:
       retries: 5
 
   # 운영과 같은 backend 애플리케이션을 로컬에서는 API 역할만 기본으로 실행한다.
-  # 시뮬레이션은 같은 컨테이너를 poller·scorer·simulation 활성 상태로 재생성한다.
+  # 시뮬레이션은 같은 컨테이너를 poller·game processor·simulation 활성 상태로 재생성한다.
   pulse-api:
     build:
       context: ../../backend
@@ -98,7 +98,7 @@ services:
       PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX: ${PULSE_REPLAY_MAX_OBJECTS_PER_PREFIX:-200}
       PULSE_AI_BASE_URL: http://ai-service:8000
       PULSE_POLLER_ENABLED: ${PULSE_POLLER_ENABLED:-false}
-      PULSE_SCORER_ENABLED: ${PULSE_SCORER_ENABLED:-false}
+      PULSE_GAMEPROCESSOR_ENABLED: ${PULSE_GAMEPROCESSOR_ENABLED:-false}
       PULSE_NOTIFICATION_CONSUMER_ENABLED: ${PULSE_NOTIFICATION_CONSUMER_ENABLED:-true}
       PULSE_SIMULATION_ENABLED: ${PULSE_SIMULATION_ENABLED:-false}
       PULSE_SIMULATION_SOURCE_GAME_ID: ${PULSE_SIMULATION_SOURCE_GAME_ID:-}

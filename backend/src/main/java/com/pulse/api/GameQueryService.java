@@ -2,7 +2,7 @@ package com.pulse.api;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import com.pulse.domain.*;
-import com.pulse.scorer.TensionCurveQueryService;
+import com.pulse.gameprocessing.application.TensionCurveQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;

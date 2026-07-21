@@ -2,7 +2,7 @@ package com.pulse.api;
 
 import com.pulse.api.GameQueryService.*;
 import com.pulse.domain.*;
-import com.pulse.scorer.TensionCurveQueryService;
+import com.pulse.gameprocessing.application.TensionCurveQueryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Pageable;
 

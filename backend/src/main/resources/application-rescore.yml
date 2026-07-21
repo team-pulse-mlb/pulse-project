@@ -1,4 +1,4 @@
-# 운영 DB에 이미 적용된 스키마를 기준으로 scorer 파생 데이터만 재생한다.
+# 운영 DB에 이미 적용된 스키마를 기준으로 game processor 파생 데이터만 재생한다.
 spring:
   main:
     web-application-type: none
@@ -9,6 +9,6 @@ spring:
     enabled: false
 
 pulse:
-  scorer:
-    # 재산정 배치가 운영 score.tasks 큐를 소비하지 않도록 scorer 역할을 비활성화한다.
+  game-processor:
+    # 재산정 배치가 운영 score.tasks 큐를 소비하지 않도록 game processor 역할을 비활성화한다.
     enabled: false

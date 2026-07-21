@@ -49,6 +49,7 @@
 | `HomeRankingControllerTest` | 익명 인증 객체를 비로그인 요청으로 처리하는지 검증한다. |
 | `NotificationControllerTest` | 알림 목록·선택 읽음·전체 읽음 API와 잘못된 요청 응답을 검증한다. |
 | `NotificationEventListenerTest` | 유효한 알림 이벤트를 fan-out 서비스로 전달하고 null 이벤트를 건너뛴다. |
+| `NotificationConsumerRoleGateTest` | `consumer-enabled=true`일 때만 `NotificationEventListener`가 등록되고, `false` 또는 설정 누락 시 등록되지 않는지 검증한다. |
 | `NotificationFanOutServiceTest` | 관심 팀 경기 시작·급상승 알림 대상 선정, 저장과 중복 멱등성을 검증한다. |
 | `NotificationServiceTest` | 최신 알림 조회와 선택·전체 읽음 처리, ID 정규화를 검증한다. |
 | `RedisSignalRelayTest` | Redis 랭킹·경기 신호를 SSE로 중계하고 시퀀스·비정상 채널을 처리한다. |
@@ -80,11 +81,11 @@
 | `NotificationMessageBeanConstructionTest` | 알림 발행자와 디스패처의 생성자 주입 구성을 검증한다. |
 | `NotificationOutboxDispatcherTest` | RabbitMQ 발행 성공·실패 시 outbox 상태와 재발행 대상을 검증한다. |
 | `NotificationOutboxCleanupSchedulerTest` | 보존 기간이 지난 발행 완료 알림 outbox를 설정된 LIMIT 배치로 삭제하는지 검증한다. |
-| `NotificationOutboxSchedulerRoleGateTest` | poller·scorer 역할과 명시 설정에 따른 알림 outbox 스케줄러 등록을 검증한다. |
+| `NotificationOutboxSchedulerRoleGateTest` | poller·game processor 역할과 명시 설정에 따른 알림 outbox 스케줄러 등록을 검증한다. |
 | `PublisherTest` | ScoreTask·알림 이벤트의 outbox 선저장, 동시 insert 재사용과 발행 실패 격리를 검증한다. |
 | `ScoreTaskOutboxCleanupSchedulerTest` | 보존 기간이 지난 발행 완료 행을 제한된 배치로 삭제하는지 검증한다. |
 | `ScoreTaskOutboxDispatcherTest` | broker ack·nack·timeout·재시작 상황의 ScoreTask 발행 상태와 복구를 검증한다. |
-| `ScoreTaskOutboxSchedulerRoleGateTest` | poller·scorer 역할과 명시 설정에 따른 ScoreTask outbox 스케줄러 등록을 검증한다. |
+| `ScoreTaskOutboxSchedulerRoleGateTest` | poller·game processor 역할과 명시 설정에 따른 ScoreTask outbox 스케줄러 등록을 검증한다. |
 | `ScoreTaskFactoryTest` | 사전·라이브·종료 ScoreTask에 경기 스냅샷을 포함하는지 검증한다. |
 | `ScoreTaskSerializationTest` | 상황·PA·경기 스냅샷을 포함한 ScoreTask의 신규·구버전 JSON 호환성을 검증한다. |
 | `PulseMetricsTest` | 태그가 있는 카운터 증가와 작업 시간 기록을 검증한다. |
@@ -153,7 +154,7 @@
 | `PlateAppearancePlayMatcherTest` | 반복 타자·결측 batter·half 정규화에 따른 PA-play 매핑을 검증한다. |
 | `HistoricalScoreReplayServiceTest` | 출처별 재생 시각·저장 단위·경기 필터와 live 점수 공식 일치를 검증한다. |
 
-### 3.8 scorer
+### 3.8 scoring·gameprocessing
 
 | 테스트 클래스 | 핵심 검증 시나리오 |
 |---|---|
@@ -181,7 +182,7 @@
 | `PregameScoringServiceTest` | 배당·선발·순위 기반 사전 점수와 배당 결측 폴백을 검증한다. |
 | `ReasonTagsTest` | 보호 라벨과 풀카운트 조건으로 최신 추천 태그를 구성하는지 검증한다. |
 | `ScoreCalculatorTest` | 접전·이닝·득점·리드 변경·압박 신호와 0~100 점수 상한을 검증한다. |
-| `ScorerRoleGateTest` | scorer 활성화와 배치 프로파일에 따른 운영 scorer 빈 등록을 검증한다. |
+| `GameProcessorRoleGateTest` | game processor 활성화와 배치 프로파일에 따른 운영 처리 빈 등록을 검증한다. |
 | `ScoreTaskListenerTest` | PREGAME·TERMINAL·LIVE 작업을 해당 서비스로 라우팅하는지 검증한다. |
 | `SurgeCommitListenerTest` | 커밋 후 급상승 판정·알림 전달과 리스너 예외 격리를 검증한다. |
 | `SurgeDetectorTest` | 급상승 상태 전이·재무장·쿨다운과 Lua 기반 전역 한도 원자성을 검증한다. |

@@ -147,13 +147,15 @@ registry=$(grep '^PULSE_APP_IMAGE=' .env | cut -d= -f2- | cut -d/ -f1)
 aws ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin "$registry" >/dev/null
 
-docker compose -f "$COMPOSE_FILE" pull pulse-api pulse-poller pulse-scorer ai-service
+docker compose -f "$COMPOSE_FILE" pull pulse-api pulse-poller pulse-game-processor ai-service
 docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate ai-service
 wait_healthy pulse-ai-service
 docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate pulse-api
 wait_healthy pulse-api
-docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate pulse-poller pulse-scorer
+# 서비스명 전환 첫 배포에서 이전 소비자가 orphan으로 남아 중복 소비하지 않게 제거한다.
+docker rm -f pulse-scorer >/dev/null 2>&1 || true
+docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate pulse-poller pulse-game-processor
 wait_healthy pulse-poller
-wait_healthy pulse-scorer
+wait_healthy pulse-game-processor
 cleanup_service_images "$registry" || true
 docker compose -f "$COMPOSE_FILE" ps

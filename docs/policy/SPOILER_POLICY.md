@@ -68,7 +68,7 @@
 | 전 모드 | `watch_score` · `base_score` · `pregame_score` · `peak_base_score` · `signal_contributions` 등 내부 점수 일체, odds 전체. 단, `tensionCurve`는 아래 조건을 만족할 때만 파생 예외로 허용 |
 | 보호 모드 | `runs`/`hits`/`errors`, 이닝별 점수, `inningType`(초/말), play `text`, `scoring_play`/`score_value`, 타석 `result`, `scoring_summary`, `home_score`/`away_score`, `game_events`의 `REVEALED_ONLY` 행 전체·`payload`·`inning_type` |
 
-금지 판정은 값이 아니라 **키 기준**이다. 금지 필드는 직렬화 결과에서 키 자체가 사라져야 하며, `"finalScore": null`처럼 값만 비운 형태는 허용하지 않는다. 키가 남으면 응답 스키마만으로 결과 존재 여부를 추론할 수 있고, 계약 검증 측이 필드 존재를 위반으로 판정할 수 있다. 적용 범위는 클라이언트 응답 DTO와 scorer → ai-service 요청 `safeContext` 두 곳이다. 강제 수단은 모드별 DTO 분리 또는 해당 DTO에 대한 `@JsonInclude(NON_NULL)`이며, 전역 Jackson 설정에 의존하지 않는다.
+금지 판정은 값이 아니라 **키 기준**이다. 금지 필드는 직렬화 결과에서 키 자체가 사라져야 하며, `"finalScore": null`처럼 값만 비운 형태는 허용하지 않는다. 키가 남으면 응답 스키마만으로 결과 존재 여부를 추론할 수 있고, 계약 검증 측이 필드 존재를 위반으로 판정할 수 있다. 적용 범위는 클라이언트 응답 DTO와 game processor → ai-service 요청 `safeContext` 두 곳이다. 강제 수단은 모드별 DTO 분리 또는 해당 DTO에 대한 `@JsonInclude(NON_NULL)`이며, 전역 Jackson 설정에 의존하지 않는다.
 
 예외는 공개 모드의 `winner`다. 무승부일 때 `null`이 "무승부"라는 사실을 뜻하므로 키를 유지한다. 보호 모드에는 이 키 자체가 없다.
 
