@@ -5,7 +5,6 @@ import com.pulse.scoring.ScoreCalculator;
 import com.pulse.scoring.ScoringInput;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -37,7 +36,7 @@ import org.springframework.context.ApplicationEventPublisher;
  *
  * scorer를 이벤트 기반으로 쪼개기 전에, 계산·적재·후처리 팬아웃의 호출 순서와
  * 멱등(중복 사이클 skip, 재전달 시 1회 실행)을 특성화 테스트로 박아둔다.
- * 커밋/롤백 위상 게이팅은 {@link LiveScoringServiceCommitPhaseTest}가 담당한다.
+ * 커밋/롤백 위상 게이팅은 {@link LiveScoreComputedEventDeliveryTest}가 담당한다.
  */
 class LiveScoringServiceCharacterizationTest {
 
@@ -51,14 +50,13 @@ class LiveScoringServiceCharacterizationTest {
         fixture.service.handle(liveTask());
 
         // 계산 → watch_scores 적재 → peak 갱신 → game_events 추출 →
-        // Redis 반영 → SURGE 판정 → 하이라이트 → 이벤트 발행 순서를 고정한다.
-        // 미번역 플레이 요청은 커밋 후 PlayTranslationCommitListener가 이벤트로 처리한다.
+        // SURGE 판정 → 하이라이트 → 이벤트 발행 순서를 고정한다.
+        // Redis 반영·미번역 플레이 요청은 커밋 후 LiveScoreComputedEvent 리스너가 이벤트로 처리한다.
         InOrder order = inOrder(
                 fixture.calculator,
                 fixture.watchScoreRepository,
                 fixture.gameRepository,
                 fixture.gameEventExtractor,
-                fixture.liveSignalPublisher,
                 fixture.surgeDetector,
                 fixture.timelineHighlightTrigger,
                 fixture.applicationEventPublisher);
@@ -67,9 +65,6 @@ class LiveScoringServiceCharacterizationTest {
         order.verify(fixture.gameRepository).save(fixture.game);
         order.verify(fixture.gameEventExtractor)
                 .extract(eq(GAME_ID), anyList(), any(), anyInt(), eq(OBSERVED_AT));
-        order.verify(fixture.liveSignalPublisher).publishLiveUpdate(
-                eq(GAME_ID), anyDouble(), anyInt(), anyList(),
-                any(), any(), any(), eq("LIVE"), anyList(), eq(OBSERVED_AT));
         order.verify(fixture.surgeDetector).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT), any());
         order.verify(fixture.timelineHighlightTrigger).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT));
         order.verify(fixture.applicationEventPublisher)
@@ -111,9 +106,6 @@ class LiveScoringServiceCharacterizationTest {
         verify(fixture.watchScoreRepository, times(1)).save(any(WatchScore.class));
         verify(fixture.gameEventExtractor, times(1))
                 .extract(eq(GAME_ID), anyList(), any(), anyInt(), eq(OBSERVED_AT));
-        verify(fixture.liveSignalPublisher, times(1)).publishLiveUpdate(
-                eq(GAME_ID), anyDouble(), anyInt(), anyList(),
-                any(), any(), any(), eq("LIVE"), anyList(), eq(OBSERVED_AT));
         verify(fixture.surgeDetector, times(1)).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT), any());
         verify(fixture.applicationEventPublisher, times(1))
                 .publishEvent(any(LiveScoreComputedEvent.class));

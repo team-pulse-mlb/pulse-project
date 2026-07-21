@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.ranking.RankingService;
-import com.pulse.common.transaction.AfterCommitExecutor;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -25,8 +24,7 @@ class LiveSignalPublisherTest {
     private final HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
     private final LiveSignalPublisher publisher = new LiveSignalPublisher(
             rankingService,
-            redisTemplate,
-            new AfterCommitExecutor()
+            redisTemplate
     );
 
     @Test
