@@ -46,7 +46,6 @@ public class LiveScoringService {
     private final LiveSignalPublisher liveSignalPublisher;
     private final SurgeDetector surgeDetector;
     private final TimelineHighlightTrigger timelineHighlightTrigger;
-    private final AiGenerationTrigger aiGenerationTrigger;
     private final SurgeNotificationPublisher surgeNotificationPublisher;
     private final ScoringProperties props;
     private final ApplicationEventPublisher applicationEventPublisher;
@@ -142,16 +141,8 @@ public class LiveScoringService {
         // (scoring.highlight.enabled=false면 no-op)
         timelineHighlightTrigger.evaluate(gameId, watchScoreRounded, observedAt);
 
-        /*
-         * 한 poll에 여러 play가 저장될 수 있으므로 마지막 play 순서까지의
-         * 미번역 타석 결과를 비동기로 생성한다.
-         */
-        aiGenerationTrigger.onPlayTranslationsPending(
-                gameId,
-                task.lastPlayOrder(),
-                observedAt);
-
-        // 골격 단계: 부수효과는 아직 직접 호출로 유지하고 이벤트만 추가 발행한다.
+        // 미번역 플레이 생성 요청은 커밋 후 PlayTranslationCommitListener가 처리한다.
+        // 나머지 부수효과(Redis projection·SURGE)는 아직 직접 호출로 유지한다.
         applicationEventPublisher.publishEvent(new LiveScoreComputedEvent(
                 gameId, observedAt, watchScore, watchScoreRounded, (int) Math.round(baseScore),
                 tags, previousTags, eventInning, eventInningType, scoredPlayOrder,
