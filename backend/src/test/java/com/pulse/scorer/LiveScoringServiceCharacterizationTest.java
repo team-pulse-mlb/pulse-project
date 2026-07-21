@@ -1,9 +1,7 @@
 package com.pulse.scorer;
 
-import com.pulse.scoring.ImportanceCalculator;
-import com.pulse.scoring.ScoreCalculator;
-import com.pulse.scoring.ScoringInput;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -23,6 +21,9 @@ import com.pulse.domain.GameRepository;
 import com.pulse.domain.PlayRepository;
 import com.pulse.domain.WatchScore;
 import com.pulse.domain.WatchScoreRepository;
+import com.pulse.scoring.ImportanceCalculator;
+import com.pulse.scoring.ScoreCalculator;
+import com.pulse.scoring.ScoringInput;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 /**
  * 리팩토링 안전망: LiveScoringService.handle()의 라이브 파이프라인 현재 동작을 고정한다.
@@ -125,6 +127,20 @@ class LiveScoringServiceCharacterizationTest {
         assertThat(event.baseScoreRounded()).isEqualTo(60);
         assertThat(event.inning()).isEqualTo(8);
         assertThat(event.translationThroughPlayOrder()).isNull();
+    }
+
+    @Test
+    void handle_shouldStopDerivedWritesWhenWatchScoreSaveFails() {
+        Fixture fixture = new Fixture();
+        when(fixture.watchScoreRepository.save(any(WatchScore.class)))
+                .thenThrow(new DataIntegrityViolationException("watch_scores 저장 실패"));
+
+        assertThatThrownBy(() -> fixture.service.handle(liveTask()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("watch_scores 저장 실패");
+
+        verifyNoInteractions(fixture.gameEventExtractor, fixture.timelineHighlightTrigger);
+        verify(fixture.applicationEventPublisher, never()).publishEvent(any());
     }
 
     private static ScoreTask liveTask() {

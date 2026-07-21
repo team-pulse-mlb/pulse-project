@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 
 import com.pulse.common.message.ScoreTask.PitchSnapshot;
 import com.pulse.common.message.ScoreTask.PlateAppearanceSnapshot;
-import com.pulse.common.transaction.AfterCommitExecutor;
 import com.pulse.domain.GameEvent;
 import com.pulse.domain.GameEventRepository;
 import com.pulse.domain.Lineup;
@@ -30,19 +29,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 class GameEventExtractorTest {
 
     private final GameEventRepository gameEventRepository = mock(GameEventRepository.class);
     private final LineupRepository lineupRepository = mock(LineupRepository.class);
     private final PlayRepository playRepository = mock(PlayRepository.class);
-    private final AiGenerationTrigger aiGenerationTrigger = mock(AiGenerationTrigger.class);
+    private final ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
     private final GameEventExtractor extractor = new GameEventExtractor(
             gameEventRepository,
             lineupRepository,
             playRepository,
-            aiGenerationTrigger,
-            new AfterCommitExecutor(),
+            applicationEventPublisher,
             TestScoringProperties.version5()
     );
     private final AtomicLong eventIds = new AtomicLong();
@@ -91,11 +90,7 @@ class GameEventExtractorTest {
                 );
         assertThat(savedEvents()).allMatch(event ->
                 GameEvent.SPOILER_PROTECTED_SAFE.equals(event.getSpoilerLevel()));
-        verify(aiGenerationTrigger, times(2)).onGameEventPersisted(
-                org.mockito.ArgumentMatchers.eq(100L),
-                anyLong(),
-                org.mockito.ArgumentMatchers.eq(AiGenerationTrigger.MODE_PROTECTED),
-                org.mockito.ArgumentMatchers.eq(observedAt));
+        verify(applicationEventPublisher, times(2)).publishEvent(any(GameEventCopyRequestedEvent.class));
     }
 
     @Test
@@ -188,8 +183,7 @@ class GameEventExtractorTest {
                 );
         assertThat(savedEvents()).allMatch(event ->
                 GameEvent.SPOILER_REVEALED_ONLY.equals(event.getSpoilerLevel()));
-        verify(aiGenerationTrigger, never()).onGameEventPersisted(
-                anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.any(Instant.class));
+        verify(applicationEventPublisher, never()).publishEvent(any(GameEventCopyRequestedEvent.class));
     }
 
     @Test
