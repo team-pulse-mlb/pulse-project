@@ -1,5 +1,8 @@
 package com.pulse.scorer;
 
+import com.pulse.scoring.ImportanceCalculator;
+import com.pulse.scoring.ScoreCalculator;
+import com.pulse.scoring.ScoringInput;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;

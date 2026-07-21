@@ -1,5 +1,7 @@
 package com.pulse.scorer;
 
+import com.pulse.scoring.ImportanceCalculator;
+import com.pulse.scoring.ScoreCalculator;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;

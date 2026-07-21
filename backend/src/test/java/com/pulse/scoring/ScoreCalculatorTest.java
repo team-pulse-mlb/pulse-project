@@ -1,4 +1,4 @@
-package com.pulse.scorer;
+package com.pulse.scoring;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
@@ -7,6 +7,7 @@ import com.pulse.common.config.ScoringProperties;
 import com.pulse.common.message.ScoreTask;
 import com.pulse.domain.Game;
 import com.pulse.domain.Play;
+import com.pulse.scorer.TestScoringProperties;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;

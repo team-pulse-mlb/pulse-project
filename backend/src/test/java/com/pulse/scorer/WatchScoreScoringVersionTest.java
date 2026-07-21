@@ -1,5 +1,7 @@
 package com.pulse.scorer;
 
+import com.pulse.scoring.ImportanceCalculator;
+import com.pulse.scoring.ScoreCalculator;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
