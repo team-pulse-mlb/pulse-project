@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Redis 랭킹·캐시·신호 발행, SURGE 판정을 수행한다. (gameId, computedAt) UNIQUE로 멱등하다.
  */
 @Service
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class LiveScoringService {

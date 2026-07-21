@@ -18,7 +18,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnExpression("${pulse.scorer.enabled:true}"
+@ConditionalOnExpression("${pulse.game-processor.enabled:true}"
         + " and ${pulse.score-task-outbox.scheduler-enabled:true}")
 @Slf4j
 public class TerminalTaskRecoveryRunner {
@@ -36,7 +36,7 @@ public class TerminalTaskRecoveryRunner {
             GameFinalizationService gameFinalizationService,
             ScoreTaskFactory scoreTaskFactory,
             ScoreTaskPublisher scoreTaskPublisher,
-            @Value("${pulse.scorer.finalization-recovery-window-ms:86400000}") long recoveryWindowMillis
+            @Value("${pulse.game-processor.finalization-recovery-window-ms:86400000}") long recoveryWindowMillis
     ) {
         this(
                 gameRepository,
@@ -65,8 +65,8 @@ public class TerminalTaskRecoveryRunner {
     }
 
     @Scheduled(
-            fixedDelayString = "${pulse.scorer.finalization-recovery-delay-ms:900000}",
-            initialDelayString = "${pulse.scorer.finalization-recovery-delay-ms:900000}"
+            fixedDelayString = "${pulse.game-processor.finalization-recovery-delay-ms:900000}",
+            initialDelayString = "${pulse.game-processor.finalization-recovery-delay-ms:900000}"
     )
     public void recover() {
         Instant now = clock.instant();

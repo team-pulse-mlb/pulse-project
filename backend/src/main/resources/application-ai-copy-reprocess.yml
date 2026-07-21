@@ -14,7 +14,7 @@ spring:
 pulse:
   poller:
     enabled: false
-  scorer:
+  game-processor:
     enabled: true
   sse:
     enabled: false

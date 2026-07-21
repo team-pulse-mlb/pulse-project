@@ -33,7 +33,7 @@ import org.springframework.stereotype.Component;
  * {@code scoring.highlight.enabled=false}면 아무 것도 하지 않아, 기존 이벤트별 트리거를 그대로 둔다.
  */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class TimelineHighlightTrigger {
@@ -89,7 +89,7 @@ public class TimelineHighlightTrigger {
 
         anchor.setTimelineHighlight(true);
         gameEventRepository.save(anchor);
-        PulseMetrics.increment("pulse.scorer.highlight.fired");
+        PulseMetrics.increment("pulse.game-processor.highlight.fired");
 
         long anchorId = anchor.getId();
         applicationEventPublisher.publishEvent(new GameEventCopyRequestedEvent(

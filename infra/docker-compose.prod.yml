@@ -7,9 +7,9 @@
 #   docker compose -f docker-compose.prod.yml up -d
 #
 # 역할 게이트 조합 (docs/architecture/ARCHITECTURE.md, WORK_PLAN 2-1):
-#   api            = poller off · scorer off · sse on  · Flyway 실행(prod 프로파일)
-#   poller         = poller on  · scorer off · sse off · Flyway 끔
-#   game processor = poller off · scorer on  · sse off · Flyway 끔
+#   api            = poller off · game-processor off · sse on  · Flyway 실행(prod 프로파일)
+#   poller         = poller on  · game-processor off · sse off · Flyway 끔
+#   game processor = poller off · game-processor on  · sse off · Flyway 끔
 # Flyway는 pulse-api 1곳에서만 실행해 동시 기동 마이그레이션 경합을 막는다.
 # poller·game processor는 pulse-api 헬스 통과(=마이그레이션 완료) 후 기동한다.
 #
@@ -48,7 +48,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       PULSE_POLLER_ENABLED: "false"
-      PULSE_SCORER_ENABLED: "false"
+      PULSE_GAMEPROCESSOR_ENABLED: "false"
       PULSE_SSE_ENABLED: "true"
       PULSE_NOTIFICATION_CONSUMER_ENABLED: "true"
       REDIS_HOST: redis
@@ -78,7 +78,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       PULSE_POLLER_ENABLED: "true"
-      PULSE_SCORER_ENABLED: "false"
+      PULSE_GAMEPROCESSOR_ENABLED: "false"
       PULSE_SSE_ENABLED: "false"
       PULSE_NOTIFICATION_CONSUMER_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
@@ -106,7 +106,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       PULSE_POLLER_ENABLED: "false"
-      PULSE_SCORER_ENABLED: "true"
+      PULSE_GAMEPROCESSOR_ENABLED: "true"
       PULSE_SSE_ENABLED: "false"
       PULSE_NOTIFICATION_CONSUMER_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
@@ -249,7 +249,7 @@ services:
       # 기본 프로파일 ddl-auto가 none이라 prod 누락 시에도 스키마는 안전하지만, 운영 설정 일관성을 위해 prod를 명시한다.
       SPRING_PROFILES_ACTIVE: prod,replay
       PULSE_POLLER_ENABLED: "false"
-      PULSE_SCORER_ENABLED: "false"
+      PULSE_GAMEPROCESSOR_ENABLED: "false"
       PULSE_SSE_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
       REDIS_HOST: redis
@@ -263,7 +263,7 @@ services:
     restart: "no"
     mem_limit: 640m
     environment:
-      # rescore 프로파일이 ddl-auto none·flyway off·scorer off를 자체 지정한다.
+      # rescore 프로파일이 ddl-auto none·flyway off·game-processor off를 자체 지정한다.
       SPRING_PROFILES_ACTIVE: rescore
       PULSE_POLLER_ENABLED: "false"
       PULSE_SSE_ENABLED: "false"
@@ -279,7 +279,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod,headline-backfill
       PULSE_POLLER_ENABLED: "false"
-      PULSE_SCORER_ENABLED: "true"
+      PULSE_GAMEPROCESSOR_ENABLED: "true"
       PULSE_SSE_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
@@ -301,7 +301,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod,ai-copy-reprocess
       PULSE_POLLER_ENABLED: "false"
-      PULSE_SCORER_ENABLED: "true"
+      PULSE_GAMEPROCESSOR_ENABLED: "true"
       PULSE_SSE_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
@@ -327,7 +327,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: backtest
       PULSE_POLLER_ENABLED: "false"
-      PULSE_SCORER_ENABLED: "false"
+      PULSE_GAMEPROCESSOR_ENABLED: "false"
       PULSE_SSE_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "false"
       JAVA_OPTS: "-Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC -Xss512k"

@@ -22,4 +22,4 @@ scrape_configs:
           role: poller
       - targets: ["pulse-game-processor:8081"]
         labels:
-          role: scorer
+          role: game-processor

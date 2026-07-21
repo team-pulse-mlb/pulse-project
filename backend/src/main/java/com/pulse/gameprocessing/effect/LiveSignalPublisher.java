@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
  * 쓰기가 없어 커밋 선후관계에 의존하지 않는다.
  */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class LiveSignalPublisher {
 
@@ -47,7 +47,7 @@ public class LiveSignalPublisher {
             Instant updatedAt
     ) {
         rankingService.updateLive(gameId, watchScore);
-        PulseMetrics.increment("pulse.scorer.ranking.updated");
+        PulseMetrics.increment("pulse.game-processor.ranking.updated");
         cacheGameState(
                 gameId,
                 watchScore,

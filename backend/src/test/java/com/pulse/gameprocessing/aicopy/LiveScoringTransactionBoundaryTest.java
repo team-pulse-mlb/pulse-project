@@ -54,7 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
 })
 @TestPropertySource(properties = {
         "spring.flyway.enabled=false",
-        "pulse.scorer.enabled=true"
+        "pulse.game-processor.enabled=true"
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class LiveScoringTransactionBoundaryTest {

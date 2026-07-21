@@ -55,7 +55,7 @@ game processor는 `lifecycleState`가 `FINAL`·`DONE`·`SUSPENDED_POSTPONED`인 
 
 ### gameprocessing 이벤트 기반 내부 구조
 
-순수 계산 커널은 `com.pulse.scoring`, 소비·후처리 오케스트레이션은 `com.pulse.gameprocessing`으로 분리한다. `LiveScoringService.handle()`의 영속 처리와 외부 I/O 팬아웃은 `LiveScoreComputedEvent` + `AFTER_COMMIT` 리스너로 구분한다. 운영 컨테이너는 `pulse-game-processor`이며, 기존 설정 키 `pulse.scorer.*`·`PULSE_SCORER_ENABLED`와 메트릭의 `scorer` 식별자는 호환 계약으로 유지한다.
+순수 계산 커널은 `com.pulse.scoring`, 소비·후처리 오케스트레이션은 `com.pulse.gameprocessing`으로 분리한다. `LiveScoringService.handle()`의 영속 처리와 외부 I/O 팬아웃은 `LiveScoreComputedEvent` + `AFTER_COMMIT` 리스너로 구분한다. 운영 컨테이너는 `pulse-game-processor`이며, 설정 키 `pulse.game-processor.*`·`PULSE_GAMEPROCESSOR_ENABLED`와 메트릭·Prometheus 라벨의 `game-processor` 식별자로 통일한다.
 
 ![gameprocessing 이벤트 기반 내부 구조](../image/diagram/gameprocessing-event-flow.svg)
 

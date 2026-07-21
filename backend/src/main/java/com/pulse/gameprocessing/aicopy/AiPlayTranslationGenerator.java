@@ -32,7 +32,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @ConditionalOnProperty(
-        prefix = "pulse.scorer",
+        prefix = "pulse.game-processor",
         name = "enabled",
         havingValue = "true")
 @RequiredArgsConstructor

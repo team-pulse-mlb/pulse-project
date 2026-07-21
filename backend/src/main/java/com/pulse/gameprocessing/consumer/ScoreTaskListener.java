@@ -15,7 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class ScoreTaskListener {

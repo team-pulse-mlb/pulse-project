@@ -18,7 +18,7 @@ class NotificationOutboxSchedulerRoleGateTest {
     void shouldRegisterSchedulerWhenOnlyPollerIsEnabled() {
         contextRunner.withPropertyValues(
                         "pulse.poller.enabled=true",
-                        "pulse.scorer.enabled=false")
+                        "pulse.game-processor.enabled=false")
                 .run(context -> assertThat(context).hasSingleBean(NotificationOutboxScheduler.class));
     }
 
@@ -27,7 +27,7 @@ class NotificationOutboxSchedulerRoleGateTest {
     void shouldRegisterSchedulerWhenOnlyGameProcessorIsEnabled() {
         contextRunner.withPropertyValues(
                         "pulse.poller.enabled=false",
-                        "pulse.scorer.enabled=true")
+                        "pulse.game-processor.enabled=true")
                 .run(context -> assertThat(context).hasSingleBean(NotificationOutboxScheduler.class));
     }
 
@@ -36,7 +36,7 @@ class NotificationOutboxSchedulerRoleGateTest {
     void shouldNotRegisterSchedulerWhenBothRolesAreDisabled() {
         contextRunner.withPropertyValues(
                         "pulse.poller.enabled=false",
-                        "pulse.scorer.enabled=false")
+                        "pulse.game-processor.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(NotificationOutboxScheduler.class));
     }
 
@@ -45,7 +45,7 @@ class NotificationOutboxSchedulerRoleGateTest {
     void shouldNotRegisterSchedulerWhenExplicitlyDisabled() {
         contextRunner.withPropertyValues(
                         "pulse.poller.enabled=false",
-                        "pulse.scorer.enabled=true",
+                        "pulse.game-processor.enabled=true",
                         "pulse.notification-outbox.scheduler-enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(NotificationOutboxScheduler.class));
     }

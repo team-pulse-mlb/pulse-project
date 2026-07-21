@@ -77,7 +77,7 @@ class GameProcessorRoleGateTest {
     @Test
     @DisplayName("game processor가 활성화되면 운영 처리 체인 빈을 등록한다")
     void shouldRegisterGameProcessorBeansWhenEnabled() {
-        contextRunner.withPropertyValues("pulse.scorer.enabled=true")
+        contextRunner.withPropertyValues("pulse.game-processor.enabled=true")
                 .run(context -> {
                     assertThat(context).hasSingleBean(ScoreTaskListener.class);
                     assertThat(context).hasSingleBean(LiveScoringService.class);
@@ -99,7 +99,7 @@ class GameProcessorRoleGateTest {
     @Test
     @DisplayName("game processor가 비활성화되면 운영 처리 체인 빈을 등록하지 않는다")
     void shouldNotRegisterGameProcessorBeansWhenDisabled() {
-        contextRunner.withPropertyValues("pulse.scorer.enabled=false")
+        contextRunner.withPropertyValues("pulse.game-processor.enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(ScoreTaskListener.class);
                     assertThat(context).doesNotHaveBean(LiveScoringService.class);
@@ -122,7 +122,7 @@ class GameProcessorRoleGateTest {
     @DisplayName("일회성 배치 프로파일에서는 라이브 랭킹 재구축 빈을 등록하지 않는다")
     void shouldNotRegisterLiveRankingRebuildRunnerForBatchProfile() {
         contextRunner.withPropertyValues(
-                        "pulse.scorer.enabled=true",
+                        "pulse.game-processor.enabled=true",
                         "spring.profiles.active=headline-backfill")
                 .run(context -> assertThat(context).doesNotHaveBean(LiveRankingRebuildRunner.class));
     }

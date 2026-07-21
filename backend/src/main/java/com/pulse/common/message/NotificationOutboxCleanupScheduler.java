@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** 보존 기간이 지난 발행 완료 알림 outbox를 제한된 배치로 정리한다. */
 @Component
 @Slf4j
-@ConditionalOnExpression("(${pulse.poller.enabled:false} or ${pulse.scorer.enabled:true})"
+@ConditionalOnExpression("(${pulse.poller.enabled:false} or ${pulse.game-processor.enabled:true})"
         + " and ${pulse.notification-outbox.cleanup-enabled:true}")
 public class NotificationOutboxCleanupScheduler {
 

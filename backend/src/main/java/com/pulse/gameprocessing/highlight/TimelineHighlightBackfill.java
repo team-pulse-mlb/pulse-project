@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 재처리 배치 반복 실행에도 멱등이다.
  */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class TimelineHighlightBackfill {
@@ -198,7 +198,7 @@ public class TimelineHighlightBackfill {
         for (GameEvent anchor : selectedAnchors) {
             anchor.setTimelineHighlight(true);
             gameEventRepository.save(anchor);
-            PulseMetrics.increment("pulse.scorer.highlight.backfilled");
+            PulseMetrics.increment("pulse.game-processor.highlight.backfilled");
 
             if (requestCopyGeneration) {
                 long anchorId = anchor.getId();

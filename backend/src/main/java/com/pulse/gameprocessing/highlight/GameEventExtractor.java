@@ -33,7 +33,7 @@ import org.springframework.stereotype.Component;
  * (game_id, event_type, source_type, source_ref) UNIQUE로 재관측 시 중복을 막는다.
  */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class GameEventExtractor {
 

@@ -29,7 +29,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 class AiFinalHeadlineGenerator {
 

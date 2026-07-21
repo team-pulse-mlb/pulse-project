@@ -30,7 +30,7 @@ aws ssm start-session --target <EC2_INSTANCE_ID> `
 
 ## 수집 기준
 
-Prometheus는 Compose 내부 네트워크에서 backend 역할별 관리 포트 `8081`의 `/actuator/prometheus`를 15초마다 수집한다. 관리 포트는 호스트에 공개하지 않는다. 모든 backend 시계열에는 `job="pulse-backend"`와 `role="api|poller|scorer"`가 붙는다. 여기서 `role="scorer"`는 `pulse-game-processor`의 기존 시계열 호환 라벨이다.
+Prometheus는 Compose 내부 네트워크에서 backend 역할별 관리 포트 `8081`의 `/actuator/prometheus`를 15초마다 수집한다. 관리 포트는 호스트에 공개하지 않는다. 모든 backend 시계열에는 `job="pulse-backend"`와 `role="api|poller|game-processor"`가 붙는다. `pulse-game-processor` 컨테이너의 시계열에는 `role="game-processor"`가 붙는다.
 
 ```promql
 up{job="pulse-backend"}
@@ -114,7 +114,7 @@ sum by (role) (
 
 ```promql
 sum by (type) (
-  increase(pulse_score_task_consumed_total{role="scorer"}[5m])
+  increase(pulse_score_task_consumed_total{role="game-processor"}[5m])
 )
 ```
 
@@ -124,17 +124,17 @@ sum by (type) (
 
 ```promql
 sum by (type) (
-  rate(pulse_score_task_consumed_total{role="scorer"}[5m])
+  rate(pulse_score_task_consumed_total{role="game-processor"}[5m])
 )
 ```
 
 ```promql
 sum by (type) (
-  rate(pulse_score_task_processing_seconds_sum{role="scorer"}[5m])
+  rate(pulse_score_task_processing_seconds_sum{role="game-processor"}[5m])
 )
 /
 sum by (type) (
-  rate(pulse_score_task_processing_seconds_count{role="scorer"}[5m])
+  rate(pulse_score_task_processing_seconds_count{role="game-processor"}[5m])
 )
 ```
 

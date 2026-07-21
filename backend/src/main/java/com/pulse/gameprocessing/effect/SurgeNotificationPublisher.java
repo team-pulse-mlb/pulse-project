@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** 커밋 후 승인된 SURGE 알림을 독립 트랜잭션으로 저장한다. */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class SurgeNotificationPublisher {

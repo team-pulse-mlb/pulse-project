@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * 데이터가 없으면 1.0(영향 없음)으로 둔다.
  */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class ImportanceCalculator {
 

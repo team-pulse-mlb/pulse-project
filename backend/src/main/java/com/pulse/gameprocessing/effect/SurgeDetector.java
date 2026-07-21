@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * armed·cooldown·전역 발화 수는 알림 빈도 제어용 캐시라 Redis 재시작 시 초기화되어도 허용한다.
  */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 public class SurgeDetector {
 
     private static final String ARMED_KEY_PREFIX = "notify:armed:";
@@ -52,7 +52,7 @@ public class SurgeDetector {
             WatchScoreRepository watchScoreRepository,
             StringRedisTemplate redisTemplate,
             ScoringProperties props,
-            @Value("${pulse.scorer.redis-emergency-ttl-ms:172800000}") long emergencyTtlMillis
+            @Value("${pulse.game-processor.redis-emergency-ttl-ms:172800000}") long emergencyTtlMillis
     ) {
         this(
                 watchScoreRepository,

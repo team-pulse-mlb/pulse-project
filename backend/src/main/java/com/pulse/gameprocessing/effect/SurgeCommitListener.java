@@ -11,7 +11,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 /** 라이브 점수 계산 커밋 후 SURGE를 판정하고 알림 outbox 생성을 요청한다. */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class SurgeCommitListener {
@@ -27,7 +27,7 @@ public class SurgeCommitListener {
                     event.watchScoreRounded(),
                     event.computedAt(),
                     () -> {
-                        PulseMetrics.increment("pulse.scorer.surge.fired");
+                        PulseMetrics.increment("pulse.game-processor.surge.fired");
                         surgeNotificationPublisher.publish(
                                 event.gameId(),
                                 event.tags(),
@@ -35,7 +35,7 @@ public class SurgeCommitListener {
                                 event.computedAt());
                     });
         } catch (RuntimeException e) {
-            PulseMetrics.increment("pulse.scorer.surge.failed");
+            PulseMetrics.increment("pulse.game-processor.surge.failed");
             log.warn("SURGE 커밋 후 처리 실패 gameId={} computedAt={}",
                     event.gameId(), event.computedAt(), e);
         }

@@ -9,6 +9,6 @@ spring:
     enabled: false
 
 pulse:
-  scorer:
+  game-processor:
     # 마이그레이션 배치가 운영 score.tasks 큐를 소비하지 않도록 game processor 역할을 비활성화한다.
     enabled: false

@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 /** 현재·직전 활성 태그만으로 사용자에게 표시할 최신 태그를 선택한다. */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 public class LatestTagSelector {
 
     public Selection select(

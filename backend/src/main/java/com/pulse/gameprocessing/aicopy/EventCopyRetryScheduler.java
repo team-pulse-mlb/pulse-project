@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 /** 최근 라이브 경기에서 누락된 보호 모드 AI 이벤트 문구를 제한된 횟수만큼 재시도한다. */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @ConditionalOnProperty(
         prefix = "pulse.ai.event-copy-retry",
         name = "enabled",

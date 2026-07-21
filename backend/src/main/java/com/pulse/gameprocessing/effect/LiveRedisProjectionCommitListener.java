@@ -15,7 +15,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 다른 커밋 후 부수효과로 전파되지 않게 한다.
  */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class LiveRedisProjectionCommitListener {
@@ -37,7 +37,7 @@ public class LiveRedisProjectionCommitListener {
                     event.previousTags(),
                     event.computedAt());
         } catch (RuntimeException e) {
-            PulseMetrics.increment("pulse.scorer.projection.failed");
+            PulseMetrics.increment("pulse.game-processor.projection.failed");
             log.warn("Redis 라이브 반영 실패 gameId={} computedAt={}",
                     event.gameId(), event.computedAt(), e);
         }

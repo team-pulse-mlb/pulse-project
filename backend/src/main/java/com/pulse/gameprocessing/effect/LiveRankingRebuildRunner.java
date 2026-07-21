@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 
 /** game processor 기동 시 DB의 최신 점수로 라이브 랭킹 캐시를 복원한다. */
 @Component
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 @Profile("!headline-backfill & !ai-copy-reprocess & !rescore & !replay & !backtest & !migration")
 @RequiredArgsConstructor
 @Slf4j

@@ -15,7 +15,7 @@ spring:
 pulse:
   poller:
     enabled: false
-  scorer:
+  game-processor:
     # 실제 생성기와 Redis 재조회 신호 발행 빈만 사용한다.
     enabled: true
   ai:

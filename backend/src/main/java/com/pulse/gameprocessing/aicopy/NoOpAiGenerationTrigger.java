@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
  * 이 설정도 같은 조건을 따른다.
  */
 @Configuration
-@ConditionalOnProperty(prefix = "pulse.scorer", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
 class NoOpAiGenerationTriggerConfiguration {
 
     @Bean

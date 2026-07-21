@@ -12,5 +12,5 @@ spring:
       read-only: true
 
 pulse:
-  scorer:
+  game-processor:
     enabled: false

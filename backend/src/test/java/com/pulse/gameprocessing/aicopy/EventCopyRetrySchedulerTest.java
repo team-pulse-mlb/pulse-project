@@ -71,20 +71,20 @@ class EventCopyRetrySchedulerTest {
 
     @Test
     void scorer가_활성화되면_재시도_스케줄러를_등록한다() {
-        contextRunner().withPropertyValues("pulse.scorer.enabled=true")
+        contextRunner().withPropertyValues("pulse.game-processor.enabled=true")
                 .run(context -> assertThat(context).hasSingleBean(EventCopyRetryScheduler.class));
     }
 
     @Test
     void scorer가_비활성화되면_재시도_스케줄러를_등록하지_않는다() {
-        contextRunner().withPropertyValues("pulse.scorer.enabled=false")
+        contextRunner().withPropertyValues("pulse.game-processor.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(EventCopyRetryScheduler.class));
     }
 
     @Test
     void 재시도_설정이_꺼지면_스케줄러를_등록하지_않는다() {
         contextRunner().withPropertyValues(
-                        "pulse.scorer.enabled=true",
+                        "pulse.game-processor.enabled=true",
                         "pulse.ai.event-copy-retry.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(EventCopyRetryScheduler.class));
     }
