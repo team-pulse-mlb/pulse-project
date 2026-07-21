@@ -92,8 +92,8 @@ def _generate_openai_translation(
     client = OpenAI(
         api_key=settings.openai_api_key,
         timeout=_openai_play_translation_timeout_seconds(),
-        # Spring Boot의 8초 제한을 넘지 않도록
-        # SDK 자동 재시도 대신 아래 retry loop만 사용합니다.
+        # PLAY_TRANSLATION의 timeout·최대 시도 횟수는 목적별 설정으로 관리하고,
+        # SDK 자동 재시도 대신 아래 서비스 레이어 retry loop만 사용합니다.
         max_retries=0,
     )
 

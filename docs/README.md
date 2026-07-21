@@ -82,7 +82,8 @@
 
 | 문서 | 문서 범위 |
 |---|---|
-| [UNIT_TESTS.md](testing/UNIT_TESTS.md) | 모듈별 단위 테스트 클래스, 핵심 시나리오, 실행 방법·작성 원칙 |
+| [UNIT_TESTS.md](testing/UNIT_TESTS.md) | Backend 모듈별 단위 테스트 클래스, 핵심 시나리오, 실행 방법·작성 원칙 |
+| [AI_SERVICE_TESTS.md](testing/AI_SERVICE_TESTS.md) | Python AI 서비스의 Router·Schema·Prompt·OpenAI 연동·Guard 테스트 범위와 pytest·subtest·JUnit XML 실행 결과 |
 | [INTEGRATION_TESTS.md](testing/INTEGRATION_TESTS.md) | DB·HTTP·Spring 컨텍스트 통합 범위와 테스트 인프라 |
 | [FUNCTIONAL_TESTS.md](testing/FUNCTIONAL_TESTS.md) | 사용자 주요 흐름의 기능 테스트 체크리스트 |
 
