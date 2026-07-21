@@ -7,7 +7,7 @@
 | `notify:armed:{gameId}` | STRING | 급상승 히스테리시스 상태 |
 | `notify:cooldown:{gameId}` | STRING | 급상승 경기별 15분 쿨다운 |
 | `notify:surge:count:global` | STRING | 전역 15분 창 발화 수 |
-| `switch:cooldown:{userId}:{gameId}` | STRING | 사용자별 경기 전환 안내 쿨다운 |
+| `game:switch:suggestion:{userId}:{gameId}` | STRING | 로그인 사용자별 경기 전환 안내 쿨다운(15분). 비로그인 사용자는 프론트 localStorage로 보조 처리 |
 | `sse:token:{token}` | STRING | SSE 연결용 1회용 토큰, TTL 60초 |
 | `signal:ranking` | pub/sub | 홈 랭킹 재조회 신호 |
 | `signal:game:{id}` | pub/sub | 경기 상세 재조회 신호 |

@@ -136,7 +136,7 @@
 
 **키·인덱스** — PK `id` · **UNIQUE(`game_id`, `play_order`)** · idx(`game_id`, `play_order`)
 
-> `text_ko`·`text_ko_context_hash`는 신규 Flyway 마이그레이션으로 추가한다. 적용 이력을 보존하기 위해 기존 baseline 파일은 수정하지 않는다.
+> `text_ko`·`text_ko_context_hash`·`text_ko_attempts`는 baseline을 수정하지 않고 증분 마이그레이션(V19·V20)으로 추가했다.
 
 > `runner_on_*` 채움 규칙: poller가 PA를 `pa_number` 오름차순으로 소비하며 plays의 타석 경계 play에 순차 대응시키고, (`inning`, `half_inning`, `batter_id`) 일치로 검증한다. 검증 불일치·매핑 모호(재관측 순서 꼬임 등) 시 해당 타석은 `null`로 남긴다. 같은 이닝에 동일 타자가 다시 나오는 경우(batting around)에도 `pa_number` 순차 소비로 같은 결과를 보장한다.
 
@@ -244,7 +244,7 @@ scorer가 라이브 계산 중 임계를 통과한 순간을 추출해 append하
 
 **키·인덱스** — PK `user_id`
 
-> 알림 임계(85)·재무장(70)·급등 조건은 사용자별 설정이 아니라 `scoring.yml` 전역 상수다. 기본 스포일러 모드 설정은 두지 않는다 — 모든 경기는 항상 보호 모드로 시작하고, 경기 단위 공개 상태는 서버에 저장하지 않고 클라이언트(localStorage)에만 둔다.
+> 알림 진입·재무장·급등 임계는 사용자별 설정이 아니라 `scoring.yml`(`thresholds.alert-*`) 전역 상수다. 기본 스포일러 모드 설정은 두지 않는다 — 모든 경기는 항상 보호 모드로 시작하고, 경기 단위 공개 상태는 서버에 저장하지 않고 클라이언트(localStorage)에만 둔다.
 
 ### B-4. `user_favorite_teams` — 관심 팀
 
