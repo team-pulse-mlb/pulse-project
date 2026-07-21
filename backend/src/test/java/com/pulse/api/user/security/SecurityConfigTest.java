@@ -1,4 +1,4 @@
-package com.pulse.common.config;
+package com.pulse.api.user.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -6,8 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.pulse.api.user.security.CustomUserDetailsService;
-import com.pulse.api.user.security.JwtAuthenticationEntryPoint;
 import com.pulse.api.user.security.jwt.JwtAuthenticationFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
