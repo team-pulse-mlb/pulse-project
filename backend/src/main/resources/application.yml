@@ -189,6 +189,12 @@ pulse:
     retention-period: ${PULSE_SCORE_TASK_OUTBOX_RETENTION_PERIOD:7d}
     cleanup-delay: ${PULSE_SCORE_TASK_OUTBOX_CLEANUP_DELAY:1h}
     cleanup-batch-size: ${PULSE_SCORE_TASK_OUTBOX_CLEANUP_BATCH_SIZE:500}
+
+  notification:
+    # notify.events 큐는 API 역할만 소비합니다.
+    # 기본값은 false이며 API 컨테이너에서만 true로 활성화합니다.
+    consumer-enabled: ${PULSE_NOTIFICATION_CONSUMER_ENABLED:false}
+
   notification-outbox:
     dispatch-delay: ${PULSE_NOTIFICATION_OUTBOX_DISPATCH_DELAY:5s}
     retry-initial-interval: ${PULSE_NOTIFICATION_OUTBOX_RETRY_INITIAL_INTERVAL:5s}
