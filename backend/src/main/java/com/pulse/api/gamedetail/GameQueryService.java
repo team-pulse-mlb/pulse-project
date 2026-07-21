@@ -1,4 +1,4 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import com.pulse.domain.*;

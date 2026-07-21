@@ -1,6 +1,6 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
-import com.pulse.api.GameQueryService.*;
+import com.pulse.api.gamedetail.GameQueryService.*;
 import com.pulse.domain.*;
 import com.pulse.gameprocessing.application.TensionCurveQueryService;
 import org.junit.jupiter.api.Test;

@@ -19,7 +19,7 @@
 |---|---|---|
 | `com.pulse.api` | REST·SSE·스포일러 보호 DTO·알림 전달 진입점 | `domain` 읽기, Redis 재조회 신호, 공개 서비스 인터페이스 사용 |
 | `com.pulse.api.home` | 홈 추천 보드 API | `domain`, `ranking`, `UserPreferenceReader` 사용. 헤드라인은 `games` 컬럼 직접 조회 |
-| `com.pulse.api` 루트 클래스 | 경기 상세·다시보기 API(`GameController`·`Game*QueryService`·`SwitchSuggestionService`), 직렬화 가드. 별도 `gamedetail` 하위 패키지로 분리되어 있지 않다 | `domain` 사용. 헤드라인·이벤트 문구·번역은 해당 테이블 직접 조회 |
+| `com.pulse.api.gamedetail` | 경기 상세·다시보기 API, 직렬화 가드 | `domain` 사용. 헤드라인·이벤트 문구·번역은 해당 테이블 직접 조회 |
 | `com.pulse.api.user` | 회원·관심 팀·관심 선수·설정 API. 현재 회원 엔티티·Repository는 `api.user.domain`에 위치 | `common`, Redis 사용. 선호 조회는 `UserPreferenceReader`로 공개 |
 | `com.pulse.api.notification` | 알림 fan-out·저장·SSE 알림 전달 | RabbitMQ `notify.events` 소비, `domain`, `UserPreferenceReader` 사용. `signal:notification:{userId}` Redis 신호 발행 |
 | `com.pulse.api.team` | 팀 마스터·로고 조회 API | `domain` 읽기 사용 |

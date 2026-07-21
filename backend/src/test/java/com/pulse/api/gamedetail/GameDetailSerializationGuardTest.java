@@ -1,8 +1,8 @@
-package com.pulse.api;
+package com.pulse.api.gamedetail;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pulse.api.GameQueryService.*;
+import com.pulse.api.gamedetail.GameQueryService.*;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Test;
 
