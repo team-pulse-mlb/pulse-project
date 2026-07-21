@@ -4,7 +4,7 @@
 
 | 담당자 | 담당 영역 | backend | frontend |
 |---|---|---|---|
-| 예은(조장) | 데이터 파이프라인, 점수·추천 로직, 홈, 공통 구조 | `poller`, `scorer`, `ranking`, `replay`, `api.home`, `common`, `domain` | `features/home`, `shared`, `app` |
+| 예은(조장) | 데이터 파이프라인, 점수·추천 로직, 홈, 공통 구조 | `poller`, `scoring`, `gameprocessing`, `ranking`, `replay`, `api.home`, `common`, `domain` | `features/home`, `shared`, `app` |
 | 창현 | AI 문구 생성·검수 | `ai-service/`, `com.pulse.ai` | `features/ai-copy` |
 | 민석 | 경기 상세, 상세 화면 다시보기, 상세 화면 내 전환 알림 | `api.gamedetail` | `features/game-detail` |
 | 윤호 | 회원, 알림, 통합 후 관측 | `api.user`, `api.notification` | `features/auth`, `features/notification` |
@@ -15,7 +15,7 @@
 
 - 기반 배선: V1·V2 스키마·BalldontlieClient·프로파일·RabbitMQ 큐·DLQ 설정, 공유 메시지 DTO(`ScoreTask`·`NotificationEvent`)·발행·소비 배선
 - poller 워커: 생명주기 상태머신, 상태별 폴링·백오프, `games`·`plays` 증분 수집, situation 추출, `ScoreTask`·`GAME_START`·종료 task 발행, 선발 시즌스탯 적재
-- scorer 워커: 8신호 점수 로직, `score.tasks` 소비, `watch_score`·`peak_base_score`·`game_events` 영속, Redis 랭킹·캐시·`signal` 발행, SURGE 판정, `pregame_score`, 종료 정리
+- game processor 워커: 8신호 점수 로직, `score.tasks` 소비, `watch_score`·`peak_base_score`·`game_events` 영속, Redis 랭킹·캐시·`signal` 발행, SURGE 판정, `pregame_score`, 종료 정리
 - api.home: `GET /api/rankings/live`(슬롯·개인화 가산·보호 DTO), `GET /api/games`(슬레이트·상태·정렬)
 - SSE: `GET /api/sse`·1회용 토큰, `signal:*` 구독 → 이벤트 3종 중계
 - 전환 후보 조회 지점(랭킹 기반) 제공 — 민석 상세가 소비
@@ -24,7 +24,7 @@
 ### 창현 — AI 문구
 
 - ai-service 생성·검수 파이프라인·스포일러 게이트
-- `com.pulse.ai` ai-service 클라이언트·요청 매퍼, 검수 통과 문구 PostgreSQL 저장, scorer 비동기 트리거
+- `com.pulse.ai` ai-service 클라이언트·요청 매퍼, 검수 통과 문구 PostgreSQL 저장, game processor 비동기 트리거
 
 ### 민석 — 경기 상세·다시보기·전환 알림
 

@@ -13,7 +13,7 @@ import com.pulse.domain.Play;
 import com.pulse.domain.PlayRepository;
 import com.pulse.poller.PlayerStubWriter;
 import com.pulse.replay.S3RawArchiveClient.RawEnvelope;
-import com.pulse.scorer.ScoreRecalculationService;
+import com.pulse.gameprocessing.application.ScoreRecalculationService;
 import java.time.Instant;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;

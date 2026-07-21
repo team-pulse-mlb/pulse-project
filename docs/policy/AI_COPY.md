@@ -283,7 +283,7 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
 }
 ```
 
-## 5. scorer ↔ ai-service HTTP 계약
+## 5. game processor ↔ ai-service HTTP 계약
 
 내부 HTTP API의 경로, 요청·응답 필드, 필수값, enum, 예시는 FastAPI가 생성하는 OpenAPI를 단일 기준으로 사용한다.
 
@@ -296,9 +296,9 @@ Spring Boot 필드 매핑 기준은 아래와 같다.
 
 | API | 저장 위치 | 저장 책임 |
 |---|---|---|
-| 종료 헤드라인 생성 | `games.final_headline_*` | scorer |
-| 보호 이벤트 문구 생성 | `game_events.copy_protected`, `copy_protected_context_hash` | scorer |
-| 공개 플레이 번역 | `plays.text_ko`, `text_ko_context_hash` | scorer |
+| 종료 헤드라인 생성 | `games.final_headline_*` | game processor |
+| 보호 이벤트 문구 생성 | `game_events.copy_protected`, `copy_protected_context_hash` | game processor |
+| 공개 플레이 번역 | `plays.text_ko`, `text_ko_context_hash` | game processor |
 
 - 요청 직렬화: `mode=PROTECTED` 요청의 `safeContext`에는 금지 필드 키가 존재하지 않아야 한다(§4). 헤드라인의 모드별 직렬화 결과를 검증하는 테스트를 둔다. `PLAY_TRANSLATION`은 `mode=REVEALED`만 허용한다.
 - 응답의 `violations`, `fallbackUsed`, `contextHash`는 성공·실패와 무관하게 반환한다. FINAL_HEADLINE 성공 응답은 `safeTitle`, `usedFactIds`, `usedPlayIds`를 반환하며, EVENT_COPY는 `safeTitle`, PLAY_TRANSLATION은 `translatedText`를 반환한다.

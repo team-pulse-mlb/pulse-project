@@ -173,13 +173,13 @@ pulse:
     pa-archive:
       bucket: ${PULSE_POLLER_PA_ARCHIVE_BUCKET:${PULSE_REPLAY_S3_BUCKET:}}
       region: ${AWS_REGION:ap-northeast-2}
-  scorer:
-    enabled: ${PULSE_SCORER_ENABLED:true}
+  game-processor:
+    enabled: ${PULSE_GAMEPROCESSOR_ENABLED:true}
     # SURGE 알림 빈도 제어 캐시의 비상 TTL. Redis 재시작 시 초기화되어도 허용한다.
-    redis-emergency-ttl-ms: ${PULSE_SCORER_REDIS_EMERGENCY_TTL_MS:172800000}
-    finalization-recovery-delay-ms: ${PULSE_SCORER_FINALIZATION_RECOVERY_DELAY_MS:900000}
+    redis-emergency-ttl-ms: ${PULSE_GAMEPROCESSOR_REDIS_EMERGENCY_TTL_MS:172800000}
+    finalization-recovery-delay-ms: ${PULSE_GAMEPROCESSOR_FINALIZATION_RECOVERY_DELAY_MS:900000}
     # 복구 스캔 대상을 최근 갱신 terminal 경기로 한정하는 창. finalized 키 비상 TTL보다 짧게 유지한다.
-    finalization-recovery-window-ms: ${PULSE_SCORER_FINALIZATION_RECOVERY_WINDOW_MS:86400000}
+    finalization-recovery-window-ms: ${PULSE_GAMEPROCESSOR_FINALIZATION_RECOVERY_WINDOW_MS:86400000}
   score-task-outbox:
     dispatch-delay: ${PULSE_SCORE_TASK_OUTBOX_DISPATCH_DELAY:5s}
     retry-initial-interval: ${PULSE_SCORE_TASK_OUTBOX_RETRY_INITIAL_INTERVAL:5s}

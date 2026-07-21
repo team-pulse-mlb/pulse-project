@@ -8,10 +8,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** poller 또는 scorer 역할에서 미발행 ScoreTask를 주기적으로 재발행한다. */
+/** poller 또는 game processor 역할에서 미발행 ScoreTask를 주기적으로 재발행한다. */
 @Component
 @RequiredArgsConstructor
-@ConditionalOnExpression("(${pulse.poller.enabled:false} or ${pulse.scorer.enabled:true})"
+@ConditionalOnExpression("(${pulse.poller.enabled:false} or ${pulse.game-processor.enabled:true})"
         + " and ${pulse.score-task-outbox.scheduler-enabled:true}")
 public class ScoreTaskOutboxScheduler {
 

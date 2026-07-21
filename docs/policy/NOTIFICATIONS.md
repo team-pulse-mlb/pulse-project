@@ -29,7 +29,7 @@
 
 ## 3. 파이프라인 — 판정과 전달의 분리
 
-판정은 데이터를 가진 곳(scorer·poller)에서, 전달은 사용자를 아는 곳(api)에서 한다.
+판정은 데이터를 가진 곳(game processor·poller)에서, 전달은 사용자를 아는 곳(api)에서 한다.
 
 ![알림 판정·전달 파이프라인](../image/diagram/notification-pipeline.svg)
 
@@ -37,7 +37,7 @@
 - 중복 전달을 전제로 `(event_id, user_id)` 유니크 제약으로 멱등 처리한다.
 - 발행 측은 같은 `event_id`의 `notification_events` 원본과 `notification_outbox` PENDING 행을 한 트랜잭션으로 영속한다. 커밋 직후 `notify.events` 발행을 시도하고, 실패하면 지수 백오프로 재발행한다. 애플리케이션 재시작 뒤에도 PENDING 행을 다시 조회한다.
 - 발행 성공 직후 outbox 상태 갱신 전에 장애가 나면 같은 `event_id`가 중복 전달될 수 있다. 소비자는 `(event_id, user_id)` 유니크 제약으로 중복을 무시한다.
-- 경기별 쿨다운(`notify:cooldown:{gameId}`)과 전역 15분 창 발화 한도(`notify:surge:count:global`)는 발행 측(scorer)이 Redis 키로 관리한다.
+- 경기별 쿨다운(`notify:cooldown:{gameId}`)과 전역 15분 창 발화 한도(`notify:surge:count:global`)는 발행 측(game processor)이 Redis 키로 관리한다.
 - 경기 전환 안내는 알림 파이프라인을 타지 않는다. 상세 API 응답의 `switchSuggestion: { gameId, matchup, latestTag }`와 서버 조립 `message`로 제공한다.
 
 ## 4. 이벤트 스키마 (RabbitMQ `notify.events`)
