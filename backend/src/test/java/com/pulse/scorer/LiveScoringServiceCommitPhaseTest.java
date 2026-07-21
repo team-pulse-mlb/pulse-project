@@ -68,7 +68,8 @@ class LiveScoringServiceCommitPhaseTest {
             mock(TimelineHighlightTrigger.class),
             mock(AiGenerationTrigger.class),
             mock(SurgeNotificationPublisher.class),
-            properties);
+            properties,
+            mock(org.springframework.context.ApplicationEventPublisher.class));
 
     LiveScoringServiceCommitPhaseTest() {
         when(watchScoreRepository.existsByGameIdAndComputedAt(GAME_ID, OBSERVED_AT)).thenReturn(false);
