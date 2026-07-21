@@ -676,9 +676,10 @@ function SettingsPlayersPage({
                                                     )
                                                 }
                                                 disabled={isSaving}
-                                                aria-label={`${player.fullName ?? '선수'} 관심 선수 해제`}
+                                                aria-label={`${player.fullName ?? '선수'} 관심 선수 선택 해제`}
+                                                title={`${player.fullName ?? '선수'} 선택 해제`}
                                             >
-                                                삭제
+                                                ×
                                             </button>
                                         </article>
                                     );
