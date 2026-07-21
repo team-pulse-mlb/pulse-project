@@ -104,9 +104,65 @@ function GameSwitchToast({
         toastEntered,
         setToastEntered,
     ] = useState(false);
+    const [
+        retainedSuggestion,
+        setRetainedSuggestion,
+    ] = useState<{
+        currentGameId: number;
+        suggestion:
+            GameSwitchSuggestionViewModel;
+    } | null>(
+        suggestion === null
+            ? null
+            : {
+                currentGameId,
+                suggestion,
+            },
+    );
 
+    /*
+     * 상세 자동 재조회에서 switchSuggestion이 null이 되어도
+     * 이미 표시 중인 토스트는 기존 자동 종료 시점까지 유지한다.
+     */
+    const visibleSuggestion =
+        suggestion
+        ?? (
+            retainedSuggestion?.currentGameId
+                === currentGameId
+                ? retainedSuggestion.suggestion
+                : null
+        );
     const suggestionGameId =
-        suggestion?.gameId ?? null;
+        visibleSuggestion?.gameId ?? null;
+
+    useEffect(() => {
+        if (
+            suggestion === null
+            || suggestion.gameId
+                === currentGameId
+        ) {
+            return;
+        }
+
+        const retainFrameId =
+            window.requestAnimationFrame(
+                () => {
+                    setRetainedSuggestion({
+                        currentGameId,
+                        suggestion,
+                    });
+                },
+            );
+
+        return () => {
+            window.cancelAnimationFrame(
+                retainFrameId,
+            );
+        };
+    }, [
+        currentGameId,
+        suggestion,
+    ]);
 
     const beginDismiss = useCallback(
         (afterExit?: () => void) => {
@@ -125,7 +181,9 @@ function GameSwitchToast({
                         setVisibleSuggestionId(
                             null,
                         );
-
+                        setRetainedSuggestion(
+                            null,
+                        );
                         setCountdownStarted(
                             false,
                         );
@@ -170,7 +228,9 @@ function GameSwitchToast({
                         setVisibleSuggestionId(
                             null,
                         );
-
+                        setRetainedSuggestion(
+                            null,
+                        );
                         setCountdownStarted(
                             false,
                         );
@@ -204,7 +264,9 @@ function GameSwitchToast({
                         setVisibleSuggestionId(
                             null,
                         );
-
+                        setRetainedSuggestion(
+                            null,
+                        );
                         setCountdownStarted(
                             false,
                         );
@@ -303,9 +365,9 @@ function GameSwitchToast({
     ]);
 
     if (
-        suggestion === null
+        visibleSuggestion === null
         || visibleSuggestionId
-            !== suggestion.gameId
+            !== visibleSuggestion.gameId
     ) {
         return null;
     }
@@ -342,13 +404,13 @@ function GameSwitchToast({
                         beginDismiss(
                             () => {
                                 navigate(
-                                    `/games/${suggestion.gameId}`,
+                                    `/games/${visibleSuggestion.gameId}`,
                                 );
                             },
                         );
                     }}
                     className="
-                        w-full px-5 pb-5
+                        w-full cursor-pointer px-5 pb-5
                         pl-5 pr-14 pt-4
                         text-left
                         transition-colors
@@ -385,7 +447,17 @@ function GameSwitchToast({
                                     leading-5 text-white/90
                                 "
                             >
-                                {suggestion.message}
+                                {visibleSuggestion.message}
+                            </span>
+
+                            <span
+                                className="
+                                    mt-2 block text-xs
+                                    font-semibold
+                                    text-amber-200
+                                "
+                            >
+                                다른 경기 보러 가기 {'>'}
                             </span>
                         </span>
                     </span>

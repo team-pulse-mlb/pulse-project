@@ -113,6 +113,23 @@ describe('GameSwitchToast', () => {
                 suggestion.message,
             ),
         ).not.toBeNull();
+
+        expect(
+            screen.queryByText(
+                '다른 경기 보러 가기 >',
+            ),
+        ).not.toBeNull();
+
+        expect(
+            screen.getByRole(
+                'button',
+                {
+                    name: /경기 추천 알림/,
+                },
+            ).className,
+        ).toContain(
+            'cursor-pointer',
+        );
     });
 
     it('전체 토스트를 누르면 추천 경기로 이동한다', () => {
@@ -138,6 +155,58 @@ describe('GameSwitchToast', () => {
                 'location',
             ).textContent,
         ).toBe('/games/202');
+    });
+
+    it('재조회 응답이 null이어도 표시 중인 토스트를 유지한다', () => {
+        const rendered = renderToast();
+
+        advanceFrame();
+
+        rendered.rerender(
+            <MemoryRouter
+                initialEntries={['/games/101']}
+            >
+                <GameSwitchToast
+                    currentGameId={101}
+                    suggestion={null}
+                />
+                <LocationProbe />
+            </MemoryRouter>,
+        );
+
+        expect(
+            screen.queryByText(
+                '경기 추천 알림',
+            ),
+        ).not.toBeNull();
+
+        expect(
+            screen.queryByText(
+                suggestion.message,
+            ),
+        ).not.toBeNull();
+
+        act(() => {
+            vi.advanceTimersByTime(
+                9_998,
+            );
+        });
+
+        expect(
+            screen.queryByText(
+                '경기 추천 알림',
+            ),
+        ).not.toBeNull();
+
+        act(() => {
+            vi.advanceTimersByTime(180);
+        });
+
+        expect(
+            screen.queryByText(
+                '경기 추천 알림',
+            ),
+        ).toBeNull();
     });
 
     it('표시 후 10초가 지나면 자동으로 사라진다', () => {
