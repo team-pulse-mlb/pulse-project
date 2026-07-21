@@ -131,7 +131,8 @@ class LiveScoringTransactionBoundaryTest {
                 .findByGameIdAndSpoilerLevelOrderByObservedAtAscIdAsc(
                         COMMIT_GAME_ID, GameEvent.SPOILER_PROTECTED_SAFE);
         assertThat(events).singleElement().satisfies(event -> {
-            assertThat(event.getEventType()).isEqualTo(GameEventExtractor.EVENT_PRESSURE_BASES_LOADED);
+            // EVENT_PRESSURE_BASES_LOADED 상수는 highlight 패키지 전용이라 이벤트 타입 문자열로 검증한다.
+            assertThat(event.getEventType()).isEqualTo("pressure_bases_loaded");
             assertThat(event.isTimelineHighlight()).isTrue();
             verify(aiGenerationTrigger).onGameEventPersisted(
                     COMMIT_GAME_ID,
