@@ -27,6 +27,35 @@ const INITIAL_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 /**
+ * 경기 상세 페이지의 URL 형식입니다.
+ *
+ * 예:
+ * - /games/12345
+ * - /games/12345/
+ *
+ * window.location.pathname은 쿼리 문자열과 해시를 제외하므로
+ * 현재 사용자가 경기 상세 페이지를 보고 있는지 확인할 때 사용합니다.
+ */
+const GAME_DETAIL_PATH_PATTERN =
+    /^\/games\/[^/]+\/?$/;
+
+/**
+ * 현재 화면이 경기 상세 페이지인지 확인합니다.
+ *
+ * useLocation을 이 SSE 훅에 직접 연결하면
+ * 페이지를 이동할 때마다 useEffect가 다시 실행되어
+ * SSE 연결이 불필요하게 끊겼다가 재연결될 수 있습니다.
+ *
+ * 따라서 알림 이벤트를 처리하는 순간의
+ * 실제 브라우저 경로만 확인합니다.
+ */
+function isGameDetailPage() {
+    return GAME_DETAIL_PATH_PATTERN.test(
+        window.location.pathname,
+    );
+}
+
+/**
  * 알 수 없는 JSON 값이 올바른 알림 생성 payload인지 확인합니다.
  */
 function isNotificationCreatedPayload(
@@ -225,20 +254,42 @@ export function useNotificationSse() {
             */
             if (createdNotification) {
                 const isGameStart =
-                    createdNotification.type === 'GAME_START';
+                    createdNotification.type ===
+                    'GAME_START';
 
-                showToast({
-                    title: isGameStart
-                        ? '관심 팀 경기가 시작됐어요'
-                        : '지금 볼 만한 경기 알림',
-                    message: createdNotification.message,
-                    to: `/games/${createdNotification.gameId}`,
-                    variant: isGameStart
-                        ? 'game-start'
-                        : 'surge',
-                    dedupeKey:
-                        `notification-${createdNotification.notificationId}`,
-                });
+                const isSurge =
+                    createdNotification.type ===
+                    'SURGE';
+
+                /*
+                 * 경기 상세 페이지에는 현재 경기보다 더 높은
+                 * watch score를 가진 경기를 추천하는 전용 알림이 있습니다.
+                 *
+                 * 이 화면에서 전역 SURGE 토스트까지 함께 표시하면
+                 * 유사한 추천 알림이 겹쳐 보이므로
+                 * 경기 상세 페이지에서만 SURGE 토스트를 숨깁니다.
+                 *
+                 * 알림 데이터 저장, 알림 목록 재조회,
+                 * 헤더 빨간 점과 알림함 갱신은 그대로 유지됩니다.
+                 */
+                const shouldSuppressSurgeToast =
+                    isSurge && isGameDetailPage();
+
+                if (!shouldSuppressSurgeToast) {
+                    showToast({
+                        title: isGameStart
+                            ? '관심 팀 경기가 시작됐어요'
+                            : '지금 볼 만한 경기 알림',
+                        message:
+                            createdNotification.message,
+                        to: `/games/${createdNotification.gameId}`,
+                        variant: isGameStart
+                            ? 'game-start'
+                            : 'surge',
+                        dedupeKey:
+                            `notification-${createdNotification.notificationId}`,
+                    });
+                }
             }
         };
 
