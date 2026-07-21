@@ -31,6 +31,7 @@ public class LiveSignalPublisher {
 
     private final RankingService rankingService;
     private final StringRedisTemplate redisTemplate;
+    private final LatestTagSelector latestTagSelector;
 
     /** 랭킹 ZSET·경기 HASH 캐시를 갱신하고 재조회 신호 2종을 발행한다. */
     public void publishLiveUpdate(
@@ -69,17 +70,6 @@ public class LiveSignalPublisher {
 
     public void publishRankingSignal() {
         publishRankingSignalNow();
-    }
-
-    /** 현재 Redis 상태를 기준으로 이번 사이클의 가장 최근 활성 태그를 계산한다. */
-    public String resolveLatestTag(
-            long gameId,
-            List<String> tags,
-            List<String> fallbackPreviousTags,
-            Instant updatedAt
-    ) {
-        String latestTag = latestTagState(gameId, tags, fallbackPreviousTags, updatedAt).latestTag();
-        return latestTag.isBlank() ? null : latestTag;
     }
 
     private void publishGameSignalNow(long gameId) {
@@ -155,19 +145,16 @@ public class LiveSignalPublisher {
         } else {
             previousTags = List.of(previousSignature.split("\\|", -1));
         }
-        String newlyActivated = current.stream()
-                .filter(tag -> !previousTags.contains(tag))
-                .reduce((first, second) -> second)
-                .orElse(null);
-
-        if (newlyActivated != null) {
-            return new LatestTagState(newlyActivated, updatedAt.toString());
+        LatestTagSelector.Selection selection =
+                latestTagSelector.select(current, previousTags, previousLatestTag);
+        if (selection.newlyActivated()) {
+            return new LatestTagState(selection.tag(), updatedAt.toString());
         }
-        if (previousLatestTag != null && current.contains(previousLatestTag)) {
+        if (previousLatestTag != null && selection.tag().equals(previousLatestTag)) {
             String activatedAt = previousActivatedAt == null ? updatedAt.toString() : previousActivatedAt;
-            return new LatestTagState(previousLatestTag, activatedAt);
+            return new LatestTagState(selection.tag(), activatedAt);
         }
-        return new LatestTagState(current.get(current.size() - 1), updatedAt.toString());
+        return new LatestTagState(selection.tag(), updatedAt.toString());
     }
 
     private static String tagSignature(List<String> tags) {

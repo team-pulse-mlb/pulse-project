@@ -50,14 +50,13 @@ class LiveScoringServiceCharacterizationTest {
         fixture.service.handle(liveTask());
 
         // 계산 → watch_scores 적재 → peak 갱신 → game_events 추출 →
-        // SURGE 판정 → 하이라이트 → 이벤트 발행 순서를 고정한다.
-        // Redis 반영·미번역 플레이 요청은 커밋 후 LiveScoreComputedEvent 리스너가 이벤트로 처리한다.
+        // 하이라이트 → 이벤트 발행 순서를 고정한다.
+        // Redis 반영·SURGE 판정·미번역 플레이 요청은 커밋 후 리스너가 이벤트로 처리한다.
         InOrder order = inOrder(
                 fixture.calculator,
                 fixture.watchScoreRepository,
                 fixture.gameRepository,
                 fixture.gameEventExtractor,
-                fixture.surgeDetector,
                 fixture.timelineHighlightTrigger,
                 fixture.applicationEventPublisher);
         order.verify(fixture.calculator).calculate(any(ScoringInput.class));
@@ -65,7 +64,6 @@ class LiveScoringServiceCharacterizationTest {
         order.verify(fixture.gameRepository).save(fixture.game);
         order.verify(fixture.gameEventExtractor)
                 .extract(eq(GAME_ID), anyList(), any(), anyInt(), eq(OBSERVED_AT));
-        order.verify(fixture.surgeDetector).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT), any());
         order.verify(fixture.timelineHighlightTrigger).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT));
         order.verify(fixture.applicationEventPublisher)
                 .publishEvent(any(LiveScoreComputedEvent.class));
@@ -86,7 +84,6 @@ class LiveScoringServiceCharacterizationTest {
                 fixture.calculator,
                 fixture.gameEventExtractor,
                 fixture.liveSignalPublisher,
-                fixture.surgeDetector,
                 fixture.timelineHighlightTrigger,
                 fixture.applicationEventPublisher);
         verify(fixture.watchScoreRepository, never()).save(any(WatchScore.class));
@@ -106,7 +103,6 @@ class LiveScoringServiceCharacterizationTest {
         verify(fixture.watchScoreRepository, times(1)).save(any(WatchScore.class));
         verify(fixture.gameEventExtractor, times(1))
                 .extract(eq(GAME_ID), anyList(), any(), anyInt(), eq(OBSERVED_AT));
-        verify(fixture.surgeDetector, times(1)).evaluate(eq(GAME_ID), anyInt(), eq(OBSERVED_AT), any());
         verify(fixture.applicationEventPublisher, times(1))
                 .publishEvent(any(LiveScoreComputedEvent.class));
     }
@@ -156,10 +152,7 @@ class LiveScoringServiceCharacterizationTest {
         private final ImportanceCalculator importanceCalculator = mock(ImportanceCalculator.class);
         private final GameEventExtractor gameEventExtractor = mock(GameEventExtractor.class);
         private final LiveSignalPublisher liveSignalPublisher = mock(LiveSignalPublisher.class);
-        private final SurgeDetector surgeDetector = mock(SurgeDetector.class);
         private final TimelineHighlightTrigger timelineHighlightTrigger = mock(TimelineHighlightTrigger.class);
-        private final SurgeNotificationPublisher surgeNotificationPublisher =
-                mock(SurgeNotificationPublisher.class);
         private final ApplicationEventPublisher applicationEventPublisher =
                 mock(ApplicationEventPublisher.class);
         private final Game game = liveGame();
@@ -183,9 +176,7 @@ class LiveScoringServiceCharacterizationTest {
                     importanceCalculator,
                     gameEventExtractor,
                     liveSignalPublisher,
-                    surgeDetector,
                     timelineHighlightTrigger,
-                    surgeNotificationPublisher,
                     properties,
                     applicationEventPublisher);
         }

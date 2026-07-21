@@ -24,7 +24,8 @@ class LiveSignalPublisherTest {
     private final HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
     private final LiveSignalPublisher publisher = new LiveSignalPublisher(
             rankingService,
-            redisTemplate
+            redisTemplate,
+            new LatestTagSelector()
     );
 
     @Test
