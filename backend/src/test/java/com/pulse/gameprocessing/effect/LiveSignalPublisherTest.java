@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pulse.ranking.RankingService;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -22,10 +24,13 @@ class LiveSignalPublisherTest {
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     @SuppressWarnings("unchecked")
     private final HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
+    private static final Duration LIVE_CACHE_TTL = Duration.ofHours(12);
+
     private final LiveSignalPublisher publisher = new LiveSignalPublisher(
             rankingService,
             redisTemplate,
-            new LatestTagSelector()
+            new LatestTagSelector(),
+            LIVE_CACHE_TTL
     );
 
     @Test
@@ -48,8 +53,23 @@ class LiveSignalPublisherTest {
 
         verify(rankingService).updateLive(100L, 87.4);
         verify(hashOperations).putAll(eq("game:100:live"), anyMap());
+        verify(redisTemplate).expire("game:100:live", LIVE_CACHE_TTL);
         verify(redisTemplate).convertAndSend("signal:game:100", "100");
         verify(redisTemplate).convertAndSend("signal:ranking", "changed");
+    }
+
+    @Test
+    @DisplayName("라이브 갱신마다 비상 TTL을 다시 걸어 진행 중 경기에서는 만료되지 않는다")
+    void publishLiveUpdate_shouldRefreshCacheTtlOnEveryUpdate() {
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
+        Instant first = Instant.parse("2026-07-08T05:00:00Z");
+
+        publisher.publishLiveUpdate(
+                100L, 87.4, 73, List.of("득점권 압박"), 8, "TOP", 42L, "LIVE", List.of(), first);
+        publisher.publishLiveUpdate(
+                100L, 88.1, 74, List.of("득점권 압박"), 9, "TOP", 43L, "LIVE", List.of(), first.plusSeconds(30));
+
+        verify(redisTemplate, times(2)).expire("game:100:live", LIVE_CACHE_TTL);
     }
 
     @Test

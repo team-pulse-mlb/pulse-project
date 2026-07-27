@@ -3,11 +3,13 @@ package com.pulse.gameprocessing.effect;
 import com.pulse.common.message.RedisSignalChannels;
 import com.pulse.common.metrics.PulseMetrics;
 import com.pulse.ranking.RankingService;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -23,7 +25,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(prefix = "pulse.game-processor", name = "enabled", havingValue = "true")
-@RequiredArgsConstructor
 public class LiveSignalPublisher {
 
     private static final String GAME_CACHE_PREFIX = "game:";
@@ -32,6 +33,29 @@ public class LiveSignalPublisher {
     private final RankingService rankingService;
     private final StringRedisTemplate redisTemplate;
     private final LatestTagSelector latestTagSelector;
+    private final Duration liveCacheTtl;
+
+    @Autowired
+    public LiveSignalPublisher(
+            RankingService rankingService,
+            StringRedisTemplate redisTemplate,
+            LatestTagSelector latestTagSelector,
+            @Value("${pulse.game-processor.live-cache-ttl-ms:43200000}") long liveCacheTtlMillis
+    ) {
+        this(rankingService, redisTemplate, latestTagSelector, Duration.ofMillis(liveCacheTtlMillis));
+    }
+
+    LiveSignalPublisher(
+            RankingService rankingService,
+            StringRedisTemplate redisTemplate,
+            LatestTagSelector latestTagSelector,
+            Duration liveCacheTtl
+    ) {
+        this.rankingService = rankingService;
+        this.redisTemplate = redisTemplate;
+        this.latestTagSelector = latestTagSelector;
+        this.liveCacheTtl = liveCacheTtl;
+    }
 
     /** 랭킹 ZSET·경기 HASH 캐시를 갱신하고 재조회 신호 2종을 발행한다. */
     public void publishLiveUpdate(
@@ -110,7 +134,12 @@ public class LiveSignalPublisher {
         if (lastPlayOrder != null) {
             hash.put("lastPlayOrder", String.valueOf(lastPlayOrder));
         }
-        redisTemplate.opsForHash().putAll(cacheKey(gameId), hash);
+        String key = cacheKey(gameId);
+        redisTemplate.opsForHash().putAll(key, hash);
+        // 캐시의 1차 수명주기는 종료 정리 시점의 evictGameCache다. TTL은 종료 ScoreTask가
+        // 유실돼 정리가 실행되지 않은 경기의 키가 영구 잔존하지 않게 하는 안전망이다.
+        // 갱신마다 다시 걸어 진행 중인 경기에서는 만료되지 않는다.
+        redisTemplate.expire(key, liveCacheTtl);
     }
 
     public void evictGameCache(long gameId) {
