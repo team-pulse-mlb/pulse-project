@@ -17,6 +17,17 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
         self.original_model = (
             play_translation_service.settings.openai_model
         )
+        self.original_play_translation_model = (
+            play_translation_service.settings.openai_play_translation_model
+        )
+        self.original_reasoning_effort = (
+            play_translation_service.settings.openai_reasoning_effort
+        )
+        self.original_play_translation_reasoning_effort = (
+            play_translation_service
+            .settings
+            .openai_play_translation_reasoning_effort
+        )
         self.original_temperature = (
             play_translation_service.settings.openai_temperature
         )
@@ -52,6 +63,19 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
             .openai_play_translation_retry_jitter_seconds
         )
 
+        # 로컬 .env 값과 무관하게 PLAY_TRANSLATION 모델 라우팅을 검증하도록
+        # 테스트 시작 시 명시적인 기본값을 사용합니다.
+        play_translation_service.settings.openai_model = "gpt-5-mini"
+        play_translation_service.settings.openai_play_translation_model = (
+            "gpt-5-mini"
+        )
+        play_translation_service.settings.openai_reasoning_effort = "low"
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_reasoning_effort
+        ) = "low"
+
         self.request = PlayTranslationRequest(
             game_id=5059041,
             play_id=312,
@@ -68,6 +92,17 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
         play_translation_service.settings.openai_model = (
             self.original_model
         )
+        play_translation_service.settings.openai_play_translation_model = (
+            self.original_play_translation_model
+        )
+        play_translation_service.settings.openai_reasoning_effort = (
+            self.original_reasoning_effort
+        )
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_reasoning_effort
+        ) = self.original_play_translation_reasoning_effort
         play_translation_service.settings.openai_temperature = (
             self.original_temperature
         )
@@ -191,13 +226,20 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
             "OPENAI_GENERATION_FAILED",
         )
 
-    def test_generate_openai_translation_uses_json_schema_without_temperature_for_luna(self):
+    def test_generate_openai_translation_uses_gpt_5_mini_with_low_reasoning(
+        self,
+    ):
         play_translation_service.settings.openai_api_key = (
             "fake-api-key"
         )
-        play_translation_service.settings.openai_model = (
-            "gpt-5.6-luna"
+        play_translation_service.settings.openai_play_translation_model = (
+            "gpt-5-mini"
         )
+        (
+            play_translation_service
+            .settings
+            .openai_play_translation_reasoning_effort
+        ) = "low"
         (
             play_translation_service
             .settings
@@ -243,7 +285,13 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
             .kwargs
         )
 
-        self.assertEqual(options["model"], "gpt-5.6-luna")
+        self.assertEqual(options["model"], "gpt-5-mini")
+        self.assertEqual(
+            options["reasoning"],
+            {
+                "effort": "low",
+            },
+        )
         self.assertIn(
             "Soto singled to center.",
             options["input"],
@@ -285,7 +333,7 @@ class PlayTranslationServiceTestCase(unittest.TestCase):
         self.assertNotIn("temperature", options)
 
     def test_build_response_create_options_includes_temperature_for_supported_model(self):
-        play_translation_service.settings.openai_model = (
+        play_translation_service.settings.openai_play_translation_model = (
             "gpt-4o-mini"
         )
         play_translation_service.settings.openai_temperature = 0.2

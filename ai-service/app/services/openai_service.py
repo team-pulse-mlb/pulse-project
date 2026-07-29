@@ -128,12 +128,13 @@ def _generate_openai_copy_with_retry(
     """
 
     max_attempts = _openai_ai_copy_max_attempts(request)
+    model = str(options.get("model", settings.openai_model))
 
     for attempt_number in range(1, max_attempts + 1):
         try:
             response = client.responses.create(**options)
 
-            return _parse_openai_response(response)
+            return _parse_openai_response(response, model=model)
         except SpoilerFreeSummaryGenerationError as exc:
             if not _should_retry_generation_error(
                 error=exc,
@@ -171,14 +172,18 @@ def _build_response_create_options(
     request: AiCopyRequest,
 ) -> dict[str, object]:
     """
-    OpenAI Responses API 호출 옵션을 모델 호환성에 맞게 구성합니다.
+    요청 목적에 맞는 모델과 reasoning 설정으로 Responses API 옵션을 구성합니다.
 
-    gpt-5.6-luna는 temperature 파라미터를 지원하지 않으므로
-    해당 모델 요청에서는 temperature 키 자체를 전달하지 않습니다.
+    FINAL_HEADLINE은 gpt-5-mini/low,
+    EVENT_COPY는 gpt-5.4-nano/none을 기본으로 사용합니다.
+    GPT-5 계열에는 temperature를 전달하지 않습니다.
     """
 
+    model = _openai_ai_copy_model(request)
+    reasoning_effort = _openai_ai_copy_reasoning_effort(request)
+
     options: dict[str, object] = {
-        "model": settings.openai_model,
+        "model": model,
         "input": build_spoiler_free_prompt(request),
         "max_output_tokens": settings.openai_max_output_tokens,
         "text": {
@@ -191,12 +196,12 @@ def _build_response_create_options(
         },
     }
 
-    if _supports_reasoning(settings.openai_model):
+    if _supports_reasoning(model):
         options["reasoning"] = {
-            "effort": settings.openai_reasoning_effort,
+            "effort": reasoning_effort,
         }
 
-    if _supports_temperature(settings.openai_model):
+    if _supports_temperature(model):
         options["temperature"] = settings.openai_temperature
 
     return options
@@ -262,24 +267,62 @@ def _ai_copy_response_schema(
     }
 
 
-def _supports_reasoning(model: str) -> bool:
+def _openai_ai_copy_model(
+    request: AiCopyRequest,
+) -> str:
     """
-    현재 사용 중인 GPT-5.6 계열 모델의 reasoning 옵션 지원 여부를 반환합니다.
+    AI-copy 요청 목적에 맞는 실제 OpenAI 모델을 반환합니다.
+
+    목적별 설정이 비어 있으면 Settings의 resolved property가
+    공통 openai_model로 fallback합니다.
     """
 
-    return model.startswith("gpt-5.6")
+    if isinstance(request, FinalHeadlineRequest):
+        return settings.resolved_openai_final_headline_model
+
+    if isinstance(request, EventCopyRequest):
+        return settings.resolved_openai_event_copy_model
+
+    return settings.openai_model
+
+
+def _openai_ai_copy_reasoning_effort(
+    request: AiCopyRequest,
+) -> str:
+    """
+    AI-copy 요청 목적에 맞는 실제 reasoning effort를 반환합니다.
+    """
+
+    if isinstance(request, FinalHeadlineRequest):
+        return settings.resolved_openai_final_headline_reasoning_effort
+
+    if isinstance(request, EventCopyRequest):
+        return settings.resolved_openai_event_copy_reasoning_effort
+
+    return settings.openai_reasoning_effort
+
+
+def _supports_reasoning(model: str) -> bool:
+    """
+    현재 AI-copy에 사용하는 GPT-5 계열 모델인지 확인합니다.
+    """
+
+    return model.startswith("gpt-5")
 
 
 def _supports_temperature(model: str) -> bool:
     """
-    현재 서비스에서 사용하는 모델의 temperature 지원 여부를 반환합니다.
+    GPT-5 계열에는 temperature를 전달하지 않도록 판단합니다.
+
+    기존 gpt-4o-mini 같은 비추론 모델의 호환성은 유지합니다.
     """
 
-    return not model.startswith("gpt-5.6-luna")
+    return not model.startswith("gpt-5")
 
 
 def _parse_openai_response(
     response: object,
+    model: str | None = None,
 ) -> dict[str, object]:
     """
     Responses API 상태를 먼저 검사한 뒤 visible output을 파싱합니다.
@@ -288,6 +331,7 @@ def _parse_openai_response(
     있으므로 단순 EMPTY_RESPONSE와 구분해서 업무 오류 코드로 변환합니다.
     """
 
+    effective_model = model or settings.openai_model
     status = getattr(response, "status", None)
     incomplete_details = getattr(response, "incomplete_details", None)
     incomplete_reason = getattr(incomplete_details, "reason", None)
@@ -305,7 +349,7 @@ def _parse_openai_response(
 
         logger.warning(
             "OpenAI response incomplete. model=%s reason=%s",
-            settings.openai_model,
+            effective_model,
             incomplete_reason,
         )
 
@@ -316,7 +360,7 @@ def _parse_openai_response(
     if not isinstance(raw_text, str) or not raw_text.strip():
         logger.warning(
             "OpenAI response has no visible output. model=%s status=%s",
-            settings.openai_model,
+            effective_model,
             status,
         )
 
@@ -518,7 +562,7 @@ def _log_ai_copy_retry(
         request.game_id,
         _ai_copy_purpose(request),
         request.mode.value,
-        settings.openai_model,
+        _openai_ai_copy_model(request),
         attempt_number,
         max_attempts,
         reason,

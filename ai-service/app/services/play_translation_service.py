@@ -171,12 +171,20 @@ def _build_response_create_options(
     request: PlayTranslationRequest,
 ) -> dict[str, object]:
     """
-    OpenAI Responses API 호출 옵션을
-    현재 서비스 모델 호환성에 맞게 구성합니다.
+    PLAY_TRANSLATION 전용 모델과 reasoning 설정으로
+    OpenAI Responses API 호출 옵션을 구성합니다.
+
+    기본 모델은 gpt-5-mini이고 reasoning effort는 low입니다.
+    GPT-5 계열에는 temperature를 전달하지 않습니다.
     """
 
+    model = settings.resolved_openai_play_translation_model
+    reasoning_effort = (
+        settings.resolved_openai_play_translation_reasoning_effort
+    )
+
     options: dict[str, object] = {
-        "model": settings.openai_model,
+        "model": model,
         "input": build_play_translation_prompt(request),
         "max_output_tokens": (
             settings.openai_max_output_tokens
@@ -206,7 +214,12 @@ def _build_response_create_options(
         },
     }
 
-    if _supports_temperature(settings.openai_model):
+    if _supports_reasoning(model):
+        options["reasoning"] = {
+            "effort": reasoning_effort,
+        }
+
+    if _supports_temperature(model):
         options["temperature"] = (
             settings.openai_temperature
         )
@@ -214,13 +227,22 @@ def _build_response_create_options(
     return options
 
 
-def _supports_temperature(model: str) -> bool:
+def _supports_reasoning(model: str) -> bool:
     """
-    현재 서비스에서 사용하는 모델의
-    temperature 지원 여부를 반환합니다.
+    현재 PLAY_TRANSLATION에 사용하는 GPT-5 계열 모델인지 확인합니다.
     """
 
-    return not model.startswith("gpt-5.6-luna")
+    return model.startswith("gpt-5")
+
+
+def _supports_temperature(model: str) -> bool:
+    """
+    GPT-5 계열에는 temperature를 전달하지 않습니다.
+
+    기존 gpt-4o-mini 같은 비추론 모델의 호환성은 유지합니다.
+    """
+
+    return not model.startswith("gpt-5")
 
 
 def _openai_play_translation_timeout_seconds() -> float:
@@ -368,7 +390,7 @@ def _log_play_translation_retry(
         request.game_id,
         request.play_id,
         request.mode.value,
-        settings.openai_model,
+        settings.resolved_openai_play_translation_model,
         attempt_number,
         max_attempts,
         reason,

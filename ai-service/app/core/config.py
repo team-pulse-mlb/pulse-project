@@ -16,12 +16,35 @@ class Settings(BaseSettings):
     app_env: str = "local"
 
     openai_api_key: str | None = None
-    openai_model: str = "gpt-5.6-luna"
+
+    # 목적별 모델 설정이 없는 경우 사용하는 공통 fallback입니다.
+    # FINAL_HEADLINE과 PLAY_TRANSLATION은 기본적으로 이 모델을 사용합니다.
+    openai_model: str = "gpt-5-mini"
+
+    # 기능별 모델 설정입니다.
+    #
+    # FINAL_HEADLINE:
+    # - 자연스러운 경기 요약과 근거 ID 반환이 중요하므로 gpt-5-mini를 사용합니다.
+    #
+    # EVENT_COPY:
+    # - 짧고 제한된 보호 문구이므로 비용과 속도를 우선해 gpt-5.4-nano를 사용합니다.
+    #
+    # PLAY_TRANSLATION:
+    # - 선수명, 숫자, 타구 방향, 경기 결과 보존이 중요하므로 gpt-5-mini를 사용합니다.
+    openai_final_headline_model: str | None = None
+    openai_event_copy_model: str | None = "gpt-5.4-nano"
+    openai_play_translation_model: str | None = None
+
     openai_temperature: float = 0.2
 
-    # 짧은 AI 문구 생성은 복잡한 추론이 필요하지 않으므로
-    # reasoning token 사용량과 지연시간을 줄이기 위해 low로 제한합니다.
+    # 목적별 추론 강도가 지정되지 않았을 때 사용하는 공통 fallback입니다.
     openai_reasoning_effort: str = "low"
+
+    # FINAL_HEADLINE과 PLAY_TRANSLATION은 공통 low를 사용합니다.
+    # 짧은 EVENT_COPY는 reasoning token과 지연시간을 줄이기 위해 none을 사용합니다.
+    openai_final_headline_reasoning_effort: str | None = None
+    openai_event_copy_reasoning_effort: str | None = "none"
+    openai_play_translation_reasoning_effort: str | None = None
 
     # reasoning 모델은 내부 reasoning token도 max_output_tokens를 사용합니다.
     # 200에서는 visible output 전에 한도가 끝날 수 있어 여유를 확보합니다.
@@ -58,6 +81,45 @@ class Settings(BaseSettings):
     openai_play_translation_retry_base_delay_seconds: float = 0.2
     openai_play_translation_retry_max_delay_seconds: float = 0.5
     openai_play_translation_retry_jitter_seconds: float = 0.05
+
+    @property
+    def resolved_openai_final_headline_model(self) -> str:
+        """FINAL_HEADLINE에 실제로 사용할 모델을 반환합니다."""
+        return self.openai_final_headline_model or self.openai_model
+
+    @property
+    def resolved_openai_event_copy_model(self) -> str:
+        """EVENT_COPY에 실제로 사용할 모델을 반환합니다."""
+        return self.openai_event_copy_model or self.openai_model
+
+    @property
+    def resolved_openai_play_translation_model(self) -> str:
+        """PLAY_TRANSLATION에 실제로 사용할 모델을 반환합니다."""
+        return self.openai_play_translation_model or self.openai_model
+
+    @property
+    def resolved_openai_final_headline_reasoning_effort(self) -> str:
+        """FINAL_HEADLINE에 실제로 사용할 추론 강도를 반환합니다."""
+        return (
+            self.openai_final_headline_reasoning_effort
+            or self.openai_reasoning_effort
+        )
+
+    @property
+    def resolved_openai_event_copy_reasoning_effort(self) -> str:
+        """EVENT_COPY에 실제로 사용할 추론 강도를 반환합니다."""
+        return (
+            self.openai_event_copy_reasoning_effort
+            or self.openai_reasoning_effort
+        )
+
+    @property
+    def resolved_openai_play_translation_reasoning_effort(self) -> str:
+        """PLAY_TRANSLATION에 실제로 사용할 추론 강도를 반환합니다."""
+        return (
+            self.openai_play_translation_reasoning_effort
+            or self.openai_reasoning_effort
+        )
 
     model_config = SettingsConfigDict(
         env_file=".env",
