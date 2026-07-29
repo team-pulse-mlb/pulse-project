@@ -15,6 +15,21 @@ class OpenAiServiceTestCase(unittest.TestCase):
     def setUp(self):
         self.original_api_key = openai_service.settings.openai_api_key
         self.original_model = openai_service.settings.openai_model
+        self.original_final_headline_model = (
+            openai_service.settings.openai_final_headline_model
+        )
+        self.original_event_copy_model = (
+            openai_service.settings.openai_event_copy_model
+        )
+        self.original_reasoning_effort = (
+            openai_service.settings.openai_reasoning_effort
+        )
+        self.original_final_headline_reasoning_effort = (
+            openai_service.settings.openai_final_headline_reasoning_effort
+        )
+        self.original_event_copy_reasoning_effort = (
+            openai_service.settings.openai_event_copy_reasoning_effort
+        )
         self.original_max_output_tokens = (
             openai_service.settings.openai_max_output_tokens
         )
@@ -53,6 +68,15 @@ class OpenAiServiceTestCase(unittest.TestCase):
             .openai_ai_copy_retry_jitter_seconds
         )
 
+        # 로컬 .env 값과 무관하게 목적별 모델 라우팅을 검증하도록
+        # 테스트 시작 시 명시적인 기본값을 사용합니다.
+        openai_service.settings.openai_model = "gpt-5-mini"
+        openai_service.settings.openai_final_headline_model = "gpt-5-mini"
+        openai_service.settings.openai_event_copy_model = "gpt-5.4-nano"
+        openai_service.settings.openai_reasoning_effort = "low"
+        openai_service.settings.openai_final_headline_reasoning_effort = "low"
+        openai_service.settings.openai_event_copy_reasoning_effort = "none"
+
         self.request = FinalHeadlineRequest(
             game_id=5059082,
             mode=AiCopyMode.PROTECTED,
@@ -70,6 +94,21 @@ class OpenAiServiceTestCase(unittest.TestCase):
     def tearDown(self):
         openai_service.settings.openai_api_key = self.original_api_key
         openai_service.settings.openai_model = self.original_model
+        openai_service.settings.openai_final_headline_model = (
+            self.original_final_headline_model
+        )
+        openai_service.settings.openai_event_copy_model = (
+            self.original_event_copy_model
+        )
+        openai_service.settings.openai_reasoning_effort = (
+            self.original_reasoning_effort
+        )
+        openai_service.settings.openai_final_headline_reasoning_effort = (
+            self.original_final_headline_reasoning_effort
+        )
+        openai_service.settings.openai_event_copy_reasoning_effort = (
+            self.original_event_copy_reasoning_effort
+        )
         openai_service.settings.openai_max_output_tokens = (
             self.original_max_output_tokens
         )
@@ -150,7 +189,7 @@ class OpenAiServiceTestCase(unittest.TestCase):
         self,
     ):
         openai_service.settings.openai_api_key = "fake-api-key"
-        openai_service.settings.openai_model = "gpt-4o-mini"
+        openai_service.settings.openai_final_headline_model = "gpt-4o-mini"
 
         with patch("app.services.openai_service.OpenAI") as mock_openai:
             mock_client = mock_openai.return_value
@@ -173,11 +212,12 @@ class OpenAiServiceTestCase(unittest.TestCase):
             {"safe_title": "후반 긴장감이 이어진 경기"},
         )
 
-    def test_generate_openai_copy_uses_json_schema_without_temperature_for_luna(
+    def test_final_headline_uses_gpt_5_mini_with_low_reasoning(
         self,
     ):
         openai_service.settings.openai_api_key = "fake-api-key"
-        openai_service.settings.openai_model = "gpt-5.6-luna"
+        openai_service.settings.openai_final_headline_model = "gpt-5-mini"
+        openai_service.settings.openai_final_headline_reasoning_effort = "low"
 
         with patch("app.services.openai_service.OpenAI") as mock_openai:
             mock_client = mock_openai.return_value
@@ -189,12 +229,12 @@ class OpenAiServiceTestCase(unittest.TestCase):
 
         request_options = mock_client.responses.create.call_args.kwargs
 
-        self.assertEqual(request_options["model"], "gpt-5.6-luna")
+        self.assertEqual(request_options["model"], "gpt-5-mini")
         self.assertNotIn("temperature", request_options)
         self.assertEqual(
             request_options["reasoning"],
             {
-                "effort": openai_service.settings.openai_reasoning_effort,
+                "effort": "low",
             },
         )
         self.assertEqual(
@@ -308,6 +348,30 @@ class OpenAiServiceTestCase(unittest.TestCase):
             {"safe_title": "재시도 후 이벤트 문구"},
         )
         self.assertEqual(mock_client.responses.create.call_count, 2)
+
+    def test_event_copy_uses_gpt_5_4_nano_with_none_reasoning(self):
+        request = EventCopyRequest(
+            game_id=5059041,
+            event_id=91,
+            mode=AiCopyMode.PROTECTED,
+            context_hash="event-91-protected-v1",
+            safe_context=SafeContext(
+                event_type="pressure_bases_loaded",
+                label="만루 승부",
+                inning=7,
+            ),
+        )
+
+        options = openai_service._build_response_create_options(request)
+
+        self.assertEqual(options["model"], "gpt-5.4-nano")
+        self.assertEqual(
+            options["reasoning"],
+            {
+                "effort": "none",
+            },
+        )
+        self.assertNotIn("temperature", options)
 
     def test_event_copy_schema_does_not_require_headline_evidence_ids(self):
         request = EventCopyRequest(

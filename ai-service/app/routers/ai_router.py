@@ -161,6 +161,22 @@ def _copy_purpose(
     return "EVENT_COPY"
 
 
+def _copy_model(
+    request: FinalHeadlineRequest | EventCopyRequest,
+) -> str:
+    """
+    요청 목적에 실제로 적용되는 OpenAI 모델을 반환한다.
+
+    운영 로그에는 공통 fallback 모델이 아니라
+    FINAL_HEADLINE / EVENT_COPY 전용 라우팅 결과를 기록한다.
+    """
+
+    if isinstance(request, FinalHeadlineRequest):
+        return settings.resolved_openai_final_headline_model
+
+    return settings.resolved_openai_event_copy_model
+
+
 def _copy_event_id(
     request: FinalHeadlineRequest | EventCopyRequest,
 ) -> int | None:
@@ -193,7 +209,7 @@ def _log_copy_failure(
         request.game_id,
         _copy_event_id(request),
         request.mode.value,
-        settings.openai_model,
+        _copy_model(request),
         violations,
     )
 
@@ -211,7 +227,7 @@ def _log_copy_success(
         request.game_id,
         _copy_event_id(request),
         request.mode.value,
-        settings.openai_model,
+        _copy_model(request),
         [],
     )
 
@@ -411,7 +427,7 @@ def _log_play_translation_failure(
         request.game_id,
         request.play_id,
         request.mode.value,
-        settings.openai_model,
+        settings.resolved_openai_play_translation_model,
         violations,
     )
 
@@ -429,7 +445,7 @@ def _log_play_translation_success(
         request.game_id,
         request.play_id,
         request.mode.value,
-        settings.openai_model,
+        settings.resolved_openai_play_translation_model,
         [],
     )
 
